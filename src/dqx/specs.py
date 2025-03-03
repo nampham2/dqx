@@ -1,0 +1,444 @@
+from collections.abc import Sequence
+from typing import Any, Literal, Protocol, Self, Type, runtime_checkable
+
+from dqx import ops, states
+from dqx.common import Parameters
+
+MetricType = Literal[
+    "NumRows",
+    "First",
+    "Average",
+    "Variance",
+    "Minimum",
+    "Maximum",
+    "Sum",
+    "NullCount",
+    "NegativeCount",
+    "ApproxCardinality",
+]
+
+
+@runtime_checkable
+class MetricSpec(Protocol):
+    metric_type: MetricType
+
+    @property
+    def name(self) -> str: ...
+
+    def label(self, label: str) -> Self: ...
+
+    @property
+    def parameters(self) -> Parameters: ...
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]: ...
+
+    def state(self) -> states.State: ...
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State: ...
+
+    def __hash__(self) -> int: ...
+
+    def __eq__(self, other: Any) -> bool: ...
+
+
+class NumRows:
+    metric_type: MetricType = "NumRows"
+
+    def __init__(self) -> None:
+        self._analyzers = (ops.NumRows(),)
+
+    @property
+    def name(self) -> str:
+        return "num_rows()"
+
+    def label(self, label: str) -> Self:
+        return self
+
+    @property
+    def parameters(self) -> Parameters:
+        return {}
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return self._analyzers
+
+    def state(self) -> states.SimpleAdditiveState:
+        num_rows = self._analyzers[0].value()
+        return states.SimpleAdditiveState(value=num_rows)
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.SimpleAdditiveState.deserialize(state)
+
+    def __hash__(self) -> int:
+        return hash((self.name, tuple(self.parameters.items())))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, NumRows):
+            return False
+        return self.name == other.name and self.parameters == other.parameters
+
+
+class First:
+    metric_type: MetricType = "First"
+
+    def __init__(self, column: str) -> None:
+        self._column = column
+        self._analyzers = (ops.First(self._column),)
+
+    @property
+    def name(self) -> str:
+        return f"first({self._column})"
+
+    def label(self, label: str) -> Self:
+        return self
+
+    @property
+    def parameters(self) -> Parameters:
+        return {"column": self._column}
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return self._analyzers
+
+    def state(self) -> states.First:
+        return states.First(value=self._analyzers[0].value())
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.First.deserialize(state)
+
+    def __hash__(self) -> int:
+        return hash((self.name, tuple(self.parameters.items())))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, First):
+            return False
+        return self.name == other.name and self.parameters == other.parameters
+
+
+class Average:
+    metric_type: MetricType = "Average"
+
+    def __init__(self, column: str) -> None:
+        self._column = column
+        self._analyzers = (ops.NumRows(), ops.Average(self._column))
+
+    @property
+    def name(self) -> str:
+        return f"average({self._column})"
+
+    def label(self, label: str) -> Self:
+        return self
+
+    @property
+    def parameters(self) -> Parameters:
+        return {"column": self._column}
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return self._analyzers
+
+    def state(self) -> states.Average:
+        num_rows, avg = self._analyzers[0].value(), self._analyzers[1].value()
+        return states.Average(avg=avg, n=num_rows)
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.Average.deserialize(state)
+
+    def __hash__(self) -> int:
+        return hash((self.name, tuple(self.parameters.items())))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, Average):
+            return False
+        return self.name == other.name and self.parameters == other.parameters
+
+
+class Variance:
+    metric_type: MetricType = "Variance"
+
+    def __init__(self, column: str) -> None:
+        self._column = column
+        self._analyzers = (ops.NumRows(), ops.Average(self._column), ops.Variance(self._column))
+
+    @property
+    def name(self) -> str:
+        return f"variance({self._column})"
+
+    def label(self, label: str) -> Self:
+        return self
+
+    @property
+    def parameters(self) -> Parameters:
+        return {"column": self._column}
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return self._analyzers
+
+    def state(self) -> states.Variance:
+        num_rows, avg, var = self._analyzers[0].value(), self._analyzers[1].value(), self._analyzers[2].value()
+        return states.Variance(var=var, avg=avg, n=num_rows)
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.Variance.deserialize(state)
+
+    def __hash__(self) -> int:
+        return hash((self.name, tuple(self.parameters.items())))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, Variance):
+            return False
+        return self.name == other.name and self.parameters == other.parameters
+
+
+class Minimum:
+    metric_type: MetricType = "Minimum"
+
+    def __init__(self, column: str) -> None:
+        self._column = column
+        self._analyzers = (ops.Minimum(self._column),)
+
+    @property
+    def name(self) -> str:
+        return f"minimum({self._column})"
+
+    def label(self, label: str) -> Self:
+        return self
+
+    @property
+    def parameters(self) -> Parameters:
+        return {"column": self._column}
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return self._analyzers
+
+    def state(self) -> states.Minimum:
+        return states.Minimum(value=self._analyzers[0].value())
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.Minimum.deserialize(state)
+
+    def __hash__(self) -> int:
+        return hash((self.name, tuple(self.parameters.items())))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, Minimum):
+            return False
+        return self.name == other.name and self.parameters == other.parameters
+
+
+class Maximum:
+    metric_type: MetricType = "Maximum"
+
+    def __init__(self, column: str) -> None:
+        self._column = column
+        self._analyzers = (ops.Maximum(self._column),)
+
+    @property
+    def name(self) -> str:
+        return f"maximum({self._column})"
+
+    def label(self, label: str) -> Self:
+        return self
+
+    @property
+    def parameters(self) -> Parameters:
+        return {"column": self._column}
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return self._analyzers
+
+    def state(self) -> states.Maximum:
+        return states.Maximum(value=self._analyzers[0].value())
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.Maximum.deserialize(state)
+
+    def __hash__(self) -> int:
+        return hash((self.name, tuple(self.parameters.items())))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, Maximum):
+            return False
+        return self.name == other.name and self.parameters == other.parameters
+
+
+class Sum:
+    metric_type: MetricType = "Sum"
+
+    def __init__(self, column: str) -> None:
+        self._column = column
+        self._analyzers = (ops.Sum(self._column),)
+
+    @property
+    def name(self) -> str:
+        return f"sum({self._column})"
+
+    def label(self, label: str) -> Self:
+        return self
+
+    @property
+    def parameters(self) -> Parameters:
+        return {"column": self._column}
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return self._analyzers
+
+    def state(self) -> states.SimpleAdditiveState:
+        return states.SimpleAdditiveState(value=self._analyzers[0].value())
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.SimpleAdditiveState.deserialize(state)
+
+    def __hash__(self) -> int:
+        return hash((self.name, tuple(self.parameters.items())))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, Sum):
+            return False
+        return self.name == other.name and self.parameters == other.parameters
+
+
+class NullCount:
+    metric_type: MetricType = "NullCount"
+
+    def __init__(self, column: str) -> None:
+        self._column = column
+        self._analyzers = (ops.NullCount(self._column),)
+
+    @property
+    def name(self) -> str:
+        return f"null_count({self._column})"
+
+    def label(self, label: str) -> Self:
+        return self
+
+    @property
+    def parameters(self) -> Parameters:
+        return {"column": self._column}
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return self._analyzers
+
+    def state(self) -> states.SimpleAdditiveState:
+        return states.SimpleAdditiveState(value=self._analyzers[0].value())
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.SimpleAdditiveState.deserialize(state)
+
+    def __hash__(self) -> int:
+        return hash((self.name, tuple(self.parameters.items())))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, NullCount):
+            return False
+        return self.name == other.name and self.parameters == other.parameters
+
+
+class NegativeCount:
+    metric_type: MetricType = "NegativeCount"
+
+    def __init__(self, column: str) -> None:
+        self._column = column
+        self._analyzers = (ops.NegativeCount(self._column),)
+
+    @property
+    def name(self) -> str:
+        return f"non_negative({self._column})"
+
+    def label(self, label: str) -> Self:
+        return self
+
+    @property
+    def parameters(self) -> Parameters:
+        return {"column": self._column}
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return self._analyzers
+
+    def state(self) -> states.SimpleAdditiveState:
+        return states.SimpleAdditiveState(value=self._analyzers[0].value())
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.SimpleAdditiveState.deserialize(state)
+
+    def __hash__(self) -> int:
+        return hash((self.name, tuple(self.parameters.items())))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, NegativeCount):
+            return False
+        return self.name == other.name and self.parameters == other.parameters
+
+
+class ApproxCardinality:
+    metric_type: MetricType = "ApproxCardinality"
+
+    def __init__(self, column: str) -> None:
+        self._column = column
+        self._analyzers = (ops.ApproxCardinality(self._column),)
+
+    @property
+    def name(self) -> str:
+        return f"approx_cardinality({self._column})"
+
+    def label(self, label: str) -> Self:
+        return self
+
+    @property
+    def parameters(self) -> Parameters:
+        return {"column": self._column}
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return self._analyzers
+
+    # TODO(npham): rename the state method
+    # TODO(npham): The analyzer returns ApproxCardinality instead of a CPC sketch.
+    #              This is because the analyzer does not know which sketch class to use.
+    #              This is inconsistent with the SQLSketch. Let's decide the unified returning values of analyzers: spec or value.
+    def state(self) -> states.CardinalitySketch:
+        return self._analyzers[0].value()
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.CardinalitySketch.deserialize(state)
+
+    def __hash__(self) -> int:
+        return hash((self.name, tuple(self.parameters.items())))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, ApproxCardinality):
+            return False
+        return self.name == other.name and self.parameters == other.parameters
+
+
+# TODO(npham): Create the registry automatically with reflection
+registry: dict[MetricType, Type[MetricSpec]] = {
+    "NumRows": NumRows,
+    "First": First,
+    "Average": Average,
+    "Minimum": Minimum,
+    "Maximum": Maximum,
+    "Sum": Sum,
+    "NegativeCount": NegativeCount,
+    "NullCount": NullCount,
+    "ApproxCardinality": ApproxCardinality,
+    "Variance": Variance,
+}
