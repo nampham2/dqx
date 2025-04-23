@@ -5,7 +5,7 @@ from collections.abc import Iterator
 import pytest
 from rich.console import Console
 
-from tests.fixtures.data_fixtures import commerce_data, commerce_table  # noqa: F401
+from tests.fixtures.data_fixtures import commerce_data_c1, commerce_data_c2  # noqa: F401
 
 LOG_FORMAT = "[%(asctime)s] %(levelname)s [%(name)s.%(funcName)s:%(lineno)d] %(message)s"
 LOG_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"

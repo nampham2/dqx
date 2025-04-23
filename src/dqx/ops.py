@@ -105,12 +105,12 @@ class Average(OpValueMixin[float], SqlOp[float]):
 
     def __init__(self, column: str) -> None:
         OpValueMixin.__init__(self)
-        self._column = column
+        self.column = column
         self._prefix = random_prefix()
 
     @property
     def name(self) -> str:
-        return f"average({self._column})"
+        return f"average({self.column})"
 
     @property
     def prefix(self) -> str:
@@ -122,15 +122,15 @@ class Average(OpValueMixin[float], SqlOp[float]):
 
     @property
     def sql(self) -> str:
-        return f"AVG({self._column}) AS '{self.sql_col}'"
+        return f"AVG({self.column}) AS '{self.sql_col}'"
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Average):
             return NotImplemented
-        return self._column == other._column
+        return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self._column))
+        return hash((self.name, self.column))
 
     def __repr__(self) -> str:
         return self.name
@@ -144,12 +144,12 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
 
     def __init__(self, column: str) -> None:
         OpValueMixin.__init__(self)
-        self._column = column
+        self.column = column
         self._prefix = random_prefix()
 
     @property
     def name(self) -> str:
-        return f"minimum({self._column})"
+        return f"minimum({self.column})"
 
     @property
     def prefix(self) -> str:
@@ -161,15 +161,15 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
 
     @property
     def sql(self) -> str:
-        return f"MIN({self._column}) AS '{self.sql_col}'"
+        return f"MIN({self.column}) AS '{self.sql_col}'"
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Minimum):
             return NotImplemented
-        return self._column == other._column
+        return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self._column))
+        return hash((self.name, self.column))
 
     def __repr__(self) -> str:
         return self.name
@@ -183,12 +183,12 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
 
     def __init__(self, column: str) -> None:
         OpValueMixin.__init__(self)
-        self._column = column
+        self.column = column
         self._prefix = random_prefix()
 
     @property
     def name(self) -> str:
-        return f"maximum({self._column})"
+        return f"maximum({self.column})"
 
     @property
     def prefix(self) -> str:
@@ -200,15 +200,15 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
 
     @property
     def sql(self) -> str:
-        return f"MAX({self._column}) AS '{self.sql_col}'"
+        return f"MAX({self.column}) AS '{self.sql_col}'"
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Maximum):
             return NotImplemented
-        return self._column == other._column
+        return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self._column))
+        return hash((self.name, self.column))
 
     def __repr__(self) -> str:
         return self.name
@@ -222,12 +222,12 @@ class Sum(OpValueMixin[float], SqlOp[float]):
 
     def __init__(self, column: str) -> None:
         OpValueMixin.__init__(self)
-        self._column = column
+        self.column = column
         self._prefix = random_prefix()
 
     @property
     def name(self) -> str:
-        return f"sum({self._column})"
+        return f"sum({self.column})"
 
     @property
     def prefix(self) -> str:
@@ -239,15 +239,15 @@ class Sum(OpValueMixin[float], SqlOp[float]):
 
     @property
     def sql(self) -> str:
-        return f"SUM({self._column}) AS '{self.sql_col}'"
+        return f"SUM({self.column}) AS '{self.sql_col}'"
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Sum):
             return NotImplemented
-        return self._column == other._column
+        return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self._column))
+        return hash((self.name, self.column))
 
     def __repr__(self) -> str:
         return self.name
@@ -261,12 +261,12 @@ class Variance(OpValueMixin[float], SqlOp[float]):
 
     def __init__(self, column: str) -> None:
         OpValueMixin.__init__(self)
-        self._column = column
+        self.column = column
         self._prefix = random_prefix()
 
     @property
     def name(self) -> str:
-        return f"variance({self._column})"
+        return f"variance({self.column})"
 
     @property
     def prefix(self) -> str:
@@ -278,15 +278,15 @@ class Variance(OpValueMixin[float], SqlOp[float]):
 
     @property
     def sql(self) -> str:
-        return f"VARIANCE({self._column}) AS '{self.sql_col}'"
+        return f"VARIANCE({self.column}) AS '{self.sql_col}'"
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Sum):
             return NotImplemented
-        return self._column == other._column
+        return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self._column))
+        return hash((self.name, self.column))
 
     def __repr__(self) -> str:
         return self.name
@@ -300,12 +300,12 @@ class First(OpValueMixin[float], SqlOp[float]):
 
     def __init__(self, column: str) -> None:
         OpValueMixin.__init__(self)
-        self._column = column
+        self.column = column
         self._prefix = random_prefix()
 
     @property
     def name(self) -> str:
-        return f"first({self._column})"
+        return f"first({self.column})"
 
     @property
     def prefix(self) -> str:
@@ -317,15 +317,15 @@ class First(OpValueMixin[float], SqlOp[float]):
 
     @property
     def sql(self) -> str:
-        return f"FIRST({self._column}) AS '{self.sql_col}'"
+        return f"FIRST({self.column}) AS '{self.sql_col}'"
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, First):
             return NotImplemented
-        return self._column == other._column
+        return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self._column))
+        return hash((self.name, self.column))
 
     def __repr__(self) -> str:
         return self.name
@@ -339,12 +339,12 @@ class NullCount(OpValueMixin[float], SqlOp[float]):
 
     def __init__(self, column: str) -> None:
         OpValueMixin.__init__(self)
-        self._column = column
+        self.column = column
         self._prefix = random_prefix()
 
     @property
     def name(self) -> str:
-        return f"null_count({self._column})"
+        return f"null_count({self.column})"
 
     @property
     def prefix(self) -> str:
@@ -356,15 +356,15 @@ class NullCount(OpValueMixin[float], SqlOp[float]):
 
     @property
     def sql(self) -> str:
-        return f"COUNT_IF({self._column} IS NULL) AS '{self.sql_col}'"
+        return f"COUNT_IF({self.column} IS NULL) AS '{self.sql_col}'"
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, NullCount):
             return NotImplemented
-        return self._column == other._column
+        return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self._column))
+        return hash((self.name, self.column))
 
     def __repr__(self) -> str:
         return self.name
@@ -378,12 +378,12 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
 
     def __init__(self, column: str) -> None:
         OpValueMixin.__init__(self)
-        self._column = column
+        self.column = column
         self._prefix = random_prefix()
 
     @property
     def name(self) -> str:
-        return f"negative_count({self._column})"
+        return f"negative_count({self.column})"
 
     @property
     def prefix(self) -> str:
@@ -395,15 +395,15 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
 
     @property
     def sql(self) -> str:
-        return f"COUNT_IF({self._column} < 0.0) AS '{self.sql_col}'"
+        return f"COUNT_IF({self.column} < 0.0) AS '{self.sql_col}'"
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, NegativeCount):
             return NotImplemented
-        return self._column == other._column
+        return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self._column))
+        return hash((self.name, self.column))
 
     def __repr__(self) -> str:
         return self.name
@@ -417,16 +417,16 @@ class ApproxCardinality(OpValueMixin[states.CardinalitySketch], SketchOp[states.
 
     def __init__(self, column: str) -> None:
         OpValueMixin.__init__(self)
-        self._column = column
+        self.column = column
         self._prefix = random_prefix()
 
     @property
     def name(self) -> str:
-        return f"approx_cardinality({self._column})"
+        return f"approx_cardinality({self.column})"
 
     @property
     def sketch_column(self) -> str:
-        return self._column
+        return self.column
 
     @property
     def prefix(self) -> str:
@@ -439,10 +439,10 @@ class ApproxCardinality(OpValueMixin[states.CardinalitySketch], SketchOp[states.
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, ApproxCardinality):
             return NotImplemented
-        return self._column == other._column
+        return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self._column))
+        return hash((self.name, self.column))
 
     def __repr__(self) -> str:
         return self.name

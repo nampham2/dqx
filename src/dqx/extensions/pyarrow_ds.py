@@ -30,7 +30,7 @@ class ArrowDataSource:
 
 
 class ArrowBatchDataSource:
-    name: str = "pyarrow"
+    name: str = "pyarrow_batch"
     analyzer_class = Analyzer
 
     def __init__(self, batches: Iterable[pa.RecordBatch | pa.Table]) -> None:

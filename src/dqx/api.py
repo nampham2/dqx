@@ -34,20 +34,17 @@ class SymbolicAssert:
         self._validator: SymbolicValidator | None = None
         self.listeners = listeners
 
-    def label(self, label: str) -> Self:
+    def on(
+        self, *, label: str | None = None, severity: SeverityLevel | None = None
+    ) -> Self:
         self._label = label
-
-        # Update listeners
-        for listener in self.listeners:
-            listener.set_label(label)
-        return self
-
-    def severity(self, severity: SeverityLevel) -> Self:
         self._severity = severity
 
-        # Update listeners
         for listener in self.listeners:
-            listener.set_severity(severity)
+            if severity:
+                listener.set_severity(severity)
+            if label:
+                listener.set_label(label)
 
         return self
 
@@ -108,18 +105,14 @@ class Context:
 
         return sa
 
-    def pending_metrics(self) -> Sequence[MetricSpec]:
-        return list(set(node.spec for node in self._graph.pending_metrics()))
+    def pending_metrics(self, dataset: str) -> Sequence[MetricSpec]:
+        return list(set(node.spec for node in self._graph.pending_metrics(dataset)))
 
-    def eval_symbols(self, key: ResultKey) -> None:
+    def evaluate(self, key: ResultKey) -> None:
         for symbol in self._graph.ready_symbols():
             symbol.evaluate(key)
-
-    def validate(self, key: ResultKey) -> None:
-        self.eval_symbols(key)
         for assertion in self._graph.assertions():
             assertion.evaluate()
-
 
 class VerificationSuite:
     def __init__(
@@ -147,7 +140,7 @@ class VerificationSuite:
         for assertion in context._graph.assertions():
             for sym in sorted(assertion.actual.free_symbols, key=lambda x: str(x), reverse=False):
                 sm = self._provider.get_symbol(sym)
-                assertion.add_child(symbol_node := graph.SymbolNode(name=sm.name, symbol=sm.symbol, fn=sm.fn))
+                assertion.add_child(symbol_node := graph.SymbolNode(name=sm.name, symbol=sm.symbol, fn=sm.fn, datasets=sm.datasets))
                 for d_spec, d_key in sm.dependencies:
                     symbol_node.add_child(
                         metric_node := graph.MetricNode(spec=d_spec, key_provider=d_key, nominal_key=key)
@@ -164,22 +157,28 @@ class VerificationSuite:
 
         return context
 
-    def run(self, ds: DuckDataSource, key: ResultKey, threading: bool = False) -> Context:
+    def run(self, datasources: dict[str, DuckDataSource], key: ResultKey, threading: bool = False) -> Context:
+        if len(datasources) == 0:
+            raise DQXError("No data sources provided!")
+
         # Create a context
         ctx = self.collect(key)
+        ctx._graph.propagate(list(datasources.keys()))
 
-        # Analyze the data source
-        analyzer: Analyzer = ds.analyzer_class()
+        # Run the checks per dataset
+        for ds_name, ds in datasources.items():
+            # Analyze the data source
+            analyzer: Analyzer = ds.analyzer_class()
 
-        try:
-            analyzer.analyze(ds, ctx.pending_metrics(), key, threading=threading)
-            analyzer.persist(self._provider._db)
-            ctx._graph.mark_pending_metrics_ready()
-        except Exception as e:
-            ctx._graph.mark_pending_metric_failed(str(e))
+            try:
+                analyzer.analyze(ds, ctx.pending_metrics(ds_name), key, threading=threading)
+                analyzer.persist(self._provider._db)
+                ctx._graph.mark_pending_metrics_success(ds_name)
+            except Exception as e:
+                ctx._graph.mark_pending_metric_failed(ds_name, str(e))
 
         # Run the checks
-        ctx.validate(key)
+        ctx.evaluate(key)
 
         return ctx
 
@@ -189,9 +188,10 @@ def _create_check(
     context: Context,
     _check: CheckProducer,
     tags: list[str] = [],
-    description: str | None = None,
+    label: str | None = None,
+    datasets: list[str] | None = None,
 ) -> None:
-    node = graph.CheckNode(name=_check.__name__, tags=tags, description=description)
+    node = graph.CheckNode(name=_check.__name__, tags=tags, label=label, datasets=datasets)
 
     if context._graph.exists(node):
         raise DQXError(f"Check {node.name} already exists in the graph!")
@@ -207,30 +207,26 @@ def check(_check: CheckProducer) -> CheckProducer: ...
 
 
 @overload
-def check(*, tags: list[str] = [], description: str | None = None) -> CheckCreator: ...
+def check(
+    *, tags: list[str] = [], label: str | None = None, datasets: list[str] | None = None
+) -> CheckCreator: ...
 
 
 def check(
-    _check: CheckProducer | None = None, *, tags: list[str] = [], description: str | None = None
+    _check: CheckProducer | None = None,
+    *,
+    tags: list[str] = [],
+    label: str | None = None,
+    datasets: list[str] | None = None,
 ) -> CheckProducer | CheckCreator:
     if _check is not None:
         return functools.wraps(_check)(
-            functools.partial(
-                _create_check,
-                _check=_check,
-                tags=tags,
-                description=description,
-            )
+            functools.partial(_create_check, _check=_check, tags=tags, label=label, datasets=datasets)
         )
 
     def decorator(fn: CheckProducer) -> CheckProducer:
         return functools.wraps(fn)(
-            functools.partial(
-                _create_check,
-                _check=fn,
-                tags=tags,
-                description=description,
-            )
+            functools.partial(_create_check, _check=fn, tags=tags, label=label, datasets=datasets)
         )
 
     return decorator
