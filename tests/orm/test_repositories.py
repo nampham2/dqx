@@ -1,11 +1,11 @@
 import datetime as dt
 
 import pytest
-from returns.maybe import Some
+from returns.maybe import Some, Nothing
 from rich.console import Console
 
 from dqx import specs, states
-from dqx.common import ResultKey
+from dqx.common import ResultKey, DQXError
 from dqx.models import Metric
 from dqx.orm import repositories
 from dqx.orm.repositories import InMemoryMetricDB
@@ -70,3 +70,88 @@ def test_get_metric_window(metric_window: list[Metric], key: ResultKey) -> None:
     assert max(value.keys()) == dt.date.fromisoformat("2025-02-03")
     assert min(value.values()) == pytest.approx(5.2)
     assert max(value.values()) == pytest.approx(5.2)
+
+
+def test_get_missing_metric_by_uuid(key: ResultKey) -> None:
+    """Test getting a non-existent metric by UUID returns empty Maybe."""
+    db = InMemoryMetricDB()
+    import uuid
+    non_existent_id = uuid.uuid4()
+    result = db.get(non_existent_id)
+    assert result == Nothing
+
+
+def test_get_missing_metric_by_key(key: ResultKey) -> None:
+    """Test getting a non-existent metric by ResultKey returns empty Maybe."""
+    db = InMemoryMetricDB()
+    spec = specs.Average("non_existent_column")
+    result = db.get(key, spec)
+    assert result == Nothing
+
+
+def test_get_with_result_key_no_spec(key: ResultKey) -> None:
+    """Test that using ResultKey without MetricSpec raises DQXError."""
+    db = InMemoryMetricDB()
+    with pytest.raises(DQXError, match="MetricSpec must be provided when using ResultKey"):
+        db.get(key)  # type: ignore[call-overload]
+
+
+def test_get_with_unsupported_key_type() -> None:
+    """Test that using unsupported key type raises DQXError."""
+    db = InMemoryMetricDB()
+    with pytest.raises(DQXError, match="Unsupported key type"):
+        db.get("invalid_key")  # type: ignore
+
+
+def test_search_empty_expressions() -> None:
+    """Test that searching with no filter expressions raises DQXError."""
+    db = InMemoryMetricDB()
+    with pytest.raises(DQXError, match="Filter expressions cannot be empty"):
+        db.search()
+
+
+def test_get_metric_value_missing(key: ResultKey) -> None:
+    """Test getting value for non-existent metric returns empty Maybe."""
+    db = InMemoryMetricDB()
+    spec = specs.Average("non_existent_column")
+    result = db.get_metric_value(spec, key)
+    assert result == Nothing
+
+
+def test_get_metric_window_missing(key: ResultKey) -> None:
+    """Test getting window for non-existent metric returns Some with empty dict."""
+    db = InMemoryMetricDB()
+    spec = specs.Average("non_existent_column")
+    result = db.get_metric_window(spec, key, lag=1, window=5)
+    assert result == Some({})
+
+
+def test_metric_to_spec(metric_1: Metric) -> None:
+    """Test that Metric.to_spec() returns the correct MetricSpec."""
+    db = InMemoryMetricDB()
+    persisted_metric = list(db.persist([metric_1]))[0]
+    
+    # Get the database metric directly to test to_spec method
+    db_metric = db.new_session().get(repositories.Metric, persisted_metric.metric_id)
+    assert db_metric is not None
+    
+    spec = db_metric.to_spec()
+    assert spec.metric_type == "Average"
+    assert spec.parameters == {"column": "page_views"}
+
+
+def test_get_metric_window_with_no_scalars_result(key: ResultKey) -> None:
+    """Test get_metric_window when session.scalars returns None."""
+    from unittest.mock import Mock, patch
+    
+    db = InMemoryMetricDB()
+    spec = specs.Average("test_column")
+    
+    # Mock the session to return None from scalars()
+    with patch.object(db, 'new_session') as mock_session:
+        mock_session_instance = Mock()
+        mock_session_instance.scalars.return_value = None
+        mock_session.return_value = mock_session_instance
+        
+        result = db.get_metric_window(spec, key, lag=1, window=5)
+        assert result == Nothing
