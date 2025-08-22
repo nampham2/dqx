@@ -76,6 +76,7 @@ class Average(State):
 
         if n == 0 and not math.isnan(avg):
             raise DQXError("Cannot have non-zero average with zero count!")
+
         self._avg = float(avg)
         self._n = n
 

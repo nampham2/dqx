@@ -76,7 +76,7 @@ class RootNode(NodeMixin["CheckNode"], Node["CheckNode"]):
         queue: deque = deque([self])
 
         while queue:
-            node = queue.pop()
+            node = queue.popleft()
             if isinstance(node, AssertionNode):
                 yield node
             else:
@@ -86,7 +86,7 @@ class RootNode(NodeMixin["CheckNode"], Node["CheckNode"]):
         queue: deque = deque([self])
 
         while queue:
-            node = queue.pop()
+            node = queue.popleft()
             if isinstance(node, CheckNode):
                 yield node
             else:
@@ -96,7 +96,7 @@ class RootNode(NodeMixin["CheckNode"], Node["CheckNode"]):
         queue: deque = deque([self])
 
         while queue:
-            node = queue.pop()
+            node = queue.popleft()
             if isinstance(node, MetricNode):
                 yield node
             else:
@@ -106,7 +106,7 @@ class RootNode(NodeMixin["CheckNode"], Node["CheckNode"]):
         queue: deque = deque([self])
 
         while queue:
-            node = queue.pop()
+            node = queue.popleft()
             if isinstance(node, SymbolNode):
                 yield node
             else:

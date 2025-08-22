@@ -18,8 +18,8 @@ from rich.console import Console
 from dqx import models
 from dqx.common import (
     DQXError,
-    DuckBatchDataSource,
-    DuckDataSource,
+    BatchSqlDataSource,
+    SqlDataSource,
     ResultKey,
 )
 from dqx.ops import SketchOp, SqlOp
@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 ColumnName = str
 MetricKey = tuple[MetricSpec, ResultKey]
 
-T = TypeVar("T", bound=DuckDataSource)
+T = TypeVar("T", bound=SqlDataSource)
 
 
 class AnalysisReport(UserDict[MetricKey, models.Metric]):
@@ -104,7 +104,6 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp]) -> None:
         op.assign(result[cols[op]][0])
 
 
-# TODO(npham): Analyze datasources in parallel
 class Analyzer:
     """
     The Analyzer class is responsible for analyzing data from DuckDataSource or DuckBatchDataSource
@@ -126,27 +125,26 @@ class Analyzer:
 
     def analyze(
         self,
-        ds: DuckDataSource | DuckBatchDataSource,
+        ds: SqlDataSource | BatchSqlDataSource,
         metrics: Sequence[MetricSpec],
         key: ResultKey,
         threading: bool = False,
     ) -> AnalysisReport:
-        if isinstance(ds, DuckBatchDataSource):
+        if isinstance(ds, BatchSqlDataSource):
             if threading:
                 return self._analyze_batches_threaded(ds, metrics, key)
             else:
                 return self._analyze_batches(ds, metrics, key)
 
-        if isinstance(ds, DuckDataSource):
+        if isinstance(ds, SqlDataSource):
             return self.analyze_single(ds, metrics, key)
 
         raise DQXError(f"Unsupported data source: {ds.name}")
-        return self._report
 
     def _setup_duckdb(self) -> None:
         duckdb.execute("SET enable_progress_bar = false")
 
-    def analyze_single(self, ds: DuckDataSource, metrics: Sequence[MetricSpec], key: ResultKey) -> AnalysisReport:
+    def analyze_single(self, ds: SqlDataSource, metrics: Sequence[MetricSpec], key: ResultKey) -> AnalysisReport:
         logger.info(f"Analyzing report with key {key}...")
         self._setup_duckdb()
 
@@ -175,23 +173,23 @@ class Analyzer:
         return self._report
 
     def _analyze_batches(
-        self, ds: DuckBatchDataSource, metrics: Sequence[MetricSpec], key: ResultKey
+        self, ds: BatchSqlDataSource, metrics: Sequence[MetricSpec], key: ResultKey
     ) -> AnalysisReport:
         batch_id: int = 0
-        for batch_ds in ds.arrow_ds():
+        for batch_ds in ds.batches():
             logger.info(f"Analyzing batch #{batch_id} ...")
             self.analyze_single(batch_ds, metrics, key)
             batch_id += 1
         return self._report
 
     def _analyze_batches_threaded(
-        self, ds: DuckBatchDataSource, metrics: Sequence[MetricSpec], key: ResultKey, max_workers: int | None = None
+        self, ds: BatchSqlDataSource, metrics: Sequence[MetricSpec], key: ResultKey, max_workers: int | None = None
     ) -> AnalysisReport:
         max_workers = max_workers or multiprocessing.cpu_count()
         logger.info(f"Analyzing batches with {max_workers} threads...")
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = []
-            for batch_ds in ds.arrow_ds():
+            for batch_ds in ds.batches():
                 future = executor.submit(self.analyze_single, batch_ds, metrics, key)
                 futures.append(future)
 
@@ -217,7 +215,7 @@ class Analyzer:
     def persist(self, db: MetricDB, overwrite: bool = True) -> None:
         # TODO(npham): Move persist to the analysis report
         if len(self._report) == 0:
-            logger.warning("Try to save an empty analysis report!")
+            logger.warning("Try to save an EMPTY analysis report!")
             return
 
         if overwrite:

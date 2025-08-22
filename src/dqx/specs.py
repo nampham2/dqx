@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import Any, Literal, Protocol, Self, Type, runtime_checkable
+from typing import Any, Literal, Protocol, Type, runtime_checkable
 
 from dqx import ops, states
 from dqx.common import Parameters
@@ -24,8 +24,6 @@ class MetricSpec(Protocol):
 
     @property
     def name(self) -> str: ...
-
-    def label(self, label: str) -> Self: ...
 
     @property
     def parameters(self) -> Parameters: ...
@@ -52,9 +50,6 @@ class NumRows:
     @property
     def name(self) -> str:
         return "num_rows()"
-
-    def label(self, label: str) -> Self:
-        return self
 
     @property
     def parameters(self) -> Parameters:
@@ -92,9 +87,6 @@ class First:
     def name(self) -> str:
         return f"first({self._column})"
 
-    def label(self, label: str) -> Self:
-        return self
-
     @property
     def parameters(self) -> Parameters:
         return {"column": self._column}
@@ -129,9 +121,6 @@ class Average:
     @property
     def name(self) -> str:
         return f"average({self._column})"
-
-    def label(self, label: str) -> Self:
-        return self
 
     @property
     def parameters(self) -> Parameters:
@@ -169,9 +158,6 @@ class Variance:
     def name(self) -> str:
         return f"variance({self._column})"
 
-    def label(self, label: str) -> Self:
-        return self
-
     @property
     def parameters(self) -> Parameters:
         return {"column": self._column}
@@ -208,9 +194,6 @@ class Minimum:
     def name(self) -> str:
         return f"minimum({self._column})"
 
-    def label(self, label: str) -> Self:
-        return self
-
     @property
     def parameters(self) -> Parameters:
         return {"column": self._column}
@@ -245,9 +228,6 @@ class Maximum:
     @property
     def name(self) -> str:
         return f"maximum({self._column})"
-
-    def label(self, label: str) -> Self:
-        return self
 
     @property
     def parameters(self) -> Parameters:
@@ -284,9 +264,6 @@ class Sum:
     def name(self) -> str:
         return f"sum({self._column})"
 
-    def label(self, label: str) -> Self:
-        return self
-
     @property
     def parameters(self) -> Parameters:
         return {"column": self._column}
@@ -321,9 +298,6 @@ class NullCount:
     @property
     def name(self) -> str:
         return f"null_count({self._column})"
-
-    def label(self, label: str) -> Self:
-        return self
 
     @property
     def parameters(self) -> Parameters:
@@ -360,9 +334,6 @@ class NegativeCount:
     def name(self) -> str:
         return f"non_negative({self._column})"
 
-    def label(self, label: str) -> Self:
-        return self
-
     @property
     def parameters(self) -> Parameters:
         return {"column": self._column}
@@ -397,9 +368,6 @@ class ApproxCardinality:
     @property
     def name(self) -> str:
         return f"approx_cardinality({self._column})"
-
-    def label(self, label: str) -> Self:
-        return self
 
     @property
     def parameters(self) -> Parameters:

@@ -1,92 +1,308 @@
-# dqx
+# DQX - Data Quality eXecution Engine
 
+A high-performance, scalable data quality framework built on DuckDB and PyArrow for fast, efficient data validation and monitoring.
 
+## Overview
 
-## Getting started
+DQX (`D`ata `Q`uality e`X`cellent) is a modern data quality framework designed for production-scale data validation. It provides a declarative API for defining data quality checks, supports multiple data sources, and leverages statistical sketching algorithms for memory-efficient analysis of large datasets.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+### Key Features
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+- **High Performance**: Built on DuckDB for blazing-fast analytical queries
+- **Scalable**: Supports batch processing with threading and memory-efficient sketching algorithms
+- **Declarative**: Intuitive API for defining data quality checks using symbolic expressions
+- **Multi-Source**: Support for PyArrow tables, Parquet files, BigQuery, and more
+- **Extensible**: Plugin architecture for custom metrics and data sources
+- **Production Ready**: Built-in persistence, monitoring, and error handling
 
-## Add your files
+## Architecture
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+DQX follows a modular architecture with clear separation of concerns:
 
+- **Specs**: Metric specifications (row count, averages, cardinality, etc.)
+- **Ops**: SQL and sketch-based operations for data analysis
+- **States**: Serializable states for metric computation and merging
+- **Analyzer**: Execution engine that runs operations against data sources
+- **API**: High-level verification suite and check definitions
+- **Extensions**: Data source adapters and custom functionality
+
+## Quick Start
+
+### Installation
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd dqx
+
+# Install with uv (recommended)
+uv install
+
+# Or with pip
+pip install -e .
 ```
-cd existing_repo
-git remote add origin https://gitlab.booking.com/npham/dqx.git
-git branch -M main
-git push -uf origin main
+
+### Basic Usage
+
+```python
+import datetime as dt
+from dqx.api import VerificationSuite, check
+from dqx.extensions.pyarrow_ds import ArrowDataSource
+from dqx.orm.repositories import InMemoryMetricDB
+from dqx.common import ResultKey
+
+# Define data quality checks
+@check(datasets=["orders"])
+def order_validation(mp, ctx):
+    # Check for null values
+    ctx.assert_that(mp.null_count("customer_id")).is_eq(0)
+    
+    # Validate price ranges
+    ctx.assert_that(mp.minimum("price")).is_gt(0)
+    ctx.assert_that(mp.average("price")).is_geq(10.0)
+    
+    # Check data freshness (day-over-day comparison)
+    ctx.assert_that(mp.ext.day_over_day(specs.NumRows())).is_geq(0.8)
+
+# Set up data source and run checks
+db = InMemoryMetricDB()
+data_source = ArrowDataSource(your_arrow_table)
+key = ResultKey(yyyy_mm_dd=dt.date.today(), tags={"environment": "prod"})
+
+suite = VerificationSuite([order_validation], db, name="Order Quality Suite")
+context = suite.run({"orders": data_source}, key)
+
+# View results
+context._graph.inspect()
 ```
 
-## Integrate with your tools
+## Supported Metrics
 
-- [ ] [Set up project integrations](https://gitlab.booking.com/npham/dqx/-/settings/integrations)
+DQX provides a comprehensive set of built-in metrics:
 
-## Collaborate with your team
+### Basic Statistics
+- `NumRows()` - Row count
+- `Average(column)` - Mean value
+- `Sum(column)` - Sum of values
+- `Minimum(column)` - Minimum value
+- `Maximum(column)` - Maximum value
+- `Variance(column)` - Sample variance
+- `First(column)` - First non-null value
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+### Data Quality Metrics
+- `NullCount(column)` - Count of null values
+- `NegativeCount(column)` - Count of negative values
+- `ApproxCardinality(column)` - Estimated unique values using HyperLogLog
 
-## Test and Deploy
+### Advanced Metrics
+- `ext.day_over_day(metric)` - Day-over-day comparison
+- `ext.stddev(metric, lag, window)` - Standard deviation over time windows
 
-Use the built-in continuous integration in GitLab.
+## Data Sources
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+DQX supports multiple data source types through its extension system:
 
-***
+### PyArrow
+```python
+from dqx.extensions.pyarrow_ds import ArrowDataSource, ArrowBatchDataSource
 
-# Editing this README
+# Single table
+ds = ArrowDataSource(arrow_table)
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thank you to [makeareadme.com](https://www.makeareadme.com/) for this template.
+# Batch processing for large datasets
+batch_ds = ArrowBatchDataSource.from_parquets(["file1.parquet", "file2.parquet"])
+```
 
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+### BigQuery
+```python
+from dqx.extensions.bigquery_ds import BigQueryDataSource
 
-## Name
-Choose a self-explaining name for your project.
+ds = BigQueryDataSource(
+    project="my-project",
+    dataset="my_dataset", 
+    table="my_table"
+)
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+### Custom Data Sources
+Implement the `DuckDataSource` protocol:
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+```python
+class CustomDataSource:
+    name = "custom"
+    analyzer_class = Analyzer
+    
+    @property
+    def cte(self) -> str:
+        return "SELECT * FROM my_custom_table"
+        
+    def query(self, query: str) -> duckdb.DuckDBPyRelation:
+        return duckdb.query(query)
+```
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+## Advanced Features
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+### Batch Processing
+For large datasets, DQX supports memory-efficient batch processing:
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+```python
+# Enable threading for parallel batch processing
+context = suite.run(data_sources, key, threading=True)
+```
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+### Time-based Analysis
+Create checks that compare metrics across time:
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+```python
+@check
+def trend_analysis(mp, ctx):
+    current = mp.average("revenue")
+    previous = mp.average("revenue", key=ctx.key.lag(1))
+    
+    # Revenue should not drop more than 10%
+    ctx.assert_that(current / previous).is_geq(0.9)
+```
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+### Cross-dataset Validation
+Compare metrics across different datasets:
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+```python
+@check
+def cross_dataset_consistency(mp, ctx):
+    prod_count = mp.num_rows(datasets=["production"])
+    staging_count = mp.num_rows(datasets=["staging"])
+    
+    # Counts should be similar (within 5%)
+    ratio = prod_count / staging_count
+    ctx.assert_that(sp.Abs(ratio - 1.0)).is_lt(0.05)
+```
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+### Custom Assertions
+DQX provides flexible assertion methods:
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+```python
+ctx.assert_that(metric).is_eq(100)           # Equal to
+ctx.assert_that(metric).is_gt(0)             # Greater than
+ctx.assert_that(metric).is_geq(0)            # Greater than or equal
+ctx.assert_that(metric).is_lt(1000)          # Less than  
+ctx.assert_that(metric).is_leq(1000)         # Less than or equal
+ctx.assert_that(metric).is_positive()        # Positive values
+ctx.assert_that(metric).is_negative()        # Negative values
+```
+
+## Performance
+
+DQX is optimized for performance through several techniques:
+
+- **SQL Optimization**: Deduplicates and batches SQL operations
+- **Sketch Algorithms**: Memory-efficient approximate algorithms for cardinality
+- **Batch Processing**: Processes large datasets in configurable chunks
+- **Parallel Execution**: Multi-threaded analysis for independent operations
+- **State Merging**: Combines partial results from distributed processing
+
+## Persistence
+
+Metrics can be persisted for historical analysis and trend detection:
+
+```python
+from dqx.orm.repositories import MetricDB
+
+# Configure persistence
+db = MetricDB(connection_string="sqlite:///metrics.db")
+
+# Results are automatically persisted
+suite = VerificationSuite(checks, db, name="Production Suite")
+```
+
+## Development
+
+### Running Tests
+```bash
+uv run pytest
+```
+
+### Code Quality
+```bash
+# Run linting
+uv run ruff check
+
+# Auto-fix issues
+uv run ruff check --fix
+
+# Type checking
+uv run mypy src/
+```
+
+### Commit Messages
+
+This project uses [Commitizen](https://commitizen-tools.github.io/commitizen/) for standardized commit messages and automated versioning.
+
+```bash
+# Install commitizen (if not already installed)
+pip install commitizen
+
+# Create a commit interactively
+cz commit
+
+# Or use the shorthand
+cz c
+
+# Bump version and create changelog
+cz bump
+
+# Check version
+cz version
+```
+
+**Commit Message Format:**
+- `feat:` - New features
+- `fix:` - Bug fixes  
+- `docs:` - Documentation changes
+- `style:` - Code style changes (formatting, etc.)
+- `refactor:` - Code refactoring
+- `test:` - Adding or updating tests
+- `chore:` - Maintenance tasks
+
+Example:
+```bash
+feat(analyzer): add support for parallel batch processing
+fix(specs): resolve cardinality sketch serialization issue  
+docs(readme): update installation instructions
+```
+
+### Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Add tests for new functionality  
+4. Ensure all tests pass
+5. Submit a pull request
+
+## Dependencies
+
+- **DuckDB**: High-performance analytical database engine
+- **PyArrow**: Columnar data processing
+- **DataSketches**: Probabilistic data structures
+- **SymPy**: Symbolic mathematics for expressions
+- **SQLAlchemy**: Database abstraction layer
+- **Returns**: Functional programming utilities
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Roadmap
+
+- [ ] Support for streaming data sources
+- [ ] Web UI for monitoring and alerting  
+- [ ] Integration with data catalogs
+- [ ] Machine learning-based anomaly detection
+- [ ] Support for complex event processing
+- [ ] Cloud-native deployment options
+
+## Support
+
+For questions and support:
+- Create an issue on GitHub
+- Check the documentation
+- Join our community discussions

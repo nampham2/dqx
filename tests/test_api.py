@@ -44,7 +44,7 @@ def rate_of_change(mp: MetricProvider, ctx: Context) -> None:
 def sketch_check(mp: MetricProvider, ctx: Context) -> None:
     ctx.assert_that(mp.approx_cardinality("address", datasets=["ds2"])).is_geq(100)
 
-@check()
+@check
 def cross_dataset_check(mp: MetricProvider, ctx: Context) -> None:
     tax_avg_1= mp.average("tax", datasets=["ds1"])
     tax_avg_2 = mp.average("tax", datasets=["ds2"])
@@ -62,15 +62,6 @@ def test_inspect_no_run() -> None:
     ctx._graph.propagate(["ds1", "ds2"])
     tree = ctx._graph.inspect()
     Console().print(tree)
-
-    # assert set(suite.collect(key).pending_metrics()) == {
-    #     specs.NumRows(),
-    #     specs.NullCount("quantity"),
-    #     specs.Minimum("quantity"),
-    #     specs.Average("price"),
-    #     specs.Minimum("price"),
-    # }
-
 
 def test_verification_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> None:
     db = InMemoryMetricDB()

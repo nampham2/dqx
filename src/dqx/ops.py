@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import Any, Generic, Literal, Protocol, TypeVar, runtime_checkable
 
 from dqx import states
-from dqx.common import DQXError, random_prefix
+from dqx.common import DQXError
+from dqx.utils import random_prefix
 from dqx.states import CardinalitySketch, SketchState
 
 OpsType = Literal["sql", "sketch"]
