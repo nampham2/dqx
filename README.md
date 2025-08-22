@@ -1,10 +1,10 @@
-# DQX - Data Quality eXecution Engine
+# DQX - Data Quality eXcellence
 
 A high-performance, scalable data quality framework built on DuckDB and PyArrow for fast, efficient data validation and monitoring.
 
 ## Overview
 
-DQX (`D`ata `Q`uality e`X`cellent) is a modern data quality framework designed for production-scale data validation. It provides a declarative API for defining data quality checks, supports multiple data sources, and leverages statistical sketching algorithms for memory-efficient analysis of large datasets.
+DQX is a modern data quality framework designed for production-scale data validation. It provides a declarative API for defining data quality checks, supports multiple data sources, and leverages statistical sketching algorithms for memory-efficient analysis of large datasets.
 
 ### Key Features
 
@@ -222,16 +222,40 @@ uv run pytest
 ```
 
 ### Code Quality
+
+DQX maintains high code quality standards with comprehensive linting, type checking, and automated formatting:
+
 ```bash
-# Run linting
+# Run linting (Ruff for fast Python linting)
 uv run ruff check
 
-# Auto-fix issues
+# Auto-fix linting issues
 uv run ruff check --fix
 
-# Type checking
+# Format code automatically
+uv run ruff format
+
+# Type checking (MyPy for static type analysis)
 uv run mypy src/
+
+# Run specific file type checking
+uv run mypy src/dqx/api.py
+
+# Run all quality checks together
+uv run ruff check && uv run mypy src/
 ```
+
+**Quality Standards:**
+- All code must pass Ruff linting without errors
+- Full type annotation coverage with MyPy validation
+- Consistent code formatting enforced by Ruff formatter
+- No type errors or undefined variables allowed
+- Proper documentation for all public APIs
+
+**Recent Improvements:**
+- Enhanced type safety with proper generic type annotations
+- Improved function signature compatibility with static analysis
+- Comprehensive type checking for symbolic expression handling
 
 ### Commit Messages
 
@@ -289,7 +313,7 @@ docs(readme): update installation instructions
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Roadmap
 
