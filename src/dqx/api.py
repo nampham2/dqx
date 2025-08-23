@@ -42,12 +42,13 @@ class SymbolicAssert:
     comparison operators and tolerance levels.
     """
     
-    def __init__(self, actual: sp.Expr, listeners: list[AssertListener]) -> None:
+    def __init__(self, actual: sp.Expr, listeners: list[AssertListener], context: Context | None = None) -> None:
         self._actual = actual
         self._label: str | None = None
         self._severity: SeverityLevel | None = None
         self._validator: SymbolicValidator | None = None
         self.listeners = listeners
+        self._context = context
 
     def on(
         self, *, label: str | None = None, severity: SeverityLevel | None = None
@@ -96,33 +97,55 @@ class SymbolicAssert:
             )
         )
 
-    def is_geq(self, other: float, tol: float = functions.EPSILON) -> None:
+    def is_geq(self, other: float, tol: float = functions.EPSILON) -> SymbolicAssert:
         """Assert that the expression is greater than or equal to the given value."""
         self._create_validator(f"\u2265 {other}", functions.is_geq, other, tol)
+        return self._create_new_assertion_if_needed()
 
-    def is_gt(self, other: float, tol: float = functions.EPSILON) -> None:
+    def is_gt(self, other: float, tol: float = functions.EPSILON) -> SymbolicAssert:
         """Assert that the expression is greater than the given value."""
         self._create_validator(f"> {other}", functions.is_gt, other, tol)
+        return self._create_new_assertion_if_needed()
 
-    def is_leq(self, other: float, tol: float = functions.EPSILON) -> None:
+    def is_leq(self, other: float, tol: float = functions.EPSILON) -> SymbolicAssert:
         """Assert that the expression is less than or equal to the given value."""
         self._create_validator(f"\u2264 {other}", functions.is_leq, other, tol)
+        return self._create_new_assertion_if_needed()
 
-    def is_lt(self, other: float, tol: float = functions.EPSILON) -> None:
+    def is_lt(self, other: float, tol: float = functions.EPSILON) -> SymbolicAssert:
         """Assert that the expression is less than the given value."""
         self._create_validator(f"< {other}", functions.is_lt, other, tol)
+        return self._create_new_assertion_if_needed()
 
-    def is_eq(self, other: float, tol: float = functions.EPSILON) -> None:
+    def is_eq(self, other: float, tol: float = functions.EPSILON) -> SymbolicAssert:
         """Assert that the expression equals the given value within tolerance."""
         self._create_validator(f"= {other}", functions.is_eq, other, tol)
+        return self._create_new_assertion_if_needed()
 
-    def is_negative(self, tol: float = functions.EPSILON) -> None:
+    def is_negative(self, tol: float = functions.EPSILON) -> SymbolicAssert:
         """Assert that the expression is negative."""
         self._update_validator(SymbolicValidator(name="< 0", fn=functools.partial(functions.is_negative, tol=tol)))
+        return self._create_new_assertion_if_needed()
 
-    def is_positive(self, tol: float = functions.EPSILON) -> None:
+    def is_positive(self, tol: float = functions.EPSILON) -> SymbolicAssert:
         """Assert that the expression is positive."""
         self._update_validator(SymbolicValidator(name="> 0", fn=functools.partial(functions.is_positive, tol=tol)))
+        return self._create_new_assertion_if_needed()
+
+    def _create_new_assertion_if_needed(self) -> SymbolicAssert:
+        """Create a new assertion node for chaining if the current one already has a validator."""
+        # If we don't have a context, we can't create new assertions
+        if self._context is None:
+            return self
+            
+        # Create a new assertion and preserve label/severity
+        new_assertion = self._context.assert_that(self._actual)
+        
+        # Preserve label and severity from current assertion
+        if self._label or self._severity:
+            new_assertion.on(label=self._label, severity=self._severity)
+            
+        return new_assertion
 
 
 class Context:
@@ -156,8 +179,8 @@ class Context:
         if not self._graph.children:
             raise DQXError("Cannot create assertion without an active check")
             
-        node = graph.AssertionNode(actual=expr)
-        sa = SymbolicAssert(actual=expr, listeners=[node])
+        node = graph.AssertionNode(actual=expr, root=self._graph)
+        sa = SymbolicAssert(actual=expr, listeners=[node], context=self)
 
         # Attach to the most recent check node
         current_check = self._graph.children[-1]
@@ -275,16 +298,37 @@ class VerificationSuite:
         # Cache symbol lookups to avoid repeated provider calls
         symbol_cache: dict[sp.Symbol, SymbolicMetric] = {}
         
+        # Find the check node that contains this assertion
+        check_node = None
+        root = assertion._find_root()
+        for check in root.checks():
+            if assertion in check.children:
+                check_node = check
+                break
+        
+        if not check_node:
+            raise RuntimeError("Assertion not found in any check node")
+        
         for sym in sorted(assertion.actual.free_symbols, key=str):
             if sym in symbol_cache:
                 sm = symbol_cache[sym]
             else:
                 sm = self._provider.get_symbol(sym)
                 symbol_cache[sym] = sm
-                
-            symbol_node = self._create_symbol_node(sm)
-            assertion.add_child(symbol_node)
-            self._add_metric_dependencies(symbol_node, sm, key)
+            
+            # Check if symbol already exists in the graph
+            symbol_exists = False
+            for existing_symbol in root.symbols():
+                if existing_symbol.symbol == sym:
+                    symbol_exists = True
+                    break
+            
+            # Only create symbol if it doesn't already exist
+            if not symbol_exists:
+                symbol_node = self._create_symbol_node(sm)
+                # Add symbol as child of check node instead of assertion
+                check_node.add_child(symbol_node)
+                self._add_metric_dependencies(symbol_node, sm, key)
     
     def _create_symbol_node(self, sm: SymbolicMetric) -> graph.SymbolNode:
         """Create a symbol node from a symbolic metric."""

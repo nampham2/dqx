@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from collections import deque
 from collections.abc import Iterator
-from typing import Any, Generic, Literal, Protocol, TypeVar, runtime_checkable
+from typing import Any, Generic, Literal, NoReturn, Protocol, TypeVar, runtime_checkable
 
 import sympy as sp
 from returns.maybe import Maybe, Nothing, Some
@@ -53,14 +53,12 @@ class RootNode(NodeMixin["CheckNode"], Node["CheckNode"]):
         queue: deque = deque(zip(self.children[::-1], [root] * len(self.children)))
         while queue:
             node, tree = queue.pop()
-            # if hasattr(node, "_value"):
-            #     match node._value:
-            #         case Some(Failure(_)):
-            #             subtree = tree.add(node.inspect_str() + "\n")
-            #         case _:
-            #             subtree = tree.add(node.inspect_str())
-            #             queue.extend(zip(reversed(node.children), [subtree] * len(node.children)))
-            # else:
+            # Skip assertion nodes without validators (expression-only nodes)
+            if isinstance(node, AssertionNode) and node.validator is None:
+                # Still process children if any (though AssertionNode shouldn't have children)
+                queue.extend(zip(reversed(node.children), [tree] * len(node.children)))
+                continue
+            
             subtree = tree.add(node.inspect_str())
             queue.extend(zip(reversed(node.children), [subtree] * len(node.children)))
 
@@ -120,12 +118,12 @@ class RootNode(NodeMixin["CheckNode"], Node["CheckNode"]):
 
     def pending_metrics(self, dataset: str) -> Iterator[MetricNode]:
         for node in self.checks():
-            for metric in node.children:
-                for symbol in metric.children:
-                    if symbol.datasets == [dataset]:
-                        for analyzer in symbol.children:
-                            if analyzer.state() == "PENDING":
-                                yield analyzer
+            for child in node.children:
+                if isinstance(child, SymbolNode):
+                    for metric in child.children:
+                        if isinstance(metric, MetricNode) and metric.datasets == [dataset]:
+                            if metric.state() == "PENDING":
+                                yield metric
 
     def ready_symbols(self) -> Iterator[SymbolNode]:
         return filter(lambda node: node.ready(), self.symbols())
@@ -145,12 +143,22 @@ class RootNode(NodeMixin["CheckNode"], Node["CheckNode"]):
         2.1. Resolve the individual metric constrains and mark the metrics as failed or put the datasets in the metric
         3. Back propagate the failed metrics to symbols and assertions
         """
+        # First, clean up any legacy symbol children on assertion nodes
+        self._cleanup_assertion_children()
+        
         for node in self.children:
             node.impute_dataset(ds)
             node.propagate()
 
+    def _cleanup_assertion_children(self) -> None:
+        """Remove any symbol children from assertion nodes (legacy cleanup)."""
+        for assertion in self.assertions():
+            if hasattr(assertion, 'children') and assertion.children:
+                # Clear any children that might have been added before the fix
+                assertion.children.clear()
 
-class CheckNode(NodeMixin["AssertionNode"], Node["AssertionNode"]):
+
+class CheckNode(NodeMixin["AssertionNode | SymbolNode"], Node["AssertionNode | SymbolNode"]):
     def __init__(
         self,
         name: str,
@@ -161,7 +169,7 @@ class CheckNode(NodeMixin["AssertionNode"], Node["AssertionNode"]):
         self.name = name
         self.tags = tags or []
         self.label = label
-        self.children = []
+        self.children: list[AssertionNode | SymbolNode] = []
         self.datasets: list[str] = datasets or []
         self._value: Maybe[Result[float, str]] = Nothing
 
@@ -185,13 +193,14 @@ class CheckNode(NodeMixin["AssertionNode"], Node["AssertionNode"]):
             node.propagate()
 
 
-class AssertionNode(NodeMixin["SymbolNode"], Node["SymbolNode"]):
+class AssertionNode(Node[NoReturn]):  # AssertionNode should not have children
     def __init__(
         self,
         actual: sp.Expr,
         label: str | None = None,
         severity: SeverityLevel | None = None,
         validator: SymbolicValidator | None = None,
+        root: RootNode | None = None,
     ) -> None:
         self.actual = actual
         self.label: str | None = label
@@ -199,8 +208,13 @@ class AssertionNode(NodeMixin["SymbolNode"], Node["SymbolNode"]):
         self.datasets: list[str] = []
         self.validator: SymbolicValidator | None = validator
         self._value: Maybe[Result[float, str]] = Nothing
+        self._root = root
 
-        self.children = []
+        self.children: list[Any] = []  # Should remain empty
+
+    def add_child(self, child: Any) -> None:
+        """AssertionNode should not have children."""
+        raise RuntimeError("AssertionNode cannot have children. Symbols should be added to CheckNode instead.")
 
     def set_label(self, label: str) -> None:
         self.label = label
@@ -223,29 +237,70 @@ class AssertionNode(NodeMixin["SymbolNode"], Node["SymbolNode"]):
             self.datasets = datasets
 
     def propagate(self) -> None:
-        for node in self.children:
-            node.impute_dataset(self.datasets)
-            node.propagate()
+        # AssertionNode has no children, so nothing to propagate
+        pass
 
     def mark_as_failure(self, message: str) -> None:
         self._value = Some(Failure(message))
 
     def evaluate(self) -> Result[Any, str]:
-        if all(child.success() for child in self.children):
-            symbol_table = {child.symbol: child._value.unwrap().unwrap() for child in self.children}
-            try:
-                value = sp.N(self.actual.subs(symbol_table), 6)
-                if math.isnan(value):
-                    self._value = Some(Failure("Validating value is NaN"))
+        # Find the root node by traversing up
+        root = self._find_root()
+        
+        # Get all symbols from the graph
+        symbol_nodes = list(root.symbols())
+        
+        # Build symbol table from all available symbols
+        symbol_table = {}
+        for symbol_node in symbol_nodes:
+            if symbol_node.symbol in self.actual.free_symbols and symbol_node.success():
+                symbol_table[symbol_node.symbol] = symbol_node._value.unwrap().unwrap()
+        
+        # Check if all required symbols are available
+        missing_symbols = self.actual.free_symbols - symbol_table.keys()
+        if missing_symbols:
+            self._value = Some(Failure(f"Missing symbols: {missing_symbols}"))
+            return self._value.unwrap()
+        
+        # Check if any symbols failed
+        failed_symbols = []
+        for symbol_node in symbol_nodes:
+            if symbol_node.symbol in self.actual.free_symbols and symbol_node.failure():
+                failed_symbols.append(str(symbol_node.symbol))
+        
+        if failed_symbols:
+            self._value = Some(Failure(f"Symbol dependencies failed: {', '.join(failed_symbols)}"))
+            return self._value.unwrap()
+        
+        try:
+            value = sp.N(self.actual.subs(symbol_table), 6)
+            if math.isnan(value):
+                self._value = Some(Failure("Validating value is NaN"))
+            elif math.isinf(value):
+                self._value = Some(Failure("Validating value is infinity"))
+            else:
+                # Apply validator if present
+                if self.validator and self.validator.fn:
+                    if self.validator.fn(float(value)):
+                        self._value = Some(Success(value))
+                    else:
+                        failure_msg = f"Assertion failed: {self.actual} = {value} does not satisfy {self.validator.name}"
+                        if self.label:
+                            failure_msg = f"{self.label}: {failure_msg}"
+                        self._value = Some(Failure(failure_msg))
                 else:
+                    # No validator, just store the computed value
                     self._value = Some(Success(value))
-            except Exception as e:
-                self._value = Some(Failure(str(e)))
-        else:
-            # TODO(npham): Better failure message
-            self._value = Some(Failure("Dependencies failure"))
+        except Exception as e:
+            self._value = Some(Failure(str(e)))
 
         return self._value.unwrap()
+    
+    def _find_root(self) -> RootNode:
+        """Find the root node by traversing up the graph."""
+        if self._root is None:
+            raise RuntimeError("Root node not set for AssertionNode")
+        return self._root
 
     def inspect_str(self) -> str:
         if self.validator:
@@ -373,7 +428,7 @@ class AnalyzerNode(NodeMixin, Node):
 
 def fix_tree(tree: Tree, depth: int = 0) -> Tree:
     """
-    Fix the tree display, adding newlines to the last label of metric nodes.
+    Fix the tree display by removing any extra spacing issues.
 
     Args:
         tree (Tree): The root of the tree to be fixed.
@@ -382,13 +437,7 @@ def fix_tree(tree: Tree, depth: int = 0) -> Tree:
     Returns:
         The original tree
     """
-    if depth == 4 and len(tree.children) == 0:
-        tree.label = str(tree.label) + "\n"
-        return tree
-    elif depth == 4:
-        tree.children[-1].label = str(tree.children[-1].label) + "\n"
-        return tree
-
+    # Continue traversing without adding any newlines
     for child in tree.children:
         fix_tree(child, depth + 1)
 

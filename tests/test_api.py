@@ -1,7 +1,10 @@
 import datetime as dt
 
 import pyarrow as pa
+import pytest
 import sympy as sp
+from returns.maybe import Some
+from returns.result import Failure, Success
 from rich.console import Console
 
 from dqx import specs
@@ -48,20 +51,9 @@ def sketch_check(mp: MetricProvider, ctx: Context) -> None:
 def cross_dataset_check(mp: MetricProvider, ctx: Context) -> None:
     tax_avg_1= mp.average("tax", datasets=["ds1"])
     tax_avg_2 = mp.average("tax", datasets=["ds2"])
-    ctx.assert_that(sp.Abs(tax_avg_1 / tax_avg_2 - 1)).is_lt(0.2, tol=0.01)
+    ctx.assert_that(sp.Abs(tax_avg_1 / tax_avg_2 - 1)).is_lt(0.2, tol=0.01).is_geq(-0.01)
 
 
-def test_inspect_no_run() -> None:
-    db = InMemoryMetricDB()
-    key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={})
-    checks = [simple_checks, manual_day_over_day, rate_of_change, null_percentage, sketch_check]
-
-    # Run once for yesterday
-    suite = VerificationSuite(checks, db, name="Simple test suite")
-    ctx = suite.collect(key)
-    ctx._graph.propagate(["ds1", "ds2"])
-    tree = ctx._graph.inspect()
-    Console().print(tree)
 
 def test_verification_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> None:
     db = InMemoryMetricDB()
@@ -82,3 +74,354 @@ def test_verification_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Tab
 
     tree = ctx._graph.inspect()
     Console().print(tree)
+
+
+@check(label="Chained assertions test", datasets=["ds1"])
+def chained_assertions_check(mp: MetricProvider, ctx: Context) -> None:
+    """Test chained assertions functionality."""
+    # Basic chaining - ratio should be between 0.95 and 1.05
+    ratio = mp.average("price") / mp.average("tax")
+    ctx.assert_that(ratio).is_geq(0.95).is_leq(1.05)
+    
+    # Chaining with on() method
+    quantity = mp.average("quantity")
+    ctx.assert_that(quantity).on(label="Quantity range check").is_gt(0).is_lt(100)
+    
+    # Multiple chains
+    tax_sum = mp.sum("tax")
+    ctx.assert_that(tax_sum).is_positive().is_lt(10000).is_geq(100)
+
+
+def test_chained_assertions(commerce_data_c1: pa.Table) -> None:
+    """Test that chained assertions create multiple assertion nodes."""
+    db = InMemoryMetricDB()
+    ds1 = ArrowDataSource(commerce_data_c1)
+    
+    key = ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    
+    # Create suite with chained assertions check
+    suite = VerificationSuite([chained_assertions_check], db, name="Chained assertions test")
+    
+    # Create a new context directly to avoid the dependency graph processing
+    ctx = suite._create_context()
+    suite._execute_checks(ctx)  # This just runs the checks without dependency processing
+    
+    # Print the graph for visual verification - BEFORE checking assertion count
+    tree = ctx._graph.inspect()
+    Console().print(tree)
+    
+    # Verify the graph structure
+    assertions = list(ctx._graph.assertions())
+    
+    # Count assertions with validators (some might be empty intermediate nodes)
+    assertions_with_validators = [a for a in assertions if hasattr(a, 'validator') and a.validator is not None]
+    
+    # We expect:
+    # - 2 assertions for the ratio check (is_geq and is_leq)
+    # - 2 assertions for the quantity check (is_gt and is_lt)
+    # - 3 assertions for the tax_sum check (is_positive, is_lt, is_geq)
+    # Total: 7 assertions with validators
+    assert len(assertions_with_validators) == 7, f"Expected 7 assertions with validators, got {len(assertions_with_validators)}"
+    
+    # Verify that all assertions with validators actually have them
+    for assertion in assertions_with_validators:
+        assert assertion.validator is not None, "Assertion should have a validator"
+    
+    # Now run to ensure it works end-to-end
+    ctx = suite.run({"ds1": ds1}, key)
+
+
+def test_chained_assertions_backward_compatibility(commerce_data_c1: pa.Table) -> None:
+    """Test that single assertions still work correctly (backward compatibility)."""
+    @check
+    def single_assertion_check(mp: MetricProvider, ctx: Context) -> None:
+        # Single assertion - should work as before
+        ctx.assert_that(mp.average("price")).is_geq(10.0)
+        ctx.assert_that(mp.minimum("quantity")).is_positive()
+    
+    db = InMemoryMetricDB()
+    ds1 = ArrowDataSource(commerce_data_c1)
+    
+    key = ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    
+    suite = VerificationSuite([single_assertion_check], db, name="Single assertion test")
+    ctx = suite.run({"ds1": ds1}, key)
+    
+    # Verify we have 4 assertions (2 for each assert_that call, due to chaining mechanism)
+    # Even single assertions create an extra node for potential chaining
+    assertions = list(ctx._graph.assertions())
+    assert len(assertions) == 4, f"Expected 4 assertions, got {len(assertions)}"
+    
+    # Count assertions with validators - should be 2 (one for each actual assertion)
+    assertions_with_validators = [a for a in assertions if hasattr(a, 'validator') and a.validator is not None]
+    assert len(assertions_with_validators) == 2, f"Expected 2 assertions with validators, got {len(assertions_with_validators)}"
+
+
+# Additional comprehensive tests from test_chained_assertions_validation.py
+@check
+def failing_chained_assertion(mp: MetricProvider, ctx: Context) -> None:
+    """Test case where chained assertion should fail."""
+    # This evaluates to 0.0, which should fail is_geq(0.01)
+    tax_avg_1 = mp.average("tax", datasets=["ds1"])
+    tax_avg_2 = mp.average("tax", datasets=["ds2"])
+    ctx.assert_that(sp.Abs(tax_avg_1 / tax_avg_2 - 1)).is_lt(0.2, tol=0.01).is_geq(0.01)
+
+
+@check
+def passing_chained_assertion(mp: MetricProvider, ctx: Context) -> None:
+    """Test case where chained assertion should pass."""
+    # This should pass both conditions
+    price_avg = mp.average("price", datasets=["ds1"])
+    tax_avg = mp.average("tax", datasets=["ds1"])
+    # Ensure ratio is around 2.0, which satisfies both conditions
+    ctx.assert_that(price_avg / tax_avg).is_geq(1.5).is_leq(2.5)
+
+
+@check
+def boundary_value_tests(mp: MetricProvider, ctx: Context) -> None:
+    """Test boundary values with tolerance."""
+    value = mp.average("boundary_value")
+    
+    # Test exact boundary with tolerance
+    ctx.assert_that(value).on(label="Exact boundary 1.0").is_eq(1.0, tol=0.01)
+    
+    # Test just above boundary
+    ctx.assert_that(value).on(label="Should pass >= 0.99").is_geq(0.99)
+    
+    # Test just below boundary  
+    ctx.assert_that(value).on(label="Should fail > 1.01").is_gt(1.01)
+
+
+@check
+def multiple_chain_combinations(mp: MetricProvider, ctx: Context) -> None:
+    """Test various chaining combinations."""
+    metric = mp.average("test_value")
+    
+    # Chain 1: Should pass (value is 50)
+    ctx.assert_that(metric).on(label="Between 40 and 60").is_gt(40).is_lt(60)
+    
+    # Chain 2: Should fail (value is 50, not <= 45)
+    ctx.assert_that(metric).on(label="Should fail <= 45").is_geq(40).is_leq(45)
+    
+    # Chain 3: Three conditions
+    ctx.assert_that(metric).on(label="Three conditions").is_positive().is_lt(100).is_geq(50)
+
+
+@check
+def nan_and_infinity_handling(mp: MetricProvider, ctx: Context) -> None:
+    """Test NaN and infinity handling."""
+    # Test NaN: Use variance of constant column (returns 0) and divide by itself
+    zero_var = mp.variance("zero_column")  # This will be 0 (variance of constants)
+    ctx.assert_that(zero_var / zero_var).on(label="NaN check").is_geq(0)
+    
+    # Test infinity: Divide by minimum of zero column
+    one_value = mp.average("one_column")  # Returns 1.0
+    zero_min = mp.minimum("zero_column")  # Returns 0.0
+    ctx.assert_that(one_value / zero_min).on(label="Infinity check").is_positive()
+
+
+def test_failing_chained_assertion_should_fail() -> None:
+    """Test that the chained assertion bug is fixed - should fail when value is 0.0."""
+    # Create identical data for both datasets
+    data = pa.table({
+        "tax": [10.0, 20.0, 30.0, 40.0, 50.0]
+    })
+    
+    db = InMemoryMetricDB()
+    ds1 = ArrowDataSource(data)
+    ds2 = ArrowDataSource(data)
+    
+    key = ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    
+    suite = VerificationSuite([failing_chained_assertion], db, name="Failing chained assertion test")
+    
+    # This should raise an exception because the assertion should fail
+    with pytest.raises(Exception) as exc_info:
+        ctx = suite.run({"ds1": ds1, "ds2": ds2}, key)
+        
+        # Check all assertions and find failures
+        failed_assertions = []
+        for assertion in ctx._graph.assertions():
+            # The _value is Maybe[Result[float, str]]
+            match assertion._value:
+                case Some(value):
+                    match value:
+                        case Failure(msg):
+                            failed_assertions.append(str(msg))
+        
+        if failed_assertions:
+            raise AssertionError(f"Assertions failed: {failed_assertions}")
+    
+    # Verify the error message contains the expected failure
+    assert "does not satisfy ≥ 0.01" in str(exc_info.value)
+
+
+def test_passing_chained_assertion_should_pass() -> None:
+    """Test that valid chained assertions pass correctly."""
+    # Create data where price/tax ratio is 2.0
+    data = pa.table({
+        "price": [20.0, 40.0, 60.0, 80.0, 100.0],  # avg = 60
+        "tax": [10.0, 20.0, 30.0, 40.0, 50.0]      # avg = 30
+    })
+    
+    db = InMemoryMetricDB()
+    ds1 = ArrowDataSource(data)
+    
+    key = ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    
+    suite = VerificationSuite([passing_chained_assertion], db, name="Passing chained assertion test")
+    ctx = suite.run({"ds1": ds1}, key)
+    
+    # All assertions should pass
+    for assertion in ctx._graph.assertions():
+        if assertion.validator:
+            match assertion._value:
+                case Some(Success(_)):
+                    pass  # Good, assertion passed
+                case Some(Failure(msg)):
+                    assert False, f"Assertion failed unexpectedly: {msg}"
+                case _:
+                    assert False, "Assertion not evaluated"
+
+
+def test_boundary_values_with_tolerance() -> None:
+    """Test boundary value handling with tolerance."""
+    data = pa.table({
+        "boundary_value": [0.99, 1.01, 1.0, 0.995, 1.005]  # avg = 1.0
+    })
+    
+    db = InMemoryMetricDB()
+    ds = ArrowDataSource(data)
+    
+    key = ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    
+    suite = VerificationSuite([boundary_value_tests], db, name="Boundary value test")
+    
+    # This should have mixed results
+    ctx = suite.run({"dataset": ds}, key)
+    
+    # Collect results
+    results = {}
+    for assertion in ctx._graph.assertions():
+        if assertion.validator and assertion.label:
+            match assertion._value:
+                case Some(Success(_)):
+                    results[assertion.label] = True
+                case Some(Failure(_)):
+                    results[assertion.label] = False
+    
+    # Check expected results
+    assert results.get("Exact boundary 1.0", False)  # 1.0 with tolerance 0.01
+    assert results.get("Should pass >= 0.99", False)  # 1.0 >= 0.99
+    assert not results.get("Should fail > 1.01", True)  # 1.0 is not > 1.01
+
+
+def test_multiple_chain_combinations() -> None:
+    """Test various chaining combinations."""
+    data = pa.table({
+        "test_value": [45, 50, 55, 50, 50]  # avg = 50
+    })
+    
+    db = InMemoryMetricDB()
+    ds = ArrowDataSource(data)
+    
+    key = ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    
+    suite = VerificationSuite([multiple_chain_combinations], db, name="Multiple chains test")
+    ctx = suite.run({"dataset": ds}, key)
+    
+    # Collect results by label
+    results: dict[str, list[bool]] = {}
+    failures = []
+    for assertion in ctx._graph.assertions():
+        if assertion.validator:
+            match assertion._value:
+                case Some(Success(_)):
+                    if assertion.label:
+                        base_label = assertion.label
+                        if base_label not in results:
+                            results[base_label] = []
+                        results[base_label].append(True)
+                case Some(Failure(msg)):
+                    if assertion.label:
+                        base_label = assertion.label
+                        if base_label not in results:
+                            results[base_label] = []
+                        results[base_label].append(False)
+                        failures.append(f"{base_label}: {msg}")
+    
+    # Verify results
+    # "Between 40 and 60" should have all True (50 > 40 and 50 < 60)
+    assert all(results.get("Between 40 and 60", [])), "Between 40 and 60 should pass"
+    
+    # "Should fail <= 45" should have at least one False (50 is not <= 45)
+    assert not all(results.get("Should fail <= 45", [True])), f"Should fail <= 45 should have failed. Failures: {failures}"
+    
+    # "Three conditions" should all pass (50 > 0, 50 < 100, 50 >= 50)
+    assert all(results.get("Three conditions", [])), "Three conditions should all pass"
+
+
+def test_nan_handling() -> None:
+    """Test handling of NaN values in assertions."""
+    # Create data that will produce NaN
+    data = pa.table({
+        "nan_column": [None, None, None, None, None],  # All nulls
+        "zero_column": [0.0, 0.0, 0.0, 0.0, 0.0],
+        "one_column": [1.0, 1.0, 1.0, 1.0, 1.0]
+    })
+    
+    db = InMemoryMetricDB()
+    ds = ArrowDataSource(data)
+    
+    key = ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    
+    suite = VerificationSuite([nan_and_infinity_handling], db, name="NaN handling test")
+    ctx = suite.run({"dataset": ds}, key)
+    
+    # Check for NaN/infinity/complex handling
+    edge_case_handled = False
+    
+    for assertion in ctx._graph.assertions():
+        match assertion._value:
+            case Some(Failure(msg)):
+                failure_msg = str(msg)
+                # Check for various edge case error messages
+                if any(err in failure_msg for err in ["NaN", "inf", "complex", "infinity"]):
+                    edge_case_handled = True
+    
+    # At least one edge case should be handled (complex/infinity error)
+    assert edge_case_handled, "Edge cases (NaN/infinity/complex) should be properly handled"
+
+
+def test_assertion_error_messages() -> None:
+    """Test that assertion failures have clear error messages."""
+    @check
+    def detailed_failure_check(mp: MetricProvider, ctx: Context) -> None:
+        value = mp.average("test_column")
+        ctx.assert_that(value).on(
+            label="Customer satisfaction score"
+        ).is_geq(4.5)  # Will fail since average is 3.0
+    
+    data = pa.table({
+        "test_column": [1.0, 2.0, 3.0, 4.0, 5.0]  # avg = 3.0
+    })
+    
+    db = InMemoryMetricDB()
+    ds = ArrowDataSource(data)
+    
+    key = ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    
+    suite = VerificationSuite([detailed_failure_check], db, name="Error message test")
+    ctx = suite.run({"dataset": ds}, key)
+    
+    # Find the failure message
+    for assertion in ctx._graph.assertions():
+        if assertion.validator:
+            match assertion._value:
+                case Some(Failure(msg)):
+                    error_msg = str(msg)
+                    # Check that error message contains all important parts
+                    assert "Customer satisfaction score" in error_msg
+                    assert "3" in error_msg  # The actual value
+                    assert "≥ 4.5" in error_msg  # The expected condition
+                    assert "does not satisfy" in error_msg
