@@ -264,8 +264,6 @@ class AssertionNode(LeafNode):
         self.validator = validator
         self._value: Maybe[Result[float, str]] = Nothing
         self._root = root
-        # Compatibility attribute for tests
-        self.children: list[Any] = []
 
     def set_label(self, label: str) -> None:
         self.label = label
@@ -527,8 +525,6 @@ class AnalyzerNode(LeafNode):
     
     def __init__(self, analyzer: Op) -> None:
         self.analyzer = analyzer
-        # Compatibility attribute for tests
-        self.children: list[Any] = []
 
     def inspect_str(self) -> str:
         return f"Analyze {self.analyzer.name}"
@@ -536,8 +532,3 @@ class AnalyzerNode(LeafNode):
     def add_child(self, child: Any) -> None:
         """AnalyzerNode cannot have children."""
         raise NotImplementedError("AnalyzerNode cannot have children")
-
-
-# Backward compatibility aliases
-Node = BaseNode
-NodeMixin = CompositeNode

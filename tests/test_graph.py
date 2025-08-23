@@ -931,8 +931,7 @@ def test_assertion_propagate_does_nothing() -> None:
     # This should not raise any errors
     assertion.propagate()
     
-    # Children list remains empty
-    assert assertion.children == []
+    # AssertionNode is a LeafNode and has no children
 
 
 # =============================================================================
@@ -1050,36 +1049,3 @@ def test_graph_display_with_validator() -> None:
     assert "Assert that" in inspect_str
     assert "> 10" in inspect_str
     assert "x + y" in inspect_str
-
-
-# =============================================================================
-# 9. Backward Compatibility Tests
-# =============================================================================
-
-def test_backward_compatibility_aliases() -> None:
-    """Test that backward compatibility aliases work."""
-    # Node alias
-    assert graph.Node == graph.BaseNode
-    
-    # NodeMixin alias
-    assert graph.NodeMixin == graph.CompositeNode
-
-
-def test_assertion_node_children_compatibility() -> None:
-    """Test that AssertionNode has children attribute for compatibility."""
-    assertion = graph.AssertionNode(actual=sp.Symbol("x"))
-    
-    # Should have empty children list
-    assert hasattr(assertion, 'children')
-    assert assertion.children == []
-    assert len(assertion.children) == 0
-
-
-def test_analyzer_node_children_compatibility() -> None:
-    """Test that AnalyzerNode has children attribute for compatibility."""
-    analyzer = graph.AnalyzerNode(MockOp("test"))
-    
-    # Should have empty children list
-    assert hasattr(analyzer, 'children')
-    assert analyzer.children == []
-    assert len(analyzer.children) == 0
