@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import math
-from collections import deque
+from abc import ABC, abstractmethod
 from collections.abc import Iterator
-from typing import Any, Generic, Literal, NoReturn, Protocol, TypeVar, runtime_checkable
+from typing import Any, Generic, Literal, Protocol, TypeVar, runtime_checkable
 
 import sympy as sp
 from returns.maybe import Maybe, Nothing, Some
@@ -14,151 +14,196 @@ from dqx.common import ResultKey, ResultKeyProvider, RetrievalFn, SeverityLevel,
 from dqx.ops import Op
 from dqx.specs import MetricSpec
 
-NodeType = Literal["Root", "Check", "Assert", "Symbol", "Metric", "Analyzer"]
+# Type definitions
 MetricState = Literal["READY", "PROVIDED", "PENDING", "ERROR"]
+TChild = TypeVar("TChild", bound="BaseNode")
 
-T = TypeVar("T", bound="Node")
 
-
+# Base Node Protocols and Classes
 @runtime_checkable
-class Node(Protocol, Generic[T]):
-    children: list[T]
+class BaseNode(Protocol):
+    """Base protocol for all nodes in the graph."""
+    
+    def inspect_str(self) -> str:
+        """Return a string representation for inspection."""
+        ...
+    
+    def accept(self, visitor: NodeVisitor) -> Any:
+        """Accept a visitor for traversal."""
+        ...
 
-    def add_child(self, child: T) -> None: ...
 
-    def inspect_str(self) -> str: ...
+class LeafNode(BaseNode):
+    """Base class for nodes that cannot have children."""
+    
+    def accept(self, visitor: NodeVisitor) -> Any:
+        return visitor.visit(self)
 
 
-class NodeMixin(Node[T]):
-    def add_child(self, child: T) -> None:
+class CompositeNode(BaseNode, Generic[TChild]):
+    """Base class for nodes that can have children."""
+    
+    def __init__(self) -> None:
+        self.children: list[TChild] = []
+    
+    def add_child(self, child: TChild) -> None:
+        """Add a child node."""
         self.children.append(child)
+    
+    def remove_child(self, child: TChild) -> None:
+        """Remove a child node."""
+        self.children.remove(child)
+    
+    def get_children(self) -> list[TChild]:
+        """Get all children."""
+        return self.children
+    
+    def accept(self, visitor: NodeVisitor) -> Any:
+        return visitor.visit(self)
 
 
-class RootNode(NodeMixin["CheckNode"], Node["CheckNode"]):
-    def __init__(self, name: str) -> None:
-        self.name = name
-        self.children: list[CheckNode] = []
+# Visitor Pattern
+class NodeVisitor(ABC):
+    """Abstract visitor for node traversal."""
+    
+    @abstractmethod
+    def visit(self, node: BaseNode) -> Any:
+        """Visit a node."""
+        pass  # pragma: no cover
 
-    def inspect(self) -> Tree:
-        """
-        Inspects the current node and its children, constructing a tree representation.
-        This method performs a breadth-first traversal of the node and its children,
-        creating a `Tree` object that represents the structure of the nodes.
 
-        Returns:
-            Tree: A `Tree` object representing the structure of the node and its children.
-        """
-        root = Tree(self.inspect_str())
+class GraphTraverser(NodeVisitor):
+    """Concrete visitor for graph traversal."""
+    
+    def __init__(self, filter_type: type[BaseNode] | None = None):
+        self.filter_type = filter_type
+        self.results: list[BaseNode] = []
+    
+    def visit(self, node: BaseNode) -> None:
+        if self.filter_type is None or isinstance(node, self.filter_type):
+            self.results.append(node)
+        
+        # Continue traversal for composite nodes
+        if isinstance(node, CompositeNode):
+            for child in node.get_children():
+                child.accept(self)
 
-        queue: deque = deque(zip(self.children[::-1], [root] * len(self.children)))
-        while queue:
-            node, tree = queue.pop()
-            # Skip assertion nodes without validators (expression-only nodes)
-            if isinstance(node, AssertionNode) and node.validator is None:
-                # Still process children if any (though AssertionNode shouldn't have children)
-                queue.extend(zip(reversed(node.children), [tree] * len(node.children)))
-                continue
+
+class TreeBuilder(NodeVisitor):
+    """Visitor for building Rich Tree representation."""
+    
+    def __init__(self, tree: Tree):
+        self.tree = tree
+        self.current_tree = tree
+    
+    def visit(self, node: BaseNode) -> None:
+        # Skip assertion nodes without validators
+        if isinstance(node, AssertionNode) and node.validator is None:
+            return
+        
+        if node != self.tree.label:  # Skip root node itself
+            subtree = self.current_tree.add(node.inspect_str())
+            parent_tree = self.current_tree
+            self.current_tree = subtree
             
-            subtree = tree.add(node.inspect_str())
-            queue.extend(zip(reversed(node.children), [subtree] * len(node.children)))
+            # Continue traversal for composite nodes
+            if isinstance(node, CompositeNode):
+                for child in node.get_children():
+                    child.accept(self)
+            
+            self.current_tree = parent_tree
 
-        return fix_tree(root)
+
+# Concrete Node Implementations
+class RootNode(CompositeNode["CheckNode"]):
+    """Root node of the verification graph."""
+    
+    def __init__(self, name: str) -> None:
+        super().__init__()
+        self.name = name
 
     def inspect_str(self) -> str:
         return f"Suite: {self.name}"
 
+    def inspect(self) -> Tree:
+        """Create a tree representation of the graph structure."""
+        root = Tree(self.inspect_str())
+        builder = TreeBuilder(root)
+        for child in self.children:
+            child.accept(builder)
+        return root
+    
     def exists(self, child: "CheckNode") -> bool:
+        """Check if a child node exists in the graph."""
         return child in self.children
-
+    
+    def traverse(self, filter_type: type[BaseNode] | None = None) -> Iterator[BaseNode]:
+        """Generic traversal with optional type filtering."""
+        traverser = GraphTraverser(filter_type)
+        self.accept(traverser)
+        return iter(traverser.results)
+    
     def assertions(self) -> Iterator[AssertionNode]:
-        queue: deque = deque([self])
-
-        while queue:
-            node = queue.popleft()
-            if isinstance(node, AssertionNode):
-                yield node
-            else:
-                queue.extend(node.children)
-
+        """Iterate over all assertion nodes."""
+        return self.traverse(AssertionNode)  # type: ignore
+    
     def checks(self) -> Iterator[CheckNode]:
-        queue: deque = deque([self])
-
-        while queue:
-            node = queue.popleft()
-            if isinstance(node, CheckNode):
-                yield node
-            else:
-                queue.extend(node.children)
-
+        """Iterate over all check nodes."""
+        return self.traverse(CheckNode)  # type: ignore
+    
     def metrics(self) -> Iterator[MetricNode]:
-        queue: deque = deque([self])
-
-        while queue:
-            node = queue.popleft()
-            if isinstance(node, MetricNode):
-                yield node
-            else:
-                queue.extend(node.children)
-
+        """Iterate over all metric nodes."""
+        return self.traverse(MetricNode)  # type: ignore
+    
     def symbols(self) -> Iterator[SymbolNode]:
-        queue: deque = deque([self])
-
-        while queue:
-            node = queue.popleft()
-            if isinstance(node, SymbolNode):
-                yield node
-            else:
-                queue.extend(node.children)
-
+        """Iterate over all symbol nodes."""
+        return self.traverse(SymbolNode)  # type: ignore
+    
     def ready_metrics(self) -> Iterator[MetricNode]:
-        return filter(lambda node: node.state() == "READY", self.metrics())
-
+        """Iterate over metrics in READY state."""
+        return (metric for metric in self.metrics() if metric.state() == "READY")
+    
     def provided_metrics(self) -> Iterator[MetricNode]:
-        return filter(lambda node: node.state() == "PROVIDED", self.metrics())
-
+        """Iterate over metrics in PROVIDED state."""
+        return (metric for metric in self.metrics() if metric.state() == "PROVIDED")
+    
     def pending_metrics(self, dataset: str) -> Iterator[MetricNode]:
-        for node in self.checks():
-            for child in node.children:
-                if isinstance(child, SymbolNode):
-                    for metric in child.children:
-                        if isinstance(metric, MetricNode) and metric.datasets == [dataset]:
-                            if metric.state() == "PENDING":
-                                yield metric
-
+        """Iterate over metrics in PENDING state for a specific dataset."""
+        for metric in self.metrics():
+            if metric.datasets == [dataset] and metric.state() == "PENDING":
+                yield metric
+    
     def ready_symbols(self) -> Iterator[SymbolNode]:
-        return filter(lambda node: node.ready(), self.symbols())
-
+        """Iterate over symbols that are ready."""
+        return (symbol for symbol in self.symbols() if symbol.ready())
+    
     def mark_pending_metrics_success(self, dataset: str) -> None:
-        for node in self.pending_metrics(dataset):
-            node.mark_as_success()
-
+        """Mark all pending metrics for a dataset as successful."""
+        for metric in self.pending_metrics(dataset):
+            metric.mark_as_success()
+    
     def mark_pending_metric_failed(self, dataset: str, message: str) -> None:
-        for node in self.pending_metrics(dataset):
-            node.mark_as_failure(message)
-
-    def propagate(self, ds: list[str]) -> None:
-        """Dataset propagation to the immediate children.
+        """Mark all pending metrics for a dataset as failed."""
+        for metric in self.pending_metrics(dataset):
+            metric.mark_as_failure(message)
+    
+    def propagate(self, datasets: list[str]) -> None:
+        """
+        Propagate dataset information through the graph.
+        
         1. Impute check's datasets with the provided datasets
         2. Propagate datasets from checks to symbols
-        2.1. Resolve the individual metric constrains and mark the metrics as failed or put the datasets in the metric
-        3. Back propagate the failed metrics to symbols and assertions
+        3. Resolve metric constraints and mark metrics accordingly
+        4. Back propagate failed metrics to symbols and assertions
         """
-        # First, clean up any legacy symbol children on assertion nodes
-        self._cleanup_assertion_children()
-        
-        for node in self.children:
-            node.impute_dataset(ds)
-            node.propagate()
-
-    def _cleanup_assertion_children(self) -> None:
-        """Remove any symbol children from assertion nodes (legacy cleanup)."""
-        for assertion in self.assertions():
-            if hasattr(assertion, 'children') and assertion.children:
-                # Clear any children that might have been added before the fix
-                assertion.children.clear()
+        for check in self.children:
+            check.impute_dataset(datasets)
+            check.propagate()
 
 
-class CheckNode(NodeMixin["AssertionNode | SymbolNode"], Node["AssertionNode | SymbolNode"]):
+class CheckNode(CompositeNode["AssertionNode | SymbolNode"]):
+    """Node representing a data quality check."""
+    
     def __init__(
         self,
         name: str,
@@ -166,20 +211,22 @@ class CheckNode(NodeMixin["AssertionNode | SymbolNode"], Node["AssertionNode | S
         label: str | None = None,
         datasets: list[str] | None = None,
     ) -> None:
+        super().__init__()
         self.name = name
         self.tags = tags or []
         self.label = label
-        self.children: list[AssertionNode | SymbolNode] = []
-        self.datasets: list[str] = datasets or []
+        self.datasets = datasets or []
         self._value: Maybe[Result[float, str]] = Nothing
 
     def inspect_str(self) -> str:
         return f"{self.label or self.name} {self._value} {self.datasets}"
 
     def node_name(self) -> str:
+        """Get the display name of the node."""
         return self.label or self.name
 
     def impute_dataset(self, datasets: list[str]) -> None:
+        """Validate and set datasets for this check."""
         if any(ds not in datasets for ds in self.datasets):
             self._value = Some(
                 Failure(f"The check {self.node_name()} requires datasets {self.datasets} but got {datasets}")
@@ -188,12 +235,20 @@ class CheckNode(NodeMixin["AssertionNode | SymbolNode"], Node["AssertionNode | S
             self.datasets = datasets
 
     def propagate(self) -> None:
-        for node in self.children:
-            node.impute_dataset(self.datasets)
-            node.propagate()
+        """Propagate dataset information to children."""
+        for child in self.children:
+            child.impute_dataset(self.datasets)
+            if hasattr(child, 'propagate'):
+                child.propagate()
 
 
-class AssertionNode(Node[NoReturn]):  # AssertionNode should not have children
+class AssertionNode(LeafNode):
+    """
+    Node representing an assertion to be evaluated.
+    
+    AssertionNodes are leaf nodes and cannot have children.
+    """
+    
     def __init__(
         self,
         actual: sp.Expr,
@@ -203,18 +258,14 @@ class AssertionNode(Node[NoReturn]):  # AssertionNode should not have children
         root: RootNode | None = None,
     ) -> None:
         self.actual = actual
-        self.label: str | None = label
-        self.severity: SeverityLevel | None = severity
+        self.label = label
+        self.severity = severity
         self.datasets: list[str] = []
-        self.validator: SymbolicValidator | None = validator
+        self.validator = validator
         self._value: Maybe[Result[float, str]] = Nothing
         self._root = root
-
-        self.children: list[Any] = []  # Should remain empty
-
-    def add_child(self, child: Any) -> None:
-        """AssertionNode should not have children."""
-        raise RuntimeError("AssertionNode cannot have children. Symbols should be added to CheckNode instead.")
+        # Compatibility attribute for tests
+        self.children: list[Any] = []
 
     def set_label(self, label: str) -> None:
         self.label = label
@@ -229,51 +280,65 @@ class AssertionNode(Node[NoReturn]):  # AssertionNode should not have children
         self.datasets = datasets
 
     def impute_dataset(self, datasets: list[str]) -> None:
+        """Validate and set datasets for this assertion."""
         if any(ds not in datasets for ds in self.datasets):
             self._value = Some(
-                Failure(f"The assertion {str(self.actual) or self.label} requires datasets {self.datasets} but got {datasets}")
+                Failure(
+                    f"The assertion {str(self.actual) or self.label} requires datasets {self.datasets} but got {datasets}"
+                )
             )
         elif len(self.datasets) == 0:
             self.datasets = datasets
 
     def propagate(self) -> None:
-        # AssertionNode has no children, so nothing to propagate
+        """AssertionNode has no children, so nothing to propagate."""
         pass
 
     def mark_as_failure(self, message: str) -> None:
+        """Mark this assertion as failed with a message."""
         self._value = Some(Failure(message))
 
     def evaluate(self) -> Result[Any, str]:
-        # Find the root node by traversing up
-        root = self._find_root()
+        """
+        Evaluate the assertion expression.
+        
+        Returns:
+            Result containing the evaluated value or error message.
+        """
+        if self._root is None:
+            raise RuntimeError("Root node not set for AssertionNode")
         
         # Get all symbols from the graph
-        symbol_nodes = list(root.symbols())
+        symbol_nodes = list(self._root.symbols())
         
-        # Build symbol table from all available symbols
+        # Build symbol table from available symbols
         symbol_table = {}
-        for symbol_node in symbol_nodes:
-            if symbol_node.symbol in self.actual.free_symbols and symbol_node.success():
-                symbol_table[symbol_node.symbol] = symbol_node._value.unwrap().unwrap()
-        
-        # Check if all required symbols are available
-        missing_symbols = self.actual.free_symbols - symbol_table.keys()
-        if missing_symbols:
-            self._value = Some(Failure(f"Missing symbols: {missing_symbols}"))
-            return self._value.unwrap()
-        
-        # Check if any symbols failed
         failed_symbols = []
-        for symbol_node in symbol_nodes:
-            if symbol_node.symbol in self.actual.free_symbols and symbol_node.failure():
-                failed_symbols.append(str(symbol_node.symbol))
+        found_symbols = set()
         
+        for symbol_node in symbol_nodes:
+            if symbol_node.symbol in self.actual.free_symbols:
+                found_symbols.add(symbol_node.symbol)
+                if symbol_node.success():
+                    symbol_table[symbol_node.symbol] = symbol_node._value.unwrap().unwrap()
+                elif symbol_node.failure():
+                    failed_symbols.append(str(symbol_node.symbol))
+        
+        # Check for failed symbols first
         if failed_symbols:
             self._value = Some(Failure(f"Symbol dependencies failed: {', '.join(failed_symbols)}"))
             return self._value.unwrap()
         
+        # Check for missing symbols
+        missing_symbols = self.actual.free_symbols - found_symbols
+        if missing_symbols:
+            self._value = Some(Failure(f"Missing symbols: {missing_symbols}"))
+            return self._value.unwrap()
+        
+        # Evaluate the expression
         try:
             value = sp.N(self.actual.subs(symbol_table), 6)
+            
             if math.isnan(value):
                 self._value = Some(Failure("Validating value is NaN"))
             elif math.isinf(value):
@@ -291,6 +356,7 @@ class AssertionNode(Node[NoReturn]):  # AssertionNode should not have children
                 else:
                     # No validator, just store the computed value
                     self._value = Some(Success(value))
+                    
         except Exception as e:
             self._value = Some(Failure(str(e)))
 
@@ -307,27 +373,42 @@ class AssertionNode(Node[NoReturn]):  # AssertionNode should not have children
             return f"Assert that [green]{self.actual} {self.validator.name}[/green] :right_arrow: {self._value} {self.datasets}"
         return f"{self.actual}"
 
+    def add_child(self, child: Any) -> None:
+        """AssertionNode should not have children."""
+        raise RuntimeError("AssertionNode cannot have children. Symbols should be added to CheckNode instead.")
 
-class SymbolNode(NodeMixin["MetricNode"], Node["MetricNode"]):
-    def __init__(self, name: str, symbol: sp.Symbol, fn: RetrievalFn, datasets: list[str]) -> None:
+
+class SymbolNode(CompositeNode["MetricNode"]):
+    """Node representing a symbol that can be evaluated."""
+    
+    def __init__(
+        self, 
+        name: str, 
+        symbol: sp.Symbol, 
+        fn: RetrievalFn, 
+        datasets: list[str]
+    ) -> None:
+        super().__init__()
         self.name = name
         self.symbol = symbol
         self.fn = fn
-        self.datasets: list[str] = datasets
-        self.children = []
+        self.datasets = datasets
         self._value: Maybe[Result[float, str]] = Nothing
-        self._required_ds_count: int = 1
+        self._required_ds_count = 1
 
     def inspect_str(self) -> str:
         return f"[yellow2]{str(self.symbol)}[/yellow2]: [chartreuse3]{self.name}[/chartreuse3] :right_arrow: {self._value} {self.datasets}"
 
     def mark_as_failure(self, message: str) -> None:
+        """Mark this symbol as failed with a message."""
         self._value = Some(Failure(message))
 
     def ready(self) -> bool:
+        """Check if all child metrics are in PROVIDED state."""
         return all(child.state() == "PROVIDED" for child in self.children)
 
     def success(self) -> bool:
+        """Check if this symbol has been successfully evaluated."""
         match self._value:
             case Some(Success(_)):
                 return True
@@ -335,6 +416,7 @@ class SymbolNode(NodeMixin["MetricNode"], Node["MetricNode"]):
                 return False
 
     def failure(self) -> bool:
+        """Check if this symbol has failed evaluation."""
         match self._value:
             case Some(Failure(_)):
                 return True
@@ -342,6 +424,7 @@ class SymbolNode(NodeMixin["MetricNode"], Node["MetricNode"]):
                 return False
 
     def impute_dataset(self, datasets: list[str]) -> None:
+        """Validate and set datasets for this symbol."""
         if len(self.datasets) == self._required_ds_count and all(ds in datasets for ds in self.datasets):
             return
             
@@ -359,52 +442,77 @@ class SymbolNode(NodeMixin["MetricNode"], Node["MetricNode"]):
             self.datasets = datasets
 
     def propagate(self) -> None:
-        for node in self.children:
-            node.impute_dataset(self.datasets)
+        """Propagate dataset information to child metrics."""
+        for metric in self.children:
+            metric.impute_dataset(self.datasets)
 
     def evaluate(self, key: ResultKey) -> Result[float, str]:
+        """
+        Evaluate this symbol using the retrieval function.
+        
+        Args:
+            key: The result key for evaluation.
+            
+        Returns:
+            Result containing the evaluated value or error message.
+        """
         self._value = Some(self.fn(key))
         return self._value.unwrap()
 
 
-class MetricNode(NodeMixin["AnalyzerNode"], Node["AnalyzerNode"]):
-    """Metric states:
-    - PENDING: The metric is pending computed
-    - PROVIDED: The metric is computed and stored in DB
-    - ERROR: The metric computation failed. The error message is stored in _value
+class MetricNode(CompositeNode["AnalyzerNode"]):
+    """
+    Node representing a metric to be computed.
+    
+    Metric states:
+    - PENDING: The metric is pending computation
+    - PROVIDED: The metric is computed and stored
+    - ERROR: The metric computation failed
     """
 
-    def __init__(self, spec: MetricSpec, key_provider: ResultKeyProvider, nominal_key: ResultKey) -> None:
+    def __init__(
+        self, 
+        spec: MetricSpec, 
+        key_provider: ResultKeyProvider, 
+        nominal_key: ResultKey
+    ) -> None:
+        super().__init__()
         self.spec = spec
         self.key_provider = key_provider
         self._nominal_key = nominal_key
         self.datasets: list[str] = []
-        self.children = []
-
-        # Nothing -> Not analyzed, PENDING
-        # Some(Success) -> Analyzed successfully PROVIDED
-        # Some(Failure) -> Analyzed with failure ERROR
         self._analyzed: Maybe[Result[None, str]] = Nothing
 
     def inspect_str(self) -> str:
         return f"{self.spec.name} with {self.eval_key()} :right_arrow: {self._analyzed} {self.datasets}"
 
     def eval_key(self) -> ResultKey:
+        """Get the evaluation key for this metric."""
         return self.key_provider.create(self._nominal_key)
 
     def mark_as_provided(self) -> None:
+        """Mark this metric as provided."""
         self._analyzed = Some(Success(None))
 
     def mark_as_success(self) -> None:
+        """Mark this metric as successfully computed."""
         self._analyzed = Some(Success(None))
 
     def mark_as_failure(self, message: str) -> None:
+        """Mark this metric as failed with a message."""
         self._analyzed = Some(Failure(message))
 
     def impute_dataset(self, datasets: list[str]) -> None:
+        """Set datasets for this metric."""
         self.datasets = datasets
 
     def state(self) -> MetricState:
+        """
+        Get the current state of this metric.
+        
+        Returns:
+            The metric state: ERROR, PROVIDED, or PENDING.
+        """
         match self._analyzed:
             case Some(Failure(_)):
                 return "ERROR"
@@ -414,31 +522,22 @@ class MetricNode(NodeMixin["AnalyzerNode"], Node["AnalyzerNode"]):
                 return "PENDING"
 
 
-class AnalyzerNode(NodeMixin, Node):
+class AnalyzerNode(LeafNode):
+    """Node representing an analyzer operation."""
+    
     def __init__(self, analyzer: Op) -> None:
         self.analyzer = analyzer
-        self.children = []
-
-    def add_child(self, child: Any) -> None:
-        raise NotImplementedError("AnalyzerNode cannot have children")
+        # Compatibility attribute for tests
+        self.children: list[Any] = []
 
     def inspect_str(self) -> str:
         return f"Analyze {self.analyzer.name}"
+    
+    def add_child(self, child: Any) -> None:
+        """AnalyzerNode cannot have children."""
+        raise NotImplementedError("AnalyzerNode cannot have children")
 
 
-def fix_tree(tree: Tree, depth: int = 0) -> Tree:
-    """
-    Fix the tree display by removing any extra spacing issues.
-
-    Args:
-        tree (Tree): The root of the tree to be fixed.
-        depth (int, optional): The current depth of the traversal. Defaults to 0.
-
-    Returns:
-        The original tree
-    """
-    # Continue traversing without adding any newlines
-    for child in tree.children:
-        fix_tree(child, depth + 1)
-
-    return tree
+# Backward compatibility aliases
+Node = BaseNode
+NodeMixin = CompositeNode

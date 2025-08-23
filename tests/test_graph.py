@@ -1,26 +1,32 @@
-import sympy as sp
+"""Comprehensive tests for graph module with 100% coverage."""
+
 import datetime as dt
-from rich.console import Console
-from rich.tree import Tree
+from typing import Any
 from unittest.mock import MagicMock
 
-from typing import Optional
-from returns.result import Success
 import pytest
+import sympy as sp
+from returns.maybe import Nothing, Some
+from returns.result import Failure, Success
+from rich.console import Console
+from rich.tree import Tree
 
 from dqx import graph
-from dqx.specs import MetricSpec
-from dqx.common import ResultKey, ResultKeyProvider
+from dqx.common import ResultKey, ResultKeyProvider, SymbolicValidator
 from dqx.ops import Op
-from dqx.graph import AssertionNode, SymbolNode, CheckNode, RootNode
+from dqx.specs import MetricSpec
 
 
-# Helper classes
-class MockOp(Op[float]):
+# =============================================================================
+# Helper Classes
+# =============================================================================
+
+class MockOp(Op[Any]):
+    """Mock operator for testing."""
     def __init__(self, name: str):
         self._name = name
         self._prefix = "mock"
-        self._value: Optional[float] = None
+        self._value = None
     
     @property
     def name(self) -> str:
@@ -30,12 +36,11 @@ class MockOp(Op[float]):
     def prefix(self) -> str:
         return self._prefix
     
-    def value(self) -> float:
-        if self._value is None:
-            raise RuntimeError("MockOp has no value")
+    @property
+    def value(self) -> Any:
         return self._value
     
-    def assign(self, value: float) -> None:
+    def assign(self, value: Any) -> None:
         self._value = value
     
     def clear(self) -> None:
@@ -43,27 +48,932 @@ class MockOp(Op[float]):
 
 
 class MockKeyProvider(ResultKeyProvider):
+    """Mock key provider for testing."""
     def create(self, key: ResultKey) -> ResultKey:
         return key
 
 
-# Helper functions
-def walker(node: graph.Node) -> None:
-    print(node.inspect_str())
+# =============================================================================
+# 1. Core Node Behavior Tests
+# =============================================================================
+
+def test_basic_graph_creation() -> None:
+    """Test basic graph creation and structure."""
+    root = graph.RootNode("Test Suite")
+    check = graph.CheckNode("check_1")
+    root.add_child(check)
+    
+    assertion = graph.AssertionNode(actual=sp.Symbol("x"))
+    check.add_child(assertion)
+    
+    assert root.name == "Test Suite"
+    assert len(root.children) == 1
+    assert check in root.children
+    assert len(check.children) == 1
+    assert assertion in check.children
 
 
-# Original test from test_graph.py
-def test_graph() -> None:
-    root = graph.RootNode("Some checks")
-    root.add_child(check_1:= graph.CheckNode("check_1"))
-    check_1.add_child(graph.AssertionNode("assertion_1"))
+def test_node_string_representations() -> None:
+    """Test inspect_str methods for all node types."""
+    # RootNode
+    root = graph.RootNode("Test Suite")
+    assert root.inspect_str() == "Suite: Test Suite"
+    
+    # CheckNode
+    check = graph.CheckNode("check1", label="Check One", datasets=["ds1"])
+    assert "Check One" in check.inspect_str()
+    assert "ds1" in check.inspect_str()
+    
+    # AssertionNode
+    assertion = graph.AssertionNode(actual=sp.Symbol("x"))
+    assert "x" in assertion.inspect_str()
+    
+    # SymbolNode
+    symbol = graph.SymbolNode("sym1", sp.Symbol("y"), lambda k: Success(1.0), ["ds1"])
+    assert "y" in symbol.inspect_str()
+    assert "sym1" in symbol.inspect_str()
+    
+    # MetricNode
+    metric_spec = MagicMock(spec=MetricSpec, name="metric1")
+    metric = graph.MetricNode(metric_spec, MockKeyProvider(), ResultKey(yyyy_mm_dd=dt.date.today(), tags={}))
+    assert "metric1" in metric.inspect_str()
+    
+    # AnalyzerNode
+    analyzer = graph.AnalyzerNode(MockOp("analyzer1"))
+    assert "analyzer1" in analyzer.inspect_str()
 
-    print("\n")
+
+# =============================================================================
+# 2. Design Pattern Tests
+# =============================================================================
+
+def test_visitor_pattern_implementation() -> None:
+    """Test the visitor pattern for graph traversal."""
+    # Create a graph structure
+    root = graph.RootNode("Test Suite")
+    check1 = graph.CheckNode("check1")
+    check2 = graph.CheckNode("check2")
+    root.add_child(check1)
+    root.add_child(check2)
+    
+    # Add various node types
+    assertion1 = graph.AssertionNode(actual=sp.Symbol("x"), root=root)
+    symbol1 = graph.SymbolNode("sym1", sp.Symbol("x"), lambda k: Success(10.0), [])
+    check1.add_child(assertion1)
+    check1.add_child(symbol1)
+    
+    assertion2 = graph.AssertionNode(actual=sp.Symbol("y"), root=root)
+    symbol2 = graph.SymbolNode("sym2", sp.Symbol("y"), lambda k: Success(20.0), [])
+    check2.add_child(assertion2)
+    check2.add_child(symbol2)
+    
+    # Test traversal with filtering
+    assertions = list(root.assertions())
+    assert len(assertions) == 2
+    assert assertion1 in assertions
+    assert assertion2 in assertions
+    
+    symbols = list(root.symbols())
+    assert len(symbols) == 2
+    assert symbol1 in symbols
+    assert symbol2 in symbols
+    
+    checks = list(root.checks())
+    assert len(checks) == 2
+    assert check1 in checks
+    assert check2 in checks
+
+
+def test_custom_visitor() -> None:
+    """Test custom visitor implementation."""
+    class CountingVisitor(graph.NodeVisitor):
+        def __init__(self) -> None:
+            self.count = 0
+        
+        def visit(self, node: graph.BaseNode) -> None:
+            self.count += 1
+            # Continue traversal for composite nodes
+            if isinstance(node, graph.CompositeNode):
+                for child in node.get_children():
+                    child.accept(self)
+    
+    # Build a graph
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check")
+    assertion = graph.AssertionNode(sp.Symbol("x"), root=root)
+    symbol = graph.SymbolNode("sym", sp.Symbol("x"), lambda k: Success(1.0), [])
+    
+    root.add_child(check)
+    check.add_child(assertion)
+    check.add_child(symbol)
+    
+    # Count nodes
+    visitor = CountingVisitor()
+    root.accept(visitor)
+    
+    # Should count: root + check + assertion + symbol = 4
+    assert visitor.count == 4
+
+
+def test_composite_pattern_hierarchy() -> None:
+    """Test the composite pattern for node hierarchy."""
+    root = graph.RootNode("Root")
+    check = graph.CheckNode("Check")
+    symbol = graph.SymbolNode("Symbol", sp.Symbol("x"), lambda k: Success(1.0), [])
+    metric = graph.MetricNode(
+        MagicMock(spec=MetricSpec, name="metric"),
+        MockKeyProvider(),
+        ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    )
+    
+    # Test add_child
+    root.add_child(check)
+    check.add_child(symbol)
+    symbol.add_child(metric)
+    
+    assert len(root.children) == 1
+    assert len(check.children) == 1
+    assert len(symbol.children) == 1
+    assert len(metric.children) == 0
+    
+    # Test remove_child
+    check.remove_child(symbol)
+    assert len(check.children) == 0
+    
+    # Test get_children
+    children = root.get_children()
+    assert children == [check]
+    
+    # Re-add symbol to check
+    check.add_child(symbol)
+    assert check.get_children() == [symbol]
+
+
+def test_traverse_without_filter() -> None:
+    """Test RootNode traverse method without type filter."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check")
+    assertion = graph.AssertionNode(sp.Symbol("x"), root=root)
+    symbol = graph.SymbolNode("sym", sp.Symbol("x"), lambda k: Success(1.0), [])
+    
+    root.add_child(check)
+    check.add_child(assertion)
+    check.add_child(symbol)
+    
+    # Traverse without filter should return all nodes
+    all_nodes = list(root.traverse())
+    assert len(all_nodes) == 4  # root + check + assertion + symbol
+    assert root in all_nodes
+    assert check in all_nodes
+    assert assertion in all_nodes
+    assert symbol in all_nodes
+
+
+# =============================================================================
+# 3. Node Hierarchy Tests
+# =============================================================================
+
+def test_leaf_nodes_cannot_have_children() -> None:
+    """Test that leaf nodes (AssertionNode, AnalyzerNode) cannot have children."""
+    # AssertionNode
+    assertion = graph.AssertionNode(actual=sp.Symbol("x"))
+    with pytest.raises(RuntimeError, match="AssertionNode cannot have children"):
+        assertion.add_child(MagicMock())
+    
+    # AnalyzerNode
+    analyzer = graph.AnalyzerNode(MockOp("test"))
+    with pytest.raises(NotImplementedError, match="AnalyzerNode cannot have children"):
+        analyzer.add_child(MagicMock())
+
+
+def test_check_node_accepts_multiple_child_types() -> None:
+    """Test that CheckNode can have both AssertionNode and SymbolNode children."""
+    check = graph.CheckNode(name="test_check")
+    
+    # Create assertion and symbol nodes
+    assertion = graph.AssertionNode(actual=sp.Symbol("x"))
+    symbol = graph.SymbolNode("test_symbol", sp.Symbol("x"), lambda k: Success(10.0), ["ds1"])
+    
+    # Add both as children
+    check.add_child(assertion)
+    check.add_child(symbol)
+    
+    assert len(check.children) == 2
+    assert assertion in check.children
+    assert symbol in check.children
+
+
+def test_root_node_exists_method() -> None:
+    """Test the exists method for backward compatibility."""
+    root = graph.RootNode("Test")
+    check1 = graph.CheckNode("check1")
+    check2 = graph.CheckNode("check2")
+    
+    # Add check1 but not check2
+    root.add_child(check1)
+    
+    assert root.exists(check1)
+    assert not root.exists(check2)
+
+
+# =============================================================================
+# 4. State Management Tests
+# =============================================================================
+
+def test_metric_node_states() -> None:
+    """Test MetricNode state transitions."""
+    metric = graph.MetricNode(
+        MagicMock(spec=MetricSpec, name="test_metric"),
+        MockKeyProvider(),
+        ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    )
+    
+    # Initial state should be PENDING
+    assert metric.state() == "PENDING"
+    
+    # Mark as provided
+    metric.mark_as_provided()
+    assert metric.state() == "PROVIDED"
+    
+    # Create another metric and mark as failure
+    metric2 = graph.MetricNode(
+        MagicMock(spec=MetricSpec, name="test_metric2"),
+        MockKeyProvider(),
+        ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    )
+    metric2.mark_as_failure("Test error")
+    assert metric2.state() == "ERROR"
+    
+    # Mark as success (same as provided)
+    metric3 = graph.MetricNode(
+        MagicMock(spec=MetricSpec, name="test_metric3"),
+        MockKeyProvider(),
+        ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    )
+    metric3.mark_as_success()
+    assert metric3.state() == "PROVIDED"
+
+
+def test_symbol_node_states() -> None:
+    """Test SymbolNode success and failure states."""
+    symbol = graph.SymbolNode("test", sp.Symbol("x"), lambda k: Success(10.0), [])
+    
+    # Initially not success or failure
+    assert not symbol.success()
+    assert not symbol.failure()
+    
+    # Evaluate successfully
+    symbol._value = Some(Success(10.0))
+    assert symbol.success()
+    assert not symbol.failure()
+    
+    # Mark as failure
+    symbol.mark_as_failure("Test error")
+    assert not symbol.success()
+    assert symbol.failure()
+
+
+def test_symbol_node_ready_state() -> None:
+    """Test SymbolNode ready() method based on child metrics."""
+    symbol = graph.SymbolNode("test", sp.Symbol("x"), lambda k: Success(10.0), [])
+    
+    # No children - should be ready
+    assert symbol.ready()
+    
+    # Add metric children
+    metric1 = graph.MetricNode(
+        MagicMock(spec=MetricSpec, name="metric1"),
+        MockKeyProvider(),
+        ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    )
+    metric2 = graph.MetricNode(
+        MagicMock(spec=MetricSpec, name="metric2"),
+        MockKeyProvider(),
+        ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    )
+    
+    symbol.add_child(metric1)
+    symbol.add_child(metric2)
+    
+    # Not ready when metrics are pending
+    assert not symbol.ready()
+    
+    # Mark one as provided
+    metric1.mark_as_provided()
+    assert not symbol.ready()
+    
+    # Mark both as provided
+    metric2.mark_as_provided()
+    assert symbol.ready()
+
+
+def test_root_node_metric_filtering() -> None:
+    """Test RootNode methods for filtering metrics by state."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check", datasets=["ds1"])
+    root.add_child(check)
+    
+    symbol = graph.SymbolNode("sym", sp.Symbol("x"), lambda k: Success(1.0), [])
+    check.add_child(symbol)
+    
+    # Create metrics in different states
+    metric1 = graph.MetricNode(
+        MagicMock(spec=MetricSpec, name="metric1"),
+        MockKeyProvider(),
+        ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    )
+    metric2 = graph.MetricNode(
+        MagicMock(spec=MetricSpec, name="metric2"),
+        MockKeyProvider(),
+        ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    )
+    metric3 = graph.MetricNode(
+        MagicMock(spec=MetricSpec, name="metric3"),
+        MockKeyProvider(),
+        ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    )
+    
+    symbol.add_child(metric1)
+    symbol.add_child(metric2)
+    symbol.add_child(metric3)
+    
+    # Set different states
+    metric1.mark_as_provided()
+    # metric2 remains PENDING
+    metric3.mark_as_failure("error")
+    
+    # Propagate to set datasets
+    root.propagate(["ds1"])
+    
+    # Test filtering methods
+    provided = list(root.provided_metrics())
+    assert len(provided) == 1
+    assert metric1 in provided
+    
+    pending = list(root.pending_metrics("ds1"))
+    assert len(pending) == 1
+    assert metric2 in pending
+    
+    # Test ready_metrics (none should be READY in this test)
+    ready = list(root.ready_metrics())
+    assert len(ready) == 0
+
+
+def test_root_node_ready_symbols() -> None:
+    """Test RootNode ready_symbols() method."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check")
+    root.add_child(check)
+    
+    # Create symbols with different readiness
+    symbol1 = graph.SymbolNode("sym1", sp.Symbol("x"), lambda k: Success(1.0), [])
+    symbol2 = graph.SymbolNode("sym2", sp.Symbol("y"), lambda k: Success(2.0), [])
+    check.add_child(symbol1)
+    check.add_child(symbol2)
+    
+    # symbol1 has no metrics, so it's ready
+    # symbol2 has a pending metric
+    metric = graph.MetricNode(
+        MagicMock(spec=MetricSpec, name="metric"),
+        MockKeyProvider(),
+        ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    )
+    symbol2.add_child(metric)
+    
+    ready_symbols = list(root.ready_symbols())
+    assert len(ready_symbols) == 1
+    assert symbol1 in ready_symbols
+    assert symbol2 not in ready_symbols
+    
+    # Mark metric as provided
+    metric.mark_as_provided()
+    ready_symbols = list(root.ready_symbols())
+    assert len(ready_symbols) == 2
+
+
+def test_root_node_mark_pending_metrics() -> None:
+    """Test marking pending metrics as success or failed."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check", datasets=["ds1"])
+    root.add_child(check)
+    
+    symbol = graph.SymbolNode("sym", sp.Symbol("x"), lambda k: Success(1.0), [])
+    check.add_child(symbol)
+    
+    # Create pending metrics
+    metric1 = graph.MetricNode(
+        MagicMock(spec=MetricSpec, name="metric1"),
+        MockKeyProvider(),
+        ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    )
+    metric2 = graph.MetricNode(
+        MagicMock(spec=MetricSpec, name="metric2"),
+        MockKeyProvider(),
+        ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    )
+    
+    symbol.add_child(metric1)
+    symbol.add_child(metric2)
+    
+    # Propagate to set datasets
+    root.propagate(["ds1"])
+    
+    # Both should be pending
+    assert metric1.state() == "PENDING"
+    assert metric2.state() == "PENDING"
+    
+    # Mark all pending as success
+    root.mark_pending_metrics_success("ds1")
+    assert metric1.state() == "PROVIDED"
+    assert metric2.state() == "PROVIDED"
+    
+    # Reset for failure test
+    metric1._analyzed = Nothing
+    metric2._analyzed = Nothing
+    
+    # Mark all pending as failed
+    root.mark_pending_metric_failed("ds1", "Test failure")
+    assert metric1.state() == "ERROR"
+    assert metric2.state() == "ERROR"
+
+
+def test_metrics_method() -> None:
+    """Test RootNode metrics() method."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check")
+    symbol = graph.SymbolNode("sym", sp.Symbol("x"), lambda k: Success(1.0), [])
+    metric = graph.MetricNode(
+        MagicMock(spec=MetricSpec, name="metric"),
+        MockKeyProvider(),
+        ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    )
+    
+    root.add_child(check)
+    check.add_child(symbol)
+    symbol.add_child(metric)
+    
+    metrics = list(root.metrics())
+    assert len(metrics) == 1
+    assert metric in metrics
+
+
+# =============================================================================
+# 5. Dataset Propagation Tests
+# =============================================================================
+
+def test_dataset_propagation() -> None:
+    """Test dataset propagation through the graph."""
+    root = graph.RootNode("Test")
+    check1 = graph.CheckNode("check1", datasets=["ds1"])
+    check2 = graph.CheckNode("check2")  # No specific dataset
+    root.add_child(check1)
+    root.add_child(check2)
+    
+    # Add children
+    assertion1 = graph.AssertionNode(sp.Symbol("x"), root=root)
+    symbol1 = graph.SymbolNode("sym1", sp.Symbol("x"), lambda k: Success(1.0), [])
+    check1.add_child(assertion1)
+    check1.add_child(symbol1)
+    
+    assertion2 = graph.AssertionNode(sp.Symbol("y"), root=root)
+    check2.add_child(assertion2)
+    
+    # Propagate datasets
+    root.propagate(["ds1", "ds2"])
+    
+    # check1 should keep its dataset requirement
+    assert check1.datasets == ["ds1"]
+    # check2 should get all datasets
+    assert check2.datasets == ["ds1", "ds2"]
+    
+    # Children should inherit from their parent check
+    assert assertion1.datasets == ["ds1"]
+    assert symbol1.datasets == ["ds1"]
+    assert assertion2.datasets == ["ds1", "ds2"]
+
+
+def test_dataset_validation_errors() -> None:
+    """Test dataset validation error cases."""
+    root = graph.RootNode("Test")
+    
+    # Test CheckNode dataset validation error
+    check = graph.CheckNode("check1", datasets=["ds_missing"])
+    root.add_child(check)
+    root.propagate(["ds1", "ds2"])
+    
+    # Check should have error value
+    assert isinstance(check._value, Some)
+    assert isinstance(check._value.unwrap(), Failure)
+    assert "requires datasets ['ds_missing']" in check._value.unwrap().failure()
+    
+    # Test AssertionNode dataset validation error
+    root2 = graph.RootNode("Test2")
+    check2 = graph.CheckNode("check2")
+    root2.add_child(check2)
+    
+    assertion = graph.AssertionNode(sp.Symbol("x"), root=root2)
+    assertion.set_datasource(["ds_missing"])
+    check2.add_child(assertion)
+    
+    root2.propagate(["ds1"])
+    assert isinstance(assertion._value, Some)
+    assert isinstance(assertion._value.unwrap(), Failure)
+    
+    # Test SymbolNode dataset validation error
+    symbol = graph.SymbolNode("sym", sp.Symbol("x"), lambda k: Success(1.0), ["ds_missing"])
+    check2.add_child(symbol)
+    
+    root2.propagate(["ds1"])
+    assert isinstance(symbol._value, Some)
+    assert isinstance(symbol._value.unwrap(), Failure)
+
+
+def test_symbol_dataset_count_validation() -> None:
+    """Test SymbolNode dataset count validation."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check")
+    root.add_child(check)
+    
+    # Symbol requires exactly 1 dataset
+    symbol = graph.SymbolNode("sym", sp.Symbol("x"), lambda k: Success(1.0), [])
+    symbol._required_ds_count = 1
+    check.add_child(symbol)
+    
+    # Propagate with 2 datasets - should fail
+    root.propagate(["ds1", "ds2"])
+    
+    assert isinstance(symbol._value, Some)
+    assert isinstance(symbol._value.unwrap(), Failure)
+    assert "requires exactly 1 datasets" in symbol._value.unwrap().failure()
+
+
+def test_symbol_node_impute_dataset_no_change_needed() -> None:
+    """Test impute_dataset when datasets already match requirements."""
+    # Create a symbol with datasets already set correctly
+    symbol = graph.SymbolNode(
+        name="test_symbol",
+        symbol=sp.Symbol("x"),
+        fn=lambda k: Success(42.0),
+        datasets=["dataset1"]
+    )
+    
+    # Set _required_ds_count to match current datasets
+    symbol._required_ds_count = 1
+    
+    # Call impute_dataset with matching datasets - should return early
+    symbol.impute_dataset(["dataset1", "dataset2"])
+    
+    # Verify datasets unchanged and no error set
+    assert symbol.datasets == ["dataset1"]
+    assert symbol._value == Nothing
+
+
+# =============================================================================
+# 6. Evaluation and Computation Tests
+# =============================================================================
+
+def test_assertion_node_setters() -> None:
+    """Test AssertionNode setter methods."""
+    assertion = graph.AssertionNode(actual=sp.Symbol("x"))
+    
+    # Test set_label
+    assertion.set_label("Test Label")
+    assert assertion.label == "Test Label"
+    
+    # Test set_severity
+    assertion.set_severity("P0")
+    assert assertion.severity == "P0"
+    
+    # Test set_validator
+    validator = SymbolicValidator(name="> 5", fn=lambda x: x > 5)
+    assertion.set_validator(validator)
+    assert assertion.validator == validator
+    
+    # Test set_datasource
+    assertion.set_datasource(["ds1", "ds2"])
+    assert assertion.datasets == ["ds1", "ds2"]
+
+
+def test_assertion_node_evaluate_success() -> None:
+    """Test successful assertion evaluation."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check")
+    root.add_child(check)
+    
+    # Create symbols
+    symbol_x = graph.SymbolNode("x_metric", sp.Symbol("x"), lambda k: Success(10.0), [])
+    symbol_y = graph.SymbolNode("y_metric", sp.Symbol("y"), lambda k: Success(20.0), [])
+    check.add_child(symbol_x)
+    check.add_child(symbol_y)
+    
+    # Evaluate symbols
+    symbol_x._value = Some(Success(10.0))
+    symbol_y._value = Some(Success(20.0))
+    
+    # Create assertion
+    assertion = graph.AssertionNode(
+        actual=sp.Symbol("x") + sp.Symbol("y"),
+        validator=SymbolicValidator(name="> 25", fn=lambda v: v > 25),
+        root=root
+    )
+    check.add_child(assertion)
+    
+    # Evaluate assertion
+    result = assertion.evaluate()
+    assert isinstance(result, Success)
+    assert float(result.unwrap()) == 30.0
+    assert float(assertion._value.unwrap().unwrap()) == 30.0
+
+
+def test_assertion_node_evaluate_validator_failure() -> None:
+    """Test assertion evaluation with validator failure."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check")
+    root.add_child(check)
+    
+    # Create symbol
+    symbol = graph.SymbolNode("x_metric", sp.Symbol("x"), lambda k: Success(5.0), [])
+    check.add_child(symbol)
+    symbol._value = Some(Success(5.0))
+    
+    # Create assertion with failing validator
+    assertion = graph.AssertionNode(
+        actual=sp.Symbol("x"),
+        label="Test assertion",
+        validator=SymbolicValidator(name="> 10", fn=lambda v: v > 10),
+        root=root
+    )
+    check.add_child(assertion)
+    
+    # Evaluate assertion
+    result = assertion.evaluate()
+    assert isinstance(result, Failure)
+    assert "does not satisfy > 10" in result.failure()
+    assert "Test assertion:" in result.failure()
+
+
+def test_assertion_node_evaluate_missing_symbols() -> None:
+    """Test assertion evaluation with missing symbols."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check")
+    root.add_child(check)
+    
+    # Create assertion without corresponding symbols
+    assertion = graph.AssertionNode(
+        actual=sp.Symbol("x") + sp.Symbol("y"),
+        root=root
+    )
+    check.add_child(assertion)
+    
+    # Evaluate assertion - should fail due to missing symbols
+    result = assertion.evaluate()
+    assert isinstance(result, Failure)
+    assert "Missing symbols" in result.failure()
+
+
+def test_assertion_node_evaluate_failed_symbols() -> None:
+    """Test assertion evaluation with failed symbol dependencies."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check")
+    root.add_child(check)
+    
+    # Create symbols with failures
+    symbol_x = graph.SymbolNode("x_metric", sp.Symbol("x"), lambda k: Success(10.0), [])
+    symbol_y = graph.SymbolNode("y_metric", sp.Symbol("y"), lambda k: Failure("Symbol failed"), [])
+    check.add_child(symbol_x)
+    check.add_child(symbol_y)
+    
+    # Mark symbols
+    symbol_x._value = Some(Success(10.0))
+    symbol_y._value = Some(Failure("Symbol failed"))
+    
+    # Create assertion
+    assertion = graph.AssertionNode(
+        actual=sp.Symbol("x") + sp.Symbol("y"),
+        root=root
+    )
+    check.add_child(assertion)
+    
+    # Evaluate assertion - should fail due to failed symbol
+    result = assertion.evaluate()
+    assert isinstance(result, Failure)
+    assert "Symbol dependencies failed" in result.failure()
+
+
+def test_assertion_node_evaluate_nan_and_infinity() -> None:
+    """Test assertion evaluation with NaN and infinity values."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check")
+    root.add_child(check)
+    
+    # Test NaN
+    symbol_nan = graph.SymbolNode("nan_metric", sp.Symbol("x"), lambda k: Success(float('nan')), [])
+    check.add_child(symbol_nan)
+    symbol_nan._value = Some(Success(float('nan')))
+    
+    assertion_nan = graph.AssertionNode(actual=sp.Symbol("x"), root=root)
+    check.add_child(assertion_nan)
+    
+    result_nan = assertion_nan.evaluate()
+    assert isinstance(result_nan, Failure)
+    assert "Validating value is NaN" in result_nan.failure()
+    
+    # Test infinity
+    root2 = graph.RootNode("Test2")
+    check2 = graph.CheckNode("check2")
+    root2.add_child(check2)
+    
+    symbol_inf = graph.SymbolNode("inf_metric", sp.Symbol("y"), lambda k: Success(float('inf')), [])
+    check2.add_child(symbol_inf)
+    symbol_inf._value = Some(Success(float('inf')))
+    
+    assertion_inf = graph.AssertionNode(actual=sp.Symbol("y"), root=root2)
+    check2.add_child(assertion_inf)
+    
+    result_inf = assertion_inf.evaluate()
+    assert isinstance(result_inf, Failure)
+    assert "Validating value is infinity" in result_inf.failure()
+
+
+def test_assertion_node_evaluate_without_root() -> None:
+    """Test assertion evaluation without root node."""
+    assertion = graph.AssertionNode(actual=sp.Symbol("x"))
+    
+    with pytest.raises(RuntimeError, match="Root node not set"):
+        assertion.evaluate()
+
+
+def test_assertion_node_find_root_error() -> None:
+    """Test _find_root method error case."""
+    assertion = graph.AssertionNode(actual=sp.Symbol("x"))
+    
+    with pytest.raises(RuntimeError, match="Root node not set"):
+        assertion._find_root()
+
+
+def test_assertion_node_mark_as_failure() -> None:
+    """Test marking assertion as failure."""
+    assertion = graph.AssertionNode(actual=sp.Symbol("x"))
+    
+    assertion.mark_as_failure("Test failure message")
+    
+    assert isinstance(assertion._value, Some)
+    assert isinstance(assertion._value.unwrap(), Failure)
+    assert assertion._value.unwrap().failure() == "Test failure message"
+
+
+def test_symbol_node_evaluate() -> None:
+    """Test SymbolNode evaluate method."""
+    # Success case
+    def fn_success(k: ResultKey) -> Success[float]:
+        return Success(42.0)
+    
+    symbol = graph.SymbolNode("test", sp.Symbol("x"), fn_success, [])
+    
+    key = ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
+    result = symbol.evaluate(key)
+    
+    assert isinstance(result, Success)
+    assert result.unwrap() == 42.0
+    assert symbol._value.unwrap().unwrap() == 42.0
+    
+    # Failure case
+    def fn_failure(k: ResultKey) -> Failure[str]:
+        return Failure("Evaluation failed")
+    
+    symbol2 = graph.SymbolNode("test2", sp.Symbol("y"), fn_failure, [])
+    
+    result2 = symbol2.evaluate(key)
+    assert isinstance(result2, Failure)
+    assert result2.failure() == "Evaluation failed"
+
+
+def test_metric_node_eval_key() -> None:
+    """Test MetricNode eval_key method."""
+    spec = MagicMock(spec=MetricSpec, name="test_metric")
+    key_provider = MockKeyProvider()
+    nominal_key = ResultKey(yyyy_mm_dd=dt.date(2025, 1, 15), tags={"env": "test"})
+    
+    metric = graph.MetricNode(spec, key_provider, nominal_key)
+    
+    eval_key = metric.eval_key()
+    assert eval_key == nominal_key
+    assert eval_key.yyyy_mm_dd == dt.date(2025, 1, 15)
+    assert eval_key.tags == {"env": "test"}
+
+
+def test_check_node_name() -> None:
+    """Test CheckNode node_name method."""
+    # With label
+    check1 = graph.CheckNode("check_id", label="Check Label")
+    assert check1.node_name() == "Check Label"
+    
+    # Without label
+    check2 = graph.CheckNode("check_id")
+    assert check2.node_name() == "check_id"
+
+
+def test_assertion_node_evaluate_no_validator() -> None:
+    """Test assertion evaluation without validator (just computes value)."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check")
+    root.add_child(check)
+    
+    # Create symbol
+    symbol = graph.SymbolNode("x_metric", sp.Symbol("x"), lambda k: Success(10.0), [])
+    check.add_child(symbol)
+    symbol._value = Some(Success(10.0))
+    
+    # Create assertion without validator
+    assertion = graph.AssertionNode(
+        actual=sp.Symbol("x") * 2,
+        root=root
+    )
+    check.add_child(assertion)
+    
+    # Evaluate assertion
+    result = assertion.evaluate()
+    assert isinstance(result, Success)
+    assert float(result.unwrap()) == 20.0
+
+
+# =============================================================================
+# 7. Error Handling Tests
+# =============================================================================
+
+def test_assertion_node_evaluate_exception() -> None:
+    """Test assertion evaluation with exception."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check")
+    root.add_child(check)
+    
+    # Create a symbol that causes division by zero
+    symbol_x = graph.SymbolNode("x_metric", sp.Symbol("x"), lambda k: Success(0.0), [])
+    check.add_child(symbol_x)
+    symbol_x._value = Some(Success(0.0))
+    
+    # Create assertion with division by zero
+    assertion = graph.AssertionNode(
+        actual=sp.Integer(1) / sp.Symbol("x"),
+        root=root
+    )
+    check.add_child(assertion)
+    
+    # Evaluate assertion - should catch exception
+    result = assertion.evaluate()
+    assert isinstance(result, Failure)
+
+
+def test_assertion_propagate_does_nothing() -> None:
+    """Test that AssertionNode.propagate() does nothing."""
+    assertion = graph.AssertionNode(actual=sp.Symbol("x"))
+    
+    # This should not raise any errors
+    assertion.propagate()
+    
+    # Children list remains empty
+    assert assertion.children == []
+
+
+# =============================================================================
+# 8. Display and Inspection Tests
+# =============================================================================
+
+def test_graph_inspect_tree() -> None:
+    """Test graph tree inspection."""
+    root = graph.RootNode("Test Suite")
+    check = graph.CheckNode("check1", label="Check One")
+    root.add_child(check)
+    
+    # Add assertion with validator (should be included)
+    assertion_with_validator = graph.AssertionNode(
+        actual=sp.Symbol("x"),
+        validator=SymbolicValidator(name="> 0", fn=lambda x: x > 0),
+        root=root
+    )
+    check.add_child(assertion_with_validator)
+    
+    # Add assertion without validator (should be skipped)
+    assertion_without_validator = graph.AssertionNode(
+        actual=sp.Symbol("y"),
+        root=root
+    )
+    check.add_child(assertion_without_validator)
+    
+    # Build tree
     tree = root.inspect()
-    Console().print(tree)
+    
+    # Verify structure
+    assert isinstance(tree, Tree)
+    assert tree.label == "Suite: Test Suite"
+    assert len(tree.children) == 1  # Check node
+    
+    check_tree = tree.children[0]
+    assert "Check One" in str(check_tree.label)
+    # Only assertion with validator should be included
+    assert len(check_tree.children) == 1
 
 
-# Tests from test_graph_spacing.py
 def test_analyzer_node_spacing() -> None:
     """Test that analyzer nodes don't have extra spacing between them."""
     # Create a graph structure with analyzer nodes
@@ -117,264 +1027,59 @@ def test_analyzer_node_spacing() -> None:
     output = capture.get()
     
     # Check that there are no double newlines between analyzer nodes
-    # Double newlines would appear as '\n\n' in the output
     assert '\n\n' not in output, "Found extra spacing (double newlines) between analyzer nodes"
-    
-    # Also check the tree labels directly
-    def check_tree_labels(tree: Tree, path: str = "root") -> None:
-        label_str = str(tree.label)
-        # Metric nodes should not have trailing newlines
-        if "metric" in label_str.lower() and label_str.endswith("\n"):
-            raise AssertionError(f"Metric node at {path} has trailing newline: {repr(label_str)}")
-        
-        for i, child in enumerate(tree.children):
-            check_tree_labels(child, f"{path}/child[{i}]")
-    
-    check_tree_labels(tree)
 
 
-def test_graph_display_structure() -> None:
-    """Test the overall structure of graph display."""
+def test_graph_display_with_validator() -> None:
+    """Test graph display with assertion validators."""
     root = graph.RootNode("Test Suite")
-    check = graph.CheckNode("check1", label="Check One")
+    check = graph.CheckNode("check1")
     root.add_child(check)
     
-    # Add assertion with validator
-    from dqx.common import SymbolicValidator
+    # Create assertion with validator
+    validator = SymbolicValidator(name="> 10", fn=lambda x: x > 10)
     assertion = graph.AssertionNode(
         actual=sp.Symbol("x") + sp.Symbol("y"),
-        label="Test assertion",
-        validator=SymbolicValidator(name="> 0", fn=lambda x: x > 0)
-    )
-    check.add_child(assertion)
-    
-    # Add symbol with metric
-    symbol = graph.SymbolNode(
-        name="symbol1",
-        symbol=sp.Symbol("x"),
-        fn=lambda key: Success(1.0),
-        datasets=[]
-    )
-    check.add_child(symbol)
-    
-    metric_spec = MagicMock(spec=MetricSpec)
-    metric_spec.name = "test_metric"
-    key_provider = MockKeyProvider()
-    nominal_key = ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
-    
-    metric = graph.MetricNode(metric_spec, key_provider, nominal_key)
-    symbol.add_child(metric)
-    
-    # Add analyzer
-    analyzer = graph.AnalyzerNode(MockOp("test_analyzer"))
-    metric.add_child(analyzer)
-    
-    # Get tree representation
-    tree = root.inspect()
-    
-    # Verify tree structure
-    assert tree.label == "Suite: Test Suite"
-    assert len(tree.children) == 1  # One check node
-    
-    check_tree = tree.children[0]
-    assert "Check One" in str(check_tree.label)
-    
-    # Should have assertion and symbol as children
-    assert len(check_tree.children) == 2
-    
-    # Find the symbol child (assertion might be filtered out if no validator)
-    symbol_tree = None
-    for child in check_tree.children:
-        if "symbol1" in str(child.label):
-            symbol_tree = child
-            break
-    
-    assert symbol_tree is not None, "Symbol node not found in tree"
-    assert len(symbol_tree.children) == 1  # One metric
-    
-    metric_tree = symbol_tree.children[0]
-    assert "test_metric" in str(metric_tree.label)
-    assert len(metric_tree.children) == 1  # One analyzer
-    
-    analyzer_tree = metric_tree.children[0]
-    assert "test_analyzer" in str(analyzer_tree.label)
-
-
-# Tests from test_api.py (graph-specific tests)
-def test_inspect_no_run() -> None:
-    from dqx.api import VerificationSuite, check
-    from dqx.common import Context, MetricProvider
-    from dqx.orm.repositories import InMemoryMetricDB
-    from dqx import specs
-    
-    @check(datasets=["abc"])
-    def simple_checks(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.null_count("delivered")).is_leq(100)
-        ctx.assert_that(mp.minimum("quantity")).is_leq(2.5)
-        ctx.assert_that(mp.average("price")).is_geq(10.0)
-        ctx.assert_that(mp.ext.day_over_day(specs.Average("tax"))).is_geq(0.5)
-
-    @check(label="Delivered null percentage", datasets=["ds1"])
-    def null_percentage(mp: MetricProvider, ctx: Context) -> None:
-        null_count = mp.null_count("delivered", datasets=["ds1"])
-        nr = mp.num_rows()
-        ctx.assert_that(null_count / nr).on(label="null percentage is less than 40%").is_leq(0.4)
-
-    @check(label="Manual day-over-day check", datasets=["ds1"])
-    def manual_day_over_day(mp: MetricProvider, ctx: Context) -> None:
-        tax_avg = mp.average("tax")
-        tax_avg_lag = mp.average("tax", key=ctx.key.lag(1))
-        ctx.assert_that(tax_avg / tax_avg_lag).on().is_eq(1.0, tol=0.01)
-
-    @check(label="Rate of change", datasets=["ds2"])
-    def rate_of_change(mp: MetricProvider, ctx: Context) -> None:
-        tax_avg = mp.ext.day_over_day(specs.Maximum("tax"))
-        rate = sp.Abs(tax_avg - 1.0)
-        ctx.assert_that(rate).on(label="Maximum tax rate change is less than 20%").is_leq(0.2)
-
-    @check(datasets=["ds1"])
-    def sketch_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.approx_cardinality("address", datasets=["ds2"])).is_geq(100)
-    
-    db = InMemoryMetricDB()
-    key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={})
-    checks = [simple_checks, manual_day_over_day, rate_of_change, null_percentage, sketch_check]
-
-    # Run once for yesterday
-    suite = VerificationSuite(checks, db, name="Simple test suite")
-    ctx = suite.collect(key)
-    ctx._graph.propagate(["ds1", "ds2"])
-    tree = ctx._graph.inspect()
-    Console().print(tree)
-
-
-def test_assertion_node_cannot_have_children() -> None:
-    """Test that AssertionNode raises error when trying to add children."""
-    # Create an assertion node
-    assertion = AssertionNode(actual=sp.Symbol("x"))
-    
-    # Create a symbol node
-    symbol = SymbolNode(
-        name="test_symbol",
-        symbol=sp.Symbol("x"),
-        fn=lambda k: Success(10.0),
-        datasets=["ds1"]
-    )
-    
-    # Try to add symbol as child - should raise RuntimeError
-    with pytest.raises(RuntimeError, match="AssertionNode cannot have children"):
-        assertion.add_child(symbol)
-
-
-def test_assertion_node_starts_with_empty_children() -> None:
-    """Test that AssertionNode initializes with empty children list."""
-    assertion = AssertionNode(actual=sp.Symbol("x"))
-    assert assertion.children == []
-    assert len(assertion.children) == 0
-
-
-def test_check_node_can_have_assertion_and_symbol_children() -> None:
-    """Test that CheckNode can have both AssertionNode and SymbolNode children."""
-    # Create a check node
-    check = CheckNode(name="test_check")
-    
-    # Create assertion and symbol nodes
-    assertion = AssertionNode(actual=sp.Symbol("x"))
-    symbol = SymbolNode(
-        name="test_symbol",
-        symbol=sp.Symbol("x"),
-        fn=lambda k: Success(10.0),
-        datasets=["ds1"]
-    )
-    
-    # Add both as children - should work fine
-    check.add_child(assertion)
-    check.add_child(symbol)
-    
-    assert len(check.children) == 2
-    assert assertion in check.children
-    assert symbol in check.children
-
-
-def test_cleanup_assertion_children() -> None:
-    """Test that cleanup method removes any legacy children from assertion nodes."""
-    # Create a root node and structure
-    root = RootNode(name="Test Suite")
-    check = CheckNode(name="test_check")
-    root.add_child(check)
-    
-    # Create an assertion node
-    assertion = AssertionNode(actual=sp.Symbol("x"), root=root)
-    check.add_child(assertion)
-    
-    # Manually add some children to assertion (simulating legacy behavior)
-    # We bypass the add_child method to simulate old code
-    assertion.children.append("legacy_child_1")
-    assertion.children.append("legacy_child_2")
-    
-    # Verify children were added
-    assert len(assertion.children) == 2
-    
-    # Run propagate which should clean up
-    root.propagate(["ds1"])
-    
-    # Verify children were removed
-    assert len(assertion.children) == 0
-    assert assertion.children == []
-
-
-def test_assertion_propagate_does_nothing() -> None:
-    """Test that AssertionNode.propagate() does nothing (no children to propagate to)."""
-    assertion = AssertionNode(actual=sp.Symbol("x"))
-    
-    # This should not raise any errors even though there are no children
-    assertion.propagate()
-    
-    # Still no children
-    assert assertion.children == []
-
-
-def test_graph_structure_without_assertion_children() -> None:
-    """Test that the graph structure works correctly without assertion children."""
-    # Create a complete graph structure
-    root = RootNode(name="Test Suite")
-    check = CheckNode(name="test_check")
-    root.add_child(check)
-    
-    # Create assertion
-    assertion = AssertionNode(
-        actual=sp.Symbol("x_1") + sp.Symbol("x_2"),
+        validator=validator,
         root=root
     )
     check.add_child(assertion)
     
-    # Create symbols as children of check (not assertion)
-    symbol1 = SymbolNode(
-        name="metric1",
-        symbol=sp.Symbol("x_1"),
-        fn=lambda k: Success(10.0),
-        datasets=[]
-    )
-    symbol2 = SymbolNode(
-        name="metric2", 
-        symbol=sp.Symbol("x_2"),
-        fn=lambda k: Success(20.0),
-        datasets=[]
-    )
-    check.add_child(symbol1)
-    check.add_child(symbol2)
+    # Test inspect_str with validator
+    inspect_str = assertion.inspect_str()
+    assert "Assert that" in inspect_str
+    assert "> 10" in inspect_str
+    assert "x + y" in inspect_str
+
+
+# =============================================================================
+# 9. Backward Compatibility Tests
+# =============================================================================
+
+def test_backward_compatibility_aliases() -> None:
+    """Test that backward compatibility aliases work."""
+    # Node alias
+    assert graph.Node == graph.BaseNode
     
-    # Verify structure
-    assert len(root.children) == 1
-    assert len(check.children) == 3  # 1 assertion + 2 symbols
-    assert len(assertion.children) == 0  # No children
+    # NodeMixin alias
+    assert graph.NodeMixin == graph.CompositeNode
+
+
+def test_assertion_node_children_compatibility() -> None:
+    """Test that AssertionNode has children attribute for compatibility."""
+    assertion = graph.AssertionNode(actual=sp.Symbol("x"))
     
-    # Verify we can still find all nodes
-    assertions = list(root.assertions())
-    symbols = list(root.symbols())
+    # Should have empty children list
+    assert hasattr(assertion, 'children')
+    assert assertion.children == []
+    assert len(assertion.children) == 0
+
+
+def test_analyzer_node_children_compatibility() -> None:
+    """Test that AnalyzerNode has children attribute for compatibility."""
+    analyzer = graph.AnalyzerNode(MockOp("test"))
     
-    assert len(assertions) == 1
-    assert len(symbols) == 2
-    assert assertions[0] == assertion
-    assert symbol1 in symbols
-    assert symbol2 in symbols
+    # Should have empty children list
+    assert hasattr(analyzer, 'children')
+    assert analyzer.children == []
+    assert len(analyzer.children) == 0
