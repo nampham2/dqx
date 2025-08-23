@@ -296,6 +296,17 @@ class AssertionNode(LeafNode):
         """Mark this assertion as failed with a message."""
         self._value = Some(Failure(message))
 
+    def _find_parent_check(self) -> CheckNode | None:
+        """Find the parent CheckNode by traversing up from the assertion."""
+        if self._root is None:
+            return None
+            
+        # Traverse all check nodes and find the one containing this assertion
+        for check in self._root.checks():
+            if self in check.children:
+                return check
+        return None
+
     def evaluate(self) -> Result[Any, str]:
         """
         Evaluate the assertion expression.
@@ -305,6 +316,14 @@ class AssertionNode(LeafNode):
         """
         if self._root is None:
             raise RuntimeError("Root node not set for AssertionNode")
+        
+        # First check if parent CheckNode has failed
+        parent_check = self._find_parent_check()
+        if parent_check and isinstance(parent_check._value, Some):
+            parent_result = parent_check._value.unwrap()
+            if isinstance(parent_result, Failure):
+                self._value = Some(Failure("Parent check failed!"))
+                return self._value.unwrap()
         
         # Get all symbols from the graph
         symbol_nodes = list(self._root.symbols())
@@ -322,7 +341,7 @@ class AssertionNode(LeafNode):
                 elif symbol_node.failure():
                     failed_symbols.append(str(symbol_node.symbol))
         
-        # Check for failed symbols first
+        # Check for failed symbols
         if failed_symbols:
             self._value = Some(Failure(f"Symbol dependencies failed: {', '.join(failed_symbols)}"))
             return self._value.unwrap()

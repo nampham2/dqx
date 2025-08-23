@@ -803,6 +803,91 @@ def test_assertion_node_evaluate_without_root() -> None:
         assertion.evaluate()
 
 
+def test_assertion_node_parent_failure() -> None:
+    """Test that assertions don't evaluate when parent CheckNode fails."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check", datasets=["required_dataset"])
+    root.add_child(check)
+    
+    # Add symbol and assertion
+    symbol = graph.SymbolNode("x_metric", sp.Symbol("x"), lambda k: Success(10.0), [])
+    assertion = graph.AssertionNode(
+        actual=sp.Symbol("x") + 5,
+        validator=SymbolicValidator(name="> 10", fn=lambda v: v > 10),
+        root=root
+    )
+    check.add_child(symbol)
+    check.add_child(assertion)
+    
+    # Symbol is successful
+    symbol._value = Some(Success(10.0))
+    
+    # Propagate with wrong dataset - this should fail the check
+    root.propagate(["different_dataset"])
+    
+    # Evaluate assertion - should fail due to parent failure
+    result = assertion.evaluate()
+    assert isinstance(result, Failure)
+    assert "Cannot evaluate assertion: parent check failed" in result.failure()
+    assert "requires datasets ['required_dataset']" in result.failure()
+
+
+def test_assertion_node_parent_and_dependency_failures() -> None:
+    """Test that parent failures are checked before dependency failures."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check", datasets=["required_dataset"])
+    root.add_child(check)
+    
+    # Add failing symbol and assertion
+    symbol = graph.SymbolNode("x_metric", sp.Symbol("x"), lambda k: Failure("Symbol error"), [])
+    assertion = graph.AssertionNode(
+        actual=sp.Symbol("x") + sp.Symbol("y"),  # y is missing
+        root=root
+    )
+    check.add_child(symbol)
+    check.add_child(assertion)
+    
+    # Symbol has failed
+    symbol._value = Some(Failure("Symbol error"))
+    
+    # Propagate with wrong dataset - this should fail the check
+    root.propagate(["different_dataset"])
+    
+    # Evaluate assertion - should fail due to parent failure, not dependency issues
+    result = assertion.evaluate()
+    assert isinstance(result, Failure)
+    assert "Cannot evaluate assertion: parent check failed" in result.failure()
+    # Should not mention symbol dependencies or missing symbols
+    assert "Symbol dependencies failed" not in result.failure()
+    assert "Missing symbols" not in result.failure()
+
+
+def test_assertion_node_find_parent_check() -> None:
+    """Test the _find_parent_check helper method."""
+    root = graph.RootNode("Test")
+    check1 = graph.CheckNode("check1")
+    check2 = graph.CheckNode("check2")
+    root.add_child(check1)
+    root.add_child(check2)
+    
+    assertion1 = graph.AssertionNode(sp.Symbol("x"), root=root)
+    assertion2 = graph.AssertionNode(sp.Symbol("y"), root=root)
+    assertion3 = graph.AssertionNode(sp.Symbol("z"), root=root)
+    
+    check1.add_child(assertion1)
+    check2.add_child(assertion2)
+    # assertion3 is not added to any check
+    
+    # Test finding parent checks
+    assert assertion1._find_parent_check() == check1
+    assert assertion2._find_parent_check() == check2
+    assert assertion3._find_parent_check() is None
+    
+    # Test with no root
+    assertion4 = graph.AssertionNode(sp.Symbol("w"))
+    assert assertion4._find_parent_check() is None
+
+
 def test_assertion_node_find_root_error() -> None:
     """Test _find_root method error case."""
     assertion = graph.AssertionNode(actual=sp.Symbol("x"))
