@@ -18,6 +18,109 @@ from dqx.specs import MetricSpec
 
 
 # =============================================================================
+# Test Formatting Helper Functions
+# =============================================================================
+
+def test_format_status_helpers() -> None:
+    """Test the formatting helper functions."""
+    # Test _format_status with show_value=True
+    from dqx.graph import _format_status
+    
+    # Test with Nothing
+    assert _format_status(Nothing) == "[yellow]⏳[/yellow]"
+    
+    # Test with Success and show_value=True
+    result_float = Some(Success(123.456))
+    assert "123.46" in _format_status(result_float, show_value=True)
+    assert "✅" in _format_status(result_float, show_value=True)
+    
+    result_large_float = Some(Success(1234.56))
+    assert "1234.6" in _format_status(result_large_float, show_value=True)
+    
+    result_int = Some(Success(42))
+    assert "42" in _format_status(result_int, show_value=True)
+    
+    result_str = Some(Success("test"))
+    assert "test" in _format_status(result_str, show_value=True)
+    
+    # Test with None value
+    result_none = Some(Success(None))
+    assert _format_status(result_none, show_value=True) == "[green]✅[/green]"
+    
+    # Test with Failure
+    result_fail = Some(Failure("error"))
+    assert _format_status(result_fail) == "[red]❌[/red]"
+    
+    # Test edge case - this would be unusual but covers the default return
+    class FakeMaybe:
+        pass
+    fake = FakeMaybe()
+    assert _format_status(fake) == "[dim]❓[/dim]"  # type: ignore
+
+
+def test_format_error_helpers() -> None:
+    """Test the _format_error helper function."""
+    from dqx.graph import _format_error
+    
+    # Test truncation of long messages
+    long_msg = "x" * 150
+    formatted = _format_error(long_msg)
+    assert "..." in formatted
+    assert len(formatted) < 150
+    
+    # Test parent check failed
+    assert "⚠️  Skipped: parent check failed" in _format_error("parent check failed: something")
+    
+    # Test dataset mismatch
+    msg = "requires datasets ['ds1'] but got ['ds2']"
+    formatted = _format_error(msg)
+    assert "Dataset mismatch: needs ['ds1']" in formatted
+    
+    # Test dataset mismatch with malformed message (triggers exception)
+    malformed_ds_msg = "requires datasets but got something"
+    formatted = _format_error(malformed_ds_msg)
+    # When parsing fails, the message should be returned with default formatting
+    assert "[red]❌ Dataset mismatch: needs but got something[/red]" in formatted
+    
+    # Test missing symbols
+    assert "❌ Missing symbols: x, y" in _format_error("Missing symbols: x, y")
+    
+    # Test symbol dependencies failed
+    assert "❌ Symbol dependencies failed: x" in _format_error("Symbol dependencies failed: x")
+    
+    # Test validation failure
+    msg = "Something: x + y = 15 does not satisfy > 20"
+    formatted = _format_error(msg)
+    assert "❌ x + y = 15 does not satisfy > 20" in formatted
+    
+    # Test validation failure with malformed message (triggers exception)
+    malformed_val_msg = "does not satisfy > 20"
+    formatted = _format_error(malformed_val_msg)
+    assert "❌ does not satisfy > 20" in formatted
+    
+    # Test NaN and infinity
+    assert "❌ Validating value is NaN" in _format_error("Validating value is NaN")
+    assert "❌ Validating value is infinity" in _format_error("Validating value is infinity")
+    
+    # Test default formatting
+    assert "❌ Unknown error" in _format_error("Unknown error")
+
+
+def test_format_datasets_helpers() -> None:
+    """Test the _format_datasets helper function."""
+    from dqx.graph import _format_datasets
+    
+    # Test empty list
+    assert _format_datasets([]) == ""
+    
+    # Test single dataset
+    assert _format_datasets(["ds1"]) == "[dim italic]ds1[/dim italic]"
+    
+    # Test multiple datasets
+    assert _format_datasets(["ds1", "ds2", "ds3"]) == "[dim italic]ds1, ds2, ds3[/dim italic]"
+
+
+# =============================================================================
 # Helper Classes
 # =============================================================================
 
@@ -828,8 +931,7 @@ def test_assertion_node_parent_failure() -> None:
     # Evaluate assertion - should fail due to parent failure
     result = assertion.evaluate()
     assert isinstance(result, Failure)
-    assert "Cannot evaluate assertion: parent check failed" in result.failure()
-    assert "requires datasets ['required_dataset']" in result.failure()
+    assert "Parent check failed!" in result.failure()
 
 
 def test_assertion_node_parent_and_dependency_failures() -> None:
@@ -856,7 +958,7 @@ def test_assertion_node_parent_and_dependency_failures() -> None:
     # Evaluate assertion - should fail due to parent failure, not dependency issues
     result = assertion.evaluate()
     assert isinstance(result, Failure)
-    assert "Cannot evaluate assertion: parent check failed" in result.failure()
+    assert "Parent check failed!" in result.failure()
     # Should not mention symbol dependencies or missing symbols
     assert "Symbol dependencies failed" not in result.failure()
     assert "Missing symbols" not in result.failure()
@@ -956,6 +1058,124 @@ def test_check_node_name() -> None:
     # Without label
     check2 = graph.CheckNode("check_id")
     assert check2.node_name() == "check_id"
+
+
+def test_check_node_update_status() -> None:
+    """Test CheckNode update_status method."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check")
+    root.add_child(check)
+    
+    # Initially check should be pending
+    assert check._value == Nothing
+    
+    # Update with no children - should remain pending
+    check.update_status()
+    assert check._value == Nothing
+    
+    # Add successful children
+    assertion1 = graph.AssertionNode(sp.Symbol("x"), root=root)
+    assertion1._value = Some(Success(10.0))
+    check.add_child(assertion1)
+    
+    symbol1 = graph.SymbolNode("sym", sp.Symbol("y"), lambda k: Success(20.0), [])
+    symbol1._value = Some(Success(20.0))
+    check.add_child(symbol1)
+    
+    # Update status - should be success
+    check.update_status()
+    assert isinstance(check._value, Some)
+    assert isinstance(check._value.unwrap(), Success)
+
+
+def test_check_node_update_status_with_failures() -> None:
+    """Test CheckNode update_status with failed children."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check")
+    root.add_child(check)
+    
+    # Add mixed success/failure children
+    assertion1 = graph.AssertionNode(sp.Symbol("x"), label="Assertion 1", root=root)
+    assertion1._value = Some(Success(10.0))
+    check.add_child(assertion1)
+    
+    assertion2 = graph.AssertionNode(sp.Symbol("y"), label="Assertion 2", root=root)
+    assertion2._value = Some(Failure("Validation failed"))
+    check.add_child(assertion2)
+    
+    # Update status - should be failure
+    check.update_status()
+    assert isinstance(check._value, Some)
+    result = check._value.unwrap()
+    assert isinstance(result, Failure)
+    assert "Assertion 2: Validation failed" in result.failure()
+
+
+def test_check_node_update_status_multiple_failures() -> None:
+    """Test CheckNode update_status with multiple failed children."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check")
+    root.add_child(check)
+    
+    # Add multiple failures
+    assertion1 = graph.AssertionNode(sp.Symbol("x"), root=root)
+    assertion1._value = Some(Failure("First failure"))
+    check.add_child(assertion1)
+    
+    assertion2 = graph.AssertionNode(sp.Symbol("y"), root=root)
+    assertion2._value = Some(Failure("Second failure"))
+    check.add_child(assertion2)
+    
+    # Update status - should show multiple failures
+    check.update_status()
+    assert isinstance(check._value, Some)
+    result = check._value.unwrap()
+    assert isinstance(result, Failure)
+    assert "Multiple failures:" in result.failure()
+    assert "First failure" in result.failure()
+    assert "Second failure" in result.failure()
+
+
+def test_check_node_update_status_preserves_dataset_failure() -> None:
+    """Test that update_status preserves existing dataset mismatch failures."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check", datasets=["required_ds"])
+    root.add_child(check)
+    
+    # Propagate with wrong dataset - this fails the check
+    root.propagate(["different_ds"])
+    
+    # Add successful children
+    assertion = graph.AssertionNode(sp.Symbol("x"), root=root)
+    assertion._value = Some(Success(10.0))
+    check.add_child(assertion)
+    
+    # Update status - should preserve dataset failure
+    check.update_status()
+    assert isinstance(check._value, Some)
+    result = check._value.unwrap()
+    assert isinstance(result, Failure)
+    assert "requires datasets" in result.failure()
+
+
+def test_check_node_update_status_with_pending_children() -> None:
+    """Test CheckNode update_status with some pending children."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check")
+    root.add_child(check)
+    
+    # Add mixed evaluated and pending children
+    assertion1 = graph.AssertionNode(sp.Symbol("x"), root=root)
+    assertion1._value = Some(Success(10.0))
+    check.add_child(assertion1)
+    
+    assertion2 = graph.AssertionNode(sp.Symbol("y"), root=root)
+    # Leave assertion2 as pending (Nothing)
+    check.add_child(assertion2)
+    
+    # Update status - should remain pending
+    check.update_status()
+    assert check._value == Nothing
 
 
 def test_assertion_node_evaluate_no_validator() -> None:
@@ -1129,8 +1349,157 @@ def test_graph_display_with_validator() -> None:
     )
     check.add_child(assertion)
     
-    # Test inspect_str with validator
+    # Test inspect_str with validator (new format uses ✓/✗ prefix)
     inspect_str = assertion.inspect_str()
-    assert "Assert that" in inspect_str
+    assert "✗" in inspect_str  # Should have failed status prefix
     assert "> 10" in inspect_str
     assert "x + y" in inspect_str
+
+
+def test_assertion_node_inspect_str_variations() -> None:
+    """Test various cases of AssertionNode inspect_str formatting."""
+    root = graph.RootNode("Test")
+    check = graph.CheckNode("check")
+    root.add_child(check)
+    
+    # Test assertion without validator
+    assertion_no_validator = graph.AssertionNode(actual=sp.Symbol("z"), root=root)
+    check.add_child(assertion_no_validator)
+    assert assertion_no_validator.inspect_str() == "z"
+    
+    # Test assertion with label and successful evaluation
+    symbol = graph.SymbolNode("x_metric", sp.Symbol("x"), lambda k: Success(15.0), [])
+    check.add_child(symbol)
+    symbol._value = Some(Success(15.0))
+    
+    validator = SymbolicValidator(name="> 10", fn=lambda x: x > 10)
+    assertion_with_label = graph.AssertionNode(
+        actual=sp.Symbol("x"),
+        label="Check X",
+        validator=validator,
+        root=root
+    )
+    check.add_child(assertion_with_label)
+    
+    # Evaluate to make it successful
+    assertion_with_label.evaluate()
+    inspect_str = assertion_with_label.inspect_str()
+    
+    assert "✓" in inspect_str
+    assert "Check X:" in inspect_str
+    assert "> 10" in inspect_str
+    
+    # Test assertion with integer value
+    symbol_int = graph.SymbolNode("y_metric", sp.Symbol("y"), lambda k: Success(42), [])
+    check.add_child(symbol_int)
+    symbol_int._value = Some(Success(42))
+    
+    assertion_int = graph.AssertionNode(
+        actual=sp.Symbol("y"),
+        validator=SymbolicValidator(name="> 40", fn=lambda x: x > 40),
+        root=root
+    )
+    check.add_child(assertion_int)
+    assertion_int.evaluate()
+    inspect_str_int = assertion_int.inspect_str()
+    assert "✓" in inspect_str_int
+    assert "(42)" in inspect_str_int
+    
+    # Test with datasets
+    assertion_with_datasets = graph.AssertionNode(
+        actual=sp.Symbol("y"),
+        validator=validator,
+        root=root
+    )
+    assertion_with_datasets.set_datasource(["ds1", "ds2"])
+    check.add_child(assertion_with_datasets)
+    inspect_str = assertion_with_datasets.inspect_str()
+    # Check for datasets with Rich formatting
+    assert "ds1, ds2" in inspect_str
+    
+    # Test parent check failed error formatting
+    assertion_parent_failed = graph.AssertionNode(
+        actual=sp.Symbol("a"),
+        validator=validator,
+        root=root
+    )
+    assertion_parent_failed._value = Some(Failure("Parent check failed!"))
+    inspect_str = assertion_parent_failed.inspect_str()
+    assert "Skipped (parent failed)" in inspect_str
+    assert "[yellow]" in inspect_str
+    
+    # Test value exceeds limit error formatting
+    assertion_exceeds = graph.AssertionNode(
+        actual=sp.Symbol("b"),
+        validator=validator,
+        root=root
+    )
+    assertion_exceeds._value = Some(Failure("Assertion failed: b = 8.5 does not satisfy > 10"))
+    inspect_str = assertion_exceeds.inspect_str()
+    assert "Value 8.5 exceeds limit" in inspect_str
+    
+    # Test malformed "does not satisfy" message
+    assertion_malformed = graph.AssertionNode(
+        actual=sp.Symbol("c"),
+        validator=validator,
+        root=root
+    )
+    assertion_malformed._value = Some(Failure("Something does not satisfy > 10"))
+    inspect_str_malformed = assertion_malformed.inspect_str()
+    assert "Something does not satisfy > 10" in inspect_str_malformed
+    
+    # Test other error formatting
+    assertion_other_error = graph.AssertionNode(
+        actual=sp.Symbol("c"),
+        validator=validator,
+        root=root
+    )
+    assertion_other_error._value = Some(Failure("Some other error"))
+    inspect_str = assertion_other_error.inspect_str()
+    assert "Some other error" in inspect_str
+
+
+def test_symbol_node_inspect_str_variations() -> None:
+    """Test various cases of SymbolNode inspect_str formatting."""
+    # Test with successful value
+    symbol_success = graph.SymbolNode("metric1", sp.Symbol("x"), lambda k: Success(42.75), ["ds1"])
+    symbol_success._value = Some(Success(42.75))
+    
+    inspect_str = symbol_success.inspect_str()
+    assert "📊" in inspect_str
+    assert "x: metric1 = 42.75" in inspect_str
+    assert "✅" in inspect_str
+    # Check for dataset with Rich formatting
+    assert "ds1" in inspect_str
+    
+    # Test with integer value
+    symbol_int = graph.SymbolNode("metric2", sp.Symbol("y"), lambda k: Success(100), [])
+    symbol_int._value = Some(Success(100))
+    
+    inspect_str = symbol_int.inspect_str()
+    assert "y: metric2 = 100" in inspect_str
+    
+    # Test with large float value
+    symbol_large = graph.SymbolNode("metric3", sp.Symbol("z"), lambda k: Success(1234.567), [])
+    symbol_large._value = Some(Success(1234.567))
+    
+    inspect_str = symbol_large.inspect_str()
+    # For large values (>= 1000), it uses str() which shows full precision
+    assert "z: metric3 = 1234.567" in inspect_str
+
+
+def test_metric_node_inspect_str_with_datasets() -> None:
+    """Test MetricNode inspect_str with datasets."""
+    spec = MagicMock(spec=MetricSpec, name="test_metric")
+    key_provider = MockKeyProvider()
+    nominal_key = ResultKey(yyyy_mm_dd=dt.date(2025, 1, 15), tags={})
+    
+    metric = graph.MetricNode(spec, key_provider, nominal_key)
+    metric.datasets = ["dataset1", "dataset2"]
+    
+    inspect_str = metric.inspect_str()
+    assert "📈" in inspect_str
+    assert "test_metric" in inspect_str
+    # Check for datasets with Rich formatting
+    assert "dataset1" in inspect_str and "dataset2" in inspect_str
+    assert "⏳" in inspect_str  # Pending status

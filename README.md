@@ -527,5 +527,7 @@ We welcome contributions! Here's how to get started:
 - ✅ Improved error messages with actual vs expected values
 - ✅ Enhanced NaN and infinity handling
 - ✅ Optimized dependency graph execution
+- ✅ Fixed CheckNode status propagation based on child node results
 - ✅ Added builder pattern for suite creation
 - ✅ Standardized API with better type hints
+- ✅ Achieved 100% test coverage for graph.py module

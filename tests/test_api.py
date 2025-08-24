@@ -51,7 +51,7 @@ def sketch_check(mp: MetricProvider, ctx: Context) -> None:
 def cross_dataset_check(mp: MetricProvider, ctx: Context) -> None:
     tax_avg_1= mp.average("tax", datasets=["ds1"])
     tax_avg_2 = mp.average("tax", datasets=["ds2"])
-    ctx.assert_that(sp.Abs(tax_avg_1 / tax_avg_2 - 1)).is_lt(0.2, tol=0.01).is_geq(-0.01)
+    ctx.assert_that(sp.Abs(tax_avg_1 / tax_avg_2 - 1)).is_lt(0.2, tol=0.01).is_geq(0.01)
 
 
 

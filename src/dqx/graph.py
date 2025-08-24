@@ -19,6 +19,77 @@ MetricState = Literal["READY", "PROVIDED", "PENDING", "ERROR"]
 TChild = TypeVar("TChild", bound="BaseNode")
 
 
+# Formatting helpers
+def _format_status(value: Maybe[Result[Any, str]], show_value: bool = False) -> str:
+    """Format a Maybe[Result] value into a clean status indicator."""
+    if value is Nothing:
+        return "[yellow]⏳[/yellow]"
+    elif isinstance(value, Some):
+        result = value.unwrap()
+        if isinstance(result, Success):
+            val = result.unwrap()
+            if show_value and val is not None:
+                # Format numeric values nicely
+                if isinstance(val, (int, float)):
+                    if isinstance(val, float):
+                        formatted_val = f"{val:.2f}" if abs(val) < 1000 else f"{val:.1f}"
+                    else:
+                        formatted_val = str(val)
+                    return f"[green]{formatted_val}[/green] ✅"
+                else:
+                    return f"[green]{val}[/green] ✅"
+            return "[green]✅[/green]"
+        elif isinstance(result, Failure):
+            return "[red]❌[/red]"
+    return "[dim]❓[/dim]"
+
+
+def _format_error(message: str) -> str:
+    """Format error messages in a clean, readable way."""
+    # Truncate very long messages
+    if len(message) > 100:
+        message = message[:97] + "..."
+    
+    # Special formatting for common error patterns
+    if "parent check failed:" in message:
+        return "[yellow]⚠️  Skipped: parent check failed[/yellow]"
+    elif "requires datasets" in message and "but got" in message:
+        # Extract dataset info
+        try:
+            parts = message.split("requires datasets ")
+            required = parts[1].split(" but got ")[0]
+            return f"[red]❌ Dataset mismatch: needs {required}[/red]"
+        except (IndexError, AttributeError):
+            # If parsing fails, return the original message
+            return f"[red]❌ {message}[/red]"
+    elif "Missing symbols:" in message:
+        return f"[red]❌ {message}[/red]"
+    elif "Symbol dependencies failed:" in message:
+        return f"[red]❌ {message}[/red]"
+    elif "does not satisfy" in message:
+        # Extract the key parts of validation failure
+        try:
+            parts = message.split(": ")
+            if len(parts) > 1:
+                return f"[red]❌ {parts[-1]}[/red]"
+        except (IndexError, AttributeError):
+            pass
+    elif message in ["Validating value is NaN", "Validating value is infinity"]:
+        return f"[red]❌ {message}[/red]"
+    
+    # Default formatting
+    return f"[red]❌ {message}[/red]"
+
+
+def _format_datasets(datasets: list[str]) -> str:
+    """Format dataset list in a compact way."""
+    if not datasets:
+        return ""
+    if len(datasets) == 1:
+        return f"[dim italic]{datasets[0]}[/dim italic]"
+    return f"[dim italic]{', '.join(datasets)}[/dim italic]"
+
+
 # Base Node Protocols and Classes
 @runtime_checkable
 class BaseNode(Protocol):
@@ -219,7 +290,12 @@ class CheckNode(CompositeNode["AssertionNode | SymbolNode"]):
         self._value: Maybe[Result[float, str]] = Nothing
 
     def inspect_str(self) -> str:
-        return f"{self.label or self.name} {self._value} {self.datasets}"
+        name = self.label or self.name
+        status = _format_status(self._value)
+        datasets = _format_datasets(self.datasets)
+        if datasets:
+            return f"📋 [bold cyan]{name}[/bold cyan] [{datasets}] {status}"
+        return f"📋 [bold cyan]{name}[/bold cyan] {status}"
 
     def node_name(self) -> str:
         """Get the display name of the node."""
@@ -240,6 +316,45 @@ class CheckNode(CompositeNode["AssertionNode | SymbolNode"]):
             child.impute_dataset(self.datasets)
             if hasattr(child, 'propagate'):
                 child.propagate()
+    
+    def update_status(self) -> None:
+        """Update the check's status based on the status of its children."""
+        # If already failed (e.g., dataset mismatch), don't update
+        if isinstance(self._value, Some) and isinstance(self._value.unwrap(), Failure):
+            return
+        
+        # Collect status of all children
+        all_success = True
+        any_failure = False
+        failure_messages = []
+        
+        for child in self.children:
+            if hasattr(child, '_value'):
+                if isinstance(child._value, Some):
+                    result = child._value.unwrap()
+                    if isinstance(result, Failure):
+                        any_failure = True
+                        all_success = False
+                        if hasattr(child, 'label') and child.label:
+                            failure_messages.append(f"{child.label}: {result.failure()}")
+                        else:
+                            failure_messages.append(result.failure())
+                    # Success case - continue checking
+                else:
+                    # Child is pending (Nothing)
+                    all_success = False
+        
+        # Update check status based on children
+        if any_failure:
+            # At least one child failed
+            if len(failure_messages) == 1:
+                self._value = Some(Failure(failure_messages[0]))
+            else:
+                self._value = Some(Failure(f"Multiple failures: {'; '.join(failure_messages)}"))
+        elif all_success and len(self.children) > 0:
+            # All children succeeded (and we have at least one child)
+            self._value = Some(Success(1.0))
+        # Otherwise, keep as Nothing (pending)
 
 
 class AssertionNode(LeafNode):
@@ -387,7 +502,54 @@ class AssertionNode(LeafNode):
 
     def inspect_str(self) -> str:
         if self.validator:
-            return f"Assert that [green]{self.actual} {self.validator.name}[/green] :right_arrow: {self._value} {self.datasets}"
+            datasets = _format_datasets(self.datasets)
+            
+            # Determine the prefix based on status
+            prefix = "✓" if self._value is not Nothing and isinstance(self._value.unwrap(), Success) else "✗"
+            
+            # Format the assertion text
+            assertion_text = f"{self.actual} {self.validator.name}"
+            
+            # Add label if present
+            if self.label:
+                assertion_text = f"[dim]{self.label}:[/dim] {assertion_text}"
+            
+            # Add value if successful
+            if self._value is not Nothing and isinstance(self._value.unwrap(), Success):
+                val = self._value.unwrap().unwrap()
+                if isinstance(val, (int, float)) or hasattr(val, 'is_integer'):
+                    # Check if it's mathematically an integer
+                    if (isinstance(val, int) or 
+                        (hasattr(val, 'is_integer') and float(val).is_integer())):
+                        formatted_val = str(int(float(val)))
+                    else:
+                        formatted_val = f"{float(val):.2f}" if abs(float(val)) < 1000 else f"{float(val):.1f}"
+                    assertion_text = f"{assertion_text} ({formatted_val})"
+            
+            # Add error message if failed
+            elif self._value is not Nothing and isinstance(self._value.unwrap(), Failure):
+                error_msg = self._value.unwrap().failure()
+                # Clean up error messages for display
+                if "Parent check failed!" in error_msg:
+                    assertion_text = f"{assertion_text}: [yellow]Skipped (parent failed)[/yellow]"
+                elif "does not satisfy" in error_msg:
+                    # Extract just the value that failed
+                    try:
+                        parts = error_msg.split(" = ")
+                        if len(parts) > 1:
+                            value_part = parts[1].split(" does not")[0]
+                            assertion_text = f"{assertion_text}: Value {value_part} exceeds limit"
+                        else:
+                            # Malformed "does not satisfy" message - show full error
+                            assertion_text = f"{assertion_text}: {error_msg}"
+                    except (IndexError, AttributeError):
+                        assertion_text = f"{assertion_text}: {error_msg}"
+                else:
+                    assertion_text = f"{assertion_text}: {error_msg}"
+            
+            if datasets:
+                return f"{prefix} {assertion_text} [{datasets}]"
+            return f"{prefix} {assertion_text}"
         return f"{self.actual}"
 
     def add_child(self, child: Any) -> None:
@@ -414,7 +576,23 @@ class SymbolNode(CompositeNode["MetricNode"]):
         self._required_ds_count = 1
 
     def inspect_str(self) -> str:
-        return f"[yellow2]{str(self.symbol)}[/yellow2]: [chartreuse3]{self.name}[/chartreuse3] :right_arrow: {self._value} {self.datasets}"
+        symbol_text = f"{str(self.symbol)}"
+        name_text = self.name
+        
+        # Format the value if available
+        value_str = ""
+        if self._value is not Nothing and isinstance(self._value.unwrap(), Success):
+            val = self._value.unwrap().unwrap()
+            if isinstance(val, (int, float)):
+                formatted_val = f"{val:.2f}" if isinstance(val, float) and abs(val) < 1000 else str(val)
+                value_str = f" = {formatted_val}"
+        
+        status = _format_status(self._value)
+        datasets = _format_datasets(self.datasets)
+        
+        if datasets:
+            return f"📊 {symbol_text}: {name_text}{value_str} {status} [{datasets}]"
+        return f"📊 {symbol_text}: {name_text}{value_str} {status}"
 
     def mark_as_failure(self, message: str) -> None:
         """Mark this symbol as failed with a message."""
@@ -426,19 +604,17 @@ class SymbolNode(CompositeNode["MetricNode"]):
 
     def success(self) -> bool:
         """Check if this symbol has been successfully evaluated."""
-        match self._value:
-            case Some(Success(_)):
-                return True
-            case _:
-                return False
+        if isinstance(self._value, Some):
+            result = self._value.unwrap()
+            return isinstance(result, Success)
+        return False
 
     def failure(self) -> bool:
         """Check if this symbol has failed evaluation."""
-        match self._value:
-            case Some(Failure(_)):
-                return True
-            case _:
-                return False
+        if isinstance(self._value, Some):
+            result = self._value.unwrap()
+            return isinstance(result, Failure)
+        return False
 
     def impute_dataset(self, datasets: list[str]) -> None:
         """Validate and set datasets for this symbol."""
@@ -501,7 +677,14 @@ class MetricNode(CompositeNode["AnalyzerNode"]):
         self._analyzed: Maybe[Result[None, str]] = Nothing
 
     def inspect_str(self) -> str:
-        return f"{self.spec.name} with {self.eval_key()} :right_arrow: {self._analyzed} {self.datasets}"
+        name = self.spec.name
+        key = f"[{self.eval_key()}]"
+        status = _format_status(self._analyzed)
+        datasets = _format_datasets(self.datasets)
+        
+        if datasets:
+            return f"📈 {name} {key} [{datasets}] {status}"
+        return f"📈 {name} {key} {status}"
 
     def eval_key(self) -> ResultKey:
         """Get the evaluation key for this metric."""
@@ -530,13 +713,13 @@ class MetricNode(CompositeNode["AnalyzerNode"]):
         Returns:
             The metric state: ERROR, PROVIDED, or PENDING.
         """
-        match self._analyzed:
-            case Some(Failure(_)):
+        if isinstance(self._analyzed, Some):
+            result = self._analyzed.unwrap()
+            if isinstance(result, Failure):
                 return "ERROR"
-            case Some(Success(_)):
+            elif isinstance(result, Success):
                 return "PROVIDED"
-            case _:
-                return "PENDING"
+        return "PENDING"
 
 
 class AnalyzerNode(LeafNode):
@@ -546,7 +729,7 @@ class AnalyzerNode(LeafNode):
         self.analyzer = analyzer
 
     def inspect_str(self) -> str:
-        return f"Analyze {self.analyzer.name}"
+        return f"🔧 {self.analyzer.name} analyzer"
     
     def add_child(self, child: Any) -> None:
         """AnalyzerNode cannot have children."""

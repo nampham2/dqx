@@ -214,6 +214,9 @@ class Context:
             symbol.evaluate(key)
         for assertion in self._graph.assertions():
             assertion.evaluate()
+        # Update check node statuses based on their children
+        for check in self._graph.checks():
+            check.update_status()
 
 
 class VerificationSuite:
