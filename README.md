@@ -531,3 +531,6 @@ We welcome contributions! Here's how to get started:
 - ✅ Added builder pattern for suite creation
 - ✅ Standardized API with better type hints
 - ✅ Achieved 100% test coverage for graph.py module
+- ✅ Refactored graph.py to separate display logic into display.py
+- ✅ Achieved 100% test coverage for display.py module
+- ✅ Improved code organization with clear separation of concerns

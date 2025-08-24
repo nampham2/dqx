@@ -11,6 +11,7 @@ from returns.result import Failure, Result, Success
 from rich.tree import Tree
 
 from dqx.common import ResultKey, ResultKeyProvider, RetrievalFn, SeverityLevel, SymbolicValidator
+from dqx.display import GraphDisplay
 from dqx.ops import Op
 from dqx.specs import MetricSpec
 
@@ -19,84 +20,13 @@ MetricState = Literal["READY", "PROVIDED", "PENDING", "ERROR"]
 TChild = TypeVar("TChild", bound="BaseNode")
 
 
-# Formatting helpers
-def _format_status(value: Maybe[Result[Any, str]], show_value: bool = False) -> str:
-    """Format a Maybe[Result] value into a clean status indicator."""
-    if value is Nothing:
-        return "[yellow]⏳[/yellow]"
-    elif isinstance(value, Some):
-        result = value.unwrap()
-        if isinstance(result, Success):
-            val = result.unwrap()
-            if show_value and val is not None:
-                # Format numeric values nicely
-                if isinstance(val, (int, float)):
-                    if isinstance(val, float):
-                        formatted_val = f"{val:.2f}" if abs(val) < 1000 else f"{val:.1f}"
-                    else:
-                        formatted_val = str(val)
-                    return f"[green]{formatted_val}[/green] ✅"
-                else:
-                    return f"[green]{val}[/green] ✅"
-            return "[green]✅[/green]"
-        elif isinstance(result, Failure):
-            return "[red]❌[/red]"
-    return "[dim]❓[/dim]"
-
-
-def _format_error(message: str) -> str:
-    """Format error messages in a clean, readable way."""
-    # Truncate very long messages
-    if len(message) > 100:
-        message = message[:97] + "..."
-    
-    # Special formatting for common error patterns
-    if "parent check failed:" in message:
-        return "[yellow]⚠️  Skipped: parent check failed[/yellow]"
-    elif "requires datasets" in message and "but got" in message:
-        # Extract dataset info
-        try:
-            parts = message.split("requires datasets ")
-            required = parts[1].split(" but got ")[0]
-            return f"[red]❌ Dataset mismatch: needs {required}[/red]"
-        except (IndexError, AttributeError):
-            # If parsing fails, return the original message
-            return f"[red]❌ {message}[/red]"
-    elif "Missing symbols:" in message:
-        return f"[red]❌ {message}[/red]"
-    elif "Symbol dependencies failed:" in message:
-        return f"[red]❌ {message}[/red]"
-    elif "does not satisfy" in message:
-        # Extract the key parts of validation failure
-        try:
-            parts = message.split(": ")
-            if len(parts) > 1:
-                return f"[red]❌ {parts[-1]}[/red]"
-        except (IndexError, AttributeError):
-            pass
-    elif message in ["Validating value is NaN", "Validating value is infinity"]:
-        return f"[red]❌ {message}[/red]"
-    
-    # Default formatting
-    return f"[red]❌ {message}[/red]"
-
-
-def _format_datasets(datasets: list[str]) -> str:
-    """Format dataset list in a compact way."""
-    if not datasets:
-        return ""
-    if len(datasets) == 1:
-        return f"[dim italic]{datasets[0]}[/dim italic]"
-    return f"[dim italic]{', '.join(datasets)}[/dim italic]"
-
-
 # Base Node Protocols and Classes
 @runtime_checkable
 class BaseNode(Protocol):
     """Base protocol for all nodes in the graph."""
     
-    def inspect_str(self) -> str:
-        """Return a string representation for inspection."""
+    def format_display(self) -> str:
+        """Return a string representation for display formatting."""
         ...
     
     def accept(self, visitor: NodeVisitor) -> Any:
@@ -160,29 +90,6 @@ class GraphTraverser(NodeVisitor):
                 child.accept(self)
 
 
-class TreeBuilder(NodeVisitor):
-    """Visitor for building Rich Tree representation."""
-    
-    def __init__(self, tree: Tree):
-        self.tree = tree
-        self.current_tree = tree
-    
-    def visit(self, node: BaseNode) -> None:
-        # Skip assertion nodes without validators
-        if isinstance(node, AssertionNode) and node.validator is None:
-            return
-        
-        if node != self.tree.label:  # Skip root node itself
-            subtree = self.current_tree.add(node.inspect_str())
-            parent_tree = self.current_tree
-            self.current_tree = subtree
-            
-            # Continue traversal for composite nodes
-            if isinstance(node, CompositeNode):
-                for child in node.get_children():
-                    child.accept(self)
-            
-            self.current_tree = parent_tree
 
 
 # Concrete Node Implementations
@@ -193,16 +100,16 @@ class RootNode(CompositeNode["CheckNode"]):
         super().__init__()
         self.name = name
 
-    def inspect_str(self) -> str:
-        return f"Suite: {self.name}"
+    def format_display(self) -> str:
+        """Return a string representation for display formatting."""
+        # Imported here to avoid circular import issues
+        from dqx.display import RootNodeFormatter
+        return RootNodeFormatter().format(self)
 
     def inspect(self) -> Tree:
         """Create a tree representation of the graph structure."""
-        root = Tree(self.inspect_str())
-        builder = TreeBuilder(root)
-        for child in self.children:
-            child.accept(builder)
-        return root
+        display = GraphDisplay()
+        return display.inspect_tree(self)
     
     def exists(self, child: "CheckNode") -> bool:
         """Check if a child node exists in the graph."""
@@ -289,13 +196,10 @@ class CheckNode(CompositeNode["AssertionNode | SymbolNode"]):
         self.datasets = datasets or []
         self._value: Maybe[Result[float, str]] = Nothing
 
-    def inspect_str(self) -> str:
-        name = self.label or self.name
-        status = _format_status(self._value)
-        datasets = _format_datasets(self.datasets)
-        if datasets:
-            return f"📋 [bold cyan]{name}[/bold cyan] [{datasets}] {status}"
-        return f"📋 [bold cyan]{name}[/bold cyan] {status}"
+    def format_display(self) -> str:
+        """Return a string representation for display formatting."""
+        from dqx.display import CheckNodeFormatter
+        return CheckNodeFormatter().format(self)
 
     def node_name(self) -> str:
         """Get the display name of the node."""
@@ -500,57 +404,10 @@ class AssertionNode(LeafNode):
             raise RuntimeError("Root node not set for AssertionNode")
         return self._root
 
-    def inspect_str(self) -> str:
-        if self.validator:
-            datasets = _format_datasets(self.datasets)
-            
-            # Determine the prefix based on status
-            prefix = "✓" if self._value is not Nothing and isinstance(self._value.unwrap(), Success) else "✗"
-            
-            # Format the assertion text
-            assertion_text = f"{self.actual} {self.validator.name}"
-            
-            # Add label if present
-            if self.label:
-                assertion_text = f"[dim]{self.label}:[/dim] {assertion_text}"
-            
-            # Add value if successful
-            if self._value is not Nothing and isinstance(self._value.unwrap(), Success):
-                val = self._value.unwrap().unwrap()
-                if isinstance(val, (int, float)) or hasattr(val, 'is_integer'):
-                    # Check if it's mathematically an integer
-                    if (isinstance(val, int) or 
-                        (hasattr(val, 'is_integer') and float(val).is_integer())):
-                        formatted_val = str(int(float(val)))
-                    else:
-                        formatted_val = f"{float(val):.2f}" if abs(float(val)) < 1000 else f"{float(val):.1f}"
-                    assertion_text = f"{assertion_text} ({formatted_val})"
-            
-            # Add error message if failed
-            elif self._value is not Nothing and isinstance(self._value.unwrap(), Failure):
-                error_msg = self._value.unwrap().failure()
-                # Clean up error messages for display
-                if "Parent check failed!" in error_msg:
-                    assertion_text = f"{assertion_text}: [yellow]Skipped (parent failed)[/yellow]"
-                elif "does not satisfy" in error_msg:
-                    # Extract just the value that failed
-                    try:
-                        parts = error_msg.split(" = ")
-                        if len(parts) > 1:
-                            value_part = parts[1].split(" does not")[0]
-                            assertion_text = f"{assertion_text}: Value {value_part} exceeds limit"
-                        else:
-                            # Malformed "does not satisfy" message - show full error
-                            assertion_text = f"{assertion_text}: {error_msg}"
-                    except (IndexError, AttributeError):
-                        assertion_text = f"{assertion_text}: {error_msg}"
-                else:
-                    assertion_text = f"{assertion_text}: {error_msg}"
-            
-            if datasets:
-                return f"{prefix} {assertion_text} [{datasets}]"
-            return f"{prefix} {assertion_text}"
-        return f"{self.actual}"
+    def format_display(self) -> str:
+        """Return a string representation for display formatting."""
+        from dqx.display import AssertionNodeFormatter
+        return AssertionNodeFormatter().format(self)
 
     def add_child(self, child: Any) -> None:
         """AssertionNode should not have children."""
@@ -575,24 +432,10 @@ class SymbolNode(CompositeNode["MetricNode"]):
         self._value: Maybe[Result[float, str]] = Nothing
         self._required_ds_count = 1
 
-    def inspect_str(self) -> str:
-        symbol_text = f"{str(self.symbol)}"
-        name_text = self.name
-        
-        # Format the value if available
-        value_str = ""
-        if self._value is not Nothing and isinstance(self._value.unwrap(), Success):
-            val = self._value.unwrap().unwrap()
-            if isinstance(val, (int, float)):
-                formatted_val = f"{val:.2f}" if isinstance(val, float) and abs(val) < 1000 else str(val)
-                value_str = f" = {formatted_val}"
-        
-        status = _format_status(self._value)
-        datasets = _format_datasets(self.datasets)
-        
-        if datasets:
-            return f"📊 {symbol_text}: {name_text}{value_str} {status} [{datasets}]"
-        return f"📊 {symbol_text}: {name_text}{value_str} {status}"
+    def format_display(self) -> str:
+        """Return a string representation for display formatting."""
+        from dqx.display import SymbolNodeFormatter
+        return SymbolNodeFormatter().format(self)
 
     def mark_as_failure(self, message: str) -> None:
         """Mark this symbol as failed with a message."""
@@ -676,15 +519,10 @@ class MetricNode(CompositeNode["AnalyzerNode"]):
         self.datasets: list[str] = []
         self._analyzed: Maybe[Result[None, str]] = Nothing
 
-    def inspect_str(self) -> str:
-        name = self.spec.name
-        key = f"[{self.eval_key()}]"
-        status = _format_status(self._analyzed)
-        datasets = _format_datasets(self.datasets)
-        
-        if datasets:
-            return f"📈 {name} {key} [{datasets}] {status}"
-        return f"📈 {name} {key} {status}"
+    def format_display(self) -> str:
+        """Return a string representation for display formatting."""
+        from dqx.display import MetricNodeFormatter
+        return MetricNodeFormatter().format(self)
 
     def eval_key(self) -> ResultKey:
         """Get the evaluation key for this metric."""
@@ -725,11 +563,13 @@ class MetricNode(CompositeNode["AnalyzerNode"]):
 class AnalyzerNode(LeafNode):
     """Node representing an analyzer operation."""
     
-    def __init__(self, analyzer: Op) -> None:
+    def __init__(self, analyzer: Op[Any]) -> None:
         self.analyzer = analyzer
 
-    def inspect_str(self) -> str:
-        return f"🔧 {self.analyzer.name} analyzer"
+    def format_display(self) -> str:
+        """Return a string representation for display formatting."""
+        from dqx.display import AnalyzerNodeFormatter
+        return AnalyzerNodeFormatter().format(self)
     
     def add_child(self, child: Any) -> None:
         """AnalyzerNode cannot have children."""
