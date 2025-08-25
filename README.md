@@ -378,6 +378,145 @@ DQX follows a modular, graph-based architecture:
 - **Models**: Data models and ORM definitions
 - **MetricDB**: Persistence layer for historical metrics
 
+## 📊 Graph Implementation
+
+DQX uses a sophisticated graph-based architecture to manage dependencies between checks, metrics, and assertions. The graph implementation follows a **Composite Pattern** with a **Visitor Pattern** for traversal, enabling efficient execution planning and dependency resolution.
+
+### Graph Hierarchy
+
+The graph is organized in a hierarchical structure with the following node types:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         RootNode                            │
+│              (Top-level verification suite)                 │
+└─────────────────────────┬───────────────────────────────────┘
+                          │ contains
+                          ▼
+         ┌────────────────────────────────────┐
+         │           CheckNode                 │
+         │    (Data quality check)             │
+         └──────────┬─────────────┬────────────┘
+                    │             │ contains
+         contains   │             ▼
+                    │   ┌─────────────────────┐
+                    │   │   SymbolNode        │
+                    │   │ (Computed symbols)  │
+                    │   └──────────┬──────────┘
+                    │              │ contains
+                    ▼              ▼
+       ┌─────────────────────┐  ┌─────────────────────┐
+       │   AssertionNode     │  │    MetricNode       │
+       │ (Validation rules)  │  │ (Metric to compute) │
+       └─────────────────────┘  └──────────┬──────────┘
+                                           │ contains
+                                           ▼
+                                ┌─────────────────────┐
+                                │   AnalyzerNode      │
+                                │ (SQL/computation)   │
+                                └─────────────────────┘
+```
+
+### Node Types
+
+#### 1. **RootNode** (Composite)
+- The top-level container for all verification checks
+- Manages the entire graph and provides traversal methods
+- Handles propagation of dataset information through the graph
+
+#### 2. **CheckNode** (Composite)
+- Represents an individual data quality check
+- Contains assertions and symbols that define the check logic
+- Can be tagged and labeled for organization
+- Propagates success/failure status based on child nodes
+
+#### 3. **AssertionNode** (Leaf)
+- Represents a specific validation rule to be evaluated
+- Uses symbolic expressions (SymPy) for flexible comparisons
+- Supports custom validators and severity levels
+- Evaluates to Success or Failure based on computed values
+
+#### 4. **SymbolNode** (Composite)
+- Represents a computed value that can be used in assertions
+- Links to one or more MetricNodes that provide the actual data
+- Manages the retrieval function for accessing computed values
+
+#### 5. **MetricNode** (Composite)
+- Represents a metric that needs to be computed from data
+- Tracks metric state: PENDING → PROVIDED/ERROR
+- Links to AnalyzerNode for actual computation logic
+
+#### 6. **AnalyzerNode** (Leaf)
+- Contains the actual computation logic (SQL operations)
+- Executed by the analyzer engine against data sources
+
+### Graph Features
+
+#### Dependency Resolution
+The graph automatically resolves dependencies between metrics and assertions:
+- Metrics are computed only once, even if used by multiple assertions
+- The execution order is determined by the dependency graph
+- Failed dependencies propagate failures to dependent nodes
+
+#### State Management
+Each node maintains its state throughout the execution:
+- **PENDING**: Waiting for computation
+- **PROVIDED**: Successfully computed/evaluated
+- **ERROR**: Computation or validation failed
+
+#### Traversal Methods
+The RootNode provides convenient methods for graph traversal:
+```python
+# Get all assertions in the graph
+for assertion in graph.assertions():
+    print(f"{assertion.label}: {assertion._value}")
+
+# Get all pending metrics for a dataset
+for metric in graph.pending_metrics("orders"):
+    print(f"Pending: {metric.spec.name}")
+
+# Get all checks and their status
+for check in graph.checks():
+    print(f"{check.name}: {check._value}")
+```
+
+#### Dataset Propagation
+The graph supports multi-dataset validation:
+1. Datasets are propagated from checks to symbols
+2. Symbols propagate datasets to their metrics
+3. Metrics validate they have the required datasets
+4. Failures propagate back up the graph
+
+### Example Graph Construction
+
+When you define a check like this:
+```python
+@check(label="Price validation")
+def validate_prices(mp, ctx):
+    ctx.assert_that(mp.average("price")).is_gt(0)
+    ctx.assert_that(mp.maximum("price")).is_leq(1000)
+```
+
+The framework automatically constructs this graph structure:
+```
+RootNode
+└── CheckNode("Price validation")
+    ├── SymbolNode(average_price)
+    │   └── MetricNode(Average("price"))
+    │       └── AnalyzerNode(SQL: AVG(price))
+    ├── SymbolNode(max_price)
+    │   └── MetricNode(Maximum("price"))
+    │       └── AnalyzerNode(SQL: MAX(price))
+    ├── AssertionNode(average_price > 0)
+    └── AssertionNode(max_price <= 1000)
+```
+
+This graph structure enables:
+- Efficient execution (each metric computed once)
+- Clear dependency tracking
+- Granular error reporting
+- Flexible execution strategies
+
 ## 🛠️ Development
 
 ### Running Tests

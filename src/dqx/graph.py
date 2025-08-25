@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import math
-from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from typing import Any, Generic, Literal, Protocol, TypeVar, runtime_checkable
 
@@ -64,16 +63,15 @@ class CompositeNode(BaseNode, Generic[TChild]):
 
 
 # Visitor Pattern
-class NodeVisitor(ABC):
-    """Abstract visitor for node traversal."""
+class NodeVisitor(Protocol):
+    """Protocol for visitor pattern."""
     
-    @abstractmethod
     def visit(self, node: BaseNode) -> Any:
         """Visit a node."""
-        pass  # pragma: no cover
+        ...
 
 
-class GraphTraverser(NodeVisitor):
+class GraphTraverser:
     """Concrete visitor for graph traversal."""
     
     def __init__(self, filter_type: type[BaseNode] | None = None):

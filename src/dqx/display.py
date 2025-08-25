@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Protocol, TYPE_CHECKING, cast
+from typing import Any, Protocol, TYPE_CHECKING
 
 from returns.maybe import Maybe, Nothing, Some
 from returns.result import Failure, Result, Success
@@ -18,15 +18,6 @@ if TYPE_CHECKING:
         RootNode,
         SymbolNode,
     )
-
-
-# Local protocol to avoid circular import
-class VisitorProtocol(Protocol):
-    """Protocol for visitor pattern without importing NodeVisitor."""
-    
-    def visit(self, node: BaseNode) -> Any:
-        """Visit a node."""
-        ...
 
 
 # =============================================================================
@@ -269,9 +260,7 @@ class TreeBuilder:
             # Continue traversal for composite nodes
             if isinstance(node, CompositeNode):
                 for child in node.get_children():
-                    # Type cast to satisfy mypy
-                    from dqx.graph import NodeVisitor
-                    child.accept(cast(NodeVisitor, self))
+                    child.accept(self)
             
             self.current_tree = parent_tree
         
@@ -334,10 +323,8 @@ class GraphDisplay:
         """Build tree representation of the graph."""
         tree = Tree(self.format_node(root))
         builder = TreeBuilder(tree, self, root)
-        # Type cast to satisfy mypy
-        from dqx.graph import NodeVisitor
         for child in root.children:
-            child.accept(cast(NodeVisitor, builder))
+            child.accept(builder)
         return tree
 
 
