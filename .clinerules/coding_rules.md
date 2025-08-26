@@ -9,6 +9,7 @@
   - Generated code should strictly follow best practices.
   - Always check the code and tests with ruff and mypy before running code coverage.
   - Always check the code and tests with ruff and mypy before running execution.
+  - Run mypy before ruff.
   - Always write tests for new code and keep overall 100% code coverage.
   - No backward compatibility is needed when refactoring code unless specified by users.
   - Think about circular dependency problem and avoid it in planning.

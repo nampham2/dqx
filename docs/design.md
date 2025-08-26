@@ -58,7 +58,6 @@ graph TB
     subgraph "Foundation Layer"
         Ops[SQL Operations]
         Sketches[Statistical Sketches]
-        Common[Common Types]
     end
     
     API --> Suite
@@ -76,8 +75,6 @@ graph TB
     Analyzer --> DS
     Provider --> DB
     States --> DB
-    
-    Ops --> Sketches
 ```
 
 ### Component Interaction Flow
