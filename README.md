@@ -393,7 +393,7 @@ The graph is organized in a hierarchical structure with the following node types
 └─────────────────────────┬───────────────────────────────────┘
                           │ contains
                           ▼
-         ┌────────────────────────────────────┐
+         ┌─────────────────────────────────────┐
          │           CheckNode                 │
          │    (Data quality check)             │
          └──────────┬─────────────┬────────────┘

@@ -88,8 +88,6 @@ class GraphTraverser:
                 child.accept(self)
 
 
-
-
 # Concrete Node Implementations
 class RootNode(CompositeNode["CheckNode"]):
     """Root node of the verification graph."""

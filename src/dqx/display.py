@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any, Protocol, TYPE_CHECKING
 
 from returns.maybe import Maybe, Nothing, Some
@@ -271,18 +272,13 @@ class TreeBuilder:
 # Display Configuration and Manager
 # =============================================================================
 
+@dataclass
 class DisplayConfig:
     """Configuration for display formatting."""
     
-    def __init__(
-        self,
-        show_values: bool = True,
-        show_datasets: bool = True,
-        compact_errors: bool = True,
-    ):
-        self.show_values = show_values
-        self.show_datasets = show_datasets
-        self.compact_errors = compact_errors
+    show_values: bool = True
+    show_datasets: bool = True
+    compact_errors: bool = True
 
 
 class GraphDisplay:
@@ -326,14 +322,3 @@ class GraphDisplay:
         for child in root.children:
             child.accept(builder)
         return tree
-
-
-# =============================================================================
-# Legacy function exports for backward compatibility
-# =============================================================================
-
-# These are exported at module level for backward compatibility
-# with existing code that imports them directly
-_format_status = format_status
-_format_error = format_error
-_format_datasets = format_datasets

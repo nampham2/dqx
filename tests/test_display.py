@@ -209,19 +209,6 @@ def test_format_datasets_helpers() -> None:
     assert display.format_datasets(["ds1", "ds2", "ds3"]) == "[dim italic]ds1, ds2, ds3[/dim italic]"
 
 
-def test_backward_compatibility_exports() -> None:
-    """Test that legacy function exports work for backward compatibility."""
-    # These should be available at module level
-    assert display._format_status == display.format_status
-    assert display._format_error == display.format_error
-    assert display._format_datasets == display.format_datasets
-    
-    # Test they work correctly
-    assert display._format_status(Nothing) == "[yellow]⏳[/yellow]"
-    assert "❌" in display._format_error("test error")
-    assert display._format_datasets(["ds1"]) == "[dim italic]ds1[/dim italic]"
-
-
 # =============================================================================
 # Test Node Formatters
 # =============================================================================

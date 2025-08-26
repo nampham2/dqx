@@ -3,6 +3,7 @@
 ## Virtual environment
   - The project is managed with uv
   - Use `uv run` to run commands (python, pytest, ruff, mypy ...) in the virtual environment
+  - The shell is zsh and not bash. Please generate proper bash scripts.
 
 ## Code Style and best practices
   - Generated code should strictly follow best practices.
