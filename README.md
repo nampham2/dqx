@@ -660,6 +660,12 @@ We welcome contributions! Here's how to get started:
 
 ## 🏆 Recent Improvements
 
+### v0.2.0 (Breaking Changes)
+- 🚨 **Breaking:** Removed legacy `.sql` property from SqlOp protocol
+- 🚨 **Breaking:** All data sources now require a dialect implementation
+- ✅ Simplified SQL generation through unified dialect approach
+- ✅ Improved code maintainability by removing duplicate SQL logic
+
 ### v0.1.0
 - ✅ Fixed critical bug in chained assertion validation
 - ✅ Added comprehensive tolerance support for all comparisons

@@ -148,7 +148,6 @@ def test_variance() -> None:
     assert isinstance(op, Op)
     assert isinstance(op, SqlOp)
     assert op.name == "variance(column)"
-    assert op.sql == f"VARIANCE(column) AS '{op.sql_col}'"
     # Note: There's a bug in Variance.__eq__ - it compares against Sum instead of Variance
     # We'll test the current behavior
     op1 = ops.Variance("column")
@@ -181,63 +180,54 @@ def test_num_rows_sql_properties() -> None:
     assert op.prefix is not None
     assert len(op.prefix) > 0
     assert op.sql_col == f"{op.prefix}_{op.name}"
-    assert op.sql == f"CAST(COUNT(*) AS DOUBLE) AS '{op.sql_col}'"
 
 
 def test_average_sql_properties() -> None:
     op = ops.Average("test_col")
     assert op.prefix is not None
     assert op.sql_col == f"{op.prefix}_{op.name}"
-    assert op.sql == f"AVG(test_col) AS '{op.sql_col}'"
 
 
 def test_minimum_sql_properties() -> None:
     op = ops.Minimum("test_col")
     assert op.prefix is not None
     assert op.sql_col == f"{op.prefix}_{op.name}"
-    assert op.sql == f"MIN(test_col) AS '{op.sql_col}'"
 
 
 def test_maximum_sql_properties() -> None:
     op = ops.Maximum("test_col")
     assert op.prefix is not None
     assert op.sql_col == f"{op.prefix}_{op.name}"
-    assert op.sql == f"MAX(test_col) AS '{op.sql_col}'"
 
 
 def test_sum_sql_properties() -> None:
     op = ops.Sum("test_col")
     assert op.prefix is not None
     assert op.sql_col == f"{op.prefix}_{op.name}"
-    assert op.sql == f"SUM(test_col) AS '{op.sql_col}'"
 
 
 def test_variance_sql_properties() -> None:
     op = ops.Variance("test_col")
     assert op.prefix is not None
     assert op.sql_col == f"{op.prefix}_{op.name}"
-    assert op.sql == f"VARIANCE(test_col) AS '{op.sql_col}'"
 
 
 def test_first_sql_properties() -> None:
     op = ops.First("test_col")
     assert op.prefix is not None
     assert op.sql_col == f"{op.prefix}_{op.name}"
-    assert op.sql == f"FIRST(test_col) AS '{op.sql_col}'"
 
 
 def test_null_count_sql_properties() -> None:
     op = ops.NullCount("test_col")
     assert op.prefix is not None
     assert op.sql_col == f"{op.prefix}_{op.name}"
-    assert op.sql == f"COUNT_IF(test_col IS NULL) AS '{op.sql_col}'"
 
 
 def test_negative_count_sql_properties() -> None:
     op = ops.NegativeCount("test_col")
     assert op.prefix is not None
     assert op.sql_col == f"{op.prefix}_{op.name}"
-    assert op.sql == f"COUNT_IF(test_col < 0.0) AS '{op.sql_col}'"
 
 
 # Test string representations

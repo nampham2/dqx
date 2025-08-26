@@ -89,13 +89,17 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp]) -> None:
 
     # Constructing the query
     logger.info(f"Analyzing SqlOps: {distinct_ops}")
-    sql = textwrap.dedent(f"""\
-        WITH source AS ( {ds.cte} )
-        SELECT {", ".join(op.sql for op in distinct_ops)} FROM source
-        """)
+    
+    # Require datasource to have a dialect
+    if not hasattr(ds, 'dialect'):
+        raise DQXError(f"Data source {ds.name} must have a dialect to analyze SQL ops")
+    
+    # Generate SQL expressions using the dialect
+    expressions = [ds.dialect.translate_sql_op(op) for op in distinct_ops]
+    sql = ds.dialect.build_cte_query(ds.cte, expressions)
 
     # Execute the query
-    logger.debug(f"DuckDB SQL:\n{sql}")
+    logger.debug(f"SQL Query:\n{sql}")
     result: dict[str, np.ndarray] = ds.query(sql).fetchnumpy()
 
     # Assign the collected values to the ops

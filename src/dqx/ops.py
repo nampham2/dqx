@@ -34,9 +34,6 @@ class SqlOp(Op[T], Protocol):
     @property
     def sql_col(self) -> str: ...
 
-    @property
-    def sql(self) -> str: ...
-
 
 @runtime_checkable
 class SketchOp(Op[T], Protocol):
@@ -82,10 +79,6 @@ class NumRows(OpValueMixin[float], SqlOp[float]):
     def sql_col(self) -> str:
         return f"{self.prefix}_{self.name}"
 
-    @property
-    def sql(self) -> str:
-        return f"CAST(COUNT(*) AS DOUBLE) AS '{self.sql_col}'"
-
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, NumRows):
             return NotImplemented
@@ -120,10 +113,6 @@ class Average(OpValueMixin[float], SqlOp[float]):
     @property
     def sql_col(self) -> str:
         return f"{self.prefix}_{self.name}"
-
-    @property
-    def sql(self) -> str:
-        return f"AVG({self.column}) AS '{self.sql_col}'"
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Average):
@@ -160,10 +149,6 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
     def sql_col(self) -> str:
         return f"{self.prefix}_{self.name}"
 
-    @property
-    def sql(self) -> str:
-        return f"MIN({self.column}) AS '{self.sql_col}'"
-
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Minimum):
             return NotImplemented
@@ -198,10 +183,6 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
     @property
     def sql_col(self) -> str:
         return f"{self.prefix}_{self.name}"
-
-    @property
-    def sql(self) -> str:
-        return f"MAX({self.column}) AS '{self.sql_col}'"
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Maximum):
@@ -238,10 +219,6 @@ class Sum(OpValueMixin[float], SqlOp[float]):
     def sql_col(self) -> str:
         return f"{self.prefix}_{self.name}"
 
-    @property
-    def sql(self) -> str:
-        return f"SUM({self.column}) AS '{self.sql_col}'"
-
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Sum):
             return NotImplemented
@@ -276,10 +253,6 @@ class Variance(OpValueMixin[float], SqlOp[float]):
     @property
     def sql_col(self) -> str:
         return f"{self.prefix}_{self.name}"
-
-    @property
-    def sql(self) -> str:
-        return f"VARIANCE({self.column}) AS '{self.sql_col}'"
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Sum):
@@ -316,10 +289,6 @@ class First(OpValueMixin[float], SqlOp[float]):
     def sql_col(self) -> str:
         return f"{self.prefix}_{self.name}"
 
-    @property
-    def sql(self) -> str:
-        return f"FIRST({self.column}) AS '{self.sql_col}'"
-
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, First):
             return NotImplemented
@@ -355,10 +324,6 @@ class NullCount(OpValueMixin[float], SqlOp[float]):
     def sql_col(self) -> str:
         return f"{self.prefix}_{self.name}"
 
-    @property
-    def sql(self) -> str:
-        return f"COUNT_IF({self.column} IS NULL) AS '{self.sql_col}'"
-
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, NullCount):
             return NotImplemented
@@ -393,10 +358,6 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
     @property
     def sql_col(self) -> str:
         return f"{self.prefix}_{self.name}"
-
-    @property
-    def sql(self) -> str:
-        return f"COUNT_IF({self.column} < 0.0) AS '{self.sql_col}'"
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, NegativeCount):

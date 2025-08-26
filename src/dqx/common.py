@@ -88,10 +88,12 @@ class SqlDataSource(Protocol):
     Attributes:
         name: A unique identifier for this data source instance
         analyzer_class: The analyzer class used to process this data source
+        dialect: The SQL dialect used for query generation
     """
 
     name: str
     analyzer_class: type[Analyzer]
+    dialect: Any  # Will be Dialect protocol when imported
 
     @property
     def cte(self) -> str:
