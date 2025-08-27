@@ -224,12 +224,12 @@ suite.run({"large_dataset": batch_ds}, key, threading=True)
 Implement the `SqlDataSource` protocol:
 
 ```python
-from dqx.common import SqlDataSource, Analyzer
+from dqx.common import SqlDataSource
 import duckdb
 
 class CustomDataSource:
     name = "custom_source"
-    analyzer_class = Analyzer  # Your analyzer implementation
+    dialect = "duckdb"  # SQL dialect to use
     
     @property
     def cte(self) -> str:

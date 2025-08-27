@@ -9,6 +9,7 @@ import sympy as sp
 from returns.result import Result
 
 from dqx import common, functions, graph
+from dqx.analyzer import Analyzer
 from dqx.common import DQXError, SqlDataSource, ResultKey, ResultKeyProvider, SeverityLevel, SymbolicValidator
 from dqx.orm.repositories import MetricDB
 from dqx.provider import MetricProvider, SymbolicMetric
@@ -409,7 +410,7 @@ class VerificationSuite:
         threading: bool
     ) -> None:
         """Analyze a single datasource and persist results."""
-        analyzer: common.Analyzer = ds.analyzer_class()
+        analyzer = Analyzer()
         analyzer.analyze(ds, ctx.pending_metrics(ds_name), key, threading=threading)
         analyzer.persist(self._provider._db)
         ctx._graph.mark_pending_metrics_success(ds_name)

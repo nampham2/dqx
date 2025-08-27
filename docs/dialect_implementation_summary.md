@@ -27,8 +27,7 @@ After analyzing the pros and cons of adding dialect support in either the Analyz
 @runtime_checkable
 class SqlDataSource(Protocol):
     name: str
-    analyzer_class: type[Analyzer]
-    dialect: Any  # Will be Dialect protocol when imported
+    dialect: str  # The SQL dialect name used for query generation
     # ... rest of the protocol
 ```
 

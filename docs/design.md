@@ -1180,7 +1180,7 @@ Implement the `SqlDataSource` protocol:
 ```python
 class CustomDataSource:
     name = "custom_source"
-    analyzer_class = CustomAnalyzer
+    dialect = "duckdb"  # or your custom dialect
     
     @property
     def cte(self) -> str:
@@ -1192,14 +1192,23 @@ class CustomDataSource:
         # Custom query execution logic
 ```
 
-### 2. Custom Analyzers
-Extend the base Analyzer class:
+### 2. Custom Dialects
+Implement custom SQL dialects for different databases:
 
 ```python
-class CustomAnalyzer(Analyzer):
-    def analyze(self, ds, metrics, key, threading=False):
-        """Custom analysis logic."""
-        # Implement custom metric computation
+from dqx.dialect import Dialect
+
+class PostgreSQLDialect:
+    name = "postgresql"
+    
+    def translate_sql_op(self, op: SqlOp) -> str:
+        """Translate operations to PostgreSQL syntax."""
+        # Implement SQL translation
+        
+    def build_cte_query(self, cte_sql: str, expressions: list[str]) -> str:
+        """Build formatted CTE query."""
+        from dqx.dialect import build_cte_query
+        return build_cte_query(cte_sql, expressions)
 ```
 
 ### 3. Custom Metric Types
