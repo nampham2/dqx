@@ -80,9 +80,10 @@ This allows the same DQX code to work across different databases.
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable, Type
 
 from dqx import ops
+from dqx.common import DQXError
 
 
 def build_cte_query(cte_sql: str, select_expressions: list[str]) -> str:
@@ -250,3 +251,46 @@ class DuckDBDialect:
         used by other dialects as well.
         """
         return build_cte_query(cte_sql, select_expressions)
+
+
+# Dialect Registry
+_DIALECT_REGISTRY: dict[str, Type[Dialect]] = {}
+
+
+def register_dialect(name: str, dialect_class: Type[Dialect]) -> None:
+    """Register a dialect in the global registry.
+    
+    Args:
+        name: The name to register the dialect under
+        dialect_class: The dialect class to register
+        
+    Raises:
+        ValueError: If a dialect with this name is already registered
+    """
+    if name in _DIALECT_REGISTRY:
+        raise ValueError(f"Dialect '{name}' is already registered")
+    _DIALECT_REGISTRY[name] = dialect_class
+
+
+def get_dialect(name: str) -> Dialect:
+    """Get a dialect instance by name from the registry.
+    
+    Args:
+        name: The name of the dialect to retrieve
+        
+    Returns:
+        An instance of the requested dialect
+        
+    Raises:
+        DQXError: If the dialect is not found in the registry
+    """
+    if name not in _DIALECT_REGISTRY:
+        available = ", ".join(sorted(_DIALECT_REGISTRY.keys()))
+        raise DQXError(f"Dialect '{name}' not found in registry. Available dialects: {available}")
+    
+    dialect_class = _DIALECT_REGISTRY[name]
+    return dialect_class()
+
+
+# Register built-in dialects
+register_dialect("duckdb", DuckDBDialect)

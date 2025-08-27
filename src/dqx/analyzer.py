@@ -22,6 +22,7 @@ from dqx.common import (
     SqlDataSource,
     ResultKey,
 )
+from dqx.dialect import get_dialect
 from dqx.ops import SketchOp, SqlOp
 from dqx.orm.repositories import MetricDB
 from dqx.specs import MetricSpec
@@ -94,9 +95,12 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp]) -> None:
     if not hasattr(ds, 'dialect'):
         raise DQXError(f"Data source {ds.name} must have a dialect to analyze SQL ops")
     
+    # Get the dialect instance from the registry
+    dialect_instance = get_dialect(ds.dialect)
+    
     # Generate SQL expressions using the dialect
-    expressions = [ds.dialect.translate_sql_op(op) for op in distinct_ops]
-    sql = ds.dialect.build_cte_query(ds.cte, expressions)
+    expressions = [dialect_instance.translate_sql_op(op) for op in distinct_ops]
+    sql = dialect_instance.build_cte_query(ds.cte, expressions)
 
     # Execute the query
     logger.debug(f"SQL Query:\n{sql}")

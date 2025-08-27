@@ -8,12 +8,10 @@ from pyarrow.dataset import dataset
 
 from dqx.analyzer import Analyzer
 from dqx.common import SqlDataSource
-from dqx.dialect import DuckDBDialect
 from dqx.utils import random_prefix
 
 if TYPE_CHECKING:
     from dqx.common import Analyzer as AnalyzerType
-    from dqx.dialect import Dialect
 
 MAX_ARROW_BATCH_SIZE: int = 10_000_000
 
@@ -22,10 +20,10 @@ class ArrowDataSource:
     name: str = "pyarrow"
     analyzer_class: type[AnalyzerType] = Analyzer
 
-    def __init__(self, table: pa.RecordBatch | pa.Table, dialect: Dialect | None = None) -> None:
+    def __init__(self, table: pa.RecordBatch | pa.Table, dialect: str | None = None) -> None:
         self._table = table
         self._table_name = random_prefix(k=6)
-        self.dialect = dialect or DuckDBDialect()
+        self.dialect = dialect or "duckdb"
 
     @property
     def cte(self) -> str:
@@ -42,9 +40,9 @@ class ArrowBatchDataSource:
     name: str = "pyarrow_batch"
     analyzer_class: type[AnalyzerType] = Analyzer
 
-    def __init__(self, batches: Iterable[pa.RecordBatch | pa.Table], dialect: Dialect | None = None) -> None:
+    def __init__(self, batches: Iterable[pa.RecordBatch | pa.Table], dialect: str | None = None) -> None:
         self._batches = batches
-        self.dialect = dialect or DuckDBDialect()
+        self.dialect = dialect or "duckdb"
 
     def arrow_ds(self) -> Iterable[ArrowDataSource]:
         for batch in self._batches:
@@ -52,7 +50,7 @@ class ArrowBatchDataSource:
 
     @classmethod
     def from_parquets(
-        cls, parquets: Iterable[str], batch_size: int = MAX_ARROW_BATCH_SIZE, filesystem: Any | None = None, dialect: Dialect | None = None
+        cls, parquets: Iterable[str], batch_size: int = MAX_ARROW_BATCH_SIZE, filesystem: Any | None = None, dialect: str | None = None
     ) -> ArrowBatchDataSource:
         return cls(dataset(parquets, format="parquet", filesystem=filesystem).to_batches(batch_size=batch_size), dialect=dialect)
 
@@ -61,10 +59,10 @@ class DuckRelationDataSource:
     name: str = "duckdb"
     analyzer_class: type[AnalyzerType] = Analyzer
 
-    def __init__(self, relation: duckdb.DuckDBPyRelation, dialect: Dialect | None = None) -> None:
+    def __init__(self, relation: duckdb.DuckDBPyRelation, dialect: str | None = None) -> None:
         self._relation = relation
         self._table_name = random_prefix(k=6)
-        self.dialect = dialect or DuckDBDialect()
+        self.dialect = dialect or "duckdb"
 
     @property
     def cte(self) -> str:
@@ -74,5 +72,5 @@ class DuckRelationDataSource:
         return self._relation.query(self._table_name, query)
 
     @classmethod
-    def from_arrow(cls, table: pa.RecordBatch | pa.Table, dialect: Dialect | None = None) -> SqlDataSource:
+    def from_arrow(cls, table: pa.RecordBatch | pa.Table, dialect: str | None = None) -> SqlDataSource:
         return ArrowDataSource(table, dialect=dialect)
