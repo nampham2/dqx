@@ -18,12 +18,12 @@ MAX_ARROW_BATCH_SIZE: int = 10_000_000
 
 class ArrowDataSource:
     name: str = "pyarrow"
+    dialect: str = "duckdb"
     analyzer_class: type[AnalyzerType] = Analyzer
 
-    def __init__(self, table: pa.RecordBatch | pa.Table, dialect: str | None = None) -> None:
+    def __init__(self, table: pa.RecordBatch | pa.Table) -> None:
         self._table = table
         self._table_name = random_prefix(k=6)
-        self.dialect = dialect or "duckdb"
 
     @property
     def cte(self) -> str:
@@ -38,31 +38,31 @@ class ArrowDataSource:
 
 class ArrowBatchDataSource:
     name: str = "pyarrow_batch"
+    dialect: str = "duckdb"
     analyzer_class: type[AnalyzerType] = Analyzer
 
-    def __init__(self, batches: Iterable[pa.RecordBatch | pa.Table], dialect: str | None = None) -> None:
+    def __init__(self, batches: Iterable[pa.RecordBatch | pa.Table]) -> None:
         self._batches = batches
-        self.dialect = dialect or "duckdb"
 
     def arrow_ds(self) -> Iterable[ArrowDataSource]:
         for batch in self._batches:
-            yield ArrowDataSource(batch, dialect=self.dialect)
+            yield ArrowDataSource(batch)
 
     @classmethod
     def from_parquets(
         cls, parquets: Iterable[str], batch_size: int = MAX_ARROW_BATCH_SIZE, filesystem: Any | None = None, dialect: str | None = None
     ) -> ArrowBatchDataSource:
-        return cls(dataset(parquets, format="parquet", filesystem=filesystem).to_batches(batch_size=batch_size), dialect=dialect)
+        return cls(dataset(parquets, format="parquet", filesystem=filesystem).to_batches(batch_size=batch_size))
 
 
 class DuckRelationDataSource:
     name: str = "duckdb"
+    dialect: str = "duckdb"
     analyzer_class: type[AnalyzerType] = Analyzer
 
-    def __init__(self, relation: duckdb.DuckDBPyRelation, dialect: str | None = None) -> None:
+    def __init__(self, relation: duckdb.DuckDBPyRelation) -> None:
         self._relation = relation
         self._table_name = random_prefix(k=6)
-        self.dialect = dialect or "duckdb"
 
     @property
     def cte(self) -> str:
@@ -72,5 +72,5 @@ class DuckRelationDataSource:
         return self._relation.query(self._table_name, query)
 
     @classmethod
-    def from_arrow(cls, table: pa.RecordBatch | pa.Table, dialect: str | None = None) -> SqlDataSource:
-        return ArrowDataSource(table, dialect=dialect)
+    def from_arrow(cls, table: pa.RecordBatch | pa.Table) -> SqlDataSource:
+        return ArrowDataSource(table)

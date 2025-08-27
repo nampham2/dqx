@@ -447,31 +447,6 @@ class TestDataSourceDialectIntegration:
         
         assert ds.dialect == "duckdb"
     
-    def test_datasource_with_custom_dialect(self) -> None:
-        """Test that ArrowDataSource can use a custom dialect."""
-        # Store original registry state
-        original_registry = _DIALECT_REGISTRY.copy()
-        
-        try:
-            # Register the mock dialect
-            register_dialect("postgresql", MockPostgreSQLDialect)
-            
-            # Create test data
-            table = pa.table({
-                'value': [10, 20, 30, None, 50],
-                'category': ['A', 'B', 'A', 'B', 'A']
-            })
-            
-            # Create data source with custom dialect
-            ds = ArrowDataSource(table, dialect="postgresql")
-            
-            assert ds.dialect == "postgresql"
-        
-        finally:
-            # Restore original registry state
-            _DIALECT_REGISTRY.clear()
-            _DIALECT_REGISTRY.update(original_registry)
-
 
 # =============================================================================
 # Analyzer Integration Tests
