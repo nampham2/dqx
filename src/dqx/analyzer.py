@@ -35,8 +35,8 @@ T = TypeVar("T", bound=SqlDataSource)
 
 
 class AnalysisReport(UserDict[MetricKey, models.Metric]):
-    def __init__(self, data: dict[MetricKey, models.Metric] = {}) -> None:
-        self.data = data
+    def __init__(self, data: dict[MetricKey, models.Metric] | None = None) -> None:
+        self.data = data if data is not None else {}
 
     def merge(self, other: AnalysisReport) -> AnalysisReport:
         merged_report = toolz.merge_with(models.Metric.reduce, self, other)

@@ -10,6 +10,7 @@
   - Always check the code and tests with ruff and mypy before running code coverage.
   - Always check the code and tests with ruff and mypy before running execution.
   - Run mypy before ruff.
+  - Prefer running `uv run ruff check --fix` over manual editing the files to fix linting issues.
   - Always write tests for new code and keep overall 100% code coverage.
   - No backward compatibility is needed when refactoring code unless specified by users.
   - Think about circular dependency problem and avoid it in planning.
@@ -17,6 +18,10 @@
   - Before finishing:
     - Always check the source and tests code base with ruff and mypy.
     - Keep README.md in sync with the changes.
+
+## Unit tests
+  - Prefer native objects over mocks.
+  - Make sure that all tests are isolated.
 
 ## Design patterns and algorithms
   - Employ design patterns when planning and act.
