@@ -7,6 +7,7 @@
 
 ## Code Style and best practices
   - Generated code should strictly follow best practices.
+  - Always add type annotation to variables and function signatures.
   - Always check the code and tests with ruff and mypy before running code coverage.
   - Always check the code and tests with ruff and mypy before running execution.
   - Run mypy before ruff.
@@ -15,9 +16,11 @@
   - No backward compatibility is needed when refactoring code unless specified by users.
   - Think about circular dependency problem and avoid it in planning.
   - The python docstring is in Google format.
+  - Always validate the input parameters first in each function implementation.
   - Before finishing:
     - Always check the source and tests code base with ruff and mypy.
     - Keep README.md in sync with the changes.
+    - Update docstrings of the modified methods to reflect the changes.
 
 ## Unit tests
   - Prefer native objects over mocks.
@@ -28,3 +31,6 @@
   Provide different solutions with different trade off and ask users to make decision on which solution to choose.
   - Thinks about algorithm complexity and communicate clearly to users.
   - Prefer simple, elegant solution over more complex ones.
+
+## Examples
+  - To run code coverage: `uv run pytest tests/test_symbol_table.py -v --cov=dqx.symbol_table`

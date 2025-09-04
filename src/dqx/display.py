@@ -11,13 +11,10 @@ from rich.tree import Tree
 
 if TYPE_CHECKING:
     from dqx.graph import (
-        AnalyzerNode,
         AssertionNode,
         BaseNode,
         CheckNode,
-        MetricNode,
         RootNode,
-        SymbolNode,
     )
 
 
@@ -185,51 +182,6 @@ class AssertionNodeFormatter:
         return f"{node.actual}"
 
 
-class SymbolNodeFormatter:
-    """Formatter for SymbolNode."""
-    
-    def format(self, node: SymbolNode) -> str:
-        """Format SymbolNode for display."""
-        symbol_text = f"{str(node.symbol)}"
-        name_text = node.name
-        
-        # Format the value if available
-        value_str = ""
-        if node._value is not Nothing and isinstance(node._value.unwrap(), Success):
-            val = node._value.unwrap().unwrap()
-            if isinstance(val, (int, float)):
-                formatted_val = f"{val:.2f}" if isinstance(val, float) and abs(val) < 1000 else str(val)
-                value_str = f" = {formatted_val}"
-        
-        status = format_status(node._value)
-        datasets = format_datasets(node.datasets)
-        
-        if datasets:
-            return f"📊 {symbol_text}: {name_text}{value_str} {status} [{datasets}]"
-        return f"📊 {symbol_text}: {name_text}{value_str} {status}"
-
-
-class MetricNodeFormatter:
-    """Formatter for MetricNode."""
-    
-    def format(self, node: MetricNode) -> str:
-        """Format MetricNode for display."""
-        name = node.spec.name
-        key = f"[{node.eval_key()}]"
-        status = format_status(node._analyzed)
-        datasets = format_datasets(node.datasets)
-        
-        if datasets:
-            return f"📈 {name} {key} [{datasets}] {status}"
-        return f"📈 {name} {key} {status}"
-
-
-class AnalyzerNodeFormatter:
-    """Formatter for AnalyzerNode."""
-    
-    def format(self, node: AnalyzerNode) -> str:
-        """Format AnalyzerNode for display."""
-        return f"🔧 {node.analyzer.name} analyzer"
 
 
 # =============================================================================
@@ -266,6 +218,7 @@ class TreeBuilder:
             self.current_tree = parent_tree
         
         return None
+    
 
 
 # =============================================================================
@@ -291,21 +244,15 @@ class GraphDisplay:
     def _init_formatters(self) -> dict[type, Any]:
         """Initialize formatters for each node type."""
         from dqx.graph import (
-            AnalyzerNode,
             AssertionNode,
             CheckNode,
-            MetricNode,
             RootNode,
-            SymbolNode,
         )
         
         return {
             RootNode: RootNodeFormatter(),
             CheckNode: CheckNodeFormatter(),
             AssertionNode: AssertionNodeFormatter(),
-            SymbolNode: SymbolNodeFormatter(),
-            MetricNode: MetricNodeFormatter(),
-            AnalyzerNode: AnalyzerNodeFormatter(),
         }
     
     def format_node(self, node: BaseNode) -> str:

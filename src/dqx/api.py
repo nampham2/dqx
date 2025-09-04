@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import functools
 import logging
-from collections.abc import Callable, Mapping, Sequence
-from typing import Protocol, Self, overload, runtime_checkable
+from collections.abc import Callable, Sequence
+from typing import Protocol, Self, overload, runtime_checkable, TypedDict, cast
 
 import sympy as sp
-from returns.result import Result
+from returns.maybe import Some
+from returns.result import Failure
 
 from dqx import common, functions, graph
 from dqx.analyzer import Analyzer
@@ -14,10 +15,27 @@ from dqx.common import DQXError, SqlDataSource, ResultKey, ResultKeyProvider, Se
 from dqx.orm.repositories import MetricDB
 from dqx.provider import MetricProvider, SymbolicMetric
 from dqx.specs import MetricSpec
+from dqx.symbol_table import SymbolEntry, SymbolTable
 
 CheckProducer = Callable[[MetricProvider, common.Context], None]
 CheckCreator = Callable[[CheckProducer], CheckProducer]
-SymbolTable = Mapping[sp.Symbol, Result[float, str]]
+
+
+class CheckMetadata(TypedDict):
+    """Metadata stored on decorated check functions."""
+    name: str
+    datasets: list[str] | None
+    tags: list[str]
+    label: str | None
+
+
+@runtime_checkable
+class DecoratedCheck(Protocol):
+    """Protocol for check functions with metadata."""
+    __name__: str
+    _check_metadata: CheckMetadata
+    
+    def __call__(self, mp: MetricProvider, ctx: common.Context) -> None: ...
 
 
 class GraphStates:
@@ -199,22 +217,21 @@ class Context:
         Returns:
             Sequence of pending metric specifications
         """
-        if dataset is None:
-            # Return all pending metrics across all datasets
-            all_metrics = set()
-            for metric_node in self._graph.metrics():
-                if metric_node.state() == GraphStates.PENDING:
-                    all_metrics.add(metric_node.spec)
-            return list(all_metrics)
-        else:
-            return list(set(node.spec for node in self._graph.pending_metrics(dataset)))
+        # Get metrics from symbol table
+        return list(self._graph.symbol_table.get_required_metrics(dataset))
 
     def evaluate(self, key: ResultKey) -> None:
         """Evaluate all ready symbols and assertions in the graph."""
-        for symbol in self._graph.ready_symbols():
-            symbol.evaluate(key)
+        # Use the symbol table for evaluation
+        symbol_table = self._graph.symbol_table
+        
+        # Evaluate ready symbols through the symbol table
+        symbol_table.evaluate_ready_symbols(key)
+        
+        # Evaluate assertions
         for assertion in self._graph.assertions():
             assertion.evaluate()
+            
         # Update check node statuses based on their children
         for check in self._graph.checks():
             check.update_status()
@@ -235,7 +252,7 @@ class VerificationSuite:
     
     def __init__(
         self,
-        checks: Sequence[CheckProducer],
+        checks: Sequence[CheckProducer | DecoratedCheck],
         db: MetricDB,
         name: str,
     ) -> None:
@@ -255,7 +272,7 @@ class VerificationSuite:
         if not name.strip():
             raise DQXError("Suite name cannot be empty")
         
-        self._checks = checks
+        self._checks: Sequence[CheckProducer | DecoratedCheck] = checks
         self._provider = MetricProvider(db)
         self._name = name.strip()
 
@@ -313,54 +330,65 @@ class VerificationSuite:
         if not check_node:
             raise RuntimeError("Assertion not found in any check node")
         
+        symbol_table = root.symbol_table
+        
         for sym in sorted(assertion.actual.free_symbols, key=str):
+            # Check if symbol already registered
+            if symbol_table.get(sym) is not None:
+                continue
+                
             if sym in symbol_cache:
                 sm = symbol_cache[sym]
             else:
                 sm = self._provider.get_symbol(sym)
                 symbol_cache[sym] = sm
             
-            # Check if symbol already exists in the graph
-            symbol_exists = False
-            for existing_symbol in root.symbols():
-                if existing_symbol.symbol == sym:
-                    symbol_exists = True
-                    break
-            
-            # Only create symbol if it doesn't already exist
-            if not symbol_exists:
-                symbol_node = self._create_symbol_node(sm)
-                # Add symbol as child of check node instead of assertion
-                check_node.add_child(symbol_node)
-                self._add_metric_dependencies(symbol_node, sm, key)
+            # Register symbol in symbol table
+            self._register_symbol_in_table(sm, key, symbol_table, check_node)
     
-    def _create_symbol_node(self, sm: SymbolicMetric) -> graph.SymbolNode:
-        """Create a symbol node from a symbolic metric."""
-        return graph.SymbolNode(name=sm.name, symbol=sm.symbol, fn=sm.fn, datasets=sm.datasets)
-    
-    def _add_metric_dependencies(
-        self, 
-        symbol_node: graph.SymbolNode, 
-        sm: SymbolicMetric, 
-        key: ResultKey
+    def _register_symbol_in_table(
+        self,
+        sm: SymbolicMetric,
+        key: ResultKey,
+        symbol_table: SymbolTable,
+        check_node: graph.CheckNode
     ) -> None:
-        """Add metric dependencies to symbol node."""
-        for d_spec, d_key in sm.dependencies:
-            metric_node = graph.MetricNode(spec=d_spec, key_provider=d_key, nominal_key=key)
-            symbol_node.add_child(metric_node)
-            
-            # Mark the node as provided if key is different from the nominal key
-            if d_key.create(key) != key:
-                metric_node.mark_as_provided()
-            
-            # Only pending nodes need analyzers
-            if metric_node.state() == GraphStates.PENDING:
-                self._add_analyzers(metric_node, d_spec)
-    
-    def _add_analyzers(self, metric_node: graph.MetricNode, spec: MetricSpec) -> None:
-        """Add analyzer nodes to pending metric nodes."""
-        for analyzer in spec.analyzers:
-            metric_node.add_child(graph.AnalyzerNode(analyzer=analyzer))
+        """Register symbol and its dependencies in the symbol table."""
+        # Extract ops from metric spec
+        ops = list(sm.dependencies[0][0].analyzers) if sm.dependencies else []
+        
+        # Determine dataset for the symbol
+        # A symbol can only be associated with one dataset
+        # If the symbol specifies multiple datasets, we take the first one
+        # If no datasets are specified, it will be bound at runtime
+        dataset: str | None = None
+        if sm.datasets:
+            dataset = sm.datasets[0]  # Take the first dataset
+        elif check_node.datasets:
+            dataset = check_node.datasets[0]  # Take the first dataset from check
+        
+        entry = SymbolEntry(
+            symbol=sm.symbol,
+            name=sm.name,
+            dataset=dataset,
+            result_key=key,
+            metric_spec=sm.dependencies[0][0] if sm.dependencies else None,
+            ops=ops,
+            retrieval_fn=sm.fn,
+            dependencies=sm.dependencies,
+            tags=[]
+        )
+        
+        # Check if this is a provided metric (different key)
+        if sm.dependencies and sm.key_provider and sm.key_provider.create(key) != key:
+            entry.mark_provided()
+        
+        # Register in symbol table
+        symbol_table.register(entry)
+        
+        # Track symbol-check relationship
+        symbol_table.register_symbol_for_check(sm.symbol, check_node.name)
+        check_node.add_symbol(sm.symbol)
 
     def run(self, datasources: dict[str, SqlDataSource], key: ResultKey, threading: bool = False) -> Context:
         """
@@ -381,7 +409,29 @@ class VerificationSuite:
         
         # Create a context
         ctx = self.collect(key)
-        ctx._graph.propagate(list(datasources.keys()))
+        
+        # Mark checks without datasets as failed if multiple datasets are provided
+        if len(datasources) > 1:
+            for check_node in ctx._graph.checks():
+                # Check if this check has no datasets specified
+                check_fn = None
+                for check in self._checks:
+                    if check.__name__ == check_node.name:
+                        check_fn = check
+                        break
+                
+                if check_fn and isinstance(check_fn, DecoratedCheck):
+                    metadata = check_fn._check_metadata  # type: ignore[attr-defined]
+                    if metadata['datasets'] is None:
+                        # Fail the check instead of throwing an error
+                        failure_msg = (
+                            f"Check '{metadata['name']}' does not specify datasets "
+                            f"and cannot be run with multiple datasets. "
+                            f"Either specify datasets explicitly in the @check decorator or provide only one dataset."
+                        )
+                        check_node._value = Some(Failure(failure_msg))
+        
+        ctx._graph.impute_datasets(list(datasources.keys()))
 
         # Run the checks per dataset
         for ds_name, ds in datasources.items():
@@ -390,7 +440,14 @@ class VerificationSuite:
             except Exception as e:
                 # Log the original error for debugging
                 logging.error(f"Analysis failed for dataset {ds_name}: {str(e)}", exc_info=True)
-                ctx._graph.mark_pending_metric_failed(ds_name, str(e))
+                symbol_table = ctx._graph.symbol_table
+                symbol_table.mark_dataset_failed(ds_name, str(e))
+
+        # Update the symbol table to reflect that metrics are now available
+        # This marks symbols as ready for evaluation
+        symbol_table = ctx._graph.symbol_table
+        for ds_name in datasources.keys():
+            symbol_table.mark_dataset_ready(ds_name)
 
         # Run the checks
         ctx.evaluate(key)
@@ -413,7 +470,8 @@ class VerificationSuite:
         analyzer = Analyzer()
         analyzer.analyze(ds, ctx.pending_metrics(ds_name), key, threading=threading)
         analyzer.persist(self._provider._db)
-        ctx._graph.mark_pending_metrics_success(ds_name)
+        # Mark pending metrics as success is now handled by symbol table
+        pass
 
 
 class VerificationSuiteBuilder:
@@ -435,14 +493,14 @@ class VerificationSuiteBuilder:
         """
         self._name = name
         self._db = db
-        self._checks: list[CheckProducer] = []
+        self._checks: list[CheckProducer | DecoratedCheck] = []
         
-    def add_check(self, check: CheckProducer) -> Self:
+    def add_check(self, check: CheckProducer | DecoratedCheck) -> Self:
         """Add a single check to the suite."""
         self._checks.append(check)
         return self
         
-    def add_checks(self, checks: Sequence[CheckProducer]) -> Self:
+    def add_checks(self, checks: Sequence[CheckProducer | DecoratedCheck]) -> Self:
         """Add multiple checks to the suite."""
         self._checks.extend(checks)
         return self
@@ -486,13 +544,13 @@ def _create_check(
 
 
 @overload
-def check(_check: CheckProducer) -> CheckProducer: ...
+def check(_check: CheckProducer) -> DecoratedCheck: ...
 
 
 @overload
 def check(
     *, tags: list[str] = [], label: str | None = None, datasets: list[str] | None = None
-) -> CheckCreator: ...
+) -> Callable[[CheckProducer], DecoratedCheck]: ...
 
 
 def check(
@@ -501,7 +559,7 @@ def check(
     tags: list[str] = [],
     label: str | None = None,
     datasets: list[str] | None = None,
-) -> CheckProducer | CheckCreator:
+) -> DecoratedCheck | Callable[[CheckProducer], DecoratedCheck]:
     """
     Decorator for creating data quality check functions.
     
@@ -511,7 +569,7 @@ def check(
     def my_check(mp: MetricProvider, ctx: Context) -> None:
         # check logic
     
-    @check(tags=["critical"], label="Important Check")
+    @check(tags=["critical"], label="Important Check", datasets=["ds1"])
     def my_labeled_check(mp: MetricProvider, ctx: Context) -> None:
         # check logic
     
@@ -519,19 +577,38 @@ def check(
         _check: The check function (when used without parentheses)
         tags: Optional tags for categorizing the check
         label: Optional human-readable label for the check
-        datasets: Optional list of datasets the check applies to
+        datasets: Optional list of datasets the check applies to.
+                 If not specified and multiple datasets are provided at runtime,
+                 an error will be raised.
         
     Returns:
         Decorated check function or decorator function
     """
     if _check is not None:
-        return functools.wraps(_check)(
+        # Simple @check decorator without parentheses
+        wrapped = functools.wraps(_check)(
             functools.partial(_create_check, _check=_check, tags=tags, label=label, datasets=datasets)
         )
+        # Store metadata for validation
+        wrapped._check_metadata = {  # type: ignore[attr-defined]
+            'name': _check.__name__,
+            'datasets': datasets,
+            'tags': tags,
+            'label': label
+        }
+        return cast(DecoratedCheck, wrapped)
 
-    def decorator(fn: CheckProducer) -> CheckProducer:
-        return functools.wraps(fn)(
+    def decorator(fn: CheckProducer) -> DecoratedCheck:
+        wrapped = functools.wraps(fn)(
             functools.partial(_create_check, _check=fn, tags=tags, label=label, datasets=datasets)
         )
+        # Store metadata for validation
+        wrapped._check_metadata = {  # type: ignore[attr-defined]
+            'name': fn.__name__,
+            'datasets': datasets,
+            'tags': tags,
+            'label': label
+        }
+        return cast(DecoratedCheck, wrapped)
 
     return decorator

@@ -1,19 +1,14 @@
 """Tests for display module."""
 
-import datetime as dt
 from typing import Any, List, SupportsIndex, cast
-from unittest.mock import MagicMock
 
 import sympy as sp
 from returns.maybe import Nothing, Some
 from returns.result import Failure, Success
-from rich.console import Console
 from rich.tree import Tree
 
 from dqx import display, graph
-from dqx.common import ResultKey, ResultKeyProvider, SymbolicValidator
-from dqx.ops import Op
-from dqx.specs import MetricSpec
+from dqx.common import ResultKey, SymbolicValidator
 
 
 # =============================================================================
@@ -244,143 +239,9 @@ def test_check_node_formatter() -> None:
     assert "✅" in formatted3
 
 
-def test_symbol_node_formatter() -> None:
-    """Test SymbolNodeFormatter."""
-    formatter = display.SymbolNodeFormatter()
-    
-    # Test with successful value
-    symbol = graph.SymbolNode("metric1", sp.Symbol("x"), lambda k: Success(42.75), ["ds1"])
-    symbol._value = Some(Success(42.75))
-    
-    formatted = formatter.format(symbol)
-    assert "📊" in formatted
-    assert "x: metric1 = 42.75" in formatted
-    assert "✅" in formatted
-    assert "ds1" in formatted
-
-
-def test_symbol_node_format_display_variations() -> None:
-    """Test various cases of SymbolNode formatting via format_display."""
-    # Test with successful value
-    symbol_success = graph.SymbolNode("metric1", sp.Symbol("x"), lambda k: Success(42.75), ["ds1"])
-    symbol_success._value = Some(Success(42.75))
-    
-    format_display = symbol_success.format_display()
-    assert "📊" in format_display
-    assert "x: metric1 = 42.75" in format_display
-    assert "✅" in format_display
-    assert "ds1" in format_display
-    
-    # Test with integer value
-    symbol_int = graph.SymbolNode("metric2", sp.Symbol("y"), lambda k: Success(100), [])
-    symbol_int._value = Some(Success(100))
-    
-    format_display = symbol_int.format_display()
-    assert "y: metric2 = 100" in format_display
-    
-    # Test with large float value
-    symbol_large = graph.SymbolNode("metric3", sp.Symbol("z"), lambda k: Success(1234.567), [])
-    symbol_large._value = Some(Success(1234.567))
-    
-    format_display = symbol_large.format_display()
-    # For large values (>= 1000), it uses str() which shows full precision
-    assert "z: metric3 = 1234.567" in format_display
-
-
-def test_metric_node_formatter() -> None:
-    """Test MetricNodeFormatter."""
-    formatter = display.MetricNodeFormatter()
-    
-    spec = MagicMock(spec=MetricSpec, name="test_metric")
-    key_provider = cast(ResultKeyProvider, MockKeyProvider())
-    nominal_key = ResultKey(yyyy_mm_dd=dt.date(2025, 1, 15), tags={})
-    
-    metric = graph.MetricNode(spec, key_provider, nominal_key)
-    metric.datasets = ["dataset1", "dataset2"]
-    
-    formatted = formatter.format(metric)
-    assert "📈" in formatted
-    assert "test_metric" in formatted
-    assert "dataset1" in formatted and "dataset2" in formatted
-    assert "⏳" in formatted  # Pending status
-
-
-def test_analyzer_node_formatter() -> None:
-    """Test AnalyzerNodeFormatter."""
-    formatter = display.AnalyzerNodeFormatter()
-    analyzer = graph.AnalyzerNode(cast(Op[Any], MockOp("analyzer1")))
-    assert formatter.format(analyzer) == "🔧 analyzer1 analyzer"
-
-
-def test_analyzer_node_add_child_not_implemented() -> None:
-    """Test that AnalyzerNode.add_child raises NotImplementedError."""
-    analyzer = graph.AnalyzerNode(cast(Op[Any], MockOp("test_analyzer")))
-    
-    # Create another node to try to add as a child
-    child_analyzer = graph.AnalyzerNode(cast(Op[Any], MockOp("child_analyzer")))
-    
-    # Attempting to add a child should raise NotImplementedError
-    try:
-        analyzer.add_child(child_analyzer)
-        assert False, "Expected NotImplementedError"
-    except NotImplementedError:
-        pass  # Expected
-
-
-def test_analyzer_node_spacing() -> None:
-    """Test that analyzer nodes don't have extra spacing between them."""
-    # Create a graph structure with analyzer nodes
-    root = graph.RootNode("Test Suite")
-    check = graph.CheckNode("test_check", datasets=["test_ds"])
-    root.add_child(check)
-    
-    # Create a symbol with metrics and analyzers
-    symbol = graph.SymbolNode(
-        name="test_symbol",
-        symbol=sp.Symbol("x"),
-        fn=lambda key: Success(1.0),
-        datasets=["test_ds"]
-    )
-    check.add_child(symbol)
-    
-    # Create metric nodes with analyzer children
-    metric_spec1 = MagicMock(spec=MetricSpec)
-    metric_spec1.name = "metric1"
-    metric_spec2 = MagicMock(spec=MetricSpec)
-    metric_spec2.name = "metric2"
-    
-    key_provider = cast(ResultKeyProvider, MockKeyProvider())
-    nominal_key = ResultKey(yyyy_mm_dd=dt.date.today(), tags={})
-    
-    metric1 = graph.MetricNode(metric_spec1, key_provider, nominal_key)
-    metric2 = graph.MetricNode(metric_spec2, key_provider, nominal_key)
-    
-    symbol.add_child(metric1)
-    symbol.add_child(metric2)
-    
-    # Add analyzer nodes to metrics
-    analyzer1 = graph.AnalyzerNode(cast(Op[Any], MockOp("analyzer1")))
-    analyzer2 = graph.AnalyzerNode(cast(Op[Any], MockOp("analyzer2")))
-    analyzer3 = graph.AnalyzerNode(cast(Op[Any], MockOp("analyzer3")))
-    analyzer4 = graph.AnalyzerNode(cast(Op[Any], MockOp("analyzer4")))
-    
-    metric1.add_child(analyzer1)
-    metric1.add_child(analyzer2)
-    metric2.add_child(analyzer3)
-    metric2.add_child(analyzer4)
-    
-    # Inspect the tree
-    tree = root.inspect()
-    
-    # Convert tree to string for checking
-    console = Console(force_terminal=False, width=200)
-    with console.capture() as capture:
-        console.print(tree)
-    
-    output = capture.get()
-    
-    # Check that there are no double newlines between analyzer nodes
-    assert '\n\n' not in output, "Found extra spacing (double newlines) between analyzer nodes"
+# Note: Tests for SymbolNodeFormatter, MetricNodeFormatter, and AnalyzerNodeFormatter
+# have been removed as these node types no longer exist after refactoring.
+# Symbol information is now handled through SymbolTable and displayed via TreeBuilder._add_symbol_info()
 
 
 def test_assertion_node_formatter() -> None:
@@ -557,10 +418,8 @@ def test_assertion_node_format_display_variations() -> None:
     check.add_child(assertion_no_validator)
     assert assertion_no_validator.format_display() == "z"
     
-    # Test assertion with label and successful evaluation
-    symbol = graph.SymbolNode("x_metric", sp.Symbol("x"), lambda k: Success(15.0), [])
-    check.add_child(symbol)
-    symbol._value = Some(Success(15.0))
+    # For the remaining tests, we can't evaluate assertions with successful values
+    # without the SymbolNode infrastructure, so we'll test formatting with set values
     
     validator = SymbolicValidator(name="> 10", fn=lambda x: x > 10)
     assertion_with_label = graph.AssertionNode(
@@ -571,26 +430,23 @@ def test_assertion_node_format_display_variations() -> None:
     )
     check.add_child(assertion_with_label)
     
-    # Evaluate to make it successful
-    assertion_with_label.evaluate()
+    # Set value directly for testing display
+    assertion_with_label._value = Some(Success(15.0))
     format_display = assertion_with_label.format_display()
 
     assert "●" in format_display
     assert "Check X:" in format_display
     assert "> 10" in format_display
+    assert "(15)" in format_display
     
     # Test assertion with integer value
-    symbol_int = graph.SymbolNode("y_metric", sp.Symbol("y"), lambda k: Success(42), [])
-    check.add_child(symbol_int)
-    symbol_int._value = Some(Success(42))
-    
     assertion_int = graph.AssertionNode(
         actual=sp.Symbol("y"),
         validator=SymbolicValidator(name="> 40", fn=lambda x: x > 40),
         root=root
     )
     check.add_child(assertion_int)
-    assertion_int.evaluate()
+    assertion_int._value = Some(Success(42))
     format_display_int = assertion_int.format_display()
     assert "●" in format_display_int
     assert "(42)" in format_display_int
