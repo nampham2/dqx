@@ -8,12 +8,26 @@ from returns.result import Failure, Success
 from rich.tree import Tree
 
 from dqx import display, graph
+from dqx.api import Context
 from dqx.common import ResultKey, SymbolicValidator
+from dqx.symbol_table import SymbolTable
 
 
 # =============================================================================
 # Helper Classes
 # =============================================================================
+
+class MockContext:
+    """Mock context for testing."""
+    def __init__(self) -> None:
+        self.symbol_table = SymbolTable()
+
+
+def create_test_root(name: str = "Test") -> tuple[Context, graph.RootNode]:
+    """Helper to create a test context and root node."""
+    ctx = Context(name)
+    return ctx, ctx._graph
+
 
 class MockOp:
     """Mock operator for testing."""
@@ -210,7 +224,7 @@ def test_format_datasets_helpers() -> None:
 
 def test_root_node_formatter() -> None:
     """Test RootNodeFormatter."""
-    root = graph.RootNode("Test Suite")
+    ctx, root = create_test_root("Test Suite")
     formatter = display.RootNodeFormatter()
     assert formatter.format(root) == "Suite: Test Suite"
 
@@ -220,7 +234,9 @@ def test_check_node_formatter() -> None:
     formatter = display.CheckNodeFormatter()
     
     # Test with label and datasets
+    ctx, root = create_test_root()
     check = graph.CheckNode("check1", label="Check One", datasets=["ds1"])
+    root.add_child(check)
     formatted = formatter.format(check)
     assert "Check One" in formatted
     assert "ds1" in formatted
@@ -229,14 +245,16 @@ def test_check_node_formatter() -> None:
     
     # Test without label
     check2 = graph.CheckNode("check2")
+    root.add_child(check2)
     formatted2 = formatter.format(check2)
     assert "check2" in formatted2
     
-    # Test with success status
+    # Test with error status
     check3 = graph.CheckNode("check3")
-    check3._value = Some(Success(1.0))
+    root.add_child(check3)
+    check3._value = Some("Some error occurred")
     formatted3 = formatter.format(check3)
-    assert "✅" in formatted3
+    assert "❌" in formatted3
 
 
 # Note: Tests for SymbolNodeFormatter, MetricNodeFormatter, and AnalyzerNodeFormatter
@@ -271,7 +289,7 @@ def test_assertion_node_formatter() -> None:
         actual=sp.Symbol("y"),
         validator=validator
     )
-    assertion3.set_datasource(["ds1", "ds2"])
+    assertion3.datasets = ["ds1", "ds2"]
     formatted3 = formatter.format(assertion3)
     assert "ds1, ds2" in formatted3
     
@@ -288,14 +306,16 @@ def test_assertion_node_formatter() -> None:
 
 def test_assertion_formatter_with_integer_like_values() -> None:
     """Test AssertionNodeFormatter with values that have is_integer method."""
-    root = graph.RootNode("test")
+    ctx, root = create_test_root("test")
+    check = graph.CheckNode("check")
+    root.add_child(check)
     
     # Test with a float that is actually an integer (e.g., 5.0)
     assertion = graph.AssertionNode(
         actual=sp.Symbol("x"),
-        validator=SymbolicValidator(name="< 10", fn=lambda x: x < 10),
-        root=root
+        validator=SymbolicValidator(name="< 10", fn=lambda x: x < 10)
     )
+    check.add_child(assertion)
     assertion._value = Some(Success(5.0))
     
     formatter = display.AssertionNodeFormatter()
@@ -308,9 +328,9 @@ def test_assertion_formatter_with_integer_like_values() -> None:
     # Test with a float that is not an integer (e.g., 5.5)
     assertion2 = graph.AssertionNode(
         actual=sp.Symbol("y"),
-        validator=SymbolicValidator(name="< 10", fn=lambda x: x < 10),
-        root=root
+        validator=SymbolicValidator(name="< 10", fn=lambda x: x < 10)
     )
+    check.add_child(assertion2)
     assertion2._value = Some(Success(5.5))
     
     result2 = formatter.format(assertion2)
@@ -320,9 +340,9 @@ def test_assertion_formatter_with_integer_like_values() -> None:
     # Test with an actual integer
     assertion3 = graph.AssertionNode(
         actual=sp.Symbol("z"),
-        validator=SymbolicValidator(name="< 10", fn=lambda x: x < 10),
-        root=root
+        validator=SymbolicValidator(name="< 10", fn=lambda x: x < 10)
     )
+    check.add_child(assertion3)
     assertion3._value = Some(Success(7))
     
     result3 = formatter.format(assertion3)
@@ -331,7 +351,9 @@ def test_assertion_formatter_with_integer_like_values() -> None:
 
 def test_assertion_formatter_exception_handlers() -> None:
     """Test exception handlers in AssertionNodeFormatter."""
-    root = graph.RootNode("test")
+    ctx, root = create_test_root("test")
+    check = graph.CheckNode("check")
+    root.add_child(check)
     
     # Test IndexError in AssertionNodeFormatter "does not satisfy" parsing
     class FailingErrorMessage(str):
@@ -343,9 +365,9 @@ def test_assertion_formatter_exception_handlers() -> None:
     
     assertion = graph.AssertionNode(
         actual=sp.Symbol("x"),
-        validator=SymbolicValidator(name="< 10", fn=lambda x: x < 10),
-        root=root
+        validator=SymbolicValidator(name="< 10", fn=lambda x: x < 10)
     )
+    check.add_child(assertion)
     
     # Use error message that contains "does not satisfy" but will fail parsing
     assertion._value = Some(Failure(FailingErrorMessage("x does not satisfy < 10")))
@@ -366,9 +388,9 @@ def test_assertion_formatter_exception_handlers() -> None:
     
     assertion2 = graph.AssertionNode(
         actual=sp.Symbol("x"),
-        validator=SymbolicValidator(name="< 10", fn=lambda x: x < 10),
-        root=root
+        validator=SymbolicValidator(name="< 10", fn=lambda x: x < 10)
     )
+    check.add_child(assertion2)
     
     # Use error message that contains "does not satisfy" and will raise AttributeError
     assertion2._value = Some(Failure(AttributeErrorMessage("x = 5 does not satisfy < 10")))
@@ -393,9 +415,9 @@ def test_assertion_formatter_exception_handlers() -> None:
     
     assertion3 = graph.AssertionNode(
         actual=sp.Symbol("x"),
-        validator=SymbolicValidator(name="< 10", fn=lambda x: x < 10),
-        root=root
+        validator=SymbolicValidator(name="< 10", fn=lambda x: x < 10)
     )
+    check.add_child(assertion3)
     
     # Use error message that will trigger the exception path
     assertion3._value = Some(Failure(BadSplitResult("x = 5 does not satisfy < 10")))
@@ -409,12 +431,12 @@ def test_assertion_formatter_exception_handlers() -> None:
 
 def test_assertion_node_format_display_variations() -> None:
     """Test various cases of AssertionNode formatting via format_display."""
-    root = graph.RootNode("Test")
+    ctx, root = create_test_root("Test")
     check = graph.CheckNode("check")
     root.add_child(check)
     
     # Test assertion without validator
-    assertion_no_validator = graph.AssertionNode(actual=sp.Symbol("z"), root=root)
+    assertion_no_validator = graph.AssertionNode(actual=sp.Symbol("z"))
     check.add_child(assertion_no_validator)
     assert assertion_no_validator.format_display() == "z"
     
@@ -425,8 +447,7 @@ def test_assertion_node_format_display_variations() -> None:
     assertion_with_label = graph.AssertionNode(
         actual=sp.Symbol("x"),
         label="Check X",
-        validator=validator,
-        root=root
+        validator=validator
     )
     check.add_child(assertion_with_label)
     
@@ -442,8 +463,7 @@ def test_assertion_node_format_display_variations() -> None:
     # Test assertion with integer value
     assertion_int = graph.AssertionNode(
         actual=sp.Symbol("y"),
-        validator=SymbolicValidator(name="> 40", fn=lambda x: x > 40),
-        root=root
+        validator=SymbolicValidator(name="> 40", fn=lambda x: x > 40)
     )
     check.add_child(assertion_int)
     assertion_int._value = Some(Success(42))
@@ -454,9 +474,9 @@ def test_assertion_node_format_display_variations() -> None:
     # Test parent check failed error formatting
     assertion_parent_failed = graph.AssertionNode(
         actual=sp.Symbol("a"),
-        validator=validator,
-        root=root
+        validator=validator
     )
+    check.add_child(assertion_parent_failed)
     assertion_parent_failed._value = Some(Failure("Parent check failed!"))
     format_display = assertion_parent_failed.format_display()
     assert "Skipped (parent failed)" in format_display
@@ -465,9 +485,9 @@ def test_assertion_node_format_display_variations() -> None:
     # Test value exceeds limit error formatting
     assertion_exceeds = graph.AssertionNode(
         actual=sp.Symbol("b"),
-        validator=validator,
-        root=root
+        validator=validator
     )
+    check.add_child(assertion_exceeds)
     assertion_exceeds._value = Some(Failure("Assertion failed: b = 8.5 does not satisfy > 10"))
     format_display = assertion_exceeds.format_display()
     assert "Value 8.5 exceeds limit" in format_display
@@ -495,7 +515,7 @@ def test_graph_display_manager() -> None:
     assert not display_mgr2.config.show_values
     
     # Test format_node
-    root = graph.RootNode("Test")
+    ctx, root = create_test_root("Test")
     formatted = display_mgr.format_node(root)
     assert "Suite: Test" == formatted
     
@@ -514,22 +534,20 @@ def test_graph_display_manager() -> None:
 
 def test_graph_inspect_tree() -> None:
     """Test graph tree inspection with display module."""
-    root = graph.RootNode("Test Suite")
+    ctx, root = create_test_root("Test Suite")
     check = graph.CheckNode("check1", label="Check One")
     root.add_child(check)
     
     # Add assertion with validator (should be included)
     assertion_with_validator = graph.AssertionNode(
         actual=sp.Symbol("x"),
-        validator=SymbolicValidator(name="> 0", fn=lambda x: x > 0),
-        root=root
+        validator=SymbolicValidator(name="> 0", fn=lambda x: x > 0)
     )
     check.add_child(assertion_with_validator)
     
     # Add assertion without validator (should be skipped)
     assertion_without_validator = graph.AssertionNode(
-        actual=sp.Symbol("y"),
-        root=root
+        actual=sp.Symbol("y")
     )
     check.add_child(assertion_without_validator)
     
@@ -550,19 +568,17 @@ def test_graph_inspect_tree() -> None:
 
 def test_tree_builder_skip_assertions_without_validators() -> None:
     """Test that TreeBuilder skips assertions without validators."""
-    root = graph.RootNode("Test")
+    ctx, root = create_test_root("Test")
     check = graph.CheckNode("check")
     root.add_child(check)
     
     # Add assertions with and without validators
     assertion1 = graph.AssertionNode(
         actual=sp.Symbol("x"),
-        validator=SymbolicValidator(name="> 5", fn=lambda x: x > 5),
-        root=root
+        validator=SymbolicValidator(name="> 5", fn=lambda x: x > 5)
     )
     assertion2 = graph.AssertionNode(
-        actual=sp.Symbol("y"),
-        root=root
+        actual=sp.Symbol("y")
     )
     check.add_child(assertion1)
     check.add_child(assertion2)

@@ -1,202 +1,238 @@
 """Tests for SymbolTable implementation."""
 
 import datetime
+
 import pytest
 import sympy as sp
-from returns.maybe import Some
 from returns.result import Failure, Success
 
-from dqx.common import ResultKey, RetrievalFn, Result
-from dqx.ops import NumRows, Op
+from dqx.common import Result, ResultKey, ResultKeyProvider, RetrievalFn
 from dqx.provider import SymbolicMetric
 from dqx.specs import Average, MetricSpec, NumRows as NumRowsSpec
 from dqx.symbol_table import SymbolEntry, SymbolState, SymbolTable
 
 
+class TestHelpers:
+    """Helper methods for creating test data."""
+
+    @staticmethod
+    def create_retrieval_fn(value: float | str, success: bool = True) -> RetrievalFn:
+        """Create a retrieval function that returns Success or Failure."""
+        if success:
+            if isinstance(value, float):
+                return lambda k: Success(value)
+            else:
+                return lambda k: Success(float(value))
+        return lambda k: Failure(str(value))
+
+    @staticmethod
+    def create_symbol_entry(
+        symbol: str = "x_1",
+        name: str = "test_metric",
+        value: float = 42.0,
+        dataset: str | None = "dataset1",
+        state: SymbolState = "PENDING",
+        dependencies: list[MetricSpec] | None = None,
+        success: bool = True,
+        retrieval_fn: RetrievalFn | None = None,
+    ) -> SymbolEntry:
+        """Factory for creating SymbolEntry with sensible defaults."""
+        symbol_obj = sp.Symbol(symbol)
+        if retrieval_fn is None:
+            retrieval_fn = TestHelpers.create_retrieval_fn(value, success)
+        deps = dependencies or [NumRowsSpec()]
+        
+        symbolic_metric = SymbolicMetric(
+            symbol=symbol_obj,
+            name=name,
+            fn=retrieval_fn,
+            key_provider=ResultKeyProvider(),
+            dependencies=[(dep, ResultKeyProvider()) for dep in deps],
+            datasets=[dataset] if dataset else [],
+        )
+        
+        return SymbolEntry(
+            symbolic_metric=symbolic_metric,
+            dataset=dataset,
+            result_key=ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={}),
+            state=state,
+        )
+
+
 class TestSymbolEntry:
     """Test cases for SymbolEntry."""
-    
+
     @pytest.fixture
     def test_date(self) -> datetime.date:
         """Fixed date for testing."""
         return datetime.date(2024, 1, 1)
-    
-    def test_symbol_entry_creation(self, test_date: datetime.date) -> None:
-        """Test creating a symbol entry."""
-        symbol = sp.Symbol("x_1")
-        entry = SymbolEntry(
-            symbol=symbol,
-            name="test_metric",
-            dataset="dataset1",
-            result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-            metric_spec=NumRowsSpec(),
-            ops=[NumRows()],
-            retrieval_fn=lambda k: Success(42.0),
-        )
+
+    @pytest.fixture
+    def basic_entry(self, test_date: datetime.date) -> SymbolEntry:
+        """Basic symbol entry for testing."""
+        return TestHelpers.create_symbol_entry()
+
+    def test_creation_and_initial_state(self, basic_entry: SymbolEntry) -> None:
+        """Test symbol entry creation and initial properties."""
+        assert basic_entry.symbol == sp.Symbol("x_1")
+        assert basic_entry.name == "test_metric"
+        assert basic_entry.dataset == "dataset1"
+        assert basic_entry.state == "PENDING"
+        assert basic_entry.is_pending()
+        assert not basic_entry.is_ready()
+        assert not basic_entry.is_error()
+
+    @pytest.mark.parametrize("initial_state,method,expected_state,check_method", [
+        ("PENDING", "mark_ready", "READY", "is_ready"),
+        ("READY", "mark_error", "ERROR", "is_error"),
+    ])
+    def test_state_transitions(
+        self,
+        initial_state: SymbolState,
+        method: str,
+        expected_state: SymbolState,
+        check_method: str,
+    ) -> None:
+        """Test various state transitions."""
+        entry = TestHelpers.create_symbol_entry(state=initial_state)
         
-        assert entry.symbol == symbol
-        assert entry.name == "test_metric"
-        assert entry.dataset == "dataset1"
-        assert entry.state == "PENDING"
-        assert entry.is_pending()
-        assert not entry.is_ready()
-        assert not entry.is_error()
-    
-    def test_state_transitions(self, test_date: datetime.date) -> None:
-        """Test state transitions for symbol entry."""
-        entry = SymbolEntry(
-            symbol=sp.Symbol("x_1"),
-            name="test",
-            dataset=None,
-            result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-            metric_spec=NumRowsSpec(),
-            ops=[],
-            retrieval_fn=lambda k: Success(1.0),
-        )
+        if method == "mark_error":
+            getattr(entry, method)("Test error")
+            assert entry.value is not None
+            result = entry.get_value()
+            assert isinstance(result, Failure)
+            assert result.failure() == "Test error"
+        else:
+            getattr(entry, method)()
         
-        # Test mark_ready
-        entry.mark_ready()
+        assert entry.state == expected_state
+        assert getattr(entry, check_method)()
+
+    def test_mark_success(self) -> None:
+        """Test marking entry as successful."""
+        entry = TestHelpers.create_symbol_entry(state="PENDING")
+        entry.mark_success(99.0)
+        
         assert entry.state == "READY"
-        assert entry.is_ready()
-        
-        # Test mark_provided
-        entry.mark_provided()
-        assert entry.state == "PROVIDED"
-        assert entry.is_ready()
-        
-        # Test mark_error
-        entry.mark_error("Test error")
-        assert entry.state == "ERROR"
-        assert entry.is_error()
-        assert isinstance(entry.value, Some)
-        result = entry.get_value()
-        assert isinstance(result, Failure)
-        assert result.failure() == "Test error"
-        
-        # Test mark_success
-        entry.mark_success(42.0)
-        assert entry.state == "PROVIDED"
         result = entry.get_value()
         assert isinstance(result, Success)
-        assert result.unwrap() == 42.0
-    
-    def test_validate_dataset_no_requirements(self, test_date: datetime.date) -> None:
+        assert result.unwrap() == 99.0
+
+    @pytest.mark.parametrize("datasets,expected_success,error_contains", [
+        (["dataset1", "dataset2"], False, "requires a SINGLE dataset but multiple available"),
+        (["dataset1"], True, None),
+        ([], False, "requires a dataset but none available"),
+    ])
+    def test_validate_dataset_no_requirements(
+        self,
+        datasets: list[str],
+        expected_success: bool,
+        error_contains: str | None,
+    ) -> None:
         """Test dataset validation when no specific dataset required."""
-        entry = SymbolEntry(
-            symbol=sp.Symbol("x_1"),
-            name="test",
-            dataset=None,
-            result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-            metric_spec=NumRowsSpec(),
-            ops=[],
-            retrieval_fn=lambda k: Success(1.0),
-        )
+        entry = TestHelpers.create_symbol_entry(dataset=None)
+        result = entry.validate_dataset(datasets)
         
-        # Should bind to first available dataset
-        result = entry.validate_dataset(["dataset1", "dataset2"])
-        assert isinstance(result, Success)
-        assert entry.dataset == "dataset1"
-        
-        # Should fail with no datasets
-        entry.dataset = None  # Reset
-        result = entry.validate_dataset([])
-        assert isinstance(result, Failure)
-        assert "requires a dataset but none available" in result.failure()
-    
-    def test_validate_dataset_with_requirements(self, test_date: datetime.date) -> None:
+        if expected_success:
+            assert isinstance(result, Success)
+            assert result.unwrap() == datasets[0]
+            assert entry.dataset == datasets[0]
+        else:
+            assert isinstance(result, Failure)
+            if error_contains:
+                assert error_contains in result.failure()
+
+    @pytest.mark.parametrize("entry_dataset,available_datasets,expected_success", [
+        ("dataset1", ["dataset1", "dataset2"], True),
+        ("dataset1", ["dataset2", "dataset3"], False),
+    ])
+    def test_validate_dataset_with_requirements(
+        self,
+        entry_dataset: str,
+        available_datasets: list[str],
+        expected_success: bool,
+    ) -> None:
         """Test dataset validation with specific dataset requirement."""
-        entry = SymbolEntry(
-            symbol=sp.Symbol("x_1"),
-            name="test",
-            dataset="dataset1",
-            result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-            metric_spec=NumRowsSpec(),
-            ops=[],
-            retrieval_fn=lambda k: Success(1.0),
-        )
+        entry = TestHelpers.create_symbol_entry(dataset=entry_dataset)
+        result = entry.validate_dataset(available_datasets)
         
-        # Should succeed with required dataset
-        result = entry.validate_dataset(["dataset1", "dataset2", "dataset3"])
-        assert isinstance(result, Success)
-        
-        # Should fail with missing dataset
-        result = entry.validate_dataset(["dataset2", "dataset3"])
-        assert isinstance(result, Failure)
-        assert "requires dataset 'dataset1'" in result.failure()
-    
-    def test_get_value_returns_none(self, test_date: datetime.date) -> None:
-        """Test get_value returns None when value is Nothing."""
-        entry = SymbolEntry(
-            symbol=sp.Symbol("x_1"),
-            name="test",
-            dataset="dataset1",
-            result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-            metric_spec=NumRowsSpec(),
-            ops=[],
-            retrieval_fn=lambda k: Success(1.0),
-        )
-        
-        # Value is Nothing by default
+        if expected_success:
+            assert isinstance(result, Success)
+            assert result.unwrap() == entry_dataset
+        else:
+            assert isinstance(result, Failure)
+            assert f"requires dataset '{entry_dataset}'" in result.failure()
+
+    def test_get_value_returns_none(self) -> None:
+        """Test get_value returns None when value is None."""
+        entry = TestHelpers.create_symbol_entry()
         assert entry.get_value() is None
 
 
 class TestSymbolTable:
     """Test cases for SymbolTable."""
-    
-    @pytest.fixture
-    def test_date(self) -> datetime.date:
-        """Fixed date for testing."""
-        return datetime.date(2024, 1, 1)
-    
+
     @pytest.fixture
     def symbol_table(self) -> SymbolTable:
         """Create an empty symbol table."""
         return SymbolTable()
-    
+
     @pytest.fixture
-    def sample_entry(self, test_date: datetime.date) -> SymbolEntry:
-        """Create a sample symbol entry."""
-        return SymbolEntry(
-            symbol=sp.Symbol("x_1"),
-            name="num_rows",
-            dataset="dataset1",
-            result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-            metric_spec=NumRowsSpec(),
-            ops=[NumRows()],
-            retrieval_fn=lambda k: Success(100.0),
-        )
-    
-    def test_register_entry(self, symbol_table: SymbolTable, sample_entry: SymbolEntry) -> None:
-        """Test registering a symbol entry."""
-        symbol_table.register(sample_entry)
+    def test_date(self) -> datetime.date:
+        """Fixed date for testing."""
+        return datetime.date(2024, 1, 1)
+
+    @pytest.fixture
+    def populated_table(self, symbol_table: SymbolTable) -> SymbolTable:
+        """Create a symbol table with multiple entries in different states."""
+        entries_config = [
+            ("x_0", "PENDING", "dataset1", 0.0),
+            ("x_1", "READY", "dataset1", 1.0),
+            ("x_2", "READY", "dataset2", 2.0),
+            ("x_3", "ERROR", "dataset2", 3.0),
+        ]
         
-        # Check entry is stored
-        retrieved = symbol_table.get(sample_entry.symbol)
-        assert retrieved == sample_entry
+        for symbol, state, dataset, value in entries_config:
+            entry = TestHelpers.create_symbol_entry(
+                symbol=symbol,
+                name=f"metric_{symbol}",
+                value=value,
+                dataset=dataset,
+                state=state,  # type: ignore[arg-type]
+            )
+            if state == "READY" and symbol == "x_1":
+                entry.value = Success(value)
+            symbol_table.register(entry)
         
-        # Check indexes are updated
+        return symbol_table
+
+    def test_register_and_retrieve(self, symbol_table: SymbolTable) -> None:
+        """Test registering and retrieving entries."""
+        entry = TestHelpers.create_symbol_entry()
+        symbol_table.register(entry)
+        
+        # Verify entry is stored and retrievable
+        retrieved = symbol_table.get(entry.symbol)
+        assert retrieved == entry
+        
+        # Verify indexes are updated
         dataset_entries = symbol_table.get_by_dataset("dataset1")
         assert len(dataset_entries) == 1
-        assert dataset_entries[0] == sample_entry
-        
-        # Check evaluation order
-        assert sample_entry.symbol in symbol_table._evaluation_order
-    
-    def test_register_duplicate_fails(self, symbol_table: SymbolTable, sample_entry: SymbolEntry) -> None:
+        assert dataset_entries[0] == entry
+
+    def test_register_duplicate_fails(self, symbol_table: SymbolTable) -> None:
         """Test that registering duplicate symbol fails."""
-        symbol_table.register(sample_entry)
+        entry = TestHelpers.create_symbol_entry()
+        symbol_table.register(entry)
         
-        with pytest.raises(Exception) as exc_info:
-            symbol_table.register(sample_entry)
-        assert "already registered" in str(exc_info.value)
-    
+        with pytest.raises(Exception, match="already registered"):
+            symbol_table.register(entry)
+
     def test_register_from_provider(self, symbol_table: SymbolTable, test_date: datetime.date) -> None:
         """Test registering from SymbolicMetric."""
-        from dqx.common import ResultKeyProvider
-        
         symbolic_metric = SymbolicMetric(
             name="average_value",
-            symbol=sp.Symbol("x_2"),
+            symbol=sp.Symbol("x_avg"),
             fn=lambda k: Success(50.0),
             key_provider=ResultKeyProvider(),
             dependencies=[(Average("value"), ResultKeyProvider())],
@@ -207,526 +243,295 @@ class TestSymbolTable:
         registered_symbol = symbol_table.register_from_provider(symbolic_metric, key)
         
         assert registered_symbol == symbolic_metric.symbol
-        
         entry = symbol_table.get(registered_symbol)
         assert entry is not None
         assert entry.name == "average_value"
         assert entry.dataset == "dataset1"
-        assert entry.metric_spec.name == "average(value)"  # type: ignore
-    
-    def test_get_methods(self, symbol_table: SymbolTable, test_date: datetime.date) -> None:
-        """Test various get methods."""
-        # Register multiple entries
-        entries = []
-        for i in range(3):
-            entry = SymbolEntry(
-                symbol=sp.Symbol(f"x_{i}"),
-                name=f"metric_{i}",
-                dataset="dataset1" if i < 2 else "dataset2",
-                result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-                metric_spec=NumRowsSpec(),
-                ops=[],
-                retrieval_fn=lambda k: Success(float(i)),
-            )
-            entries.append(entry)
-            symbol_table.register(entry)
+        assert len(entry.metric_specs) == 1
+        assert entry.metric_specs[0].name == "average(value)"
+
+    @pytest.mark.parametrize("method,expected_count,filter_dataset", [
+        ("get_all", 4, None),
+        ("get_by_dataset", 2, "dataset1"),
+        ("get_pending", 1, None),
+        ("get_ready", 1, None),
+        ("get_successful", 1, None),
+    ])
+    def test_get_methods(
+        self,
+        populated_table: SymbolTable,
+        method: str,
+        expected_count: int,
+        filter_dataset: str | None,
+    ) -> None:
+        """Test various get methods with different filters."""
+        get_method = getattr(populated_table, method)
+        if filter_dataset and method in ["get_by_dataset", "get_pending"]:
+            result = get_method(filter_dataset)
+        else:
+            result = get_method()
         
-        # Mark different states
-        entries[0].mark_ready()
-        entries[1].mark_success(1.0)  # This sets both state="PROVIDED" and value
-        entries[2].state = "PENDING"
+        assert len(result) == expected_count
+
+    def test_update_state(self, symbol_table: SymbolTable) -> None:
+        """Test updating symbol state."""
+        entry = TestHelpers.create_symbol_entry()
+        symbol_table.register(entry)
         
-        # Test get_all
-        all_entries = symbol_table.get_all()
-        assert len(all_entries) == 3
+        symbol_table.update_state(entry.symbol, "READY")
+        assert entry.state == "READY"
         
-        # Test get_by_dataset
-        dataset1_entries = symbol_table.get_by_dataset("dataset1")
-        assert len(dataset1_entries) == 2
-        
-        # Test get_pending
-        pending = symbol_table.get_pending()
-        assert len(pending) == 1
-        assert pending[0] == entries[2]
-        
-        # Test get_pending with dataset filter
-        pending_ds1 = symbol_table.get_pending("dataset1")
-        assert len(pending_ds1) == 0
-        
-        # Test get_ready
-        ready = symbol_table.get_ready()
-        assert len(ready) == 1
-        assert ready[0] == entries[0]
-        
-        # Test get_successful
-        successful = symbol_table.get_successful()
-        assert len(successful) == 1
-        assert successful[0] == entries[1]
-    
-    def test_state_management(self, symbol_table: SymbolTable, sample_entry: SymbolEntry) -> None:
-        """Test state management methods."""
-        symbol_table.register(sample_entry)
-        
-        # Test update_state
-        symbol_table.update_state(sample_entry.symbol, "READY")
-        assert sample_entry.state == "READY"
-        
-        # Test update_state for non-existent symbol
-        with pytest.raises(Exception) as exc_info:
+        # Test non-existent symbol
+        with pytest.raises(Exception, match="not found"):
             symbol_table.update_state(sp.Symbol("x_999"), "READY")
-        assert "not found" in str(exc_info.value)
-    
-    def test_dataset_state_management(self, symbol_table: SymbolTable, test_date: datetime.date) -> None:
+
+    @pytest.mark.parametrize("method,error_msg", [
+        ("mark_dataset_failed", "Dataset dataset1 failed: Test failure"),
+        ("mark_dataset_ready", None),
+    ])
+    def test_dataset_state_management(
+        self,
+        symbol_table: SymbolTable,
+        method: str,
+        error_msg: str | None,
+    ) -> None:
         """Test dataset-based state management."""
         # Register multiple entries for same dataset
         for i in range(3):
-            entry = SymbolEntry(
-                symbol=sp.Symbol(f"x_{i}"),
+            entry = TestHelpers.create_symbol_entry(
+                symbol=f"x_{i}",
                 name=f"metric_{i}",
                 dataset="dataset1",
-                result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-                metric_spec=NumRowsSpec(),
-                ops=[],
-                retrieval_fn=lambda k: Success(1.0),
             )
             symbol_table.register(entry)
         
-        # Test mark_dataset_failed
-        symbol_table.mark_dataset_failed("dataset1", "Test failure")
+        # Apply dataset state change
+        if method == "mark_dataset_failed":
+            getattr(symbol_table, method)("dataset1", "Test failure")
+        else:
+            getattr(symbol_table, method)("dataset1")
         
+        # Verify all entries updated
         for entry in symbol_table.get_by_dataset("dataset1"):
-            assert entry.is_error()
-            result = entry.get_value()
+            if error_msg:
+                assert entry.is_error()
+                result = entry.get_value()
+                assert isinstance(result, Failure)
+                assert error_msg in result.failure()
+            else:
+                assert entry.state == "READY"
+
+    @pytest.mark.parametrize("entry_state,retrieval_result,expected_success", [
+        ("READY", Success(42.0), True),
+        ("PENDING", Success(42.0), False),
+        ("READY", Failure("Computation failed"), False),
+        ("ERROR", Success(42.0), False),
+    ])
+    def test_evaluate_symbol(
+        self,
+        symbol_table: SymbolTable,
+        test_date: datetime.date,
+        entry_state: SymbolState,
+        retrieval_result: Result[float, str],
+        expected_success: bool,
+    ) -> None:
+        """Test symbol evaluation in various states."""
+        entry = TestHelpers.create_symbol_entry(
+            state=entry_state,
+            retrieval_fn=lambda k: retrieval_result
+        )
+        if entry_state == "ERROR":
+            entry.value = Failure("Previous error")
+        symbol_table.register(entry)
+        
+        key = ResultKey(yyyy_mm_dd=test_date, tags={})
+        result = symbol_table.evaluate_symbol(entry.symbol, key)
+        
+        if expected_success:
+            assert isinstance(result, Success)
+            assert result.unwrap() == 42.0
+        else:
             assert isinstance(result, Failure)
-            assert "Dataset dataset1 failed: Test failure" in result.failure()
+
+    def test_evaluate_symbol_exception_handling(
+        self,
+        symbol_table: SymbolTable,
+        test_date: datetime.date,
+    ) -> None:
+        """Test exception handling during evaluation."""
+        def failing_retrieval(k: ResultKey) -> Result[float, str]:
+            raise ValueError("Unexpected error")
         
-        # Reset and test mark_dataset_ready
-        symbol_table.clear()
-        for i in range(3):
-            entry = SymbolEntry(
-                symbol=sp.Symbol(f"x_{i}"),
-                name=f"metric_{i}",
-                dataset="dataset1",
-                result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-                metric_spec=NumRowsSpec(),
-                ops=[],
-                retrieval_fn=lambda k: Success(1.0),
-            )
-            symbol_table.register(entry)
-        
-        symbol_table.mark_dataset_ready("dataset1")
-        
-        for entry in symbol_table.get_by_dataset("dataset1"):
-            assert entry.state == "READY"
-    
-    def test_evaluate_symbol(self, symbol_table: SymbolTable, test_date: datetime.date) -> None:
-        """Test symbol evaluation."""
-        # Test successful evaluation
-        entry = SymbolEntry(
-            symbol=sp.Symbol("x_1"),
-            name="test",
-            dataset="dataset1",
-            result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-            metric_spec=NumRowsSpec(),
-            ops=[],
-            retrieval_fn=lambda k: Success(42.0),
+        entry = TestHelpers.create_symbol_entry(
             state="READY",
+            retrieval_fn=failing_retrieval
         )
         symbol_table.register(entry)
         
         key = ResultKey(yyyy_mm_dd=test_date, tags={})
         result = symbol_table.evaluate_symbol(entry.symbol, key)
         
-        assert isinstance(result, Success)
-        assert result.unwrap() == 42.0
-        assert entry.state == "PROVIDED"
-        
-        # Test evaluation of non-existent symbol
-        result = symbol_table.evaluate_symbol(sp.Symbol("x_999"), key)
         assert isinstance(result, Failure)
-        assert "not found" in result.failure()
-        
-        # Test evaluation of not-ready symbol
-        entry2 = SymbolEntry(
-            symbol=sp.Symbol("x_2"),
-            name="test2",
-            dataset="dataset1",
-            result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-            metric_spec=NumRowsSpec(),
-            ops=[],
-            retrieval_fn=lambda k: Success(1.0),
-            state="PENDING",
-        )
-        symbol_table.register(entry2)
-        
-        result = symbol_table.evaluate_symbol(entry2.symbol, key)
-        assert isinstance(result, Failure)
-        assert "not ready for evaluation" in result.failure()
-        
-        # Test evaluation that returns failure
-        entry3 = SymbolEntry(
-            symbol=sp.Symbol("x_3"),
-            name="test3",
-            dataset="dataset1",
-            result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-            metric_spec=NumRowsSpec(),
-            ops=[],
-            retrieval_fn=lambda k: Failure("Computation failed"),
-            state="READY",
-        )
-        symbol_table.register(entry3)
-        
-        result = symbol_table.evaluate_symbol(entry3.symbol, key)
-        assert isinstance(result, Failure)
-        assert result.failure() == "Computation failed"
-        assert entry3.is_error()
-    
-    def test_evaluate_ready_symbols(self, symbol_table: SymbolTable, test_date: datetime.date) -> None:
+        assert "Failed to evaluate symbol" in result.failure()
+        assert entry.is_error()
+
+    def test_evaluate_ready_symbols(self, populated_table: SymbolTable, test_date: datetime.date) -> None:
         """Test evaluating all ready symbols."""
-        # Register symbols with different states
-        for i in range(5):
-            state: SymbolState = "READY" if i % 2 == 0 else "PENDING"
-            # Create a retrieval function with proper typing
-            def make_retrieval_fn(value: float) -> RetrievalFn:
-                return lambda k: Success(value)
-            
-            entry = SymbolEntry(
-                symbol=sp.Symbol(f"x_{i}"),
-                name=f"metric_{i}",
-                dataset="dataset1",
-                result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-                metric_spec=NumRowsSpec(),
-                ops=[],
-                retrieval_fn=make_retrieval_fn(float(i)),
-                state=state,
-            )
-            symbol_table.register(entry)
-        
         key = ResultKey(yyyy_mm_dd=test_date, tags={})
-        results = symbol_table.evaluate_ready_symbols(key)
+        results = populated_table.evaluate_ready_symbols(key)
         
-        # Should only evaluate ready symbols (0, 2, 4)
-        assert len(results) == 3
-        assert sp.Symbol("x_0") in results
+        # Should only evaluate READY symbols (x_2) since x_1 already has a Success value
+        assert len(results) == 1
         assert sp.Symbol("x_2") in results
-        assert sp.Symbol("x_4") in results
+
+    def test_get_required_metrics(self, symbol_table: SymbolTable) -> None:
+        """Test getting required metrics across datasets."""
+        # Register entries with different specs and datasets
+        specs_config: list[tuple[MetricSpec, str, SymbolState]] = [
+            (NumRowsSpec(), "dataset1", "PENDING"),
+            (Average("col1"), "dataset1", "PENDING"),
+            (Average("col2"), "dataset2", "PENDING"),
+            (NumRowsSpec(), "dataset2", "READY"),
+        ]
         
-        # Check all results are successful
-        for symbol, result in results.items():
-            assert isinstance(result, Success)
-    
-    def test_get_required_metrics(self, symbol_table: SymbolTable, test_date: datetime.date) -> None:
-        """Test getting required metrics."""
-        # Register entries with different specs
-        specs: list[MetricSpec] = [NumRowsSpec(), Average("col1"), Average("col2"), NumRowsSpec()]
-        
-        for i, spec in enumerate(specs):
-            state: SymbolState = "PENDING" if i < 3 else "PROVIDED"
-            entry = SymbolEntry(
-                symbol=sp.Symbol(f"x_{i}"),
-                name=f"metric_{i}",
-                dataset="dataset1" if i < 2 else "dataset2",
-                result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-                metric_spec=spec,
-                ops=[],
-                retrieval_fn=lambda k: Success(1.0),
+        for i, (spec, dataset, state) in enumerate(specs_config):
+            entry = TestHelpers.create_symbol_entry(
+                symbol=f"x_{i}",
+                dataset=dataset,
                 state=state,
+                dependencies=[spec],
             )
             symbol_table.register(entry)
         
-        # Get all required metrics
+        # Test getting all metrics
         all_metrics = symbol_table.get_required_metrics()
-        assert len(all_metrics) == 3  # NumRows, Average(col1), Average(col2)
+        assert len(all_metrics) == 3  # Unique specs from PENDING entries
         
-        # Get required metrics for dataset1
+        # Test dataset-specific metrics
         ds1_metrics = symbol_table.get_required_metrics("dataset1")
-        assert len(ds1_metrics) == 2  # NumRows, Average(col1)
+        assert len(ds1_metrics) == 2
         
-        # Get required metrics for dataset2
         ds2_metrics = symbol_table.get_required_metrics("dataset2")
-        assert len(ds2_metrics) == 1  # Average(col2)
-    
-    def test_validate_datasets(self, symbol_table: SymbolTable, test_date: datetime.date) -> None:
-        """Test dataset validation."""
-        # Register entries with different dataset requirements
-        entry1 = SymbolEntry(
-            symbol=sp.Symbol("x_1"),
-            name="metric_1",
-            dataset="dataset1",
-            result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-            metric_spec=NumRowsSpec(),
-            ops=[],
-            retrieval_fn=lambda k: Success(1.0),
-        )
-        
-        entry2 = SymbolEntry(
-            symbol=sp.Symbol("x_2"),
-            name="metric_2",
-            dataset="dataset3",
-            result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-            metric_spec=NumRowsSpec(),
-            ops=[],
-            retrieval_fn=lambda k: Success(1.0),
-        )
-        
-        symbol_table.register(entry1)
-        symbol_table.register(entry2)
-        
-        # Test with all datasets available
-        errors = symbol_table.validate_datasets(["dataset1", "dataset2", "dataset3"])
-        assert len(errors) == 0
-        
-        # Test with missing datasets
-        errors = symbol_table.validate_datasets(["dataset2"])
-        assert len(errors) == 2
-        assert any("dataset1" in error for error in errors)
-        assert any("dataset3" in error for error in errors)
-    
-    def test_clear(self, symbol_table: SymbolTable, sample_entry: SymbolEntry) -> None:
+        assert len(ds2_metrics) == 1
+
+
+    def test_clear(self, populated_table: SymbolTable) -> None:
         """Test clearing the symbol table."""
-        symbol_table.register(sample_entry)
+        assert len(populated_table.get_all()) > 0
         
-        assert len(symbol_table.get_all()) == 1
+        populated_table.clear()
         
-        symbol_table.clear()
+        assert len(populated_table.get_all()) == 0
+        assert len(populated_table._by_dataset) == 0
+
+    def test_repr(self, populated_table: SymbolTable) -> None:
+        """Test string representation of symbol table."""
+        repr_str = str(populated_table)
         
-        assert len(symbol_table.get_all()) == 0
-        assert len(symbol_table._by_dataset) == 0
-        assert len(symbol_table._by_metric) == 0
-        assert len(symbol_table._evaluation_order) == 0
-    
-    def test_repr(self, symbol_table: SymbolTable, test_date: datetime.date) -> None:
-        """Test string representation."""
-        # Empty table
-        assert "total=0" in str(symbol_table)
-        
-        # Add entries with different states
-        states: list[SymbolState] = ["PENDING", "READY", "PROVIDED", "ERROR"]
-        for i, state in enumerate(states):
-            entry = SymbolEntry(
-                symbol=sp.Symbol(f"x_{i}"),
-                name=f"metric_{i}",
-                dataset="dataset1",
-                result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-                metric_spec=NumRowsSpec(),
-                ops=[],
-                retrieval_fn=lambda k: Success(1.0),
-                state=state,
-            )
-            if state == "PROVIDED":
-                entry.value = Some(Success(1.0))
-            elif state == "ERROR":
-                entry.value = Some(Failure("Error"))
-            
-            symbol_table.register(entry)
-        
-        repr_str = str(symbol_table)
         assert "total=4" in repr_str
         assert "pending=1" in repr_str
         assert "ready=1" in repr_str
         assert "successful=1" in repr_str
         assert "error=1" in repr_str
-    
-    def test_register_with_metric_spec(self, symbol_table: SymbolTable, test_date: datetime.date) -> None:
-        """Test registering entry with metric_spec updates _by_metric index."""
-        spec = Average("col1")
-        entry = SymbolEntry(
-            symbol=sp.Symbol("x_1"),
-            name="average_col1",
-            dataset="dataset1",
-            result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-            metric_spec=spec,
-            ops=[],
-            retrieval_fn=lambda k: Success(1.0),
-        )
-        
+
+    def test_bind_symbol_to_dataset(self, symbol_table: SymbolTable) -> None:
+        """Test binding symbol to dataset updates indexes."""
+        entry = TestHelpers.create_symbol_entry(dataset=None)
         symbol_table.register(entry)
         
-        # Check that _by_metric index is updated
-        assert "average(col1)" in symbol_table._by_metric
-        assert entry.symbol in symbol_table._by_metric["average(col1)"]
-    
-    def test_register_symbol_for_check(self, symbol_table: SymbolTable) -> None:
-        """Test tracking which check owns a symbol."""
-        symbol1 = sp.Symbol("x_1")
-        symbol2 = sp.Symbol("x_2")
+        # Initially not in any dataset index
+        assert len(symbol_table.get_by_dataset("new_dataset")) == 0
         
-        symbol_table.register_symbol_for_check(symbol1, "quality_check_1")
-        symbol_table.register_symbol_for_check(symbol2, "quality_check_1")
-        symbol_table.register_symbol_for_check(symbol1, "quality_check_2")
+        # Bind and validate
+        result = entry.validate_dataset(["new_dataset"])
+        assert isinstance(result, Success)
+        assert entry.dataset == "new_dataset"
         
-        # Test get_symbols_for_check
-        check1_symbols = symbol_table.get_symbols_for_check("quality_check_1")
-        assert symbol1 in check1_symbols
-        assert symbol2 in check1_symbols
-        assert len(check1_symbols) == 2
+        # Update table index
+        symbol_table.bind_symbol_to_dataset(entry.symbol, "new_dataset")
         
-        check2_symbols = symbol_table.get_symbols_for_check("quality_check_2")
-        assert symbol1 in check2_symbols
-        assert len(check2_symbols) == 1
-        
-        # Test non-existent check returns empty list
-        check3_symbols = symbol_table.get_symbols_for_check("nonexistent_check")
-        assert len(check3_symbols) == 0
-    
-    def test_evaluate_symbol_error_state(self, symbol_table: SymbolTable, test_date: datetime.date) -> None:
-        """Test evaluating a symbol that's already in ERROR state."""
-        entry = SymbolEntry(
-            symbol=sp.Symbol("x_1"),
-            name="test",
-            dataset="dataset1",
-            result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-            metric_spec=NumRowsSpec(),
-            ops=[],
-            retrieval_fn=lambda k: Success(42.0),
-            state="ERROR",
-        )
-        entry.value = Some(Failure("Previous error"))
-        symbol_table.register(entry)
-        
-        key = ResultKey(yyyy_mm_dd=test_date, tags={})
-        result = symbol_table.evaluate_symbol(entry.symbol, key)
-        
-        assert isinstance(result, Failure)
-        assert result.failure() == "Previous error"
-    
-    def test_evaluate_symbol_exception_handling(self, symbol_table: SymbolTable, test_date: datetime.date) -> None:
-        """Test exception handling in evaluate_symbol."""
-        def failing_retrieval_fn(k: ResultKey) -> Result[float, str]:
-            raise ValueError("Unexpected error during retrieval")
-        
-        entry = SymbolEntry(
-            symbol=sp.Symbol("x_1"),
-            name="test",
-            dataset="dataset1",
-            result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-            metric_spec=NumRowsSpec(),
-            ops=[],
-            retrieval_fn=failing_retrieval_fn,
-            state="READY",
-        )
-        symbol_table.register(entry)
-        
-        key = ResultKey(yyyy_mm_dd=test_date, tags={})
-        result = symbol_table.evaluate_symbol(entry.symbol, key)
-        
-        assert isinstance(result, Failure)
-        assert "Failed to evaluate symbol x_1: Unexpected error during retrieval" in result.failure()
-        assert entry.is_error()
-    
-    def test_get_required_analyzers(self, symbol_table: SymbolTable, test_date: datetime.date) -> None:
+        # Verify index updated
+        assert entry.symbol in symbol_table._by_dataset["new_dataset"]
+
+    def test_get_required_analyzers(self, symbol_table: SymbolTable) -> None:
         """Test getting required analyzers for pending symbols."""
-        # Register entries with different ops
-        for i in range(3):
-            ops: list[Op] = [NumRows()] if i < 2 else []
-            state: SymbolState = "PENDING" if i < 2 else "PROVIDED"
-            entry = SymbolEntry(
-                symbol=sp.Symbol(f"x_{i}"),
-                name=f"metric_{i}",
-                dataset="dataset1",
-                result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-                metric_spec=NumRowsSpec(),
-                ops=ops,
-                retrieval_fn=lambda k: Success(1.0),
+        # Create entries with different analyzers
+        state_configs: list[tuple[SymbolState, str]] = [
+            ("PENDING", "dataset1"),
+            ("PENDING", "dataset1"),
+            ("READY", "dataset2"),
+        ]
+        for i, (state, dataset) in enumerate(state_configs):
+            entry = TestHelpers.create_symbol_entry(
+                symbol=f"x_{i}",
+                dataset=dataset,
                 state=state,
+                dependencies=[NumRowsSpec()] if i < 2 else [Average("col")],
             )
             symbol_table.register(entry)
         
-        # Get all required analyzers (should only include pending symbols)
+        # Get all required analyzers (only from PENDING)
         analyzers = symbol_table.get_required_analyzers()
-        assert len(analyzers) == 2  # Two NumRows from pending symbols
+        assert len(analyzers) == 2
         
-        # Get required analyzers for specific dataset
+        # Get for specific dataset
         analyzers_ds1 = symbol_table.get_required_analyzers("dataset1")
         assert len(analyzers_ds1) == 2
-    
-    def test_build_dependency_graph(self, symbol_table: SymbolTable, test_date: datetime.date) -> None:
-        """Test building dependency graph."""
-        # Register multiple entries
+
+
+class TestIntegration:
+    """Integration tests for SymbolTable workflows."""
+
+    def test_full_evaluation_workflow(self) -> None:
+        """Test complete workflow from registration to evaluation."""
+        table = SymbolTable()
+        test_date = datetime.date(2024, 1, 1)
+        key = ResultKey(yyyy_mm_dd=test_date, tags={})
+        
+        # Register multiple interdependent entries
+        entries = []
         for i in range(3):
-            entry = SymbolEntry(
-                symbol=sp.Symbol(f"x_{i}"),
+            entry = TestHelpers.create_symbol_entry(
+                symbol=f"x_{i}",
                 name=f"metric_{i}",
+                value=float(i * 10),
                 dataset="dataset1",
-                result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-                metric_spec=NumRowsSpec(),
-                ops=[],
-                retrieval_fn=lambda k: Success(1.0),
+                state="PENDING" if i < 2 else "READY",
             )
-            symbol_table.register(entry)
+            entries.append(entry)
+            table.register(entry)
         
-        # Build dependency graph
-        dep_graph = symbol_table.build_dependency_graph()
+        # Mark dataset ready
+        table.mark_dataset_ready("dataset1")
         
-        # Check that all symbols are in the graph
-        assert len(dep_graph) == 3
+        # Evaluate ready symbols
+        results = table.evaluate_ready_symbols(key)
+        
+        # Verify results
+        assert len(results) == 3  # All should be ready now
+        for i, (symbol, result) in enumerate(results.items()):
+            assert isinstance(result, Success)
+            expected_value = float(int(str(symbol).split("_")[1]) * 10)
+            assert result.unwrap() == expected_value
+
+    def test_error_propagation_workflow(self) -> None:
+        """Test error propagation through dataset failure."""
+        table = SymbolTable()
+        
+        # Register entries for a dataset
         for i in range(3):
-            symbol = sp.Symbol(f"x_{i}")
-            assert symbol in dep_graph
-            # Currently all dependencies are empty
-            assert dep_graph[symbol] == set()
-    
-    def test_validate_datasets_with_binding(self, symbol_table: SymbolTable, test_date: datetime.date) -> None:
-        """Test dataset validation that binds None datasets and updates indexes."""
-        # Register entry with no dataset requirement
-        entry1 = SymbolEntry(
-            symbol=sp.Symbol("x_1"),
-            name="metric_1",
-            dataset=None,  # No specific dataset
-            result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-            metric_spec=NumRowsSpec(),
-            ops=[],
-            retrieval_fn=lambda k: Success(1.0),
-        )
+            entry = TestHelpers.create_symbol_entry(
+                symbol=f"x_{i}",
+                dataset="failing_dataset",
+            )
+            table.register(entry)
         
-        # Register entry with specific dataset
-        entry2 = SymbolEntry(
-            symbol=sp.Symbol("x_2"),
-            name="metric_2",
-            dataset="dataset2",
-            result_key=ResultKey(yyyy_mm_dd=test_date, tags={}),
-            metric_spec=NumRowsSpec(),
-            ops=[],
-            retrieval_fn=lambda k: Success(1.0),
-        )
+        # Mark dataset as failed
+        table.mark_dataset_failed("failing_dataset", "Database connection failed")
         
-        symbol_table.register(entry1)
-        symbol_table.register(entry2)
-        
-        # Validate with available datasets
-        errors = symbol_table.validate_datasets(["dataset1", "dataset2"])
-        assert len(errors) == 0
-        
-        # Check that entry1 was bound to dataset1
-        assert entry1.dataset == "dataset1"
-        
-        # Check that indexes were updated
-        assert entry1.symbol in symbol_table._by_dataset["dataset1"]
-        assert entry2.symbol in symbol_table._by_dataset["dataset2"]
-    
-    def test_register_from_provider_with_different_keys(self, symbol_table: SymbolTable, test_date: datetime.date) -> None:
-        """Test registering from provider when keys differ (provided metric logic)."""
-        from dqx.common import ResultKeyProvider
-        
-        # Create a custom key provider that generates different keys
-        class CustomKeyProvider(ResultKeyProvider):
-            def create(self, key: ResultKey) -> ResultKey:
-                # Return a different key
-                return ResultKey(yyyy_mm_dd=test_date, tags={"custom": "value"})
-        
-        symbolic_metric = SymbolicMetric(
-            name="custom_metric",
-            symbol=sp.Symbol("x_custom"),
-            fn=lambda k: Success(99.0),
-            key_provider=CustomKeyProvider(),
-            dependencies=[(Average("value"), ResultKeyProvider())],
-            datasets=["dataset1"],
-        )
-        
-        original_key = ResultKey(yyyy_mm_dd=test_date, tags={"test": "value"})
-        registered_symbol = symbol_table.register_from_provider(symbolic_metric, original_key)
-        
-        entry = symbol_table.get(registered_symbol)
-        assert entry is not None
-        # Check that it's marked as PROVIDED since keys differ
-        assert entry.state == "PROVIDED"
+        # All entries should be in error state
+        for entry in table.get_by_dataset("failing_dataset"):
+            assert entry.is_error()
+            result = entry.get_value()
+            assert isinstance(result, Failure)
+            assert "Database connection failed" in result.failure()

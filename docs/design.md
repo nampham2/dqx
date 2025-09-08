@@ -246,6 +246,83 @@ graph LR
     SM --> RKP[ResultKeyProvider]
 ```
 
+### 5. Symbol Table System (`symbol_table.py`)
+
+The symbol table manages the registration and evaluation of symbols used in data quality checks:
+
+```mermaid
+classDiagram
+    class SymbolEntry {
+        +symbolic_metric: SymbolicMetric
+        +dataset: str | None
+        +result_key: ResultKey | None
+        +state: SymbolState
+        +value: Maybe[Result[float, str]]
+        +symbol: Symbol (property)
+        +name: str (property)
+        +retrieval_fn: RetrievalFn (property)
+        +dependencies: list[Dependency] (property)
+        +metric_spec: MetricSpec | None (property)
+        +ops: list[Op] (property)
+    }
+    
+    class SymbolTable {
+        -_entries: dict[Symbol, SymbolEntry]
+        -_by_dataset: dict[str, list[Symbol]]
+        -_by_metric: dict[str, list[Symbol]]
+        -_evaluation_order: list[Symbol]
+        -_by_check: dict[str, list[Symbol]]
+        +register(entry: SymbolEntry)
+        +register_from_provider(symbolic_metric, key)
+        +evaluate_symbol(symbol, key): Result[float, str]
+        +get_pending(dataset?): list[SymbolEntry]
+        +get_ready(dataset?): list[SymbolEntry]
+    }
+    
+    class SymbolicMetric {
+        +name: str
+        +symbol: Symbol
+        +fn: RetrievalFn
+        +key_provider: ResultKeyProvider
+        +dependencies: list[tuple[MetricSpec, ResultKeyProvider]]
+        +datasets: list[str]
+    }
+    
+    SymbolEntry --> SymbolicMetric
+    SymbolTable --> SymbolEntry
+```
+
+#### Design Decision: Elimination of Redundancy
+
+**Previous Design Issue**: The `SymbolEntry` class originally stored `metric_spec` and `ops` fields directly, duplicating information already available through `symbolic_metric.dependencies`.
+
+**Solution**: Implemented computed properties using Python's `@property` decorator:
+
+```python
+@property
+def metric_spec(self) -> MetricSpec | None:
+    """Get the metric spec from dependencies."""
+    if self.symbolic_metric.dependencies:
+        return self.symbolic_metric.dependencies[0][0]
+    return None
+
+@property
+def ops(self) -> list[Op]:
+    """Get the analyzer operations from metric spec."""
+    if self.metric_spec:
+        return list(self.metric_spec.analyzers)
+    return []
+```
+
+**Benefits**:
+- **Single Source of Truth**: Data is stored only in `SymbolicMetric.dependencies`
+- **Backward Compatibility**: Existing code using `entry.metric_spec` and `entry.ops` continues to work
+- **Data Consistency**: Eliminates possibility of `metric_spec` and `ops` being out of sync with dependencies
+- **Reduced Memory**: Slight reduction in memory usage by avoiding redundant storage
+- **Cleaner Constructor**: `SymbolEntry` constructor is simpler with fewer parameters
+
+This refactoring demonstrates the principle of **DRY (Don't Repeat Yourself)** and improves maintainability without breaking existing APIs.
+
 ## Symbolic Metrics
 
 ### Introduction to Symbolic Metrics
@@ -596,7 +673,7 @@ Potential improvements to the symbolic metric system:
 4. **Probabilistic Reasoning**: Handle uncertainty in metrics
 5. **Visual Expression Builder**: GUI for creating complex expressions
 
-### 5. Analyzer System (`analyzer.py`)
+### 6. Analyzer System (`analyzer.py`)
 
 The analyzer executes SQL operations and manages batch processing:
 

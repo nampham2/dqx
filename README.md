@@ -426,15 +426,19 @@ The graph is organized in a hierarchical structure with the following node types
 
 #### 2. **CheckNode** (Composite)
 - Represents an individual data quality check
-- Contains assertions and symbols that define the check logic
+- Contains assertions that define the check logic
 - Can be tagged and labeled for organization
-- Propagates success/failure status based on child nodes
+- Aggregates child assertion results to determine overall check status
+- Does NOT directly manage symbols (delegated to AssertionNodes)
 
-#### 3. **AssertionNode** (Leaf)
+#### 3. **AssertionNode** (Leaf, SymbolStateObserver)
 - Represents a specific validation rule to be evaluated
 - Uses symbolic expressions (SymPy) for flexible comparisons
 - Supports custom validators and severity levels
 - Evaluates to Success or Failure based on computed values
+- **Implements SymbolStateObserver** to track symbol state changes
+- Validates dataset availability for symbols used in expressions
+- Registers itself as observer for all symbols in its expression
 
 #### 4. **SymbolNode** (Composite)
 - Represents a computed value that can be used in assertions
@@ -464,6 +468,13 @@ Each node maintains its state throughout the execution:
 - **PROVIDED**: Successfully computed/evaluated
 - **ERROR**: Computation or validation failed
 
+#### Symbol Management and Observer Pattern
+The graph implements an observer pattern for symbol state notifications:
+- **AssertionNode** implements `SymbolStateObserver` to track symbol states
+- When a symbol's state changes (ready, success, error), assertions are notified
+- Assertions validate that required datasets are available for their symbols
+- Symbol errors are propagated to assertions, ensuring clear failure tracking
+
 #### Traversal Methods
 The RootNode provides convenient methods for graph traversal:
 ```python
@@ -480,12 +491,12 @@ for check in graph.checks():
     print(f"{check.name}: {check._value}")
 ```
 
-#### Dataset Propagation
-The graph supports multi-dataset validation:
-1. Datasets are propagated from checks to symbols
-2. Symbols propagate datasets to their metrics
-3. Metrics validate they have the required datasets
-4. Failures propagate back up the graph
+#### Dataset Propagation and Validation
+The graph supports multi-dataset validation with validation at the assertion level:
+1. Datasets are propagated from checks to assertions
+2. Assertions validate that their symbols have required datasets available
+3. Dataset mismatches result in clear error messages at the assertion level
+4. CheckNode aggregates assertion results to determine overall check status
 
 ### Example Graph Construction
 
@@ -659,6 +670,18 @@ We welcome contributions! Here's how to get started:
 - Join discussions in merge requests
 
 ## 🏆 Recent Improvements
+
+### v0.3.0 (Architecture Improvements)
+- ✅ **Refactored symbol management:** Moved symbol tracking from CheckNode to AssertionNode
+- ✅ **Improved separation of concerns:** CheckNode now focuses on aggregating assertion results
+- ✅ **Enhanced observer pattern:** AssertionNodes directly observe symbol state changes
+- ✅ **Better error propagation:** Dataset validation errors now occur at the assertion level
+- ✅ **Cleaner architecture:** Removed symbol management complexity from CheckNode
+- ✅ **Simplified CheckNode state management:** 
+  - Removed `update_status` method in favor of pure `aggregate_children_status` function
+  - Changed `CheckNode._value` type from `Maybe[Result[float, str]]` to `Maybe[str]`
+  - CheckNode state is now derived purely from child assertion results
+- ✅ **Maintained 98% test coverage** with comprehensive test updates
 
 ### v0.2.0 (Breaking Changes)
 - 🚨 **Breaking:** Removed legacy `.sql` property from SqlOp protocol

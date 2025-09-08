@@ -16,6 +16,7 @@
   - No backward compatibility is needed when refactoring code unless specified by users.
   - Think about circular dependency problem and avoid it in planning.
   - The python docstring is in Google format.
+  - Always have detailed docstrings for functions.
   - Always validate the input parameters first in each function implementation.
   - Before finishing:
     - Always check the source and tests code base with ruff and mypy.
@@ -31,6 +32,8 @@
   Provide different solutions with different trade off and ask users to make decision on which solution to choose.
   - Thinks about algorithm complexity and communicate clearly to users.
   - Prefer simple, elegant solution over more complex ones.
+  - Always analyze code for potential duplicates and give proposal to remove them.
 
 ## Examples
   - To run code coverage: `uv run pytest tests/test_symbol_table.py -v --cov=dqx.symbol_table`
+  - To run ruff and mypy for the whole project: `.github/quality.sh && .github/coverage.sh`

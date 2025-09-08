@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Protocol, TYPE_CHECKING
+from typing import Any, Protocol, TYPE_CHECKING, Union
 
 from returns.maybe import Maybe, Nothing, Some
 from returns.result import Failure, Result, Success
@@ -22,13 +22,17 @@ if TYPE_CHECKING:
 # Formatting Utilities
 # =============================================================================
 
-def format_status(value: Maybe[Result[Any, str]], show_value: bool = False) -> str:
-    """Format a Maybe[Result] value into a clean status indicator."""
+def format_status(value: Union[Maybe[Result[Any, str]], Maybe[str]], show_value: bool = False) -> str:
+    """Format a Maybe[Result] or Maybe[str] value into a clean status indicator."""
     if value is Nothing:
         return "[yellow]⏳[/yellow]"
     elif isinstance(value, Some):
         result = value.unwrap()
-        if isinstance(result, Success):
+        # Handle Maybe[str] for CheckNode
+        if isinstance(result, str):
+            return "[red]❌[/red]"  # String means error
+        # Handle Maybe[Result] for AssertionNode
+        elif isinstance(result, Success):
             val = result.unwrap()
             if show_value and val is not None:
                 # Format numeric values nicely
