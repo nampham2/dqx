@@ -17,7 +17,7 @@ This guide helps you resolve common issues with pre-commit hooks in the DQX proj
 
 **Symptom:**
 ```
-An error has occurred: InvalidConfigError: 
+An error has occurred: InvalidConfigError:
 =====> .pre-commit-config.yaml is not a file
 ```
 
@@ -196,7 +196,7 @@ logger.debug("Debug information here")
    ```bash
    # Skip mypy temporarily
    ./bin/run-hooks.sh --fast
-   
+
    # Run only formatting hooks
    ./bin/run-hooks.sh --fix
    ```
@@ -286,7 +286,7 @@ uv pip list | grep pre-commit
    ```bash
    # Configure git to handle line endings
    git config core.autocrlf input
-   
+
    # Re-checkout files
    git rm --cached -r .
    git reset --hard
@@ -377,7 +377,7 @@ ls ~/.cache/pre-commit/repo*/
    ```bash
    # Update hooks periodically
    uv run pre-commit autoupdate
-   
+
    # Clean old environments
    uv run pre-commit gc
    ```
