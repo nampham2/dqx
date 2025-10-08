@@ -86,7 +86,7 @@ class ArrowDataSource:
 ```python
 class PostgreSQLDialect:
     name = "postgresql"
-    
+
     def translate_sql_op(self, op: ops.SqlOp) -> str:
         match op:
             case ops.NumRows():
@@ -95,7 +95,7 @@ class PostgreSQLDialect:
                 # PostgreSQL doesn't have COUNT_IF
                 return f"COUNT(CASE WHEN {col} IS NULL THEN 1 END)::FLOAT8 AS {op.sql_col}"
             # ... handle other operations
-    
+
     def build_cte_query(self, cte_sql: str, select_expressions: list[str]) -> str:
         from dqx.dialect import build_cte_query
         return build_cte_query(cte_sql, select_expressions)

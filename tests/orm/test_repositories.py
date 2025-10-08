@@ -76,6 +76,7 @@ def test_get_missing_metric_by_uuid(key: ResultKey) -> None:
     """Test getting a non-existent metric by UUID returns empty Maybe."""
     db = InMemoryMetricDB()
     import uuid
+
     non_existent_id = uuid.uuid4()
     result = db.get(non_existent_id)
     assert result == Nothing
@@ -130,11 +131,11 @@ def test_metric_to_spec(metric_1: Metric) -> None:
     """Test that Metric.to_spec() returns the correct MetricSpec."""
     db = InMemoryMetricDB()
     persisted_metric = list(db.persist([metric_1]))[0]
-    
+
     # Get the database metric directly to test to_spec method
     db_metric = db.new_session().get(repositories.Metric, persisted_metric.metric_id)
     assert db_metric is not None
-    
+
     spec = db_metric.to_spec()
     assert spec.metric_type == "Average"
     assert spec.parameters == {"column": "page_views"}
@@ -143,15 +144,15 @@ def test_metric_to_spec(metric_1: Metric) -> None:
 def test_get_metric_window_with_no_scalars_result(key: ResultKey) -> None:
     """Test get_metric_window when session.scalars returns None."""
     from unittest.mock import Mock, patch
-    
+
     db = InMemoryMetricDB()
     spec = specs.Average("test_column")
-    
+
     # Mock the session to return None from scalars()
-    with patch.object(db, 'new_session') as mock_session:
+    with patch.object(db, "new_session") as mock_session:
         mock_session_instance = Mock()
         mock_session_instance.scalars.return_value = None
         mock_session.return_value = mock_session_instance
-        
+
         result = db.get_metric_window(spec, key, lag=1, window=5)
         assert result == Nothing

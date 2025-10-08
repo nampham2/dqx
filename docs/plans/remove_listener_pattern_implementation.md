@@ -4,7 +4,7 @@
 
 This plan details the refactoring of DQX's assertion system to:
 1. Remove the AssertListener protocol and listener pattern from AssertBuilder
-2. Make AssertionNode immutable (remove all setter methods)  
+2. Make AssertionNode immutable (remove all setter methods)
 3. Remove assertion chaining capability (each assertion stands alone)
 4. Keep the `on()` method but have it store values in AssertBuilder
 
@@ -64,10 +64,10 @@ def test_assertion_node_is_immutable():
 1. Find the `AssertionNode` class (around line 175)
 2. Remove these three methods completely:
    - `set_label(self, label: str) -> None`
-   - `set_severity(self, severity: SeverityLevel) -> None`  
+   - `set_severity(self, severity: SeverityLevel) -> None`
    - `set_validator(self, validator: SymbolicValidator) -> None`
 
-**How to test**: 
+**How to test**:
 1. Run the test from Task 1: `uv run pytest tests/test_api.py::test_assertion_node_is_immutable -v`
 2. It should now pass
 
@@ -87,11 +87,11 @@ def test_assertion_node_is_immutable():
 def test_assert_builder_no_listeners():
     """AssertBuilder should not use listeners."""
     expr = sp.Symbol("x")
-    
+
     # Should not accept listeners parameter
     with pytest.raises(TypeError):
         AssertBuilder(actual=expr, listeners=[], context=None)
-    
+
     # Should work without listeners
     builder = AssertBuilder(actual=expr, context=None)
     assert builder is not None
@@ -100,7 +100,7 @@ def test_assertion_methods_return_none():
     """Assertion methods should not return AssertBuilder for chaining."""
     context = Context("test", InMemoryMetricDB())
     builder = context.assert_that(sp.Symbol("x"))
-    
+
     # These should return None, not AssertBuilder
     result = builder.is_gt(0)
     assert result is None
@@ -129,7 +129,7 @@ def test_assertion_methods_return_none():
 2. Update `AssertBuilder.__init__` (around line 65):
    - Remove `listeners` parameter
    - Remove `self.listeners = listeners` assignment
-   
+
 3. Update `AssertBuilder.clone()` method:
    - Remove it entirely (no longer needed without chaining)
 
@@ -153,7 +153,7 @@ def is_gt(self, other: float, tol: float = functions.EPSILON) -> None:
     self._create_assertion_node(validator)
 ```
 
-**How to test**: 
+**How to test**:
 1. Run `uv run mypy src/dqx/api.py` - should have no errors
 2. Run `uv run pytest tests/test_api.py::test_assert_builder_no_listeners -v` - should pass
 
@@ -193,7 +193,7 @@ ctx.assert_that(ratio).is_leq(1.05)
 
 **Specific tests to fix**:
 1. `test_check_datasets_with_multiple_datasets` - has 1 chained assertion
-2. `test_advanced_symbolic_check` - has 4 chained assertions  
+2. `test_advanced_symbolic_check` - has 4 chained assertions
 3. `test_chained_assertions` - this entire test is about chaining, needs complete rewrite
 
 For `test_chained_assertions`, transform it to test that separate assertions work correctly:
@@ -201,11 +201,11 @@ For `test_chained_assertions`, transform it to test that separate assertions wor
 def test_multiple_assertions_on_same_metric():
     """Test that multiple separate assertions can be made on the same metric."""
     # ... setup code ...
-    
+
     # Multiple assertions on same metric (not chained)
     ctx.assert_that(metric).on(label="Greater than 40").is_gt(40)
     ctx.assert_that(metric).on(label="Less than 60").is_lt(60)
-    
+
     # ... rest of test ...
 ```
 
@@ -225,7 +225,7 @@ def test_multiple_assertions_on_same_metric():
    ```markdown
    # OLD:
    ctx.assert_that(ratio).is_geq(0.95).is_leq(1.05)
-   
+
    # NEW:
    ctx.assert_that(ratio).is_geq(0.95)
    ctx.assert_that(ratio).is_leq(1.05)
@@ -237,7 +237,7 @@ def test_multiple_assertions_on_same_metric():
 
 5. Search for any other references to "chain" and update accordingly
 
-**How to test**: 
+**How to test**:
 1. Visually review the README
 2. Check that all code examples are valid Python
 

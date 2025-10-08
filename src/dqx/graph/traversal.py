@@ -314,7 +314,7 @@ class Graph:
             node or assertion nodes. The order is consistent with DFS traversal.
         """
         visitor = NodeCollector(CheckNode)
-        self.dfs(visitor)
+        self.bfs(visitor)
         return visitor.results
 
     def assertions(self) -> list[AssertionNode]:
@@ -346,7 +346,7 @@ class Graph:
             same check will be grouped together.
         """
         visitor = NodeCollector(AssertionNode)
-        self.dfs(visitor)
+        self.bfs(visitor)
         return visitor.results
 
     def print_tree(self, formatter: Optional["NodeFormatter"] = None) -> None:

@@ -548,5 +548,3 @@ class AssertionNode(BaseNode):
 
     def is_leaf(self) -> bool:
         return True
-
-

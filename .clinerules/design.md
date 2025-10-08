@@ -24,10 +24,10 @@ The dataset consistency check runs as follow:
 ### Verification Suite
 The verification suite is the master object holding all information about a DQX run: context, graph, checks and results.
 Users run the verification suite by invoking the `run()` method which does the following in order:
-  - Com the dependency graph, this graph is a representation of user's input. It can be stored and retrieved in the future for 
+  - Com the dependency graph, this graph is a representation of user's input. It can be stored and retrieved in the future for
   future evaluation.
   - Impute the datasets, fail if there exists a inconsistency in dataset specification.
-  - 
+  -
 
 #### How to get pending metrics
 

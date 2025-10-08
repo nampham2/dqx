@@ -45,13 +45,15 @@ def test_is_eq() -> None:
 def test_within_tol() -> None:
     with pytest.raises(DQXError, match="Either relative tolerance or absolute tolerance must be provided!"):
         functions.within_tol(1.0, 1.0)
-    
-    with pytest.raises(DQXError, match="Both relative tolerance and absolute tolerance cannot be provided simultaneously!"):
+
+    with pytest.raises(
+        DQXError, match="Both relative tolerance and absolute tolerance cannot be provided simultaneously!"
+    ):
         functions.within_tol(1.0, 1.0, rel_tol=0.1, abs_tol=0.1)
-    
+
     assert functions.within_tol(1.0, 1.05, abs_tol=0.1) is True
     assert functions.within_tol(1.0, 1.15, abs_tol=0.1) is False
-    
+
     assert functions.within_tol(1.0, 1.05, rel_tol=0.1) is True
     assert functions.within_tol(1.0, 1.15, rel_tol=0.1) is False
 

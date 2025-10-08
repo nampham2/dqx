@@ -126,23 +126,23 @@ The current approach:
 ```python
 class DatasetImputationVisitor(NodeVisitor):
     """Visitor that propagates datasets through the node graph."""
-    
+
     def __init__(self, datasets: list[str]):
         """Initialize with the datasets to propagate.
-        
+
         Args:
             datasets: List of dataset names to propagate through the graph.
         """
         self.datasets = datasets
         self.errors: list[tuple[BaseNode, str]] = []
-    
+
     def visit(self, node: BaseNode) -> None:
         """Visit a node to propagate datasets.
-        
+
         This method handles dataset validation and propagation based on the node type.
         For RootNode and CompositeNode, it continues traversal to children.
         For nodes that require datasets, it validates and sets the datasets.
-        
+
         Args:
             node: The node to process.
         """
@@ -151,11 +151,11 @@ class DatasetImputationVisitor(NodeVisitor):
             if not self.datasets:
                 self.errors.append((node, "At least one dataset must be provided!"))
                 return
-                
+
             # Continue traversal to all children
             for child in node.get_children():
                 child.accept(self)
-                
+
         elif isinstance(node, CheckNode):
             # Check node validation
             if len(node.datasets) == 0:
@@ -165,15 +165,15 @@ class DatasetImputationVisitor(NodeVisitor):
                 node._value = Some(error_msg)
                 self.errors.append((node, error_msg))
                 return
-                
+
             # Continue traversal to all children
             for child in node.get_children():
                 child.accept(self)
-                
+
         elif isinstance(node, AssertionNode):
             # Handle assertion node dataset validation
             node.validate_datasets(self.datasets)
-            
+
         # Add handling for other node types as needed
 ```
 
@@ -182,19 +182,19 @@ class DatasetImputationVisitor(NodeVisitor):
 ```python
 def impute_datasets(self, datasets: list[str]) -> None:
     """Validate and propagate datasets through the graph.
-    
+
     Uses the visitor pattern to traverse the graph and propagate datasets
     to all nodes that require them. Collects validation errors during traversal.
-    
+
     Args:
         datasets: List of dataset names to propagate.
-        
+
     Raises:
         DQXError: If dataset validation fails for any node.
     """
     visitor = DatasetImputationVisitor(datasets)
     self.accept(visitor)
-    
+
     # Check for errors
     if visitor.errors:
         # You could choose to raise the first error or aggregate them
@@ -291,21 +291,21 @@ Instead of one big `visit` method that checks node types, we'll use method overl
 ```python
 class DatasetImputationVisitor(NodeVisitor):
     """Visitor that propagates datasets through the node graph."""
-    
+
     def __init__(self, datasets: list[str]):
         self.datasets = datasets
         self.errors: list[tuple[BaseNode, str]] = []
-    
+
     def visit_root_node(self, node: RootNode) -> None:
         """Handle dataset imputation for RootNode."""
         if not self.datasets:
             self.errors.append((node, "At least one dataset must be provided!"))
             return
-            
+
         # Continue traversal to all children
         for child in node.get_children():
             child.accept(self)
-    
+
     def visit_check_node(self, node: CheckNode) -> None:
         """Handle dataset imputation for CheckNode."""
         if len(node.datasets) == 0:
@@ -315,21 +315,21 @@ class DatasetImputationVisitor(NodeVisitor):
             node._value = Some(error_msg)
             self.errors.append((node, error_msg))
             return
-            
+
         # Continue traversal to all children
         for child in node.get_children():
             child.accept(self)
-    
+
     def visit_assertion_node(self, node: AssertionNode) -> None:
         """Handle dataset imputation for AssertionNode."""
         node.validate_datasets(self.datasets)
-    
+
     def visit_composite_node(self, node: CompositeNode) -> None:
         """Handle dataset imputation for CompositeNode."""
         # Just traverse children for composite nodes
         for child in node.get_children():
             child.accept(self)
-    
+
     # Default handler for any other node types
     def visit_default(self, node: BaseNode) -> None:
         """Default handler for nodes without specific visit methods."""
@@ -383,7 +383,7 @@ def impute_datasets(self, datasets: list[str]) -> None:
     """Validate and propagate datasets through the graph."""
     visitor = DatasetImputationVisitor(datasets)
     self.accept(visitor)
-    
+
     # Check for errors
     if visitor.errors:
         # You could choose to raise the first error or aggregate them
@@ -414,10 +414,10 @@ Instead of dynamically looking up methods, we'll use a more explicit pattern whe
 ```python
 class NodeVisitor:
     """Base class for all node visitors."""
-    
+
     def visit(self, node: BaseNode) -> None:
         """Default visit method that dispatches to type-specific methods.
-        
+
         This method uses a simple dispatch mechanism based on an explicit mapping
         rather than dynamic attribute lookup.
         """
@@ -429,28 +429,28 @@ class NodeVisitor:
             CompositeNode: self.visit_composite_node,
             # Add other node types as needed
         }
-        
+
         # Get the appropriate method or use the default
         node_type = type(node)
         visit_method = dispatch_table.get(node_type, self.visit_default)
         visit_method(node)
-    
+
     def visit_root_node(self, node: 'RootNode') -> None:
         """Visit method for RootNode."""
         self.visit_default(node)
-    
+
     def visit_check_node(self, node: 'CheckNode') -> None:
         """Visit method for CheckNode."""
         self.visit_default(node)
-    
+
     def visit_assertion_node(self, node: 'AssertionNode') -> None:
         """Visit method for AssertionNode."""
         self.visit_default(node)
-    
+
     def visit_composite_node(self, node: 'CompositeNode') -> None:
         """Visit method for CompositeNode."""
         self.visit_default(node)
-    
+
     def visit_default(self, node: BaseNode) -> None:
         """Default visit implementation for nodes without specific handlers."""
         pass
@@ -474,21 +474,21 @@ With this pattern, our dataset visitor becomes:
 ```python
 class DatasetImputationVisitor(NodeVisitor):
     """Visitor that propagates datasets through the node graph."""
-    
+
     def __init__(self, datasets: list[str]):
         self.datasets = datasets
         self.errors: list[tuple[BaseNode, str]] = []
-    
+
     def visit_root_node(self, node: RootNode) -> None:
         """Handle dataset imputation for RootNode."""
         if not self.datasets:
             self.errors.append((node, "At least one dataset must be provided!"))
             return
-            
+
         # Continue traversal to all children
         for child in node.get_children():
             child.accept(self)
-    
+
     def visit_check_node(self, node: CheckNode) -> None:
         """Handle dataset imputation for CheckNode."""
         if len(node.datasets) == 0:
@@ -498,15 +498,15 @@ class DatasetImputationVisitor(NodeVisitor):
             node._value = Some(error_msg)
             self.errors.append((node, error_msg))
             return
-            
+
         # Continue traversal to all children
         for child in node.get_children():
             child.accept(self)
-    
+
     def visit_assertion_node(self, node: AssertionNode) -> None:
         """Handle dataset imputation for AssertionNode."""
         node.validate_datasets(self.datasets)
-    
+
     def visit_composite_node(self, node: CompositeNode) -> None:
         """Handle dataset imputation for CompositeNode."""
         # Just traverse children for composite nodes

@@ -13,7 +13,7 @@ from dqx.orm.repositories import InMemoryMetricDB
 
 @check(datasets=["ds1"])
 def simple_checks(mp: MetricProvider, ctx: Context) -> None:
-    ctx.assert_that(mp.null_count("delivered")).is_leq(100)
+    ctx.assert_that(mp.null_count("delivered")).on(label="Delivered null count is less than 100").is_leq(100)
     ctx.assert_that(mp.minimum("quantity")).is_leq(2.5)
     ctx.assert_that(mp.average("price")).is_geq(10.0)
     ctx.assert_that(mp.ext.day_over_day(specs.Average("tax"))).is_geq(0.5)
@@ -44,12 +44,14 @@ def rate_of_change(mp: MetricProvider, ctx: Context) -> None:
 def sketch_check(mp: MetricProvider, ctx: Context) -> None:
     ctx.assert_that(mp.approx_cardinality("address")).is_geq(100)
 
+
 @check(datasets=["ds1", "ds2"])
 def cross_dataset_check(mp: MetricProvider, ctx: Context) -> None:
-    tax_avg_1= mp.average("tax", dataset="ds1")
+    tax_avg_1 = mp.average("tax", dataset="ds1")
     tax_avg_2 = mp.average("tax", dataset="ds2")
     # Allow for identical datasets (difference can be 0)
     ctx.assert_that(sp.Abs(tax_avg_1 / tax_avg_2 - 1)).is_lt(0.2, tol=0.01)
+
 
 def test_verification_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> None:
     db = InMemoryMetricDB()

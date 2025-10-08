@@ -231,15 +231,15 @@ def test_assertion_node_symbol_tracking() -> None:
     # Create assertions with different symbols
     sym1 = sp.Symbol("x")
     sym2 = sp.Symbol("y")
-    
+
     assertion1 = graph.AssertionNode(actual=sym1)
     assertion2 = graph.AssertionNode(actual=sym2)
     assertion3 = graph.AssertionNode(actual=sym1 + sym2)
-    
+
     check.add_child(assertion1)
     check.add_child(assertion2)
     check.add_child(assertion3)
-    
+
     # Symbols are tracked in the expression
     assert sym1 in assertion1.actual.free_symbols
     assert sym2 in assertion2.actual.free_symbols
@@ -379,7 +379,7 @@ def test_check_node_update_status_return_early() -> None:
 
     # Aggregate - this would normally return Nothing for success
     new_value = graph.aggregate_children_status(check.children)
-    
+
     # But the check should keep its original failure
     assert isinstance(check._value, Some)
     assert check._value.unwrap() == "Already failed"
@@ -397,7 +397,7 @@ def test_assertion_node_symbol_error_handling() -> None:
     symbol = sp.Symbol("x")
     assertion = graph.AssertionNode(symbol)
     check.add_child(assertion)
-    
+
     # Register the symbol in the symbol table
     ctx.symbol_table.register(SymbolEntry(
         symbol=symbol,
@@ -408,7 +408,7 @@ def test_assertion_node_symbol_error_handling() -> None:
         ops=[],
         retrieval_fn=lambda k: Success(1.0),
     ))
-    
+
     # Propagate datasets - assertion should handle symbol validation
     root.impute_datasets(["ds1"])
 
@@ -557,7 +557,7 @@ def test_assertion_node_validate_datasets_without_symbol_table() -> None:
     ctx, root = create_test_root("Test")
     check = graph.CheckNode("check")
     root.add_child(check)
-    
+
     # Add assertion with symbol that's not in symbol table
     assertion = graph.AssertionNode(sp.Symbol("x"))
     check.add_child(assertion)
@@ -598,7 +598,7 @@ def test_assertion_node_dataset_binding_success() -> None:
 
     # No errors should be recorded
     assert assertion._value == Nothing  # No error
-    # Note: dataset binding happens during validate_dataset, but the entry 
+    # Note: dataset binding happens during validate_dataset, but the entry
     # in our test doesn't require a specific dataset, so it remains None
     assert entry.dataset is None  # Remains None since it accepts any dataset
 
@@ -964,7 +964,7 @@ def test_assertion_node_find_parent_check() -> None:
     # Test finding parent checks
     assert assertion1._find_parent_check() == check1
     assert assertion2._find_parent_check() == check2
-    
+
     # assertion3 has no parent, should raise RuntimeError
     with pytest.raises(RuntimeError, match="AssertionNode is not attached to a CheckNode"):
         assertion3._find_parent_check()
@@ -988,7 +988,7 @@ def test_assertion_node_find_root_already_set() -> None:
     ctx, root = create_test_root("Test")
     check = graph.CheckNode("check")
     root.add_child(check)
-    
+
     assertion = graph.AssertionNode(sp.Symbol("x"))
     check.add_child(assertion)
 
@@ -1044,7 +1044,7 @@ def test_assertion_evaluate_with_no_expression_symbols() -> None:
     ctx, root = create_test_root("Test")
     check = graph.CheckNode("check")
     root.add_child(check)
-    
+
     # Create assertion with constant expression
     assertion = graph.AssertionNode(sp.Integer(5))
     check.add_child(assertion)
@@ -1114,7 +1114,7 @@ def test_symbol_error_propagates_to_assertion() -> None:
     # Create a check and assertion node
     check = graph.CheckNode("test_check")
     root.add_child(check)
-    
+
     assertion = graph.AssertionNode(symbol)
     check.add_child(assertion)
 
@@ -1148,18 +1148,18 @@ def test_symbol_success_clears_errors() -> None:
     # Create check and assertion nodes
     check = graph.CheckNode("test_check")
     root.add_child(check)
-    
+
     assertion = graph.AssertionNode(symbol)
     check.add_child(assertion)
 
     # First, trigger an error
     entry.mark_error("Test error")
     # This should propagate to assertion via observer
-    
+
     # Then mark as success
     entry.mark_success(1.0)
     # The error should be cleared
-    
+
     # Verify by evaluating the assertion
     result = assertion.evaluate()
     assert isinstance(result, Success)
@@ -1199,7 +1199,7 @@ def test_multiple_assertions_observe_same_symbol() -> None:
     # Both assertions should be affected
     result1 = assertion1.evaluate()
     result2 = assertion2.evaluate()
-    
+
     assert isinstance(result1, Failure)
     assert isinstance(result2, Failure)
     assert "Symbol dependencies failed" in result1.failure()
@@ -1209,7 +1209,7 @@ def test_multiple_assertions_observe_same_symbol() -> None:
 def test_check_failure_affects_assertions() -> None:
     """Test that check failures affect child assertions."""
     ctx, root = create_test_root("test_root")
-    
+
     # Create a check with dataset requirements that will fail
     check = graph.CheckNode("test_check", datasets=["required_ds"])
     root.add_child(check)
@@ -1232,7 +1232,7 @@ def test_assertion_node_on_symbol_ready() -> None:
     ctx, root = create_test_root("Test")
     check = graph.CheckNode("check")
     root.add_child(check)
-    
+
     symbol = sp.Symbol("x")
     assertion = graph.AssertionNode(symbol)
     check.add_child(assertion)
@@ -1248,7 +1248,7 @@ def test_assertion_node_on_symbol_ready() -> None:
         retrieval_fn=lambda k: Success(1.0),
     )
     ctx.symbol_table.register(entry)
-    
+
     # Call on_symbol_ready - should update parent check status
     assertion.on_symbol_ready(symbol)
 
@@ -1261,7 +1261,7 @@ def test_assertion_node_on_symbol_success() -> None:
     ctx, root = create_test_root("Test")
     check = graph.CheckNode("check")
     root.add_child(check)
-    
+
     symbol = sp.Symbol("x")
     assertion = graph.AssertionNode(symbol)
     check.add_child(assertion)
@@ -1277,14 +1277,14 @@ def test_assertion_node_on_symbol_success() -> None:
         retrieval_fn=lambda k: Success(10.0),
     )
     ctx.symbol_table.register(entry)
-    
+
     # Call on_symbol_success
     assertion.on_symbol_success(symbol, 10.0)
 
     # The on_symbol_success just clears errors and updates parent
     # But doesn't directly affect evaluation - we need to mark the entry as success
     entry.mark_success(10.0)
-    
+
     # Now verify by evaluating
     result = assertion.evaluate()
     assert isinstance(result, Success)
@@ -1316,15 +1316,15 @@ def test_assertion_node_symbol_error_then_success() -> None:
 
     # First trigger an error via the entry
     entry.mark_error("Test error")
-    
+
     # Verify error state
     result_error = assertion.evaluate()
     assert isinstance(result_error, Failure)
     assert "Symbol dependencies failed" in result_error.failure()
-    
+
     # Then mark success
     entry.mark_success(10.0)
-    
+
     # Verify by evaluating
     result = assertion.evaluate()
     assert isinstance(result, Success)

@@ -232,7 +232,6 @@ class AssertionNode(BaseNode):
         self.validator = validator
         self._value: Result[float, dict[SymbolicMetric | sp.Expr, str]]
 
-
     def impute_datasets(self, datasets: list[str]) -> None:
         """Validate and set datasets for this assertion."""
         if not datasets:

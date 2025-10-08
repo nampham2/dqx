@@ -101,7 +101,7 @@ Based on my analysis of the dqx codebase, here's the complete hierarchy of the g
 def my_check(mp: MetricProvider, ctx: Context):
     # Creates AssertionNode as child of CheckNode
     ctx.assert_that(mp.count("col") > 100).on(label="Count check")
-    
+
 # Graph structure:
 # RootNode
 # └── CheckNode("my_check")
@@ -160,7 +160,7 @@ class LazyMetricNode(MetricNode):
     def __init__(self, spec, key_provider, nominal_key):
         super().__init__(spec, key_provider, nominal_key)
         self._computation_promise = None
-    
+
     def compute_when_needed(self) -> Promise[Metric]:
         if not self._computation_promise:
             self._computation_promise = self._create_computation()
@@ -238,7 +238,7 @@ class AggregationNode(CompositeNode):
     def __init__(self, strategy: Literal["all", "any", "threshold"]):
         self.strategy = strategy
         self.threshold = None  # For threshold strategy
-    
+
     def aggregate(self, results: list[Result]) -> Result:
         # Implement aggregation logic
 ```
@@ -341,12 +341,12 @@ class DependencyMixin:
         self._dependencies: set[BaseNode] = set()
         self._dependents: set[BaseNode] = set()
         self._resolution_order: int | None = None
-    
+
     def add_dependency(self, node: BaseNode) -> None:
         self._dependencies.add(node)
         if hasattr(node, '_dependents'):
             node._dependents.add(self)
-    
+
     def get_resolution_order(self) -> int:
         """Topological sort order for evaluation"""
         if self._resolution_order is None:
@@ -366,17 +366,17 @@ class DependencyResolver:
     def __init__(self, executor: ThreadPoolExecutor):
         self.executor = executor
         self._futures: dict[BaseNode, Future] = {}
-    
+
     def resolve_async(self, node: BaseNode) -> Future:
         if node in self._futures:
             return self._futures[node]
-        
+
         # Wait for dependencies
         dep_futures = [
-            self.resolve_async(dep) 
+            self.resolve_async(dep)
             for dep in node._dependencies
         ]
-        
+
         # Schedule node resolution
         future = self.executor.submit(
             self._resolve_node, node, dep_futures
@@ -400,7 +400,7 @@ class ComputationPromise(Protocol):
     """Promise for deferred computation"""
     @abstractmethod
     def compute(self) -> Result[float, str]: ...
-    
+
     @abstractmethod
     def is_ready(self) -> bool: ...
 
@@ -410,18 +410,18 @@ class LazyMetricNode(MetricNode):
         super().__init__(spec, key_provider, nominal_key)
         self._computation: ComputationPromise | None = None
         self._compute_on_access = True
-    
+
     @cached_property
     def value(self) -> Result[float, str]:
         """Compute value only when accessed"""
         if self._computation is None:
             self._computation = self._create_computation()
         return self._computation.compute()
-    
+
     def _create_computation(self) -> ComputationPromise:
         """Factory method for creating computation promise"""
         return MetricComputation(
-            self.spec, 
+            self.spec,
             self.datasets,
             self.eval_key()
         )
@@ -435,23 +435,23 @@ class BatchComputationManager:
     def __init__(self):
         self._pending: list[LazyMetricNode] = []
         self._batch_size = 100
-    
+
     def add_for_computation(self, node: LazyMetricNode) -> None:
         self._pending.append(node)
         if len(self._pending) >= self._batch_size:
             self._compute_batch()
-    
+
     def _compute_batch(self) -> None:
         """Compute all pending nodes efficiently"""
         # Group by dataset and metric type
         grouped = self._group_by_dataset_and_type(self._pending)
-        
+
         # Execute batch computations
         for (dataset, metric_type), nodes in grouped.items():
             results = self._batch_compute(dataset, metric_type, nodes)
             for node, result in zip(nodes, results):
                 node._set_computed_value(result)
-        
+
         self._pending.clear()
 ```
 
@@ -470,11 +470,11 @@ class DatasetContext:
         self.symbols: dict[str, SymbolNode] = {}
         self.computation_state = "PENDING"
         self.error_context: list[str] = []
-    
+
     def add_metric(self, metric: MetricNode) -> None:
         key = f"{metric.spec.name}:{metric.eval_key()}"
         self.metrics[key] = metric
-    
+
     def mark_failed(self, error: str) -> None:
         self.computation_state = "FAILED"
         self.error_context.append(error)
@@ -488,7 +488,7 @@ class CheckNode(CompositeNode):
         super().__init__()
         # ... existing init code ...
         self._dataset_contexts: dict[str, DatasetContext] = {}
-    
+
     def get_or_create_dataset_context(self, dataset: str) -> DatasetContext:
         if dataset not in self._dataset_contexts:
             self._dataset_contexts[dataset] = DatasetContext(dataset)
@@ -502,23 +502,23 @@ class DatasetExecutor:
     """Executes computations per dataset in parallel"""
     def __init__(self, max_workers: int = 4):
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
-    
+
     def execute_checks(
-        self, 
-        root: RootNode, 
+        self,
+        root: RootNode,
         datasources: dict[str, SqlDataSource]
     ) -> dict[str, Future[DatasetResult]]:
         futures = {}
-        
+
         for dataset_name, datasource in datasources.items():
             future = self.executor.submit(
                 self._execute_dataset,
                 root, dataset_name, datasource
             )
             futures[dataset_name] = future
-        
+
         return futures
-    
+
     def _execute_dataset(
         self,
         root: RootNode,
@@ -549,12 +549,12 @@ class AssertionGroupManager:
     def __init__(self):
         self._current_group: AssertionGroupNode | None = None
         self._groups: dict[str, AssertionGroupNode] = {}
-    
+
     @contextmanager
     def group(self, name: str, **kwargs):
         """Context manager for assertion grouping"""
         prev_group = self._current_group
-        
+
         # Create or get group
         if name not in self._groups:
             self._groups[name] = AssertionGroupNode(
@@ -562,13 +562,13 @@ class AssertionGroupManager:
                 severity=kwargs.get('severity'),
                 fail_fast=kwargs.get('fail_fast', False)
             )
-        
+
         self._current_group = self._groups[name]
         try:
             yield self._current_group
         finally:
             self._current_group = prev_group
-    
+
     def current_group(self) -> AssertionGroupNode | None:
         return self._current_group
 
@@ -576,11 +576,11 @@ class AssertionGroupManager:
 @check
 def quality_check(mp: MetricProvider, ctx: Context) -> None:
     group_mgr = AssertionGroupManager()
-    
+
     with group_mgr.group("critical", severity="ERROR", fail_fast=True):
         ctx.assert_that(mp.count("id") > 0).on(label="Has records")
         ctx.assert_that(mp.null_ratio("id") == 0).on(label="No null IDs")
-    
+
     with group_mgr.group("warnings", severity="WARN"):
         ctx.assert_that(mp.distinct_ratio("category") > 0.1)
 ```
@@ -594,22 +594,22 @@ class AssertionGroupBuilder:
         self.ctx = ctx
         self.assertions: list[SymbolicAssert] = []
         self.group_config = {}
-    
+
     def assert_that(self, expr: sp.Expr) -> Self:
         assertion = self.ctx.assert_that(expr)
         self.assertions.append(assertion)
         return self
-    
+
     def with_severity(self, severity: SeverityLevel) -> Self:
         self.group_config['severity'] = severity
         for assertion in self.assertions:
             assertion.on(severity=severity)
         return self
-    
+
     def fail_fast(self) -> Self:
         self.group_config['fail_fast'] = True
         return self
-    
+
     def build(self, name: str) -> AssertionGroupNode:
         group = AssertionGroupNode(name, **self.group_config)
         for assertion in self.assertions:
@@ -629,7 +629,7 @@ class AggregationStrategy(Protocol):
     """Protocol for result aggregation strategies"""
     @abstractmethod
     def aggregate(self, results: list[Result]) -> Result: ...
-    
+
     @abstractmethod
     def can_short_circuit(self) -> bool: ...
 
@@ -640,7 +640,7 @@ class AllSuccessStrategy(AggregationStrategy):
         if failures:
             return Failure(f"{len(failures)} checks failed")
         return Success(1.0)
-    
+
     def can_short_circuit(self) -> bool:
         return True  # Can fail fast on first failure
 
@@ -648,36 +648,36 @@ class ThresholdStrategy(AggregationStrategy):
     """Configurable threshold of success"""
     def __init__(self, threshold: float = 0.8):
         self.threshold = threshold
-    
+
     def aggregate(self, results: list[Result]) -> Result:
         success_rate = sum(1 for r in results if isinstance(r, Success)) / len(results)
         if success_rate >= self.threshold:
             return Success(success_rate)
         return Failure(f"Success rate {success_rate:.1%} below threshold {self.threshold:.1%}")
-    
+
     def can_short_circuit(self) -> bool:
         return False  # Must evaluate all children
 
 # Integration with CheckNode
 class CheckNode(CompositeNode):
-    def __init__(self, name, tags=None, label=None, datasets=None, 
+    def __init__(self, name, tags=None, label=None, datasets=None,
                  aggregation_strategy: AggregationStrategy | None = None):
         super().__init__()
         # ... existing init ...
         self.aggregation_strategy = aggregation_strategy or AllSuccessStrategy()
-    
+
     def update_status(self) -> None:
         """Enhanced status update with aggregation strategy"""
         if isinstance(self._value, Some) and isinstance(self._value.unwrap(), Failure):
             return  # Already failed
-        
+
         child_results = []
         for child in self.children:
             if hasattr(child, '_value') and isinstance(child._value, Some):
                 child_results.append(child._value.unwrap())
             elif self.aggregation_strategy.can_short_circuit():
                 return  # Child pending, can't determine result yet
-        
+
         if child_results:
             self._value = Some(self.aggregation_strategy.aggregate(child_results))
 ```
@@ -700,7 +700,7 @@ class MemoryCacheBackend:
     """In-memory cache implementation"""
     def __init__(self):
         self._cache: dict[str, tuple[Result, datetime | None]] = {}
-    
+
     def get(self, key: str) -> Maybe[Result]:
         if key in self._cache:
             result, expiry = self._cache[key]
@@ -708,7 +708,7 @@ class MemoryCacheBackend:
                 return Some(result)
             del self._cache[key]
         return Nothing
-    
+
     def set(self, key: str, value: Result, ttl: timedelta | None = None) -> None:
         expiry = datetime.now() + ttl if ttl else None
         self._cache[key] = (value, expiry)
@@ -716,24 +716,24 @@ class MemoryCacheBackend:
 class CachedSymbolNode(SymbolNode):
     """Symbol node with caching capabilities"""
     _cache_backend: CacheBackend = MemoryCacheBackend()
-    
+
     def __init__(self, name, symbol, fn, dataset, cache_config: dict | None = None):
         super().__init__(name, symbol, fn, dataset)
         self.cache_config = cache_config or {}
         self.cache_key_template = self.cache_config.get(
-            'key_template', 
+            'key_template',
             f"symbol:{name}:{{dataset}}:{{time_period}}"
         )
-    
+
     def evaluate(self, key: ResultKey) -> Result[float, str]:
         cache_key = self._build_cache_key(key)
-        
+
         # Try cache first
         cached = self._cache_backend.get(cache_key)
         if isinstance(cached, Some):
             self._value = cached
             return cached.unwrap()
-        
+
         # Compute and cache
         result = super().evaluate(key)
         ttl = timedelta(seconds=self.cache_config.get('ttl_seconds', 3600))
@@ -812,10 +812,10 @@ Consider this scenario:
 def complex_check(mp: MetricProvider, ctx: Context) -> None:
     # Symbol A depends on count
     error_rate = mp.count("errors") / mp.count("total")
-    
+
     # Symbol B depends on Symbol A (indirectly)
     ctx.assert_that(error_rate < 0.05)
-    
+
     # Symbol C might depend on both
     success_rate = 1 - error_rate
     ctx.assert_that(success_rate > 0.95)
@@ -840,7 +840,7 @@ Topological sort naturally detects circular dependencies:
 
 ```python
 # This would create a circular dependency
-@check 
+@check
 def circular_check(mp: MetricProvider, ctx: Context) -> None:
     # A depends on B, B depends on A (through some complex logic)
     # Topological sort would detect this and fail fast
@@ -883,10 +883,10 @@ class TopologicalEvaluator:
     def evaluate(self, root: RootNode, key: ResultKey) -> None:
         # Build dependency graph
         dep_graph = self._build_dependency_graph(root)
-        
+
         # Get topological order
         eval_order = self._topological_sort(dep_graph)
-        
+
         # Evaluate in guaranteed order
         for node in eval_order:
             if isinstance(node, MetricNode):
@@ -920,7 +920,7 @@ def smart_reevaluate(self, changed_node: BaseNode) -> None:
     # Only re-evaluate nodes that depend on changed_node
     affected_nodes = self._get_downstream_nodes(changed_node)
     sorted_affected = self._topological_sort(affected_nodes)
-    
+
     for node in sorted_affected:
         node.invalidate_cache()
         self._evaluate_node(node)
@@ -987,19 +987,19 @@ class Computation(Generic[T]):
     dependencies: list['Computation']
     compute: Callable[[dict[str, Any]], T]
     cache_key: str | None = None
-    
+
 class DependencyGraph:
     """Pure dependency graph without hierarchical constraints"""
     def __init__(self):
         self.nodes: dict[str, Computation] = {}
         self.edges: dict[str, set[str]] = {}  # node -> dependencies
         self._topological_order: list[str] | None = None
-    
+
     def add_computation(self, computation: Computation) -> None:
         self.nodes[computation.name] = computation
         self.edges[computation.name] = {dep.name for dep in computation.dependencies}
         self._topological_order = None  # Invalidate cache
-    
+
     def evaluate(self, context: EvaluationContext) -> dict[str, Any]:
         """Evaluate all computations in dependency order"""
         results = {}
@@ -1022,7 +1022,7 @@ class MetricComputation:
     metric_spec: MetricSpec
     dataset: str
     analyzer: Analyzer
-    
+
     def compute(self, datasource: SqlDataSource) -> Metric:
         return self.analyzer.analyze(datasource, self.metric_spec)
 
@@ -1032,7 +1032,7 @@ class SymbolComputation:
     symbol: sp.Symbol
     retrieval_fn: Callable[[dict[str, Metric]], float]
     required_metrics: list[str]
-    
+
     def compute(self, metrics: dict[str, Metric]) -> float:
         return self.retrieval_fn(metrics)
 
@@ -1042,7 +1042,7 @@ class AssertionComputation:
     expression: sp.Expr
     validator: Callable[[float], bool]
     severity: SeverityLevel
-    
+
     def compute(self, symbol_values: dict[sp.Symbol, float]) -> AssertionResult:
         value = self.expression.subs(symbol_values)
         passed = self.validator(float(value))
@@ -1052,13 +1052,13 @@ class AssertionComputation:
             severity=self.severity
         )
 
-@dataclass 
+@dataclass
 class CheckComputation:
     """Aggregates assertion results"""
     name: str
     aggregation_strategy: AggregationStrategy
     assertions: list[str]  # Names of assertion computations
-    
+
     def compute(self, assertion_results: dict[str, AssertionResult]) -> CheckResult:
         results = [assertion_results[name] for name in self.assertions]
         return self.aggregation_strategy.aggregate(results)
@@ -1069,39 +1069,39 @@ class CheckComputation:
 ```python
 class ExecutionEngine:
     """Manages computation execution with advanced features"""
-    
+
     def __init__(self, graph: DependencyGraph):
         self.graph = graph
         self.cache = ComputationCache()
         self.executor = ProcessPoolExecutor()  # True parallelism
-    
+
     def execute(self, datasources: dict[str, SqlDataSource]) -> ExecutionResult:
         # Phase 1: Build execution plan
         plan = self._build_execution_plan(datasources)
-        
+
         # Phase 2: Execute with maximum parallelism
         with self.executor:
             results = self._execute_parallel(plan)
-        
+
         # Phase 3: Aggregate results
         return self._aggregate_results(results)
-    
+
     def _build_execution_plan(self, datasources: dict[str, SqlDataSource]) -> ExecutionPlan:
         """Creates optimized execution plan with batching and caching"""
         levels = self._compute_dependency_levels()
-        
+
         plan = ExecutionPlan()
         for level in levels:
             # Group computations by type and dataset for batching
             batches = self._create_batches(level, datasources)
             plan.add_level(batches)
-        
+
         return plan
-    
+
     def _execute_parallel(self, plan: ExecutionPlan) -> dict[str, Any]:
         """Execute plan with intelligent parallelism"""
         results = {}
-        
+
         for level in plan.levels:
             # All batches in a level can run in parallel
             futures = []
@@ -1112,17 +1112,17 @@ class ExecutionEngine:
                     if cached:
                         results.update(cached)
                         continue
-                
+
                 # Submit for parallel execution
                 future = self.executor.submit(self._execute_batch, batch, results)
                 futures.append((batch, future))
-            
+
             # Collect results
             for batch, future in futures:
                 batch_results = future.result()
                 results.update(batch_results)
                 self.cache.store_batch(batch, batch_results)
-        
+
         return results
 ```
 
@@ -1133,7 +1133,7 @@ class ExecutionEngine:
 ```python
 class StreamingEngine(ExecutionEngine):
     """Processes data incrementally as it arrives"""
-    
+
     def execute_streaming(self, datasource_stream: AsyncIterator[DataChunk]) -> AsyncIterator[Result]:
         async for chunk in datasource_stream:
             # Update only affected computations
@@ -1147,23 +1147,23 @@ class StreamingEngine(ExecutionEngine):
 ```python
 class DistributedEngine(ExecutionEngine):
     """Distributes computation across multiple nodes"""
-    
+
     def __init__(self, graph: DependencyGraph, cluster: ClusterConfig):
         super().__init__(graph)
         self.cluster = cluster
         self.scheduler = TaskScheduler(cluster)
-    
+
     def execute(self, datasources: dict[str, SqlDataSource]) -> ExecutionResult:
         # Partition graph for distributed execution
         partitions = self._partition_graph()
-        
+
         # Schedule tasks across cluster
         tasks = []
         for partition in partitions:
             node = self.scheduler.select_node(partition)
             task = RemoteTask(partition, datasources)
             tasks.append(self.scheduler.submit(node, task))
-        
+
         # Gather results
         return self._gather_distributed_results(tasks)
 ```
@@ -1173,24 +1173,24 @@ class DistributedEngine(ExecutionEngine):
 ```python
 class AdaptiveEngine(ExecutionEngine):
     """Learns from execution patterns to optimize future runs"""
-    
+
     def __init__(self, graph: DependencyGraph):
         super().__init__(graph)
         self.profiler = ExecutionProfiler()
         self.optimizer = GraphOptimizer()
-    
+
     def execute(self, datasources: dict[str, SqlDataSource]) -> ExecutionResult:
         # Profile execution
         with self.profiler.profile() as profile:
             results = super().execute(datasources)
-        
+
         # Learn from this execution
         self.optimizer.update_statistics(profile)
-        
+
         # Optimize graph for next execution
         if self.optimizer.should_reoptimize():
             self.graph = self.optimizer.optimize(self.graph)
-        
+
         return results
 ```
 
@@ -1199,17 +1199,17 @@ class AdaptiveEngine(ExecutionEngine):
 ```python
 class DataQualitySpec:
     """Declarative specification of data quality checks"""
-    
+
     def __init__(self, name: str):
         self.name = name
         self.graph = DependencyGraph()
-    
+
     def metric(self, name: str, spec: MetricSpec, dataset: str) -> MetricRef:
         """Define a metric computation"""
         computation = MetricComputation(spec, dataset, spec.analyzer)
         self.graph.add_computation(Computation(name, [], computation.compute))
         return MetricRef(name)
-    
+
     def symbol(self, name: str, expression: Callable, *metrics: MetricRef) -> SymbolRef:
         """Define a symbol computation"""
         computation = SymbolComputation(
@@ -1221,11 +1221,11 @@ class DataQualitySpec:
             Computation(name, metrics, computation.compute)
         )
         return SymbolRef(name)
-    
+
     def assert_that(self, expression: sp.Expr) -> AssertionBuilder:
         """Create an assertion"""
         return AssertionBuilder(self, expression)
-    
+
     def check(self, name: str, *assertions: AssertionRef) -> CheckRef:
         """Group assertions into a check"""
         computation = CheckComputation(
@@ -1307,7 +1307,7 @@ class SymbolEntry:
 class SymbolTable:
     def __init__(self):
         self._symbols: dict[sp.Symbol, SymbolEntry] = {}
-    
+
     def register(self, symbol: sp.Symbol, entry: SymbolEntry) -> None: ...
     def get(self, symbol: sp.Symbol) -> SymbolEntry | None: ...
     def get_pending_metrics(self, dataset: str) -> list[MetricSpec]: ...
@@ -1371,7 +1371,7 @@ __Structure__:
 class AssertionNode:
     actual: sp.Expr
     required_symbols: set[sp.Symbol]  # Just references
-    
+
 class SymbolTable:
     # Full symbol management with metrics, analyzers, etc.
 ```

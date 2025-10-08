@@ -122,10 +122,10 @@ uv run pytest tests/ -v
    ```python
    """Unit tests for BaseNode and CompositeNode classes."""
    from __future__ import annotations
-   
+
    import pytest
    from typing import Any
-   
+
    from dqx.graph.base import BaseNode, CompositeNode, NodeVisitor
    ```
 
@@ -144,7 +144,7 @@ Since BaseNode has an abstract method `is_leaf()`, we need a concrete implementa
    ```python
    class TestNode(BaseNode):
        """Concrete implementation of BaseNode for testing."""
-       
+
        def is_leaf(self) -> bool:
            """Test implementation always returns True."""
            return True
@@ -154,7 +154,7 @@ Since BaseNode has an abstract method `is_leaf()`, we need a concrete implementa
    ```python
    class TestNonLeafNode(BaseNode):
        """Concrete implementation that claims not to be a leaf."""
-       
+
        def is_leaf(self) -> bool:
            return False
    ```
@@ -173,36 +173,36 @@ Write tests for BaseNode initialization:
 ```python
 class TestBaseNode:
     """Test suite for BaseNode functionality."""
-    
+
     def test_init_sets_parent_to_none(self) -> None:
         """Test that BaseNode initializes with parent set to None."""
         # Arrange & Act
         node = TestNode()
-        
+
         # Assert
         assert node.parent is None
-    
+
     def test_is_root_returns_true_when_parent_is_none(self) -> None:
         """Test that is_root returns True when node has no parent."""
         # Arrange
         node = TestNode()
-        
+
         # Act
         result = node.is_root
-        
+
         # Assert
         assert result is True
-    
+
     def test_is_root_returns_false_when_parent_exists(self) -> None:
         """Test that is_root returns False when node has a parent."""
         # Arrange
         child = TestNode()
         parent = TestNode()
         child.parent = parent
-        
+
         # Act
         result = child.is_root
-        
+
         # Assert
         assert result is False
 ```
@@ -218,14 +218,14 @@ Commit: `git commit -am "test: add BaseNode initialization and is_root tests"`
    ```python
    class TestVisitor:
        """Test visitor that records visited nodes."""
-       
+
        def __init__(self) -> None:
            self.visited_nodes: list[BaseNode] = []
-       
+
        def visit(self, node: BaseNode) -> None:
            """Record the visited node."""
            self.visited_nodes.append(node)
-       
+
        async def visit_async(self, node: BaseNode) -> None:
            """Record the visited node asynchronously."""
            self.visited_nodes.append(node)
@@ -238,10 +238,10 @@ Commit: `git commit -am "test: add BaseNode initialization and is_root tests"`
        # Arrange
        node = TestNode()
        visitor = TestVisitor()
-       
+
        # Act
        node.accept(visitor)
-       
+
        # Assert
        assert len(visitor.visited_nodes) == 1
        assert visitor.visited_nodes[0] is node
@@ -255,10 +255,10 @@ Commit: `git commit -am "test: add BaseNode initialization and is_root tests"`
        # Arrange
        node = TestNode()
        visitor = TestVisitor()
-       
+
        # Act
        await node.accept_async(visitor)
-       
+
        # Assert
        assert len(visitor.visited_nodes) == 1
        assert visitor.visited_nodes[0] is node
@@ -276,11 +276,11 @@ def test_is_leaf_must_be_implemented_by_subclasses(self) -> None:
     """Test that is_leaf raises NotImplementedError in base class."""
     # We can't test this directly on BaseNode since it's abstract,
     # but we can verify our test implementations work correctly
-    
+
     # Arrange
     leaf_node = TestNode()
     non_leaf_node = TestNonLeafNode()
-    
+
     # Act & Assert
     assert leaf_node.is_leaf() is True
     assert non_leaf_node.is_leaf() is False
@@ -302,11 +302,11 @@ Commit: `git commit -am "test: add is_leaf implementation tests"`
    ```python
    class TestChildNode(BaseNode):
        """A specific child node type for testing type constraints."""
-       
+
        def __init__(self, name: str) -> None:
            super().__init__()
            self.name = name
-       
+
        def is_leaf(self) -> bool:
            return True
    ```
@@ -319,35 +319,35 @@ Commit: `git commit -am "test: add CompositeNode test implementations"`
 ```python
 class TestCompositeNode:
     """Test suite for CompositeNode functionality."""
-    
+
     def test_init_creates_empty_children_list(self) -> None:
         """Test that CompositeNode initializes with empty children list."""
         # Arrange & Act
         node = TestCompositeNode()
-        
+
         # Assert
         assert isinstance(node.children, list)
         assert len(node.children) == 0
-    
+
     def test_init_calls_parent_init(self) -> None:
         """Test that CompositeNode properly initializes BaseNode attributes."""
         # Arrange & Act
         node = TestCompositeNode()
-        
+
         # Assert
         assert node.parent is None
         assert node.is_root is True
-    
+
     def test_children_list_is_instance_attribute(self) -> None:
         """Test that each instance has its own children list."""
         # Arrange
         node1 = TestCompositeNode()
         node2 = TestCompositeNode()
         child = TestNode()
-        
+
         # Act
         node1.children.append(child)
-        
+
         # Assert
         assert len(node1.children) == 1
         assert len(node2.children) == 0  # Should not be shared
@@ -365,14 +365,14 @@ def test_children_type_safety(self) -> None:
     """Test that children list maintains type safety."""
     # This is more of a documentation test since Python doesn't
     # enforce generics at runtime, but it's good to show intent
-    
+
     # Arrange
     node = TestCompositeNode()
     child = TestNode()
-    
+
     # Act
     node.children.append(child)
-    
+
     # Assert
     assert all(isinstance(child, TestNode) for child in node.children)
 
@@ -380,22 +380,22 @@ def test_is_leaf_returns_false(self) -> None:
     """Test that CompositeNode.is_leaf always returns False."""
     # Arrange
     node = TestCompositeNode()
-    
+
     # Act
     result = node.is_leaf()
-    
+
     # Assert
     assert result is False
-    
+
 def test_is_leaf_returns_false_even_with_no_children(self) -> None:
     """Test that is_leaf returns False regardless of children."""
     # Arrange
     node = TestCompositeNode()
     assert len(node.children) == 0  # Verify no children
-    
+
     # Act
     result = node.is_leaf()
-    
+
     # Assert
     assert result is False  # Still not a leaf conceptually
 ```
@@ -410,34 +410,34 @@ Test how BaseNode and CompositeNode work together:
 ```python
 class TestBaseNodeCompositeNodeIntegration:
     """Test integration between BaseNode and CompositeNode."""
-    
+
     def test_composite_node_with_visitor_pattern(self) -> None:
         """Test visitor pattern works with composite nodes."""
         # Arrange
         composite = TestCompositeNode()
         visitor = TestVisitor()
-        
+
         # Act
         composite.accept(visitor)
-        
+
         # Assert
         assert len(visitor.visited_nodes) == 1
         assert visitor.visited_nodes[0] is composite
-    
+
     def test_parent_child_relationship_with_composite(self) -> None:
         """Test setting parent on nodes in composite structure."""
         # Arrange
         parent = TestCompositeNode()
         child1 = TestNode()
         child2 = TestNode()
-        
+
         # Act
         parent.children.append(child1)
         parent.children.append(child2)
         # Manually set parent (in real code, add_child method would do this)
         child1.parent = parent
         child2.parent = parent
-        
+
         # Assert
         assert child1.parent is parent
         assert child2.parent is parent
@@ -454,44 +454,44 @@ Commit: `git commit -am "test: add BaseNode and CompositeNode integration tests"
 ```python
 class TestEdgeCases:
     """Test edge cases and error conditions."""
-    
+
     def test_node_can_change_parent(self) -> None:
         """Test that a node's parent can be changed."""
         # Arrange
         node = TestNode()
         parent1 = TestNode()
         parent2 = TestNode()
-        
+
         # Act & Assert
         node.parent = parent1
         assert node.parent is parent1
         assert node.is_root is False
-        
+
         node.parent = parent2
         assert node.parent is parent2
-        
+
         node.parent = None
         assert node.parent is None
         assert node.is_root is True
-    
+
     def test_visitor_with_none_handling(self) -> None:
         """Test visitor behavior with edge cases."""
         # Arrange
         node = TestNode()
-        
+
         class ErrorVisitor:
             def visit(self, node: BaseNode) -> None:
                 raise ValueError("Test error")
-            
+
             async def visit_async(self, node: BaseNode) -> None:
                 raise ValueError("Test async error")
-        
+
         visitor = ErrorVisitor()
-        
+
         # Act & Assert
         with pytest.raises(ValueError, match="Test error"):
             node.accept(visitor)
-        
+
         with pytest.raises(ValueError, match="Test async error"):
             import asyncio
             asyncio.run(node.accept_async(visitor))
@@ -544,7 +544,7 @@ from dqx.graph.base import BaseNode, CompositeNode, NodeVisitor
 # Test implementations
 class TestNode(BaseNode):
     """Concrete implementation of BaseNode for testing."""
-    
+
     def is_leaf(self) -> bool:
         """Test implementation always returns True."""
         return True
@@ -552,18 +552,18 @@ class TestNode(BaseNode):
 
 class TestNonLeafNode(BaseNode):
     """Concrete implementation that claims not to be a leaf."""
-    
+
     def is_leaf(self) -> bool:
         return False
 
 
 class TestChildNode(BaseNode):
     """A specific child node type for testing type constraints."""
-    
+
     def __init__(self, name: str) -> None:
         super().__init__()
         self.name = name
-    
+
     def is_leaf(self) -> bool:
         return True
 
@@ -575,14 +575,14 @@ class TestCompositeNode(CompositeNode[TestNode]):
 
 class TestVisitor:
     """Test visitor that records visited nodes."""
-    
+
     def __init__(self) -> None:
         self.visited_nodes: list[BaseNode] = []
-    
+
     def visit(self, node: BaseNode) -> None:
         """Record the visited node."""
         self.visited_nodes.append(node)
-    
+
     async def visit_async(self, node: BaseNode) -> None:
         """Record the visited node asynchronously."""
         self.visited_nodes.append(node)
@@ -676,7 +676,7 @@ Follow these commit guidelines:
    ```bash
    # Good
    git commit -m "test: add visitor pattern tests for BaseNode"
-   
+
    # Bad
    git commit -m "added tests"
    ```
@@ -691,13 +691,13 @@ Follow these commit guidelines:
    ```bash
    # Run all tests
    uv run pytest tests/graph/test_base.py -v
-   
+
    # Check coverage
    uv run pytest tests/graph/test_base.py --cov=dqx.graph.base --cov-report=term-missing
-   
+
    # Type checking
    uv run mypy tests/graph/test_base.py
-   
+
    # Linting
    uv run ruff check tests/graph/test_base.py
    ```

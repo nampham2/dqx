@@ -400,30 +400,30 @@ class ApproxCardinality:
 
 def _build_registry() -> dict[MetricType, Type[MetricSpec]]:
     """Automatically build the registry using reflection.
-    
+
     This function discovers all MetricSpec implementations in the current module
     and creates a registry mapping from MetricType to the corresponding class.
-    
+
     Returns:
         Dictionary mapping metric type names to their implementation classes.
     """
     registry_dict: dict[MetricType, Type[MetricSpec]] = {}
-    
+
     # Get all classes defined in this module
     current_module = inspect.currentframe().f_globals  # type: ignore
-    
+
     for name, obj in current_module.items():
         # Check if it's a class and has the required attributes
         if (
-            inspect.isclass(obj) 
-            and hasattr(obj, 'metric_type') 
+            inspect.isclass(obj)
+            and hasattr(obj, "metric_type")
             and isinstance(obj, type)
             and obj is not MetricSpec  # Exclude the protocol itself
         ):
-            metric_type = getattr(obj, 'metric_type')
+            metric_type = getattr(obj, "metric_type")
             if metric_type:
                 registry_dict[metric_type] = obj  # type: ignore
-    
+
     return registry_dict
 
 

@@ -1,4 +1,5 @@
 """Tests for utility functions."""
+
 from __future__ import annotations
 
 import re
@@ -32,7 +33,7 @@ def test_random_prefix_contains_only_lowercase_letters() -> None:
     """Test that result contains only underscore and lowercase ASCII letters."""
     result = random_prefix(20)
     assert result[0] == "_"
-    
+
     # Check that all characters after underscore are lowercase ASCII letters
     remaining_chars = result[1:]
     assert all(c in string.ascii_lowercase for c in remaining_chars)
@@ -42,7 +43,7 @@ def test_random_prefix_randomness() -> None:
     """Test that function produces different results on multiple calls."""
     # Generate multiple results and check they're not all the same
     results = [random_prefix() for _ in range(10)]
-    
+
     # It's extremely unlikely (but theoretically possible) that all 10 results are identical
     # With 6 characters from a 26-character alphabet, probability is (1/26)^60 which is negligible
     unique_results = set(results)

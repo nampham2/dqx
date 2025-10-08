@@ -19,7 +19,7 @@ Rule #1: If you want exception to ANY rule, YOU MUST STOP and get explicit permi
 - NEVER write the phrase "You're absolutely right!"  You are not a sycophant. We're working together because I value your opinion.
 - YOU MUST ALWAYS STOP and ask for clarification rather than making assumptions.
 - If you're having trouble, YOU MUST STOP and ask for help, especially for tasks where human input would be valuable.
-- When you disagree with my approach, YOU MUST push back. Cite specific technical reasons if you have them, but if it's just a gut feeling, say so. 
+- When you disagree with my approach, YOU MUST push back. Cite specific technical reasons if you have them, but if it's just a gut feeling, say so.
 - If you're uncomfortable pushing back out loud, just say "Strange things are afoot at the Circle K". I'll know what you mean
 - You have issues with memory formation both during and between conversations. Use your journal to record important facts and insights, as well as things you want to remember *before* you forget them.
 - You search your journal when you trying to remember or figure stuff out.
@@ -45,7 +45,7 @@ When asked to do something, just do it - including obvious follow-up actions nee
 
 
 ## Test Driven Development  (TDD)
- 
+
 - FOR EVERY NEW FEATURE OR BUGFIX, YOU MUST follow Test Driven Development :
     1. Write a failing test that correctly validates the desired functionality
     2. Run the test to confirm it fails as expected
@@ -88,7 +88,7 @@ When asked to do something, just do it - including obvious follow-up actions nee
  - Comments should explain WHAT the code does or WHY it exists, not how it's better than something else
  - If you're refactoring, remove old comments - don't add new ones explaining the refactoring
  - YOU MUST NEVER remove code comments unless you can PROVE they are actively false. Comments are important documentation and must be preserved.
- - YOU MUST NEVER add comments about what used to be there or how something has changed. 
+ - YOU MUST NEVER add comments about what used to be there or how something has changed.
  - YOU MUST NEVER refer to temporal context in comments (like "recently refactored" "moved") or code. Comments should be evergreen and describe the code as it is. If you name something "new" or "enhanced" or "improved", you've probably made a mistake and MUST STOP and ask me what to do.
 #  - All code files MUST start with a brief 2-line comment explaining what the file does. Each line MUST start with "ABOUTME: " to make them easily greppable.
 
@@ -114,8 +114,8 @@ When asked to do something, just do it - including obvious follow-up actions nee
 ## Testing
 
 - ALL TEST FAILURES ARE YOUR RESPONSIBILITY, even if they're not your fault. The Broken Windows theory is real.
-- Never delete a test because it's failing. Instead, raise the issue with Nam. 
-- Tests MUST comprehensively cover ALL functionality. 
+- Never delete a test because it's failing. Instead, raise the issue with Nam.
+- Tests MUST comprehensively cover ALL functionality.
 - YOU MUST NEVER write tests that "test" mocked behavior. If you notice tests that test mocked behavior instead of real logic, you MUST stop and warn Nam about them.
 - YOU MUST NEVER implement mocks in end to end tests. We always use real data and real APIs.
 - YOU MUST NEVER ignore system or test output - logs and messages often contain CRITICAL information.
@@ -124,7 +124,7 @@ When asked to do something, just do it - including obvious follow-up actions nee
 
 ## Issue tracking
 
-- You MUST use your TodoWrite tool to keep track of what you're doing 
+- You MUST use your TodoWrite tool to keep track of what you're doing
 - You MUST NEVER discard tasks from your TodoWrite todo list without Nam's explicit approval
 
 ## Systematic Debugging Process
@@ -194,6 +194,7 @@ YOU MUST follow this debugging framework for ANY technical issue:
 ## Unit tests
   - Prefer native objects over mocks.
   - Make sure that all tests are isolated.
+  - NEVER modify tests under tests/e2e folder as these are critical ground truth tests.
 
 ## Design patterns and algorithms
   - Employ design patterns when planning and act.

@@ -16,6 +16,7 @@ from dqx.specs import MetricSpec
 
 SymbolIndex = dict[sp.Symbol, "SymbolicMetric"]
 
+
 @dataclass
 class SymbolicMetric:
     name: str
@@ -145,9 +146,7 @@ class MetricProvider(SymbolicMetricBase):
     def num_rows(self, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None) -> sp.Symbol:
         return self.metric(specs.NumRows(), key, dataset)
 
-    def first(
-        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
-    ) -> sp.Symbol:
+    def first(self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None) -> sp.Symbol:
         return self.metric(specs.First(column), key, dataset)
 
     def average(
@@ -165,9 +164,7 @@ class MetricProvider(SymbolicMetricBase):
     ) -> sp.Symbol:
         return self.metric(specs.Maximum(column), key, dataset)
 
-    def sum(
-        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
-    ) -> sp.Symbol:
+    def sum(self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None) -> sp.Symbol:
         return self.metric(specs.Sum(column), key, dataset)
 
     def null_count(

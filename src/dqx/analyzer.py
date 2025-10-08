@@ -90,14 +90,14 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp]) -> None:
 
     # Constructing the query
     logger.info(f"Analyzing SqlOps: {distinct_ops}")
-    
+
     # Require datasource to have a dialect
-    if not hasattr(ds, 'dialect'):
+    if not hasattr(ds, "dialect"):
         raise DQXError(f"Data source {ds.name} must have a dialect to analyze SQL ops")
-    
+
     # Get the dialect instance from the registry
     dialect_instance = get_dialect(ds.dialect)
-    
+
     # Generate SQL expressions using the dialect
     expressions = [dialect_instance.translate_sql_op(op) for op in distinct_ops]
     sql = dialect_instance.build_cte_query(ds.cte, expressions)
@@ -180,9 +180,7 @@ class Analyzer:
 
         return self._report
 
-    def _analyze_batches(
-        self, ds: BatchSqlDataSource, metrics: Sequence[MetricSpec], key: ResultKey
-    ) -> AnalysisReport:
+    def _analyze_batches(self, ds: BatchSqlDataSource, metrics: Sequence[MetricSpec], key: ResultKey) -> AnalysisReport:
         batch_id: int = 0
         for batch_ds in ds.batches():
             logger.info(f"Analyzing batch #{batch_id} ...")

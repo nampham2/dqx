@@ -83,7 +83,7 @@ These issues should be fixed before the implementation is considered complete.
 
 ### Immediate Actions Required
 1. **Fix README.md**: Remove the "Fluent assertion chaining" line from the Roadmap
-2. **Fix test_api.py**: 
+2. **Fix test_api.py**:
    - Run `uv run mypy tests/test_api.py` and fix all type errors
    - Run `uv run black tests/test_api.py` to format the code properly
 3. **Run Full Test Suite**: Execute `uv run pytest tests/test_api.py -v` to ensure all tests pass

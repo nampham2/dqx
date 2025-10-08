@@ -161,7 +161,7 @@ def test_variance_bug_with_sum() -> None:
     variance_op = ops.Variance("test_col")
     sum_op = ops.Sum("test_col")
     sum_op_different = ops.Sum("different_col")
-    
+
     # Due to the bug, Variance will compare equality with Sum objects
     assert variance_op == sum_op  # Same column, so should be equal due to bug
     assert variance_op != sum_op_different  # Different column, so should be unequal
@@ -294,15 +294,15 @@ def test_approx_cardinality_string_repr() -> None:
 # Test clear functionality
 def test_clear_functionality() -> None:
     op = ops.NumRows()
-    
+
     # Initially should raise error
     with pytest.raises(DQXError):
         op.value()
-    
+
     # Assign a value
     op.assign(5.0)
     assert op.value() == 5.0
-    
+
     # Clear and test again
     op.clear()
     with pytest.raises(DQXError):
@@ -318,18 +318,18 @@ def test_clear_functionality_all_ops() -> None:
         ops.Variance("col"),
         ops.First("col"),
         ops.NullCount("col"),
-        ops.NegativeCount("col")
+        ops.NegativeCount("col"),
     ]
-    
+
     for op in ops_list:
         # Initially should raise error
         with pytest.raises(DQXError):
             op.value()
-        
+
         # Assign a value
         op.assign(10.0)
         assert op.value() == 10.0
-        
+
         # Clear and test again
         op.clear()
         with pytest.raises(DQXError):
@@ -341,11 +341,11 @@ def test_approx_cardinality_sketch_ops() -> None:
     op = ops.ApproxCardinality("test_col")
     assert isinstance(op, SketchOp)
     assert op.sketch_column == "test_col"
-    
+
     # Test create method
     sketch = op.create()
     assert isinstance(sketch, states.CardinalitySketch)
-    
+
     # Test with sketch state
     sketch_state = states.CardinalitySketch.identity()
     op.assign(sketch_state)
@@ -359,43 +359,43 @@ def test_equality_edge_cases() -> None:
     assert num_rows != "not an op"
     assert num_rows != 42
     assert num_rows != ops.Average("col")
-    
+
     # Test Average equality with non-Average
     average = ops.Average("col")
     assert average != "not an op"
     assert average != 42
     assert average != ops.NumRows()
-    
+
     # Test Minimum equality with non-Minimum
     minimum = ops.Minimum("col")
     assert minimum != "not an op"
     assert minimum != 42
-    
+
     # Test Maximum equality with non-Maximum
     maximum = ops.Maximum("col")
     assert maximum != "not an op"
     assert maximum != 42
-    
+
     # Test Sum equality with non-Sum
     sum_op = ops.Sum("col")
     assert sum_op != "not an op"
     assert sum_op != 42
-    
+
     # Test Variance equality with non-Sum (due to bug)
     variance = ops.Variance("col")
     assert variance != "not an op"
     assert variance != 42
-    
+
     # Test First equality with non-First
     first = ops.First("col")
     assert first != "not an op"
     assert first != 42
-    
+
     # Test NullCount equality with non-NullCount
     null_count = ops.NullCount("col")
     assert null_count != "not an op"
     assert null_count != 42
-    
+
     # Test NegativeCount equality with non-NegativeCount
     negative_count = ops.NegativeCount("col")
     assert negative_count != "not an op"

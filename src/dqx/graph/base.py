@@ -115,19 +115,19 @@ class CompositeNode(BaseNode, Generic[TChild]):
 
     def add_child(self, child: TChild) -> CompositeNode[TChild]:
         """Add a child node and set its parent reference.
-        
+
         Args:
             child: The child node to add
-            
+
         Returns:
             Self for method chaining
-            
+
         Raises:
             DQXError: If the child is already in the children list
         """
         if child in self.children:
             raise DQXError("Child node is already in the children list")
-        
+
         self.children.append(child)
         child.parent = self
         return self

@@ -127,23 +127,24 @@ def test_simple_additive_state() -> None:
     s = states.SimpleAdditiveState(value=1.0)
     assert isinstance(s, states.State)
     assert s.value == 1.0
-    
+
     # Test serialization/deserialization
     binary = s.serialize()
     deserialized = states.SimpleAdditiveState.deserialize(binary)
     assert s == deserialized
-    
+
     # Test identity
     identity = states.SimpleAdditiveState.identity()
     assert identity.value == 0.0
-    
+
     # Test merge
     s2 = states.SimpleAdditiveState(value=2.0)
     merged = s.merge(s2)
     assert merged.value == 3.0
-    
+
     # Test copy
     from copy import copy
+
     copied = copy(s)
     assert copied == s
     assert copied is not s
@@ -153,8 +154,8 @@ def test_average_constructor_errors() -> None:
     # Test negative count error
     with pytest.raises(states.DQXError, match="Count cannot be negative"):
         states.Average(avg=1.0, n=-1)
-    
-    # Test non-zero average with zero count error  
+
+    # Test non-zero average with zero count error
     with pytest.raises(states.DQXError, match="Cannot have non-zero average with zero count"):
         states.Average(avg=1.0, n=0)
 
@@ -165,12 +166,12 @@ def test_variance() -> None:
     assert v.value == pytest.approx(2.5)
     assert v.avg == pytest.approx(5.0)
     assert v.n == 10
-    
+
     # Test serialization/deserialization
     binary = v.serialize()
     deserialized = states.Variance.deserialize(binary)
     assert v == deserialized
-    
+
     # Test copy
     copied = copy(v)
     assert copied == v
@@ -193,11 +194,11 @@ def test_variance_constructor_error() -> None:
 def test_variance_merge() -> None:
     v1 = states.Variance(var=1.0, avg=2.0, n=5)
     v2 = states.Variance(var=2.0, avg=4.0, n=5)
-    
+
     merged = v1.merge(v2)
     assert merged.n == 10
     assert merged.avg == pytest.approx(3.0)  # (5*2 + 5*4)/10 = 3
-    
+
     # Test merge with identity
     identity = states.Variance.identity()
     assert v1.merge(identity) == v1
@@ -215,12 +216,12 @@ def test_first() -> None:
     f = states.First(value=42.0)
     assert f.value == pytest.approx(42.0)
     assert isinstance(f, states.State)
-    
+
     # Test serialization/deserialization
     binary = f.serialize()
     deserialized = states.First.deserialize(binary)
     assert f == deserialized
-    
+
     # Test copy
     copied = copy(f)
     assert copied == f
@@ -235,11 +236,11 @@ def test_first_identity() -> None:
 def test_first_merge() -> None:
     f1 = states.First(value=10.0)
     f2 = states.First(value=20.0)
-    
+
     # First should always return the first value (non-identity)
     merged = f1.merge(f2)
     assert merged.value == pytest.approx(10.0)
-    
+
     # Test merge with identity - identity should return the other value
     identity = states.First.identity()
     assert identity.merge(f1) == f1
@@ -250,12 +251,12 @@ def test_minimum() -> None:
     m = states.Minimum(value=5.5)
     assert m.value == pytest.approx(5.5)
     assert isinstance(m, states.State)
-    
+
     # Test serialization/deserialization
     binary = m.serialize()
     deserialized = states.Minimum.deserialize(binary)
     assert m == deserialized
-    
+
     # Test copy
     copied = copy(m)
     assert copied == m
@@ -270,13 +271,13 @@ def test_minimum_identity() -> None:
 def test_minimum_merge() -> None:
     m1 = states.Minimum(value=10.0)
     m2 = states.Minimum(value=5.0)
-    
+
     merged = m1.merge(m2)
     assert merged.value == pytest.approx(5.0)
-    
+
     merged = m2.merge(m1)
     assert merged.value == pytest.approx(5.0)
-    
+
     # Test merge with identity
     identity = states.Minimum.identity()
     assert m1.merge(identity) == m1
@@ -287,12 +288,12 @@ def test_maximum() -> None:
     m = states.Maximum(value=15.5)
     assert m.value == pytest.approx(15.5)
     assert isinstance(m, states.State)
-    
+
     # Test serialization/deserialization
     binary = m.serialize()
     deserialized = states.Maximum.deserialize(binary)
     assert m == deserialized
-    
+
     # Test copy
     copied = copy(m)
     assert copied == m
@@ -307,13 +308,13 @@ def test_maximum_identity() -> None:
 def test_maximum_merge() -> None:
     m1 = states.Maximum(value=10.0)
     m2 = states.Maximum(value=15.0)
-    
+
     merged = m1.merge(m2)
     assert merged.value == pytest.approx(15.0)
-    
+
     merged = m2.merge(m1)
     assert merged.value == pytest.approx(15.0)
-    
+
     # Test merge with identity
     identity = states.Maximum.identity()
     assert m1.merge(identity) == m1
@@ -322,18 +323,18 @@ def test_maximum_merge() -> None:
 
 def test_cardinality_sketch_fit() -> None:
     import pyarrow as pa
-    
+
     sketch = states.CardinalitySketch.identity()
-    
+
     # Create a simple record batch with some data
     data = pa.array(["a", "b", "c", "a", "b"])
     _batch = pa.record_batch([data], names=["col"])
-    
+
     # The fit method should iterate over the columns and update the sketch
     # Let's test by manually adding values to simulate what fit should do
     for i in range(len(data)):
         sketch._sketch.update(data[i].as_py())
-    
+
     # The estimate should be around 3 (unique values: a, b, c)
     # But sketch estimates can be approximate, so we use a tolerance
     assert sketch.value >= 2.0
@@ -344,7 +345,7 @@ def test_cardinality_sketch_copy() -> None:
     sketch = cpc_sketch()
     sketch.update("test")
     cs = states.CardinalitySketch(sketch)
-    
+
     copied = copy(cs)
     assert copied == cs
     assert copied is not cs
@@ -352,43 +353,43 @@ def test_cardinality_sketch_copy() -> None:
 
 def test_equality_with_different_types() -> None:
     """Test __eq__ methods return False for different types."""
-    
+
     # Test SimpleAdditiveState
     s = states.SimpleAdditiveState(value=1.0)
     assert s != "not a state"
     assert s != 42
     assert s is not None
-    
+
     # Test Average
     avg = states.Average(avg=1.0, n=10)
     assert avg != "not a state"
     assert avg != 42
     assert avg != s
-    
+
     # Test Variance
     var = states.Variance(var=2.5, avg=5.0, n=10)
     assert var != "not a state"
     assert var != 42
     assert var != avg
-    
+
     # Test First
     first = states.First(value=42.0)
     assert first != "not a state"
     assert first != 42
     assert first != avg
-    
+
     # Test Minimum
     min_state = states.Minimum(value=5.5)
-    assert min_state != "not a state" 
+    assert min_state != "not a state"
     assert min_state != 42
     assert min_state != avg
-    
+
     # Test Maximum
     max_state = states.Maximum(value=15.5)
     assert max_state != "not a state"
     assert max_state != 42
     assert max_state != avg
-    
+
     # Test CardinalitySketch
     sketch = states.CardinalitySketch.identity()
     assert sketch != "not a state"

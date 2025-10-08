@@ -1,0 +1,85 @@
+# .pre-commit-config.yaml
+# See https://pre-commit.com for more information
+
+# Don't run on files in these directories
+exclude: '^(\.git|\.mypy_cache|\.pytest_cache|\.ruff_cache|\.venv|dist|build|uv\.lock)/'
+
+# Run all hooks on all files by default
+fail_fast: false
+
+# Set minimum pre-commit version for consistency
+minimum_pre_commit_version: '3.5.0'
+
+repos:
+  # Pre-commit hooks for general file quality (fast checks first)
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      # Fast syntax checks
+      - id: check-ast
+        name: Check Python syntax
+      
+      # Security - no private keys
+      - id: detect-private-key
+      
+      # Check for merge conflicts
+      - id: check-merge-conflict
+      
+      # Debug statements
+      - id: debug-statements
+        name: Check for debug statements
+      
+      # File quality checks
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+      - id: fix-byte-order-marker
+      
+      # Content validation
+      - id: check-yaml
+        args: ['--allow-multiple-documents']
+      - id: check-toml
+      - id: check-json
+        # Note: This will fail on JSON with comments (like .vscode/settings.json)
+        exclude: '.vscode/.*\.json$'
+      
+      # Prevent large files (increased limit for lock files)
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+        exclude: 'uv\.lock$'
+      
+      # Python specific
+      - id: check-docstring-first
+
+  # Local hooks that use our project's virtual environment
+  - repo: local
+    hooks:
+      # Ruff - Format first (modifies files)
+      - id: ruff-format
+        name: ruff format
+        entry: uv run ruff format
+        language: system
+        types: [python]
+        require_serial: true
+
+      # Ruff - Then lint (may modify files)
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+        require_serial: true
+
+      # MyPy - Static type checker (doesn't modify files)
+      - id: mypy
+        name: mypy type check
+        entry: uv run mypy
+        language: system
+        types: [python]
+        require_serial: true
+        pass_filenames: false
+        args: [src, tests]
+        # Note: We use full project checking to ensure type consistency
+        # For faster commits, developers can use SKIP=mypy

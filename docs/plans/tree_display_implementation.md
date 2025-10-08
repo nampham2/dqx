@@ -8,7 +8,7 @@ This plan guides you through adding a tree visualization feature to the DQX data
 
 ### What is DQX?
 - A data quality framework that uses a graph structure to represent checks and assertions
-- The graph has three levels: RootNode → CheckNode → AssertionNode  
+- The graph has three levels: RootNode → CheckNode → AssertionNode
 - Each node has a `parent` attribute (except the root)
 - The `is_leaf()` method returns `True` for AssertionNode and `False` for CompositeNode subclasses
 

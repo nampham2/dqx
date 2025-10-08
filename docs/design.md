@@ -37,42 +37,42 @@ graph TB
         Check[Check Decorator]
         Builder[Suite Builder]
     end
-    
+
     subgraph "Orchestration Layer"
         Graph[Dependency Graph]
         Context[Execution Context]
         Suite[Verification Suite]
     end
-    
+
     subgraph "Computation Layer"
         Provider[Metric Provider]
         Analyzer[SQL Analyzer]
         Specs[Metric Specs]
     end
-    
+
     subgraph "Data Layer"
         DS[Data Sources]
         DB[Metric Database]
         States[Metric States]
     end
-    
+
     subgraph "Foundation Layer"
         Ops[SQL Operations]
         Sketches[Statistical Sketches]
     end
-    
+
     API --> Suite
     Check --> Context
     Builder --> Suite
-    
+
     Suite --> Graph
     Suite --> Provider
     Context --> Graph
-    
+
     Provider --> Specs
     Graph --> Analyzer
     Specs --> Ops
-    
+
     Analyzer --> DS
     Provider --> DB
     States --> DB
@@ -89,11 +89,11 @@ sequenceDiagram
     participant Analyzer
     participant DataSource
     participant MetricDB
-    
+
     User->>Suite: run(datasources, key)
     Suite->>Provider: Create checks
     Suite->>Graph: Build dependency graph
-    
+
     loop For each dataset
         Suite->>Graph: Get pending metrics
         Suite->>Analyzer: analyze(datasource, metrics)
@@ -102,7 +102,7 @@ sequenceDiagram
         Analyzer->>MetricDB: Persist metrics
         Analyzer-->>Suite: Analysis complete
     end
-    
+
     Suite->>Graph: Evaluate assertions
     Graph->>Provider: Retrieve metric values
     Provider->>MetricDB: Get stored metrics
@@ -126,7 +126,7 @@ graph TD
     Symbol["SymbolNode<br/>(Expression)"]
     Metric["MetricNode<br/>(Computation)"]
     Analyzer["AnalyzerNode<br/>(SQL Execution)"]
-    
+
     Root --> Check
     Check --> Assertion
     Check --> Symbol
@@ -154,7 +154,7 @@ graph TB
     Context[Context]
     Assert[SymbolicAssert]
     States[GraphStates]
-    
+
     Builder --> Suite
     Suite --> Context
     Context --> Assert
@@ -173,56 +173,56 @@ classDiagram
         +name() str
         +analyzers() Sequence[Op]
     }
-    
+
     class NumRows {
         +metric_type: "NumRows"
     }
-    
+
     class First {
         +column: str
         +metric_type: "First"
     }
-    
+
     class Average {
         +column: str
         +metric_type: "Average"
     }
-    
+
     class Variance {
         +column: str
         +metric_type: "Variance"
     }
-    
+
     class Minimum {
         +column: str
         +metric_type: "Minimum"
     }
-    
+
     class Maximum {
         +column: str
         +metric_type: "Maximum"
     }
-    
+
     class Sum {
         +column: str
         +metric_type: "Sum"
     }
-    
+
     class NullCount {
         +column: str
         +metric_type: "NullCount"
     }
-    
+
     class NegativeCount {
         +column: str
         +metric_type: "NegativeCount"
     }
-    
+
     class ApproxCardinality {
         +column: str
         +metric_type: "ApproxCardinality"
     }
-    
+
     MetricSpec <|.. NumRows
     MetricSpec <|.. First
     MetricSpec <|.. Average
@@ -266,7 +266,7 @@ classDiagram
         +metric_spec: MetricSpec | None (property)
         +ops: list[Op] (property)
     }
-    
+
     class SymbolTable {
         -_entries: dict[Symbol, SymbolEntry]
         -_by_dataset: dict[str, list[Symbol]]
@@ -279,7 +279,7 @@ classDiagram
         +get_pending(dataset?): list[SymbolEntry]
         +get_ready(dataset?): list[SymbolEntry]
     }
-    
+
     class SymbolicMetric {
         +name: str
         +symbol: Symbol
@@ -288,7 +288,7 @@ classDiagram
         +dependencies: list[tuple[MetricSpec, ResultKeyProvider]]
         +datasets: list[str]
     }
-    
+
     SymbolEntry --> SymbolicMetric
     SymbolTable --> SymbolEntry
 ```
@@ -340,18 +340,18 @@ graph TB
         Symbol[SymPy Symbol]
         Expr[Symbolic Expression]
     end
-    
+
     subgraph "Computation Layer"
         RF[RetrievalFn]
         Compute[Compute Module]
         DB[(MetricDB)]
     end
-    
+
     subgraph "Evaluation"
         Key[ResultKey]
         Value[Float Value]
     end
-    
+
     MP -->|creates| SM
     SM -->|contains| Symbol
     SM -->|references| RF
@@ -389,7 +389,7 @@ class SymbolicMetric:
 
 2. **Registration**: The symbol is registered with its metadata
    ```python
-   def metric(self, metric: MetricSpec, key: ResultKeyProvider = ResultKeyProvider(), 
+   def metric(self, metric: MetricSpec, key: ResultKeyProvider = ResultKeyProvider(),
              datasets: list[str] | None = None) -> sp.Symbol:
        self._register(
            sym := self._next_symbol(),
@@ -407,7 +407,7 @@ class SymbolicMetric:
    # Basic metric creation
    avg_price = mp.average("price")        # Returns sp.Symbol('x_1')
    total_items = mp.sum("quantity")       # Returns sp.Symbol('x_2')
-   
+
    # Complex expressions
    revenue = avg_price * total_items      # Returns x_1 * x_2
    ```
@@ -424,7 +424,7 @@ sequenceDiagram
     participant SymbolicMetric
     participant Compute
     participant MetricDB
-    
+
     User->>Context: assert_that(symbol)
     Context->>Provider: evaluate(symbol, key)
     Provider->>SymbolicMetric: get retrieval function
@@ -445,7 +445,7 @@ sequenceDiagram
 
 2. **Retrieval Function Execution**: The stored retrieval function is called
    ```python
-   def simple_metric(db: MetricDB, metric: MetricSpec, key_provider: ResultKeyProvider, 
+   def simple_metric(db: MetricDB, metric: MetricSpec, key_provider: ResultKeyProvider,
                     nominal_key: ResultKey) -> Result[float, str]:
        key = key_provider.create(nominal_key)
        value = db.get_metric_value(metric, key)
@@ -555,7 +555,7 @@ dod_change = mp.ext.day_over_day(specs.Sum("revenue"))
 
 # Statistical calculations over time windows
 revenue_stddev = mp.ext.stddev(
-    specs.Sum("revenue"), 
+    specs.Sum("revenue"),
     lag=30,  # Start 30 days ago
     n=30     # 30-day window
 )
@@ -639,7 +639,7 @@ Users need to understand:
    daily_revenue = mp.sum("revenue")
    daily_orders = mp.num_rows()
    revenue_per_order = daily_revenue / daily_orders
-   
+
    # Avoid: Inline complex expressions
    ctx.assert_that(mp.sum("revenue") / mp.num_rows()).is_gt(100)
    ```
@@ -798,7 +798,7 @@ DQX supports flexible dataset specification at multiple levels to enable both si
 Datasets can be specified at three levels in the validation hierarchy:
 
 1. **Check Level** - Using the `@check(datasets=["ds1", "ds2"])` decorator
-2. **Symbol/Metric Level** - Using `mp.average("column", datasets=["ds1"])` 
+2. **Symbol/Metric Level** - Using `mp.average("column", datasets=["ds1"])`
 3. **Assertion Level** - Implicitly inherited from parent check
 
 ### The Hybrid Approach
@@ -819,7 +819,7 @@ def validate_orders(mp: MetricProvider, ctx: Context) -> None:
     # No dataset specification needed
     avg_price = mp.average("price")
     total_orders = mp.num_rows()
-    
+
     ctx.assert_that(avg_price).is_gt(0)
     ctx.assert_that(total_orders).is_gt(1000)
 
@@ -844,7 +844,7 @@ def validate_production_data(mp: MetricProvider, ctx: Context) -> None:
     # All metrics in this check use "production" dataset
     avg_price = mp.average("price")
     null_count = mp.null_count("customer_id")
-    
+
     ctx.assert_that(avg_price).is_gt(0)
     ctx.assert_that(null_count).is_eq(0)
 
@@ -854,7 +854,7 @@ def compare_environments(mp: MetricProvider, ctx: Context) -> None:
     # Explicit dataset specification for each metric
     prod_revenue = mp.sum("revenue", datasets=["production"])
     staging_revenue = mp.sum("revenue", datasets=["staging"])
-    
+
     # Cross-dataset comparison
     revenue_diff = sp.Abs(prod_revenue - staging_revenue)
     ctx.assert_that(revenue_diff / prod_revenue).on(
@@ -877,7 +877,7 @@ graph TD
     Check[CheckNode<br/>datasets: list[str] or None]
     Symbol[SymbolicMetric<br/>datasets: list[str]]
     Assertion[AssertionNode<br/>datasets: list[str]]
-    
+
     Check -->|propagates| Symbol
     Check -->|propagates| Assertion
     Symbol -->|validates against| Check
@@ -896,16 +896,16 @@ The framework provides clear, actionable error messages:
 
 ```python
 # Error when dataset not specified with multiple datasets
-DQXError: "Metric 'average(price)' requires explicit dataset specification when multiple datasets are provided. 
-          Available datasets: ['production', 'staging']. 
+DQXError: "Metric 'average(price)' requires explicit dataset specification when multiple datasets are provided.
+          Available datasets: ['production', 'staging'].
           Specify using: mp.average('price', datasets=['production'])"
 
 # Error when invalid dataset specified
-DQXError: "Check 'validate_data' specifies dataset 'testing' which is not provided. 
+DQXError: "Check 'validate_data' specifies dataset 'testing' which is not provided.
           Available datasets: ['production', 'staging']"
 
 # Error when symbol dataset doesn't match check constraint
-DQXError: "Metric in check 'production_only' requests dataset 'staging', 
+DQXError: "Metric in check 'production_only' requests dataset 'staging',
           but check is constrained to datasets: ['production']"
 ```
 
@@ -931,7 +931,7 @@ def validate_migration(mp: MetricProvider, ctx: Context) -> None:
     for column in ["user_id", "amount", "timestamp"]:
         source_nulls = mp.null_count(column, datasets=["source"])
         target_nulls = mp.null_count(column, datasets=["target"])
-        
+
         ctx.assert_that(source_nulls).on(
             label=f"Source {column} nulls"
         ).is_eq(target_nulls)
@@ -950,7 +950,7 @@ def create_completeness_check(dataset_name: str, threshold: float = 0.95):
                 label=f"{column} completeness",
                 severity="P1"
             ).is_geq(threshold)
-    
+
     return check_completeness
 
 # Create checks for different datasets
@@ -967,7 +967,7 @@ def validate_all_sources(mp: MetricProvider, ctx: Context) -> None:
     # This check adapts to whatever datasets are provided
     # Note: Requires accessing context internals - use with caution
     available_datasets = list(ctx._datasources.keys())
-    
+
     for dataset in available_datasets:
         row_count = mp.num_rows(datasets=[dataset])
         ctx.assert_that(row_count).on(
@@ -998,7 +998,7 @@ grep -r "mp\." . | grep -E "(average|sum|null_count|num_rows)"
 def test_dataset_specifications():
     """Ensure all checks properly specify datasets."""
     suite = VerificationSuite(all_checks, db, "test")
-    
+
     # Test with multiple datasets should not raise errors
     try:
         suite.run({"ds1": ds1, "ds2": ds2}, key)
@@ -1044,7 +1044,7 @@ While the current hybrid approach balances simplicity and flexibility, future en
 
 The hybrid approach to dataset specification provides:
 - **Simplicity**: Single-dataset cases work without any dataset specification
-- **Flexibility**: Multi-dataset scenarios support both constrained and cross-dataset checks  
+- **Flexibility**: Multi-dataset scenarios support both constrained and cross-dataset checks
 - **Clarity**: Explicit specification requirements prevent ambiguity
 - **Compatibility**: Existing code continues to work for single-dataset cases
 - **Extensibility**: Clear patterns for future enhancements
@@ -1059,31 +1059,31 @@ graph TD
     Check1[Check 1<br/>Quality validation]
     Check2[Check 2<br/>Quality validation]
     CheckN[Check N<br/>...]
-    
+
     Assert1[Assertion 1<br/>Validation rule]
     Assert2[Assertion 2<br/>Validation rule]
     AssertM[Assertion M<br/>...]
-    
+
     Op1[SQL Op 1<br/>Metric computation]
     Op2[SQL Op 2<br/>Metric computation]
     OpK[SQL Op K<br/>...]
-    
+
     DS1[DataSource 1<br/>orders]
     DS2[DataSource 2<br/>customers]
     DSN[DataSource N<br/>...]
-    
+
     Suite -->|contains| Check1
     Suite -->|contains| Check2
     Suite -->|contains| CheckN
-    
+
     Check1 -->|has| Assert1
     Check1 -->|has| Assert2
     Check2 -->|has| AssertM
-    
+
     Assert1 -->|uses| Op1
     Assert1 -->|uses| Op2
     Assert2 -->|uses| OpK
-    
+
     Op1 -->|depends on| DS1
     Op2 -->|depends on| DS2
     OpK -->|depends on| DSN
@@ -1097,13 +1097,13 @@ def validate_orders(mp: MetricProvider, ctx: Context) -> None:
     """Define data quality checks using symbolic expressions."""
     # Simple assertions
     ctx.assert_that(mp.null_count("customer_id")).is_eq(0)
-    
+
     # Chained assertions
     ctx.assert_that(mp.average("price")).on(
         label="Price validation",
         severity="P0"
     ).is_gt(0).is_lt(1000)
-    
+
     # Complex expressions
     revenue = mp.sum("price") * mp.sum("quantity")
     ctx.assert_that(revenue).is_positive()
@@ -1156,15 +1156,15 @@ DQX supports four severity levels for data quality assertions, following a stand
 - **P0 (Critical)**: Business-critical failures requiring immediate attention
   - Examples: Missing primary keys, revenue calculation errors, data loss
   - Impact: Can halt data pipelines or cause significant business disruption
-  
+
 - **P1 (High)**: Important issues affecting data reliability
   - Examples: Data freshness violations, significant statistical anomalies
   - Impact: May affect downstream analytics or reporting accuracy
-  
+
 - **P2 (Medium)**: Quality issues with moderate impact
   - Examples: Data format inconsistencies, minor completeness issues
   - Impact: Could affect specific use cases or require data cleaning
-  
+
 - **P3 (Low)**: Minor issues or warnings
   - Examples: Deprecated field usage, optimization opportunities
   - Impact: Informational, may indicate technical debt
@@ -1181,20 +1181,20 @@ def validate_critical_fields(mp, ctx):
         label="Primary key completeness",
         severity="P0"
     ).is_eq(0)
-    
+
     # P1: Email format validation
     invalid_emails = mp.metric(specs.RegexNonMatchCount("email", r"^[^@]+@[^@]+\.[^@]+$"))
     ctx.assert_that(invalid_emails).on(
         label="Email format validation",
         severity="P1"
     ).is_leq(mp.num_rows() * 0.01)  # Max 1% invalid
-    
+
     # P2: Optional field completeness
     ctx.assert_that(mp.null_count("phone_number") / mp.num_rows()).on(
         label="Phone number completeness",
         severity="P2"
     ).is_leq(0.3)  # Max 30% missing
-    
+
     # P3: Performance warning
     ctx.assert_that(mp.average("response_time_ms")).on(
         label="Average response time",
@@ -1211,10 +1211,10 @@ graph BT
     A1[Assertion P0: Failed] --> C1[Check: Failed]
     A2[Assertion P1: Success] --> C1
     A3[Assertion P3: Failed] --> C1
-    
+
     A4[Assertion P2: Success] --> C2[Check: Success]
     A5[Assertion P3: Success] --> C2
-    
+
     C1 --> S[Suite: Contains Failures]
     C2 --> S
 ```
@@ -1243,13 +1243,13 @@ graph BT
        label="Daily revenue total",
        severity="P0"
    ).is_geq(expected_daily_min)
-   
+
    # P1: Affects key metrics
    ctx.assert_that(mp.approx_cardinality("user_id")).on(
        label="Active user count",
        severity="P1"
    ).is_geq(expected_users * 0.95)
-   
+
    # P2: Data quality metrics
    ctx.assert_that(mp.null_count("category") / mp.num_rows()).on(
        label="Category completeness",
@@ -1312,11 +1312,11 @@ def check_order_integrity(mp, ctx):
     """Ensure order data integrity."""
     # No null order IDs
     ctx.assert_that(mp.null_count("order_id")).is_eq(0)
-    
+
     # Valid order amounts
     ctx.assert_that(mp.minimum("total_amount")).is_geq(0)
     ctx.assert_that(mp.maximum("total_amount")).is_leq(100000)
-    
+
     # Reasonable order quantities
     avg_items = mp.average("item_count")
     ctx.assert_that(avg_items).on(
@@ -1332,7 +1332,7 @@ def check_customer_data(mp, ctx):
     ctx.assert_that(unique_customers / total_customers).on(
         label="Customer ID uniqueness"
     ).is_geq(0.99, tol=0.01)
-    
+
     # Email completeness
     email_nulls = mp.null_count("email")
     ctx.assert_that(email_nulls / total_customers).on(
@@ -1345,13 +1345,13 @@ def monitor_revenue_trends(mp, ctx):
     """Monitor revenue trends over time."""
     current_revenue = mp.sum("revenue")
     yesterday_revenue = mp.sum("revenue", key=ctx.key.lag(1))
-    
+
     # Day-over-day change
     dod_change = (current_revenue - yesterday_revenue) / yesterday_revenue
     ctx.assert_that(dod_change).on(
         label="Day-over-day revenue change"
     ).is_geq(-0.3).is_leq(0.5)  # -30% to +50% change allowed
-    
+
     # Minimum daily revenue threshold
     ctx.assert_that(current_revenue).on(
         label="Daily revenue threshold",
@@ -1399,15 +1399,15 @@ def validate_data_migration(mp, ctx):
     # Row count consistency
     source_count = mp.num_rows(datasets=["source"])
     target_count = mp.num_rows(datasets=["target"])
-    
+
     ctx.assert_that(target_count / source_count).on(
         label="Row count ratio"
     ).is_geq(0.99, tol=0.001).is_leq(1.01, tol=0.001)
-    
+
     # Revenue consistency
     source_revenue = mp.sum("revenue", datasets=["source"])
     target_revenue = mp.sum("revenue", datasets=["target"])
-    
+
     revenue_diff = sp.Abs(source_revenue - target_revenue)
     ctx.assert_that(revenue_diff).on(
         label="Revenue difference",
@@ -1434,12 +1434,12 @@ def validate_large_dataset(mp, ctx):
     ctx.assert_that(cardinality).on(
         label="Unique users"
     ).is_geq(1_000_000)
-    
+
     # Statistical validation
     avg_transaction = mp.average("amount")
     variance = mp.variance("amount")
     std_dev = sp.sqrt(variance)
-    
+
     # Check for outliers (values beyond 3 standard deviations)
     ctx.assert_that(mp.maximum("amount")).is_leq(avg_transaction + 3 * std_dev)
     ctx.assert_that(mp.minimum("amount")).is_geq(avg_transaction - 3 * std_dev)
@@ -1458,24 +1458,24 @@ from dqx.states import State
 class PercentileMetric:
     """Custom percentile metric implementation."""
     metric_type = "Percentile"
-    
+
     def __init__(self, column: str, percentile: float):
         self._column = column
         self._percentile = percentile
         self._analyzers = (PercentileOp(column, percentile),)
-    
+
     @property
     def name(self) -> str:
         return f"percentile({self._column}, {self._percentile})"
-    
+
     @property
     def parameters(self) -> dict:
         return {"column": self._column, "percentile": self._percentile}
-    
+
     @property
     def analyzers(self) -> Sequence[Op]:
         return self._analyzers
-    
+
     def state(self) -> State:
         return PercentileState(
             value=self._analyzers[0].value(),
@@ -1487,7 +1487,7 @@ class PercentileMetric:
 def check_response_times(mp, ctx):
     p95 = mp.metric(PercentileMetric("response_time", 0.95))
     p99 = mp.metric(PercentileMetric("response_time", 0.99))
-    
+
     ctx.assert_that(p95).is_leq(1000)  # 95th percentile < 1s
     ctx.assert_that(p99).is_leq(2000)  # 99th percentile < 2s
 ```
@@ -1523,12 +1523,12 @@ Implement the `SqlDataSource` protocol:
 class CustomDataSource:
     name = "custom_source"
     dialect = "duckdb"  # or your custom dialect
-    
+
     @property
     def cte(self) -> str:
         """SQL Common Table Expression."""
         return "SELECT * FROM custom_table"
-    
+
     def query(self, query: str) -> duckdb.DuckDBPyRelation:
         """Execute query against data source."""
         # Custom query execution logic
@@ -1542,11 +1542,11 @@ from dqx.dialect import Dialect
 
 class PostgreSQLDialect:
     name = "postgresql"
-    
+
     def translate_sql_op(self, op: SqlOp) -> str:
         """Translate operations to PostgreSQL syntax."""
         # Implement SQL translation
-        
+
     def build_cte_query(self, cte_sql: str, expressions: list[str]) -> str:
         """Build formatted CTE query."""
         from dqx.dialect import build_cte_query
@@ -1559,10 +1559,10 @@ Add new metric specifications:
 ```python
 class CustomMetric:
     metric_type = "Custom"
-    
+
     def __init__(self, **params):
         # Initialize metric
-    
+
     @property
     def analyzers(self) -> Sequence[Op]:
         # Return required operations
@@ -1589,12 +1589,12 @@ ctx.assert_that(metric).on(
   - Implement streaming data sources
   - Support incremental metric updates
   - Add windowed aggregations
-  
+
 - [ ] **Advanced Metrics**: Expand metric library
   - Entropy and information metrics
   - ML-based anomaly scores
   - Custom quantile sketches
-  
+
 - [ ] **Performance Optimizations**
   - GPU acceleration for large-scale computations
   - Distributed execution with Ray/Dask
@@ -1605,12 +1605,12 @@ ctx.assert_that(metric).on(
   - Real-time metric visualization
   - Alert configuration UI
   - Historical trend analysis
-  
+
 - [ ] **Data Catalog Integration**
   - Apache Hive metastore support
   - AWS Glue catalog integration
   - Databricks Unity Catalog support
-  
+
 - [ ] **Workflow Integration**
   - Apache Airflow operators
   - Prefect tasks
@@ -1621,12 +1621,12 @@ ctx.assert_that(metric).on(
   - Auto-learn normal data patterns
   - Predictive quality alerts
   - Root cause analysis
-  
+
 - [ ] **Complex Event Processing**
   - Multi-stream correlations
   - Temporal pattern matching
   - Causal inference
-  
+
 - [ ] **Data Lineage Tracking**
   - Automatic dependency discovery
   - Impact analysis
@@ -1637,12 +1637,12 @@ ctx.assert_that(metric).on(
   - Kubernetes operators
   - Helm charts
   - Auto-scaling policies
-  
+
 - [ ] **Multi-tenancy Support**
   - Resource isolation
   - Role-based access control
   - Audit logging
-  
+
 - [ ] **Cloud Provider Integration**
   - AWS native services
   - GCP BigQuery support

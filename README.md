@@ -52,17 +52,17 @@ from dqx.common import ResultKey
 def validate_orders(mp, ctx):
     # Check for null values
     ctx.assert_that(mp.null_count("customer_id")).is_eq(0)
-    
+
     # Validate price ranges with tolerance
     ctx.assert_that(mp.minimum("price")).is_geq(0.0, tol=0.01)
     ctx.assert_that(mp.average("price")).is_gt(10.0)
-    
+
     # Multiple assertions on the same metric
     ctx.assert_that(mp.average("quantity")).on(
         label="Quantity should be reasonable"
     ).is_gt(0)
     ctx.assert_that(mp.average("quantity")).is_leq(100)
-    
+
     # Check data volume
     ctx.assert_that(mp.num_rows()).is_geq(100)
 
@@ -134,7 +134,7 @@ yesterday_avg = mp.average("score", key=ctx.key.lag(1))
 def check_completeness(mp, ctx):
     """Ensure key columns have minimal null values."""
     total_rows = mp.num_rows()
-    
+
     for column in ["id", "name", "email"]:
         null_percentage = mp.null_count(column) / total_rows
         ctx.assert_that(null_percentage).on(
@@ -177,7 +177,7 @@ ctx.assert_that(ratio).on(
     label="Price/tax ratio lower bound"
 ).is_geq(0.95)
 ctx.assert_that(ratio).on(
-    label="Price/tax ratio upper bound" 
+    label="Price/tax ratio upper bound"
 ).is_leq(1.05)
 
 # Complex validation with multiple conditions
@@ -190,7 +190,7 @@ ctx.assert_that(revenue).on(
     label="Revenue upper limit"
 ).is_lt(1000000)
 ctx.assert_that(revenue).on(
-    label="Revenue lower limit"  
+    label="Revenue lower limit"
 ).is_geq(10000)
 
 # Each assertion is evaluated independently, providing:
@@ -240,12 +240,12 @@ import duckdb
 class CustomDataSource:
     name = "custom_source"
     dialect = "duckdb"  # SQL dialect to use
-    
+
     @property
     def cte(self) -> str:
         """SQL fragment for WITH clause."""
         return "SELECT * FROM my_custom_table WHERE date = '2024-01-01'"
-        
+
     def query(self, query: str) -> duckdb.DuckDBPyRelation:
         """Execute query against this data source."""
         conn = duckdb.connect()
@@ -264,7 +264,7 @@ def monitor_trends(mp, ctx):
     current = mp.average("revenue")
     yesterday = mp.average("revenue", key=ctx.key.lag(1))
     last_week = mp.average("revenue", key=ctx.key.lag(7))
-    
+
     # Day-over-day check
     dod_ratio = current / yesterday
     ctx.assert_that(dod_ratio).on(
@@ -273,7 +273,7 @@ def monitor_trends(mp, ctx):
     ctx.assert_that(dod_ratio).on(
         label="Daily revenue change upper bound"
     ).is_leq(1.1)  # No more than 10% increase
-    
+
     # Week-over-week trend
     ctx.assert_that(current / last_week).on(
         label="Weekly revenue trend"
@@ -288,7 +288,7 @@ def cross_validate(mp, ctx):
     # Compare metrics across different datasets
     prod_count = mp.num_rows(datasets=["production"])
     staging_count = mp.num_rows(datasets=["staging"])
-    
+
     # Ensure data consistency
     ratio = prod_count / staging_count
     ctx.assert_that(ratio).on(
@@ -587,14 +587,107 @@ uv run ruff format src/ tests/
 uv run ruff check src/ tests/ && uv run ruff format src/ tests/ && uv run mypy src/
 ```
 
+### Pre-commit Hooks
+
+This project uses pre-commit hooks to maintain code quality. Hooks run automatically before each commit.
+
+#### Quick Setup
+
+```bash
+# Run the setup script (recommended)
+./bin/setup-dev-env.sh
+
+# Or manually install hooks
+uv run pre-commit install
+```
+
+#### What Gets Checked
+
+- **Code formatting**: Ruff automatically formats Python code
+- **Linting**: Ruff checks for code quality issues
+- **Type checking**: MyPy validates type annotations
+- **Debug detection**: Catches forgotten print/breakpoint statements
+- **File quality**: Trailing whitespace, file endings, large files
+- **Security**: Detects accidentally committed private keys
+- **Syntax validation**: Python, YAML, TOML, JSON files
+
+#### Manual Usage
+
+```bash
+# Run on all files
+./bin/run-hooks.sh --all
+
+# Run on specific files
+./bin/run-hooks.sh src/dqx/api.py tests/test_api.py
+
+# Run only formatting hooks (fast)
+./bin/run-hooks.sh --fix
+
+# Skip slow hooks like mypy
+./bin/run-hooks.sh --fast
+
+# Skip hooks temporarily (not recommended)
+git commit --no-verify -m "emergency fix"
+```
+
+#### Fixing Issues
+
+If pre-commit blocks your commit:
+
+1. **Read the error message** - it tells you exactly what's wrong
+2. **Let hooks auto-fix** - many issues are fixed automatically
+3. **Review changes** - check what was fixed with `git diff`
+4. **Re-stage files** - `git add` the fixed files
+5. **Commit again** - your commit should now succeed
+
+Example:
+```bash
+$ git commit -m "feat: add new feature"
+ruff.....................................................................Failed
+- hook id: ruff-check
+- exit code: 1
+  Fixed 1 error:
+  - src/dqx/new_feature.py:
+    1 × I001 (unsorted-imports)
+
+# Ruff fixed the import order. Check and re-commit:
+$ git add src/dqx/new_feature.py
+$ git commit -m "feat: add new feature"
+```
+
+#### VS Code Integration
+
+VS Code will automatically use the same formatting rules if you have the Ruff extension installed:
+
+1. Install the Ruff extension (ID: `charliermarsh.ruff`)
+2. Your code will be formatted on save
+3. Linting errors will appear inline
+
+#### Performance Tips
+
+- For faster commits during development:
+  ```bash
+  SKIP=mypy git commit -m "wip: quick save"  # Skip type checking
+  ./bin/run-hooks.sh --fast                   # Run without mypy
+  ```
+
+- Pre-commit caches results, so subsequent runs on unchanged files are instant
+
+#### CI/CD Integration
+
+Pre-commit runs automatically in CI on pull requests. To run the same checks locally:
+```bash
+./bin/run-hooks.sh --all
+```
+
 ### Development Setup
 
 ```bash
 # Install development dependencies
 uv sync --all-extras
 
-# Install pre-commit hooks (optional)
-pre-commit install
+# Install pre-commit hooks (recommended)
+./bin/setup-dev-env.sh
 ```
 
 ### Commit Standards
@@ -734,10 +827,10 @@ logger.debug("Metric value: %.4f", compute_expensive_metric())
    ```python
    # Logging in the analyzer
    logger.debug("Executing %d operations for dataset '%s'", len(ops), dataset_name)
-   
+
    # Logging metric computations
    logger.debug("Computing metric %s with spec %r", metric_name, metric_spec)
-   
+
    # Logging graph traversal
    if logger.isEnabledFor(logging.DEBUG):
        logger.debug("Graph structure:\n%s", graph.pretty_print())
@@ -774,7 +867,7 @@ logger.debug("Metric value: %.4f", compute_expensive_metric())
 - ✅ **Enhanced observer pattern:** AssertionNodes directly observe symbol state changes
 - ✅ **Better error propagation:** Dataset validation errors now occur at the assertion level
 - ✅ **Cleaner architecture:** Removed symbol management complexity from CheckNode
-- ✅ **Simplified CheckNode state management:** 
+- ✅ **Simplified CheckNode state management:**
   - Removed `update_status` method in favor of pure `aggregate_children_status` function
   - Changed `CheckNode._value` type from `Maybe[Result[float, str]]` to `Maybe[str]`
   - CheckNode state is now derived purely from child assertion results

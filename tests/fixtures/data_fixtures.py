@@ -20,6 +20,7 @@ def commerce_data_c1() -> pa.Table:
         names=["name", "address", "item", "quantity", "delivered", "price", "tax"],
     )
 
+
 @pytest.fixture(scope="session")
 def commerce_data_c2() -> pa.Table:
     Faker.seed(2100)

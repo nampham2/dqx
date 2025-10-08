@@ -128,10 +128,7 @@ class AssertBuilder:
 
         # Create assertion node with all fields
         node = self._context.create_assertion(
-            actual=self._actual,
-            label=self._label,
-            severity=self._severity,
-            validator=validator
+            actual=self._actual, label=self._label, severity=self._severity, validator=validator
         )
 
         # Attach to the current check node

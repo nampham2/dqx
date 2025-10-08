@@ -57,14 +57,14 @@ dqx/
 ```python
 class TestCompositeNodeAddChild:
     """Test suite for CompositeNode.add_child method."""
-    
+
     def test_add_child_adds_to_children_list(self) -> None:
         """Test that add_child adds the child to children list."""
         parent = MockCompositeNode()
         child = MockNode()
-        
+
         result = parent.add_child(child)
-        
+
         assert len(parent.children) == 1
         assert parent.children[0] is child
         assert result is parent  # Method should return self
@@ -97,19 +97,19 @@ from dqx.common import DQXError
 ```python
     def add_child(self, child: TChild) -> CompositeNode[TChild]:
         """Add a child node and set its parent reference.
-        
+
         Args:
             child: The child node to add
-            
+
         Returns:
             Self for method chaining
-            
+
         Raises:
             DQXError: If the child is already in the children list
         """
         if child in self.children:
             raise DQXError("Child node is already in the children list")
-        
+
         self.children.append(child)
         child.parent = self
         return self
@@ -140,9 +140,9 @@ git commit -m "feat: implement add_child method in CompositeNode"
         """Test that add_child sets the child's parent reference."""
         parent = MockCompositeNode()
         child = MockNode()
-        
+
         parent.add_child(child)
-        
+
         assert child.parent is parent
         assert child.is_root is False
 ```
@@ -170,13 +170,13 @@ git commit -m "test: add test for parent reference in add_child"
     def test_add_child_raises_error_on_duplicate(self) -> None:
         """Test that add_child raises DQXError when adding duplicate child."""
         from dqx.common import DQXError
-        
+
         parent = MockCompositeNode()
         child = MockNode()
-        
+
         # Add child first time - should work
         parent.add_child(child)
-        
+
         # Try to add same child again - should raise error
         with pytest.raises(DQXError, match="Child node is already in the children list"):
             parent.add_child(child)
@@ -205,12 +205,12 @@ git commit -m "test: add test for duplicate child prevention"
         parent1 = MockCompositeNode()
         parent2 = MockCompositeNode()
         child = MockNode()
-        
+
         # Add to first parent
         parent1.add_child(child)
         assert child.parent is parent1
         assert child in parent1.children
-        
+
         # Move to second parent
         parent2.add_child(child)
         assert child.parent is parent2
@@ -241,10 +241,10 @@ git commit -m "test: add test for child re-parenting behavior"
         parent = MockCompositeNode()
         child1 = MockNode()
         child2 = MockNode()
-        
+
         # Chain multiple add_child calls
         result = parent.add_child(child1).add_child(child2)
-        
+
         assert result is parent
         assert len(parent.children) == 2
         assert child1.parent is parent
