@@ -3,7 +3,7 @@
 ## Overview
 This enhanced guide provides a comprehensive, step-by-step approach to implement pre-commit hooks in the DQX project with performance optimizations, additional quality checks, and developer experience improvements.
 
-**Time estimate**: 2-3 hours for full implementation  
+**Time estimate**: 2-3 hours for full implementation
 **Improvements**: Performance optimizations, CI/CD integration, VS Code setup, enhanced scripts
 
 ## Background
@@ -41,7 +41,7 @@ Pre-commit hooks are scripts that run automatically before each git commit. They
    cd /path/to/dqx
    uv --version  # Should show a version number
    python --version  # Should show Python 3.11.x or 3.12.x
-   
+
    # Verify Python version is compatible
    python -c "import sys; assert sys.version_info >= (3, 11), 'Python 3.11+ required'"
    ```
@@ -136,17 +136,17 @@ repos:
       # Fast syntax checks
       - id: check-ast
         name: Check Python syntax
-      
+
       # Security - no private keys
       - id: detect-private-key
-      
+
       # Check for merge conflicts
       - id: check-merge-conflict
-      
+
       # Debug statements
       - id: debug-statements
         name: Check for debug statements
-      
+
       # File quality checks
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -154,7 +154,7 @@ repos:
       - id: mixed-line-ending
         args: ['--fix=lf']
       - id: fix-byte-order-marker
-      
+
       # Content validation
       - id: check-yaml
         args: ['--allow-multiple-documents']
@@ -162,12 +162,12 @@ repos:
       - id: check-json
         # Note: This will fail on JSON with comments (like .vscode/settings.json)
         exclude: '.vscode/.*\.json$'
-      
+
       # Prevent large files (increased limit for lock files)
       - id: check-added-large-files
         args: ['--maxkb=1000']
         exclude: 'uv\.lock$'
-      
+
       # Python specific
       - id: check-docstring-first
 
@@ -248,11 +248,11 @@ Create test scenarios:
    def bad_function( x,y ):
        return x+y
    EOF
-   
+
    # Try to stage and commit (should fail)
    git add test_lint.py
    git commit -m "test: bad lint" || echo "Good! Commit was blocked"
-   
+
    # Clean up
    git reset test_lint.py
    rm test_lint.py
@@ -264,14 +264,14 @@ Create test scenarios:
    cat > test_types.py << 'EOF'
    def add_numbers(a: int, b: int) -> int:
        return a + b
-   
+
    result: str = add_numbers(1, 2)  # Type error!
    EOF
-   
+
    # This should also fail
    git add test_types.py
    git commit -m "test: bad types" || echo "Good! Commit was blocked"
-   
+
    # Clean up
    git reset test_types.py
    rm test_types.py
@@ -287,11 +287,11 @@ Create test scenarios:
        breakpoint()  # Debug breakpoint
        return result
    EOF
-   
+
    # This should fail
    git add test_debug.py
    git commit -m "test: debug statements" || echo "Good! Commit was blocked"
-   
+
    # Clean up
    git reset test_debug.py
    rm test_debug.py
@@ -606,17 +606,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Full history for better hook performance
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-      
+
       - name: Cache dependencies
         uses: actions/cache@v3
         with:
@@ -626,10 +626,10 @@ jobs:
           key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml', 'uv.lock') }}
           restore-keys: |
             ${{ runner.os }}-uv-
-      
+
       - name: Install dependencies
         run: uv sync
-      
+
       - name: Cache pre-commit hooks
         uses: actions/cache@v3
         with:
@@ -637,7 +637,7 @@ jobs:
           key: ${{ runner.os }}-pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pre-commit-
-      
+
       - name: Run pre-commit
         run: uv run pre-commit run --all-files --show-diff-on-failure
 EOF
@@ -680,7 +680,7 @@ uv run pre-commit install
 #### What Gets Checked
 
 - **Code formatting**: Ruff automatically formats Python code
-- **Linting**: Ruff checks for code quality issues  
+- **Linting**: Ruff checks for code quality issues
 - **Type checking**: MyPy validates type annotations
 - **Debug detection**: Catches forgotten print/breakpoint statements
 - **File quality**: Trailing whitespace, file endings, large files
@@ -815,10 +815,10 @@ export PYTHONPATH="${PYTHONPATH}:${PWD}/src"
   ```bash
   # Skip slow hooks
   ./bin/run-hooks.sh --fast
-  
+
   # Skip specific hook
   SKIP=mypy git commit -m "wip: testing"
-  
+
   # Run only formatting
   ./bin/run-hooks.sh --fix
   ```
@@ -1004,7 +1004,7 @@ git commit -m "docs: add comprehensive pre-commit troubleshooting guide"
    ```bash
    # Uninstall hooks
    uv run pre-commit uninstall
-   
+
    # Run setup script
    ./bin/setup-dev-env.sh
    ```
@@ -1013,11 +1013,11 @@ git commit -m "docs: add comprehensive pre-commit troubleshooting guide"
    ```bash
    # Make a small change
    echo "# Test comment" >> src/dqx/__init__.py
-   
+
    # Commit should work
    git add src/dqx/__init__.py
    git commit -m "test: verify pre-commit hooks work"
-   
+
    # Revert the test
    git reset --soft HEAD~1
    git checkout src/dqx/__init__.py
@@ -1036,7 +1036,7 @@ git commit -m "docs: add comprehensive pre-commit troubleshooting guide"
 
 ## Summary
 
-You've successfully created an enhanced pre-commit implementation plan for DQX! 
+You've successfully created an enhanced pre-commit implementation plan for DQX!
 
 ### Key Improvements Over Original:
 1. ✅ **Performance optimizations**: Better hook ordering, mypy configuration

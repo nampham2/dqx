@@ -12,17 +12,17 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Full history for better hook performance
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      
+
       - name: Install uv
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$HOME/.local/bin" >> $GITHUB_PATH
-      
+
       - name: Cache dependencies
         uses: actions/cache@v3
         with:
@@ -32,10 +32,10 @@ jobs:
           key: ${{ runner.os }}-uv-${{ hashFiles('pyproject.toml', 'uv.lock') }}
           restore-keys: |
             ${{ runner.os }}-uv-
-      
+
       - name: Install dependencies
         run: uv sync
-      
+
       - name: Cache pre-commit hooks
         uses: actions/cache@v3
         with:
@@ -43,6 +43,6 @@ jobs:
           key: ${{ runner.os }}-pre-commit-${{ hashFiles('.pre-commit-config.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pre-commit-
-      
+
       - name: Run pre-commit
         run: uv run pre-commit run --all-files --show-diff-on-failure

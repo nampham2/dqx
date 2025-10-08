@@ -4,8 +4,8 @@
 
 The tests in `tests/test_provider.py` are failing because they were written for an older version of the `SymbolicMetric` dataclass and `_register` method. The tests need to be updated to match the current implementation without modifying the source code.
 
-**Total Estimated Time**: 2-3 hours  
-**Risk Level**: Low (only test modifications)  
+**Total Estimated Time**: 2-3 hours
+**Risk Level**: Low (only test modifications)
 **Dependencies**: None
 
 ## Background Context
@@ -55,7 +55,7 @@ The `provider.py` module is part of the DQX (Data Quality eXcellence) framework.
        dependencies=dependencies,
        datasets=["dataset1", "dataset2"],
    )
-   
+
    # NEW CODE (CORRECT):
    metric = SymbolicMetric(
        name="test_metric",
@@ -74,13 +74,13 @@ The `provider.py` module is part of the DQX (Data Quality eXcellence) framework.
        name="test_metric", symbol=symbol, fn=fn, key_provider=key_provider, dependencies=dependencies
    )
    assert metric.datasets == []
-   
+
    # NEW CODE (CORRECT):
    metric = SymbolicMetric(
-       name="test_metric", 
-       symbol=symbol, 
-       fn=fn, 
-       key_provider=key_provider, 
+       name="test_metric",
+       symbol=symbol,
+       fn=fn,
+       key_provider=key_provider,
        metric_spec=Mock(spec=specs.MetricSpec)
    )
    assert metric.dataset is None  # Default is None, not []
@@ -105,7 +105,7 @@ git commit -m "fix: update TestSymbolicMetric tests to match current implementat
 - Tests call `_register` with 6 parameters in wrong order
 - Actual method expects different parameters
 
-**Current test signature**: `_register(symbol, name, fn, key_provider, dependencies, datasets)`  
+**Current test signature**: `_register(symbol, name, fn, key_provider, dependencies, datasets)`
 **Actual signature**: `_register(symbol, name, fn, key, metric_spec, dataset)`
 
 **Step-by-step fix**:
@@ -114,7 +114,7 @@ git commit -m "fix: update TestSymbolicMetric tests to match current implementat
    ```python
    # OLD CODE (WRONG):
    base._register(symbol, "test_metric", fn, key_provider, dependencies, datasets)
-   
+
    # NEW CODE (CORRECT):
    base._register(
        symbol=symbol,
@@ -131,7 +131,7 @@ git commit -m "fix: update TestSymbolicMetric tests to match current implementat
    # Remove these lines:
    assert registered_metric.dependencies == dependencies
    assert registered_metric.datasets == datasets
-   
+
    # Add these lines:
    assert registered_metric.metric_spec is not None
    assert registered_metric.dataset == "dataset1"
@@ -169,7 +169,7 @@ git commit -m "fix: update _register method calls to match implementation"
    # OLD CODE (WRONG):
    datasets = ["dataset1"]
    symbol = provider.metric(mock_metric_spec, mock_key_provider, datasets)
-   
+
    # NEW CODE (CORRECT):
    dataset = "dataset1"  # singular
    symbol = provider.metric(mock_metric_spec, mock_key_provider, dataset)
@@ -180,7 +180,7 @@ git commit -m "fix: update _register method calls to match implementation"
    # OLD CODE (WRONG):
    assert registered_metric.datasets == datasets
    assert registered_metric.dependencies[0] == (mock_metric_spec, mock_key_provider)
-   
+
    # NEW CODE (CORRECT):
    assert registered_metric.dataset == dataset
    assert registered_metric.metric_spec == mock_metric_spec
@@ -190,7 +190,7 @@ git commit -m "fix: update _register method calls to match implementation"
    ```python
    # OLD CODE (WRONG):
    assert registered_metric.datasets == []
-   
+
    # NEW CODE (CORRECT):
    assert registered_metric.dataset is None
    ```
@@ -223,7 +223,7 @@ git commit -m "fix: update MetricProvider tests for dataset/datasets mismatch"
    symbol = ext_provider.day_over_day(mock_metric, mock_key_provider, datasets)
    assert registered_metric.datasets == datasets
    assert registered_metric.dependencies[0] == (mock_metric, mock_key_provider)
-   
+
    # NEW CODE (CORRECT):
    dataset = "dataset1"
    symbol = ext_provider.day_over_day(mock_metric, mock_key_provider, dataset)
@@ -235,7 +235,7 @@ git commit -m "fix: update MetricProvider tests for dataset/datasets mismatch"
    ```python
    # OLD CODE (WRONG):
    assert registered_metric.datasets == []
-   
+
    # NEW CODE (CORRECT):
    assert registered_metric.dataset is None
    ```
@@ -283,7 +283,7 @@ git commit -m "fix: remove test for non-existent Dependency type alias"
    ```bash
    uv run pytest tests/test_provider.py -v
    ```
-   
+
    **Expected**: All 33 tests should pass
 
 2. **Check code quality**:
@@ -362,11 +362,11 @@ git commit -m "fix: [description]"
 
 ## Questions You Might Have
 
-**Q: Why are we not changing the source code?**  
+**Q: Why are we not changing the source code?**
 A: The source code is the source of truth. The tests were written for an older version and need to be updated.
 
-**Q: What if I find a bug in the source code?**  
+**Q: What if I find a bug in the source code?**
 A: Note it down, but don't fix it in this task. Create a separate issue for source code bugs.
 
-**Q: Can I refactor the tests to be cleaner?**  
+**Q: Can I refactor the tests to be cleaner?**
 A: Keep changes minimal. The goal is to make tests pass, not to refactor. You can propose refactoring in a separate task.

@@ -177,11 +177,11 @@ Create test scenarios:
    def bad_function( x,y ):
        return x+y
    EOF
-   
+
    # Try to stage and commit (should fail)
    git add test_lint.py
    git commit -m "test: bad lint" || echo "Good! Commit was blocked"
-   
+
    # Clean up
    git reset test_lint.py
    rm test_lint.py
@@ -193,14 +193,14 @@ Create test scenarios:
    cat > test_types.py << 'EOF'
    def add_numbers(a: int, b: int) -> int:
        return a + b
-   
+
    result: str = add_numbers(1, 2)  # Type error!
    EOF
-   
+
    # This should also fail
    git add test_types.py
    git commit -m "test: bad types" || echo "Good! Commit was blocked"
-   
+
    # Clean up
    git reset test_types.py
    rm test_types.py
@@ -245,38 +245,38 @@ repos:
     hooks:
       # Remove trailing whitespace
       - id: trailing-whitespace
-      
+
       # Ensure files end with newline
       - id: end-of-file-fixer
-      
+
       # Check for merge conflicts
       - id: check-merge-conflict
-      
+
       # Validate YAML files
       - id: check-yaml
-      
+
       # Validate TOML files
       - id: check-toml
-      
+
       # Check JSON files
       - id: check-json
-      
+
       # Prevent large files
       - id: check-added-large-files
         args: ['--maxkb=500']
-      
+
       # Check Python syntax
       - id: check-ast
-      
+
       # Security - no private keys
       - id: detect-private-key
-      
+
       # Fix byte order markers
       - id: fix-byte-order-marker
-      
+
       # Check case conflicts
       - id: check-case-conflict
-      
+
       # Fix line endings
       - id: mixed-line-ending
         args: ['--fix=lf']
@@ -615,7 +615,7 @@ uv run mypy src tests
   ```bash
   # Run only ruff on specific file
   uv run ruff check src/dqx/api.py
-  
+
   # Skip mypy temporarily while iterating
   SKIP=mypy git commit -m "wip: testing"
   ```
@@ -693,7 +693,7 @@ git commit -m "docs: add pre-commit troubleshooting guide"
    ```bash
    # Uninstall hooks
    uv run pre-commit uninstall
-   
+
    # Run setup script
    ./bin/setup-dev-env.sh
    ```
@@ -702,11 +702,11 @@ git commit -m "docs: add pre-commit troubleshooting guide"
    ```bash
    # Make a small change
    echo "# Test comment" >> src/dqx/__init__.py
-   
+
    # Commit should work
    git add src/dqx/__init__.py
    git commit -m "test: verify pre-commit hooks work"
-   
+
    # Revert the test
    git reset --soft HEAD~1
    git checkout src/dqx/__init__.py
@@ -719,7 +719,7 @@ git commit -m "docs: add pre-commit troubleshooting guide"
 
 ## Summary
 
-You've successfully implemented pre-commit hooks for DQX! 
+You've successfully implemented pre-commit hooks for DQX!
 
 ### What was implemented:
 1. ✅ Pre-commit package added to dependencies
