@@ -8,7 +8,7 @@ exclude: '^(\.git|\.mypy_cache|\.pytest_cache|\.ruff_cache|\.venv|dist|build|uv\
 fail_fast: false
 
 # Set minimum pre-commit version for consistency
-minimum_pre_commit_version: '3.5.0'
+minimum_pre_commit_version: '4.3.0'
 
 repos:
   # Pre-commit hooks for general file quality (fast checks first)

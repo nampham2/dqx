@@ -136,7 +136,7 @@ requires-dist = [
 dev = [
     { name = "faker", specifier = ">=37.5.3" },
     { name = "mypy", specifier = ">=1.17.1" },
-    { name = "pre-commit", specifier = ">=3.5.0" },
+    { name = "pre-commit", specifier = ">=4.3.0" },
     { name = "pytest", specifier = ">=8.4.1" },
     { name = "pytest-asyncio", specifier = ">=0.21.0" },
     { name = "pytest-cov", specifier = ">=6.2.1" },
