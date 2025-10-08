@@ -24,36 +24,36 @@ class TestSymbolicMetric:
         symbol = sp.Symbol("x_1")
         key_provider = Mock(spec=ResultKeyProvider)
         fn = Mock()
-        dependencies: list[tuple[specs.MetricSpec, ResultKeyProvider]] = [(Mock(spec=specs.MetricSpec), key_provider)]
+        metric_spec = Mock(spec=specs.MetricSpec)
 
         metric = SymbolicMetric(
             name="test_metric",
             symbol=symbol,
             fn=fn,
             key_provider=key_provider,
-            dependencies=dependencies,
-            datasets=["dataset1", "dataset2"],
+            metric_spec=metric_spec,
+            dataset="dataset1",
         )
 
         assert metric.name == "test_metric"
         assert metric.symbol == symbol
         assert metric.fn == fn
         assert metric.key_provider == key_provider
-        assert metric.dependencies == dependencies
-        assert metric.datasets == ["dataset1", "dataset2"]
+        assert metric.metric_spec == metric_spec
+        assert metric.dataset == "dataset1"
 
     def test_symbolic_metric_default_datasets(self) -> None:
-        """Test that datasets defaults to empty list."""
+        """Test that dataset defaults to None."""
         symbol = sp.Symbol("x_1")
         key_provider = Mock(spec=ResultKeyProvider)
         fn = Mock()
-        dependencies: list[tuple[specs.MetricSpec, ResultKeyProvider]] = []
+        metric_spec = Mock(spec=specs.MetricSpec)
 
         metric = SymbolicMetric(
-            name="test_metric", symbol=symbol, fn=fn, key_provider=key_provider, dependencies=dependencies
+            name="test_metric", symbol=symbol, fn=fn, key_provider=key_provider, metric_spec=metric_spec
         )
 
-        assert metric.datasets == []
+        assert metric.dataset is None
 
 
 class TestSymbolicMetricBase:
@@ -82,8 +82,8 @@ class TestSymbolicMetricBase:
         symbol2 = sp.Symbol("x_2")
 
         # Register some symbols
-        base._register(symbol1, "metric1", Mock(), Mock(), [], [])
-        base._register(symbol2, "metric2", Mock(), Mock(), [], [])
+        base._register(symbol1, "metric1", Mock(), Mock(spec=ResultKeyProvider), Mock(spec=specs.MetricSpec), None)
+        base._register(symbol2, "metric2", Mock(), Mock(spec=ResultKeyProvider), Mock(spec=specs.MetricSpec), None)
 
         symbols = list(base.symbols())
         assert len(symbols) == 2
@@ -94,16 +94,17 @@ class TestSymbolicMetricBase:
         """Test get_symbol() method with existing symbol."""
         symbol = sp.Symbol("x_1")
         fn = Mock()
-        key_provider = Mock()
+        key_provider = Mock(spec=ResultKeyProvider)
+        metric_spec = Mock(spec=specs.MetricSpec)
 
-        base._register(symbol, "test_metric", fn, key_provider, [], ["dataset1"])
+        base._register(symbol, "test_metric", fn, key_provider, metric_spec, "dataset1")
 
         result = base.get_symbol(symbol)
         assert result.name == "test_metric"
         assert result.symbol == symbol
         assert result.fn == fn
         assert result.key_provider == key_provider
-        assert result.datasets == ["dataset1"]
+        assert result.dataset == "dataset1"
 
     def test_get_symbol_not_found(self, base: SymbolicMetricBase) -> None:
         """Test get_symbol() method with non-existent symbol."""
@@ -153,13 +154,10 @@ class TestSymbolicMetricBase:
         """Test _register() method."""
         symbol = sp.Symbol("x_1")
         fn = Mock()
-        key_provider = Mock()
-        dependencies: list[tuple[specs.MetricSpec, ResultKeyProvider]] = [
-            (Mock(spec=specs.MetricSpec), Mock(spec=ResultKeyProvider))
-        ]
-        datasets = ["dataset1"]
+        key_provider = Mock(spec=ResultKeyProvider)
+        metric_spec = Mock(spec=specs.MetricSpec)
 
-        base._register(symbol, "test_metric", fn, key_provider, dependencies, datasets)
+        base._register(symbol, "test_metric", fn, key_provider, metric_spec, "dataset1")
 
         assert len(base._metrics) == 1
         assert symbol in base._symbol_index
@@ -169,8 +167,8 @@ class TestSymbolicMetricBase:
         assert registered_metric.symbol == symbol
         assert registered_metric.fn == fn
         assert registered_metric.key_provider == key_provider
-        assert registered_metric.dependencies == dependencies
-        assert registered_metric.datasets == datasets
+        assert registered_metric.metric_spec == metric_spec
+        assert registered_metric.dataset == "dataset1"
 
     def test_evaluate_success(self, base: SymbolicMetricBase) -> None:
         """Test evaluate() method with successful result."""
@@ -178,7 +176,7 @@ class TestSymbolicMetricBase:
         mock_fn = Mock(return_value=Success(42.5))
         mock_key = Mock(spec=ResultKey)
 
-        base._register(symbol, "test_metric", mock_fn, Mock(), [], [])
+        base._register(symbol, "test_metric", mock_fn, Mock(spec=ResultKeyProvider), Mock(spec=specs.MetricSpec), None)
 
         result = base.evaluate(symbol, mock_key)
 
@@ -191,7 +189,7 @@ class TestSymbolicMetricBase:
         mock_fn = Mock(return_value=Failure("Error message"))
         mock_key = Mock(spec=ResultKey)
 
-        base._register(symbol, "test_metric", mock_fn, Mock(), [], [])
+        base._register(symbol, "test_metric", mock_fn, Mock(spec=ResultKeyProvider), Mock(spec=specs.MetricSpec), None)
 
         result = base.evaluate(symbol, mock_key)
 
@@ -232,9 +230,9 @@ class TestMetricProvider:
         mock_metric_spec = Mock(spec=specs.MetricSpec)
         mock_metric_spec.name = "test_metric"
         mock_key_provider = Mock(spec=ResultKeyProvider)
-        datasets = ["dataset1"]
+        dataset = "dataset1"
 
-        symbol = provider.metric(mock_metric_spec, mock_key_provider, datasets)
+        symbol = provider.metric(mock_metric_spec, mock_key_provider, dataset)
 
         assert isinstance(symbol, sp.Symbol)
         assert symbol.name == "x_1"
@@ -243,9 +241,8 @@ class TestMetricProvider:
         registered_metric = provider.get_symbol(symbol)
         assert registered_metric.name == "test_metric"
         assert registered_metric.key_provider == mock_key_provider
-        assert registered_metric.datasets == datasets
-        assert len(registered_metric.dependencies) == 1
-        assert registered_metric.dependencies[0] == (mock_metric_spec, mock_key_provider)
+        assert registered_metric.dataset == dataset
+        assert registered_metric.metric_spec == mock_metric_spec
 
     def test_metric_with_defaults(self, provider: MetricProvider) -> None:
         """Test metric() method with default parameters."""
@@ -256,7 +253,7 @@ class TestMetricProvider:
 
         registered_metric = provider.get_symbol(symbol)
         assert isinstance(registered_metric.key_provider, ResultKeyProvider)
-        assert registered_metric.datasets == []
+        assert registered_metric.dataset is None
 
     @patch("dqx.provider.specs.NumRows")
     def test_num_rows(self, mock_num_rows: Mock, provider: MetricProvider) -> None:
@@ -264,15 +261,15 @@ class TestMetricProvider:
         mock_spec = Mock()
         mock_num_rows.return_value = mock_spec
         mock_key_provider = Mock()
-        datasets = ["dataset1"]
+        dataset = "dataset1"
 
         with patch.object(provider, "metric") as mock_metric:
             mock_metric.return_value = sp.Symbol("x_1")
 
-            result = provider.num_rows(mock_key_provider, datasets)
+            result = provider.num_rows(mock_key_provider, dataset)
 
             mock_num_rows.assert_called_once()
-            mock_metric.assert_called_once_with(mock_spec, mock_key_provider, datasets)
+            mock_metric.assert_called_once_with(mock_spec, mock_key_provider, dataset)
             assert result == sp.Symbol("x_1")
 
     @patch("dqx.provider.specs.First")
@@ -435,9 +432,9 @@ class TestExtendedMetricProvider:
         mock_metric = Mock(spec=specs.MetricSpec)
         mock_metric.name = "test_metric"
         mock_key_provider = Mock(spec=ResultKeyProvider)
-        datasets = ["dataset1"]
+        dataset = "dataset1"
 
-        symbol = ext_provider.day_over_day(mock_metric, mock_key_provider, datasets)
+        symbol = ext_provider.day_over_day(mock_metric, mock_key_provider, dataset)
 
         assert isinstance(symbol, sp.Symbol)
         assert symbol.name == "x_1"
@@ -446,9 +443,8 @@ class TestExtendedMetricProvider:
         registered_metric = ext_provider._provider.get_symbol(symbol)
         assert registered_metric.name == "day_over_day(test_metric)"
         assert registered_metric.key_provider == mock_key_provider
-        assert registered_metric.datasets == datasets
-        assert len(registered_metric.dependencies) == 1
-        assert registered_metric.dependencies[0] == (mock_metric, mock_key_provider)
+        assert registered_metric.dataset == dataset
+        assert registered_metric.metric_spec == mock_metric
 
     def test_day_over_day_defaults(self, ext_provider: ExtendedMetricProvider) -> None:
         """Test day_over_day() method with default parameters."""
@@ -459,7 +455,7 @@ class TestExtendedMetricProvider:
 
         registered_metric = ext_provider._provider.get_symbol(symbol)
         assert isinstance(registered_metric.key_provider, ResultKeyProvider)
-        assert registered_metric.datasets == []
+        assert registered_metric.dataset is None
 
     @patch("dqx.provider.compute.stddev")
     def test_stddev(self, mock_stddev: Mock, ext_provider: ExtendedMetricProvider) -> None:
@@ -467,11 +463,11 @@ class TestExtendedMetricProvider:
         mock_metric = Mock(spec=specs.MetricSpec)
         mock_metric.name = "test_metric"
         mock_key_provider = Mock(spec=ResultKeyProvider)
-        datasets = ["dataset1"]
+        dataset = "dataset1"
         lag = 5
         n = 10
 
-        symbol = ext_provider.stddev(mock_metric, lag, n, mock_key_provider, datasets)
+        symbol = ext_provider.stddev(mock_metric, lag, n, mock_key_provider, dataset)
 
         assert isinstance(symbol, sp.Symbol)
         assert symbol.name == "x_1"
@@ -480,9 +476,8 @@ class TestExtendedMetricProvider:
         registered_metric = ext_provider._provider.get_symbol(symbol)
         assert registered_metric.name == "stddev(test_metric)"
         assert registered_metric.key_provider == mock_key_provider
-        assert registered_metric.datasets == datasets
-        assert len(registered_metric.dependencies) == 1
-        assert registered_metric.dependencies[0] == (mock_metric, mock_key_provider)
+        assert registered_metric.dataset == dataset
+        assert registered_metric.metric_spec == mock_metric
 
     def test_stddev_defaults(self, ext_provider: ExtendedMetricProvider) -> None:
         """Test stddev() method with default parameters."""
@@ -493,21 +488,11 @@ class TestExtendedMetricProvider:
 
         registered_metric = ext_provider._provider.get_symbol(symbol)
         assert isinstance(registered_metric.key_provider, ResultKeyProvider)
-        assert registered_metric.datasets == []
+        assert registered_metric.dataset is None
 
 
 class TestTypeAliases:
     """Test type aliases and imports."""
-
-    def test_dependency_type(self) -> None:
-        """Test Dependency type alias."""
-        metric_spec = Mock(spec=specs.MetricSpec)
-        key_provider = Mock(spec=ResultKeyProvider)
-
-        dependency: Dependency = (metric_spec, key_provider)
-
-        assert dependency[0] == metric_spec
-        assert dependency[1] == key_provider
 
     def test_symbol_index_type(self) -> None:
         """Test SymbolIndex type alias."""

@@ -18,17 +18,17 @@ repos:
       # Fast syntax checks
       - id: check-ast
         name: Check Python syntax
-      
+
       # Security - no private keys
       - id: detect-private-key
-      
+
       # Check for merge conflicts
       - id: check-merge-conflict
-      
+
       # Debug statements
       - id: debug-statements
         name: Check for debug statements
-      
+
       # File quality checks
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -36,7 +36,7 @@ repos:
       - id: mixed-line-ending
         args: ['--fix=lf']
       - id: fix-byte-order-marker
-      
+
       # Content validation
       - id: check-yaml
         args: ['--allow-multiple-documents']
@@ -44,12 +44,12 @@ repos:
       - id: check-json
         # Note: This will fail on JSON with comments (like .vscode/settings.json)
         exclude: '.vscode/.*\.json$'
-      
+
       # Prevent large files (increased limit for lock files)
       - id: check-added-large-files
         args: ['--maxkb=1000']
         exclude: 'uv\.lock$'
-      
+
       # Python specific
       - id: check-docstring-first
 
