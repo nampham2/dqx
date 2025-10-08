@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from functools import partial
 from threading import Lock
 
@@ -14,10 +14,7 @@ from dqx.common import DQXError, ResultKey, ResultKeyProvider, RetrievalFn
 from dqx.orm.repositories import MetricDB
 from dqx.specs import MetricSpec
 
-# Metric retrieval function
-Dependency = tuple[MetricSpec, ResultKeyProvider]
 SymbolIndex = dict[sp.Symbol, "SymbolicMetric"]
-
 
 @dataclass
 class SymbolicMetric:
@@ -25,23 +22,27 @@ class SymbolicMetric:
     symbol: sp.Symbol
     fn: RetrievalFn
     key_provider: ResultKeyProvider
-    dependencies: list[Dependency]
-    datasets: list[str] = field(default_factory=list)
+    metric_spec: MetricSpec
+    dataset: str | None = None
 
 
 class SymbolicMetricBase(ABC):
     def __init__(self) -> None:
-        self._symbols: list[SymbolicMetric] = []
+        self._metrics: list[SymbolicMetric] = []
         self._symbol_index: SymbolIndex = {}
         self._curr_index: int = 0
         self._mutex = Lock()
+
+    @property
+    def symbolic_metrics(self) -> list[SymbolicMetric]:
+        return self._metrics
 
     def symbols(self) -> Iterable[sp.Symbol]:
         return self._symbol_index.keys()
 
     def get_symbol(self, symbol: sp.Symbol) -> SymbolicMetric:
         """Find the first symbol data that matches the given symbol."""
-        first_or_none = next(filter(lambda s: s.symbol == symbol, self._symbols), None)
+        first_or_none = next(filter(lambda s: s.symbol == symbol, self._metrics), None)
         if not first_or_none:
             raise DQXError(f"Symbol {symbol} not found.")
 
@@ -66,17 +67,10 @@ class SymbolicMetricBase(ABC):
         name: str,
         fn: RetrievalFn,
         key: ResultKeyProvider,
-        dependencies: list[Dependency],
-        datasets: list[str],
+        metric_spec: MetricSpec,
+        dataset: str | None = None,
     ) -> None:
-        """Register the map between a symbol and a metric
-
-        Args:
-            symbol (sp.Symbol): symbol
-            metric (Metric): metric
-        """
-
-        self._symbols.append(sm := SymbolicMetric(name, symbol, fn, key, dependencies, datasets))
+        self._metrics.append(sm := SymbolicMetric(name, symbol, fn, key, metric_spec, dataset))
         self._symbol_index[symbol] = sm
 
     def evaluate(self, symbol: sp.Symbol, key: ResultKey) -> Result[float, str]:
@@ -95,15 +89,15 @@ class ExtendedMetricProvider:
         self._register = self._provider._register
 
     def day_over_day(
-        self, metric: MetricSpec, key: ResultKeyProvider = ResultKeyProvider(), datasets: list[str] | None = None
+        self, metric: MetricSpec, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
         self._provider._register(
             sym := self._next_symbol(),
             name=f"day_over_day({metric.name})",
             fn=partial(compute.day_over_day, self._db, metric, key),
             key=key,
-            dependencies=[(metric, key)],
-            datasets=datasets or [],
+            metric_spec=metric,
+            dataset=dataset,
         )
         return sym
 
@@ -113,15 +107,15 @@ class ExtendedMetricProvider:
         lag: int,
         n: int,
         key: ResultKeyProvider = ResultKeyProvider(),
-        datasets: list[str] | None = None,
+        dataset: str | None = None,
     ) -> sp.Symbol:
         self._provider._register(
             sym := self._next_symbol(),
             name=f"stddev({metric.name})",
             fn=partial(compute.stddev, self._db, metric, lag, n, key),
             key=key,
-            dependencies=[(metric, key)],
-            datasets=datasets or [],
+            metric_spec=metric,
+            dataset=dataset,
         )
         return sym
 
@@ -136,57 +130,57 @@ class MetricProvider(SymbolicMetricBase):
         return ExtendedMetricProvider(self)
 
     def metric(
-        self, metric: MetricSpec, key: ResultKeyProvider = ResultKeyProvider(), datasets: list[str] | None = None
+        self, metric: MetricSpec, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
         self._register(
             sym := self._next_symbol(),
             name=metric.name,
             fn=partial(compute.simple_metric, self._db, metric, key),
             key=key,
-            dependencies=[(metric, key)],
-            datasets=datasets or [],
+            metric_spec=metric,
+            dataset=dataset,
         )
         return sym
 
-    def num_rows(self, key: ResultKeyProvider = ResultKeyProvider(), datasets: list[str] | None = None) -> sp.Symbol:
-        return self.metric(specs.NumRows(), key, datasets)
+    def num_rows(self, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None) -> sp.Symbol:
+        return self.metric(specs.NumRows(), key, dataset)
 
     def first(
-        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), datasets: list[str] | None = None
+        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
-        return self.metric(specs.First(column), key, datasets)
+        return self.metric(specs.First(column), key, dataset)
 
     def average(
-        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), datasets: list[str] | None = None
+        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
-        return self.metric(specs.Average(column), key, datasets)
+        return self.metric(specs.Average(column), key, dataset)
 
     def minimum(
-        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), datasets: list[str] | None = None
+        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
-        return self.metric(specs.Minimum(column), key, datasets)
+        return self.metric(specs.Minimum(column), key, dataset)
 
     def maximum(
-        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), datasets: list[str] | None = None
+        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
-        return self.metric(specs.Maximum(column), key, datasets)
+        return self.metric(specs.Maximum(column), key, dataset)
 
     def sum(
-        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), datasets: list[str] | None = None
+        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
-        return self.metric(specs.Sum(column), key, datasets)
+        return self.metric(specs.Sum(column), key, dataset)
 
     def null_count(
-        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), datasets: list[str] | None = None
+        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
-        return self.metric(specs.NullCount(column), key, datasets)
+        return self.metric(specs.NullCount(column), key, dataset)
 
     def variance(
-        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), datasets: list[str] | None = None
+        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
-        return self.metric(specs.Variance(column), key, datasets)
+        return self.metric(specs.Variance(column), key, dataset)
 
     def approx_cardinality(
-        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), datasets: list[str] | None = None
+        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
-        return self.metric(specs.ApproxCardinality(column), key, datasets)
+        return self.metric(specs.ApproxCardinality(column), key, dataset)

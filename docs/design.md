@@ -7,12 +7,13 @@
 4. [Symbolic Metrics](#symbolic-metrics)
 5. [Design Patterns](#design-patterns)
 6. [Design Decisions](#design-decisions)
-7. [API Design](#api-design)
-8. [Severity Levels in Checks and Assertions](#severity-levels-in-checks-and-assertions)
-9. [Code Usage and Examples](#code-usage-and-examples)
-10. [Performance Considerations](#performance-considerations)
-11. [Extension Points](#extension-points)
-12. [Future Improvements and Roadmap](#future-improvements-and-roadmap)
+7. [Dataset Specification and Validation](#dataset-specification-and-validation)
+8. [API Design](#api-design)
+9. [Severity Levels in Checks and Assertions](#severity-levels-in-checks-and-assertions)
+10. [Code Usage and Examples](#code-usage-and-examples)
+11. [Performance Considerations](#performance-considerations)
+12. [Extension Points](#extension-points)
+13. [Future Improvements and Roadmap](#future-improvements-and-roadmap)
 
 ## Overview
 
@@ -785,6 +786,270 @@ class MetricSpec(Protocol):
 - Enables different display formats
 - Reduces coupling
 - Simplifies testing
+
+## Dataset Specification and Validation
+
+### Overview
+
+DQX supports flexible dataset specification at multiple levels to enable both simple single-dataset validations and complex cross-dataset comparisons. The framework employs a hybrid approach that maintains backward compatibility while providing clear rules for dataset usage.
+
+### Dataset Definition Levels
+
+Datasets can be specified at three levels in the validation hierarchy:
+
+1. **Check Level** - Using the `@check(datasets=["ds1", "ds2"])` decorator
+2. **Symbol/Metric Level** - Using `mp.average("column", datasets=["ds1"])` 
+3. **Assertion Level** - Implicitly inherited from parent check
+
+### The Hybrid Approach
+
+The hybrid approach provides sensible defaults while maintaining flexibility for complex scenarios:
+
+#### Rules for Single Dataset
+
+When only one dataset is provided to `suite.run()`:
+- **No explicit dataset specification required** at any level
+- All metrics automatically use the single available dataset
+- Existing single-dataset suites work without modification
+
+```python
+# Single dataset - simple and clean
+@check
+def validate_orders(mp: MetricProvider, ctx: Context) -> None:
+    # No dataset specification needed
+    avg_price = mp.average("price")
+    total_orders = mp.num_rows()
+    
+    ctx.assert_that(avg_price).is_gt(0)
+    ctx.assert_that(total_orders).is_gt(1000)
+
+# Run with single dataset
+suite.run({"orders": orders_ds}, key)
+```
+
+#### Rules for Multiple Datasets
+
+When multiple datasets are provided to `suite.run()`:
+- **Explicit dataset specification required** at check or metric level
+- Check-level datasets act as a filter/constraint
+- Metric-level datasets override check-level specifications
+- Clear error messages guide users when specification is missing
+
+```python
+# Multiple datasets - explicit specification required
+
+# Option 1: Specify at check level (constrains entire check)
+@check(datasets=["production"])
+def validate_production_data(mp: MetricProvider, ctx: Context) -> None:
+    # All metrics in this check use "production" dataset
+    avg_price = mp.average("price")
+    null_count = mp.null_count("customer_id")
+    
+    ctx.assert_that(avg_price).is_gt(0)
+    ctx.assert_that(null_count).is_eq(0)
+
+# Option 2: Specify at metric level (for cross-dataset checks)
+@check  # No dataset constraint - can access all datasets
+def compare_environments(mp: MetricProvider, ctx: Context) -> None:
+    # Explicit dataset specification for each metric
+    prod_revenue = mp.sum("revenue", datasets=["production"])
+    staging_revenue = mp.sum("revenue", datasets=["staging"])
+    
+    # Cross-dataset comparison
+    revenue_diff = sp.Abs(prod_revenue - staging_revenue)
+    ctx.assert_that(revenue_diff / prod_revenue).on(
+        label="Production-Staging revenue difference"
+    ).is_lt(0.01)  # Less than 1% difference
+
+# Run with multiple datasets
+suite.run({
+    "production": prod_ds,
+    "staging": staging_ds
+}, key)
+```
+
+### Dataset Propagation and Validation
+
+The framework validates dataset consistency at collection time:
+
+```mermaid
+graph TD
+    Check[CheckNode<br/>datasets: list[str] or None]
+    Symbol[SymbolicMetric<br/>datasets: list[str]]
+    Assertion[AssertionNode<br/>datasets: list[str]]
+    
+    Check -->|propagates| Symbol
+    Check -->|propagates| Assertion
+    Symbol -->|validates against| Check
+```
+
+#### Validation Rules
+
+1. **Check Validation**: If a check specifies datasets, they must be a subset of provided datasets
+2. **Symbol Validation**: If a symbol specifies a dataset, it must be present in the check's datasets (or provided datasets if check has none)
+3. **Assertion Inheritance**: Assertions inherit datasets from their parent check
+4. **Consistency Check**: All dataset references are validated before execution begins
+
+### Error Handling and Messages
+
+The framework provides clear, actionable error messages:
+
+```python
+# Error when dataset not specified with multiple datasets
+DQXError: "Metric 'average(price)' requires explicit dataset specification when multiple datasets are provided. 
+          Available datasets: ['production', 'staging']. 
+          Specify using: mp.average('price', datasets=['production'])"
+
+# Error when invalid dataset specified
+DQXError: "Check 'validate_data' specifies dataset 'testing' which is not provided. 
+          Available datasets: ['production', 'staging']"
+
+# Error when symbol dataset doesn't match check constraint
+DQXError: "Metric in check 'production_only' requests dataset 'staging', 
+          but check is constrained to datasets: ['production']"
+```
+
+### Common Patterns and Best Practices
+
+#### 1. Single-Purpose Checks
+Constrain checks to specific datasets for clarity:
+
+```python
+@check(datasets=["orders"], label="Order validation")
+def validate_orders(mp: MetricProvider, ctx: Context) -> None:
+    # All metrics automatically use "orders" dataset
+    ctx.assert_that(mp.null_count("order_id")).is_eq(0)
+    ctx.assert_that(mp.average("amount")).is_gt(0)
+```
+
+#### 2. Cross-Dataset Validation
+Leave check unconstrained and specify at metric level:
+
+```python
+@check(label="Data consistency check")
+def validate_migration(mp: MetricProvider, ctx: Context) -> None:
+    for column in ["user_id", "amount", "timestamp"]:
+        source_nulls = mp.null_count(column, datasets=["source"])
+        target_nulls = mp.null_count(column, datasets=["target"])
+        
+        ctx.assert_that(source_nulls).on(
+            label=f"Source {column} nulls"
+        ).is_eq(target_nulls)
+```
+
+#### 3. Reusable Checks with Dataset Parameters
+Create parameterized checks for reuse:
+
+```python
+def create_completeness_check(dataset_name: str, threshold: float = 0.95):
+    @check(datasets=[dataset_name], label=f"{dataset_name} completeness")
+    def check_completeness(mp: MetricProvider, ctx: Context) -> None:
+        for column in ["id", "created_at", "status"]:
+            completeness = 1 - (mp.null_count(column) / mp.num_rows())
+            ctx.assert_that(completeness).on(
+                label=f"{column} completeness",
+                severity="P1"
+            ).is_geq(threshold)
+    
+    return check_completeness
+
+# Create checks for different datasets
+prod_completeness = create_completeness_check("production", 0.99)
+staging_completeness = create_completeness_check("staging", 0.95)
+```
+
+#### 4. Dynamic Dataset Discovery
+Handle variable datasets programmatically:
+
+```python
+@check
+def validate_all_sources(mp: MetricProvider, ctx: Context) -> None:
+    # This check adapts to whatever datasets are provided
+    # Note: Requires accessing context internals - use with caution
+    available_datasets = list(ctx._datasources.keys())
+    
+    for dataset in available_datasets:
+        row_count = mp.num_rows(datasets=[dataset])
+        ctx.assert_that(row_count).on(
+            label=f"{dataset} has data"
+        ).is_gt(0)
+```
+
+### Migration Strategy
+
+For existing codebases, migration is straightforward:
+
+#### Phase 1: Identify Usage Patterns
+```bash
+# Find checks that might need dataset specification
+grep -r "@check" . | grep -v "datasets="
+
+# Find metric calls that might need datasets
+grep -r "mp\." . | grep -E "(average|sum|null_count|num_rows)"
+```
+
+#### Phase 2: Update Multi-Dataset Checks
+1. Add dataset specifications to checks that should be constrained
+2. Add dataset parameters to cross-dataset metrics
+3. Run validation to catch any missed specifications
+
+#### Phase 3: Add Validation Tests
+```python
+def test_dataset_specifications():
+    """Ensure all checks properly specify datasets."""
+    suite = VerificationSuite(all_checks, db, "test")
+    
+    # Test with multiple datasets should not raise errors
+    try:
+        suite.run({"ds1": ds1, "ds2": ds2}, key)
+    except DQXError as e:
+        if "requires explicit dataset specification" in str(e):
+            pytest.fail(f"Missing dataset specification: {e}")
+```
+
+### Future Enhancements
+
+While the current hybrid approach balances simplicity and flexibility, future enhancements could include:
+
+1. **Dataset Aliases**: Map logical names to physical datasets
+   ```python
+   suite.run({
+       "production": prod_ds,
+       "production_mirror": prod_ds,  # Same physical dataset, different logical name
+   }, key)
+   ```
+
+2. **Dataset Groups**: Define groups for related datasets
+   ```python
+   @check(dataset_groups=["transactional"])
+   def validate_transactional_data(mp, ctx):
+       # Runs on all datasets tagged as "transactional"
+   ```
+
+3. **Conditional Dataset Selection**: Dynamic dataset selection based on context
+   ```python
+   @check(dataset_selector=lambda ctx: ctx.get_active_regions())
+   def validate_regional_data(mp, ctx):
+       # Dynamically selects datasets based on active regions
+   ```
+
+4. **Dataset-Aware Caching**: Optimize metric computation across datasets
+   ```python
+   # Automatically reuse computations when same metric needed across datasets
+   for ds in ["ds1", "ds2", "ds3"]:
+       avg = mp.average("price", datasets=[ds])  # Cached after first computation
+   ```
+
+### Summary
+
+The hybrid approach to dataset specification provides:
+- **Simplicity**: Single-dataset cases work without any dataset specification
+- **Flexibility**: Multi-dataset scenarios support both constrained and cross-dataset checks  
+- **Clarity**: Explicit specification requirements prevent ambiguity
+- **Compatibility**: Existing code continues to work for single-dataset cases
+- **Extensibility**: Clear patterns for future enhancements
+
+This design ensures DQX can handle everything from simple single-table validations to complex multi-system data quality checks while maintaining an intuitive API.
 
 ## API Design
 

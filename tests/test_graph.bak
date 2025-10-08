@@ -12,7 +12,6 @@ from dqx import graph
 from dqx.api import Context
 from dqx.common import DQXError, ResultKey, ResultKeyProvider, SymbolicValidator
 from dqx.display import GraphDisplay
-from dqx.symbol_table import SymbolEntry, SymbolTable
 
 
 # =============================================================================
@@ -104,7 +103,7 @@ def test_custom_visitor() -> None:
             self.count += 1
             # Continue traversal for composite nodes
             if isinstance(node, graph.CompositeNode):
-                for child in node.get_children():
+                for child in node.children():
                     child.accept(self)
 
     # Build a graph
@@ -141,12 +140,12 @@ def test_composite_pattern_hierarchy() -> None:
     assert len(check.children) == 0
 
     # Test get_children
-    children = root.get_children()
+    children = root.children()
     assert children == [check]
 
     # Re-add assertion to check
     check.add_child(assertion)
-    assert check.get_children() == [assertion]
+    assert check.children() == [assertion]
 
 
 def test_traverse_without_filter() -> None:

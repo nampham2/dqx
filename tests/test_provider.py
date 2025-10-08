@@ -70,7 +70,7 @@ class TestSymbolicMetricBase:
     
     def test_init(self, base: SymbolicMetricBase) -> None:
         """Test initialization of SymbolicMetricBase."""
-        assert base._symbols == []
+        assert base._metrics == []
         assert base._symbol_index == {}
         assert base._curr_index == 0
         assert base._mutex is not None
@@ -163,10 +163,10 @@ class TestSymbolicMetricBase:
         
         base._register(symbol, "test_metric", fn, key_provider, dependencies, datasets)
         
-        assert len(base._symbols) == 1
+        assert len(base._metrics) == 1
         assert symbol in base._symbol_index
         
-        registered_metric = base._symbols[0]
+        registered_metric = base._metrics[0]
         assert registered_metric.name == "test_metric"
         assert registered_metric.symbol == symbol
         assert registered_metric.fn == fn
@@ -218,7 +218,7 @@ class TestMetricProvider:
         """Test MetricProvider initialization."""
         provider = MetricProvider(mock_db)
         assert provider._db == mock_db
-        assert provider._symbols == []
+        assert provider._metrics == []
         assert provider._symbol_index == {}
         assert provider._curr_index == 0
 

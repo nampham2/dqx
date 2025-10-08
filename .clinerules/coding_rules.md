@@ -1,4 +1,5 @@
 # Project specific rules
+Please also use the rules in new_rules.md and follow them strictly.
 
 ## Virtual environment
   - The project is managed with uv

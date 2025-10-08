@@ -6,7 +6,7 @@ A high-performance, scalable data quality framework built on DuckDB and PyArrow 
 
 - **Blazing Fast**: Powered by DuckDB's analytical engine for sub-second query performance
 - **Memory Efficient**: Statistical sketching algorithms (HyperLogLog, DataSketches) for large datasets
-- **Declarative API**: Intuitive symbolic expressions for data quality checks with fluent assertion chaining
+- **Declarative API**: Intuitive symbolic expressions for data quality checks
 - **Batch Processing**: Multi-threaded analysis with configurable chunks for TB-scale data
 - **Dependency Graph**: Smart execution planning with automatic metric deduplication
 - **Extensible**: Plugin architecture for custom metrics and data sources
@@ -57,10 +57,11 @@ def validate_orders(mp, ctx):
     ctx.assert_that(mp.minimum("price")).is_geq(0.0, tol=0.01)
     ctx.assert_that(mp.average("price")).is_gt(10.0)
     
-    # Chain multiple assertions on the same metric
+    # Multiple assertions on the same metric
     ctx.assert_that(mp.average("quantity")).on(
         label="Quantity should be reasonable"
-    ).is_gt(0).is_leq(100)
+    ).is_gt(0)
+    ctx.assert_that(mp.average("quantity")).is_leq(100)
     
     # Check data volume
     ctx.assert_that(mp.num_rows()).is_geq(100)
@@ -165,25 +166,34 @@ ctx.assert_that(metric).on(
 ).is_geq(0)
 ```
 
-### Assertion Chaining
+### Multiple Assertions
 
-DQX supports fluent assertion chaining for multiple validations on the same metric:
+To perform multiple validations on the same metric, create separate assertions:
 
 ```python
 # Validate a ratio is within acceptable bounds
 ratio = mp.average("price") / mp.average("tax")
 ctx.assert_that(ratio).on(
-    label="Price/tax ratio check"
-).is_geq(0.95).is_leq(1.05)
+    label="Price/tax ratio lower bound"
+).is_geq(0.95)
+ctx.assert_that(ratio).on(
+    label="Price/tax ratio upper bound" 
+).is_leq(1.05)
 
 # Complex validation with multiple conditions
-ctx.assert_that(mp.sum("revenue")).on(
-    label="Revenue validation",
+revenue = mp.sum("revenue")
+ctx.assert_that(revenue).on(
+    label="Revenue is positive",
     severity="P0"
-).is_positive().is_lt(1000000).is_geq(10000)
+).is_positive()
+ctx.assert_that(revenue).on(
+    label="Revenue upper limit"
+).is_lt(1000000)
+ctx.assert_that(revenue).on(
+    label="Revenue lower limit"  
+).is_geq(10000)
 
-# Each chained assertion creates a separate validation node
-# This provides:
+# Each assertion is evaluated independently, providing:
 # - Independent failure tracking
 # - Granular error messages
 # - Clear visibility into which conditions failed
@@ -256,9 +266,13 @@ def monitor_trends(mp, ctx):
     last_week = mp.average("revenue", key=ctx.key.lag(7))
     
     # Day-over-day check
-    ctx.assert_that(current / yesterday).on(
-        label="Daily revenue change"
-    ).is_geq(0.9).is_leq(1.1)  # ±10% change allowed
+    dod_ratio = current / yesterday
+    ctx.assert_that(dod_ratio).on(
+        label="Daily revenue change lower bound"
+    ).is_geq(0.9)  # No more than 10% drop
+    ctx.assert_that(dod_ratio).on(
+        label="Daily revenue change upper bound"
+    ).is_leq(1.1)  # No more than 10% increase
     
     # Week-over-week trend
     ctx.assert_that(current / last_week).on(
@@ -278,8 +292,11 @@ def cross_validate(mp, ctx):
     # Ensure data consistency
     ratio = prod_count / staging_count
     ctx.assert_that(ratio).on(
-        label="Production/Staging data consistency"
-    ).is_geq(0.95, tol=0.01).is_leq(1.05, tol=0.01)
+        label="Production/Staging lower bound"
+    ).is_geq(0.95, tol=0.01)
+    ctx.assert_that(ratio).on(
+        label="Production/Staging upper bound"
+    ).is_leq(1.05, tol=0.01)
 ```
 
 ### Collecting Metrics Without Execution
@@ -544,7 +561,12 @@ uv run pytest --cov=dqx
 
 # Run tests in parallel
 uv run pytest -n auto
+
+# Run only tests marked with 'demo' tag
+uv run pytest -m demo
 ```
+
+This is useful for running a subset of tests that demonstrate specific functionality or are used for demo purposes. Tests can be marked with the `@pytest.mark.demo` decorator to include them in this test run.
 
 ### Code Quality
 
@@ -626,7 +648,6 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🗺️ Roadmap
 
-- [x] Fluent assertion chaining
 - [x] Comprehensive error messages
 - [x] Builder pattern for suite creation
 - [ ] Streaming data source support
@@ -669,7 +690,83 @@ We welcome contributions! Here's how to get started:
 - Provide minimal reproducible examples for bugs
 - Join discussions in merge requests
 
+## 📋 Contribution Guidelines
+
+### Logging Best Practices
+
+#### Lazy Rendering of Expensive Log Messages
+
+When logging messages that require expensive computations (e.g., serialization, string formatting, or complex calculations), always use lazy evaluation to avoid performance overhead when the log level is disabled:
+
+```python
+# ❌ BAD: Expensive operation always executed
+logger.debug(f"Processing data: {expensive_to_string_operation()}")
+logger.debug("Stats: {}".format(json.dumps(large_dict, indent=2)))
+
+# ✅ GOOD: Use isEnabledFor guard
+if logger.isEnabledFor(logging.DEBUG):
+    logger.debug("Processing data: %s", expensive_to_string_operation())
+
+# ✅ GOOD: Use built-in % formatting (evaluated lazily)
+logger.debug("Processing %d records from %s", len(records), dataset_name)
+logger.debug("Metric value: %.4f", compute_expensive_metric())
+```
+
+#### Key Principles
+
+1. **Use `%` formatting instead of f-strings or `.format()` for log messages**
+   - The `%` formatting is lazily evaluated only when the log level is active
+   - f-strings and `.format()` are always evaluated, even if logging is disabled
+
+2. **Guard expensive computations with `isEnabledFor`**
+   ```python
+   # For complex debug information
+   if logger.isEnabledFor(logging.DEBUG):
+       debug_info = {
+           "metrics": [m.to_dict() for m in metrics],
+           "graph": graph.to_json(),
+           "state": analyzer.get_debug_state()
+       }
+       logger.debug("Analysis state: %s", json.dumps(debug_info, indent=2))
+   ```
+
+3. **Common patterns in DQX**
+   ```python
+   # Logging in the analyzer
+   logger.debug("Executing %d operations for dataset '%s'", len(ops), dataset_name)
+   
+   # Logging metric computations
+   logger.debug("Computing metric %s with spec %r", metric_name, metric_spec)
+   
+   # Logging graph traversal
+   if logger.isEnabledFor(logging.DEBUG):
+       logger.debug("Graph structure:\n%s", graph.pretty_print())
+   ```
+
+4. **Performance impact**
+   - Lazy logging can significantly improve performance in production where debug logging is typically disabled
+   - Especially important in hot paths like the analyzer loop or graph traversal
+   - Critical for operations that process large datasets or run frequently
+
+### Other Guidelines
+
+- Follow PEP 8 and the existing code style
+- Write comprehensive tests for all new features
+- Update documentation when adding new functionality
+- Use type hints for all function signatures
+- Keep functions focused and single-purpose
+- Document complex algorithms and design decisions
+
 ## 🏆 Recent Improvements
+
+### v0.4.0 (Immutable Assertions & No Chaining)
+- 🚨 **Breaking:** Removed assertion chaining - assertions now return None instead of AssertBuilder
+- 🚨 **Breaking:** Removed listener pattern from AssertBuilder
+- ✅ **Immutable AssertionNode:** Removed setter methods (set_label, set_severity, set_validator)
+- ✅ **Simplified API:** AssertBuilder no longer accepts listeners parameter
+- ✅ **Cleaner architecture:** Direct assertion node creation without listener indirection
+- ✅ **Updated documentation:** Removed chaining examples, added multiple assertion patterns
+- ✅ **Better separation:** Each assertion is now completely independent
 
 ### v0.3.0 (Architecture Improvements)
 - ✅ **Refactored symbol management:** Moved symbol tracking from CheckNode to AssertionNode

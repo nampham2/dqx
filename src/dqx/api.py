@@ -1,23 +1,28 @@
 from __future__ import annotations
 
+from contextlib import contextmanager
 import functools
-import logging
 from collections.abc import Callable, Sequence
-from typing import Protocol, Self, overload, runtime_checkable, TypedDict, cast
+import threading
+from typing import Any, Protocol, Self, overload, runtime_checkable, TypedDict, cast, Literal
 
 import sympy as sp
-from returns.maybe import Some
 
-from dqx import common, functions, graph
+from dqx import common, functions, get_logger
 from dqx.analyzer import Analyzer
 from dqx.common import DQXError, SqlDataSource, ResultKey, ResultKeyProvider, SeverityLevel, SymbolicValidator
+from dqx.evaluator import Evaluator
+from dqx.graph.nodes import AssertionNode, CheckNode, RootNode
+from dqx.graph.traversal import Graph
 from dqx.orm.repositories import MetricDB
-from dqx.provider import MetricProvider, SymbolicMetric
+from dqx.provider import MetricProvider
 from dqx.specs import MetricSpec
-from dqx.symbol_table import SymbolTable
 
 CheckProducer = Callable[[MetricProvider, common.Context], None]
 CheckCreator = Callable[[CheckProducer], CheckProducer]
+
+
+logger = get_logger(__name__)
 
 
 class CheckMetadata(TypedDict):
@@ -39,24 +44,11 @@ class DecoratedCheck(Protocol):
     def __call__(self, mp: MetricProvider, ctx: common.Context) -> None: ...
 
 
-class GraphStates:
-    """Constants for graph node states."""
-
-    PENDING = "PENDING"
-    SUCCESS = "SUCCESS"
-    FAILED = "FAILED"
+# Graph node state types
+GraphState = Literal["PENDING", "SUCCESS", "FAILED"]
 
 
-@runtime_checkable
-class AssertListener(Protocol):
-    """Protocol for objects that listen to assertion configuration changes."""
-
-    def set_label(self, label: str) -> None: ...
-    def set_severity(self, severity: SeverityLevel) -> None: ...
-    def set_validator(self, validator: SymbolicValidator) -> None: ...
-
-
-class SymbolicAssert:
+class AssertBuilder:
     """
     A symbolic assertion that can be configured with validators and evaluated against data.
 
@@ -64,12 +56,11 @@ class SymbolicAssert:
     comparison operators and tolerance levels.
     """
 
-    def __init__(self, actual: sp.Expr, listeners: list[AssertListener], context: Context | None = None) -> None:
+    def __init__(self, actual: sp.Expr, context: Context | None = None) -> None:
         self._actual = actual
         self._label: str | None = None
         self._severity: SeverityLevel | None = None
         self._validator: SymbolicValidator | None = None
-        self.listeners = listeners
         self._context = context
 
     def on(self, *, label: str | None = None, severity: SeverityLevel | None = None) -> Self:
@@ -85,93 +76,66 @@ class SymbolicAssert:
         """
         self._label = label
         self._severity = severity
-
-        for listener in self.listeners:
-            if severity:
-                listener.set_severity(severity)
-            if label:
-                listener.set_label(label)
-
         return self
 
-    def _update_validator(self, validator: SymbolicValidator) -> None:
-        """Update the validator and notify all listeners."""
-        self._validator = validator
-
-        # Update listeners
-        for listener in self.listeners:
-            listener.set_validator(validator)
-
-    def _create_validator(
-        self,
-        name: str,
-        comparison_fn: Callable[[float, float, float], bool],
-        other: float,
-        tol: float = functions.EPSILON,
-    ) -> None:
-        """Create a validator with the given comparison function and parameters."""
-        self._update_validator(SymbolicValidator(name=name, fn=lambda a: comparison_fn(a, other, tol)))
-
-    def is_geq(self, other: float, tol: float = functions.EPSILON) -> SymbolicAssert:
+    def is_geq(self, other: float, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is greater than or equal to the given value."""
-        self._create_validator(f"\u2265 {other}", functions.is_geq, other, tol)
-        return self._create_new_assertion_if_needed()
+        validator = SymbolicValidator(f"\u2265 {other}", lambda x: functions.is_geq(x, other, tol))
+        self._create_assertion_node(validator)
 
-    def is_gt(self, other: float, tol: float = functions.EPSILON) -> SymbolicAssert:
+    def is_gt(self, other: float, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is greater than the given value."""
-        self._create_validator(f"> {other}", functions.is_gt, other, tol)
-        return self._create_new_assertion_if_needed()
+        validator = SymbolicValidator(f"> {other}", lambda x: functions.is_gt(x, other, tol))
+        self._create_assertion_node(validator)
 
-    def is_leq(self, other: float, tol: float = functions.EPSILON) -> SymbolicAssert:
+    def is_leq(self, other: float, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is less than or equal to the given value."""
-        self._create_validator(f"\u2264 {other}", functions.is_leq, other, tol)
-        return self._create_new_assertion_if_needed()
+        validator = SymbolicValidator(f"\u2264 {other}", lambda x: functions.is_leq(x, other, tol))
+        self._create_assertion_node(validator)
 
-    def is_lt(self, other: float, tol: float = functions.EPSILON) -> SymbolicAssert:
+    def is_lt(self, other: float, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is less than the given value."""
-        self._create_validator(f"< {other}", functions.is_lt, other, tol)
-        return self._create_new_assertion_if_needed()
+        validator = SymbolicValidator(f"< {other}", lambda x: functions.is_lt(x, other, tol))
+        self._create_assertion_node(validator)
 
-    def is_eq(self, other: float, tol: float = functions.EPSILON) -> SymbolicAssert:
+    def is_eq(self, other: float, tol: float = functions.EPSILON) -> None:
         """Assert that the expression equals the given value within tolerance."""
-        self._create_validator(f"= {other}", functions.is_eq, other, tol)
-        return self._create_new_assertion_if_needed()
+        validator = SymbolicValidator(f"= {other}", lambda x: functions.is_eq(x, other, tol))
+        self._create_assertion_node(validator)
 
-    def is_negative(self, tol: float = functions.EPSILON) -> SymbolicAssert:
+    def is_negative(self, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is negative."""
-        self._update_validator(SymbolicValidator(name="< 0", fn=functools.partial(functions.is_negative, tol=tol)))
-        return self._create_new_assertion_if_needed()
+        validator = SymbolicValidator("< 0", lambda x: functions.is_negative(x, tol))
+        self._create_assertion_node(validator)
 
-    def is_positive(self, tol: float = functions.EPSILON) -> SymbolicAssert:
+    def is_positive(self, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is positive."""
-        self._update_validator(SymbolicValidator(name="> 0", fn=functools.partial(functions.is_positive, tol=tol)))
-        return self._create_new_assertion_if_needed()
+        validator = SymbolicValidator("< 0", lambda x: functions.is_positive(x, tol))
+        self._create_assertion_node(validator)
 
-    def _create_new_assertion_if_needed(self) -> SymbolicAssert:
-        """Create a new assertion node for chaining if the current one already has a validator."""
+    def _create_assertion_node(self, validator: SymbolicValidator) -> None:
+        """Create a new assertion node and attach it to the current check."""
         # If we don't have a context, we can't create new assertions
         if self._context is None:
-            return self
+            return
 
-        # For chaining, we need to create a new assertion node and add it to the current check
-        if not self._context._graph.children:
-            raise DQXError("Cannot create assertion without an active check")
+        current = self._context.current_check
+        if not current:
+            raise DQXError(
+                "Cannot create assertion outside of check context. "
+                "Assertions must be created within a @check decorated function."
+            )
 
-        # Create new assertion node
-        node = self._context.create_assertion(actual=self._actual)
-        
-        # Create new SymbolicAssert
-        sa = SymbolicAssert(actual=self._actual, listeners=[node], context=self._context)
+        # Create assertion node with all fields
+        node = self._context.create_assertion(
+            actual=self._actual,
+            label=self._label,
+            severity=self._severity,
+            validator=validator
+        )
 
-        # Attach to the most recent check node (same as assert_that does)
-        current_check = self._context._graph.children[-1]
-        current_check.add_child(node)
-
-        # Preserve label and severity from current assertion
-        if self._label or self._severity:
-            sa.on(label=self._label, severity=self._severity)
-
-        return sa
+        # Attach to the current check node
+        current.add_child(node)
 
 
 class Context:
@@ -183,25 +147,55 @@ class Context:
     graph nodes that need access to the symbol table.
     """
 
-    def __init__(self, suite: str) -> None:
+    def __init__(self, suite: str, db: MetricDB) -> None:
         """
         Initialize the context with a root graph node.
 
         Args:
             suite: Name of the verification suite
         """
-        self._symbol_table = SymbolTable()  # Context owns the symbol table
-        self._graph = graph.RootNode(name=suite, context=self)
+        self._graph = Graph(RootNode(name=suite))
+        self._provider = MetricProvider(db)
+        self._local = threading.local()
 
     @property
-    def symbol_table(self) -> SymbolTable:
-        """Get the symbol table managed by this context."""
-        return self._symbol_table
+    def _check_stack(self) -> list[CheckNode]:
+        if not hasattr(self._local, "check_stack"):
+            self._local.check_stack = []
+        return self._local.check_stack
+
+    def _push_check(self, check_node: CheckNode) -> None:
+        """Push a check onto the thread-local stack."""
+        self._check_stack.append(check_node)
+
+    def _pop_check(self) -> CheckNode | None:
+        """Pop a check from the thread-local stack."""
+        stack = self._check_stack
+        return stack.pop() if stack else None
+
+    @property
+    def current_check(self) -> CheckNode | None:
+        """Get the currently active check node for this thread."""
+        stack = self._check_stack
+        return stack[-1] if stack else None
+
+    @contextmanager
+    def check_context(self, check_node: CheckNode) -> Any:
+        """Context manager for check execution."""
+        self._push_check(check_node)
+        try:
+            yield check_node
+        finally:
+            self._pop_check()
 
     @property
     def key(self) -> ResultKeyProvider:
         """Get a result key provider for creating time-based metric keys."""
         return ResultKeyProvider()
+
+    @property
+    def provider(self) -> MetricProvider:
+        return self._provider
 
     def create_check(
         self,
@@ -209,7 +203,7 @@ class Context:
         tags: list[str] | None = None,
         label: str | None = None,
         datasets: list[str] | None = None,
-    ) -> graph.CheckNode:
+    ) -> CheckNode:
         """
         Factory method to create a check node.
 
@@ -222,7 +216,7 @@ class Context:
         Returns:
             CheckNode that can access context through its root node
         """
-        return graph.CheckNode(
+        return CheckNode(
             name=name,
             tags=tags,
             label=label,
@@ -235,7 +229,7 @@ class Context:
         label: str | None = None,
         severity: SeverityLevel | None = None,
         validator: SymbolicValidator | None = None,
-    ) -> graph.AssertionNode:
+    ) -> AssertionNode:
         """
         Factory method to create an assertion node.
 
@@ -248,14 +242,14 @@ class Context:
         Returns:
             AssertionNode that can access context through its root node
         """
-        return graph.AssertionNode(
+        return AssertionNode(
             actual=actual,
             label=label,
             severity=severity,
             validator=validator,
         )
 
-    def assert_that(self, expr: sp.Expr) -> SymbolicAssert:
+    def assert_that(self, expr: sp.Expr) -> AssertBuilder:
         """
         Create a symbolic assertion for the given expression.
 
@@ -268,18 +262,7 @@ class Context:
         Raises:
             DQXError: If no active check node exists to attach assertion to
         """
-        if not self._graph.children:
-            raise DQXError("Cannot create assertion without an active check")
-
-        # Use factory method
-        node = self.create_assertion(actual=expr)
-        sa = SymbolicAssert(actual=expr, listeners=[node], context=self)
-
-        # Attach to the most recent check node
-        current_check = self._graph.children[-1]
-        current_check.add_child(node)
-
-        return sa
+        return AssertBuilder(actual=expr, context=self)
 
     def pending_metrics(self, dataset: str | None = None) -> Sequence[MetricSpec]:
         """
@@ -290,25 +273,14 @@ class Context:
 
         Returns:
             Sequence of pending metric specifications
+
+        TODO: Read the database to filter out metrics based on TTL
         """
         # Get metrics from symbol table
-        return list(self._symbol_table.get_required_metrics(dataset))
-
-    def evaluate(self, key: ResultKey) -> None:
-        """Evaluate all ready symbols and assertions in the graph."""
-        # Use the symbol table for evaluation
-        symbol_table = self._symbol_table
-
-        # Evaluate ready symbols through the symbol table
-        symbol_table.evaluate_ready_symbols(key)
-
-        # Evaluate assertions
-        for assertion in self._graph.assertions():
-            assertion.evaluate()
-
-        # Update check node statuses based on their children
-        for check in self._graph.checks():
-            check._value = graph.aggregate_children_status(check.children)
+        all_metrics = self.provider.symbolic_metrics
+        if dataset:
+            return [metric.metric_spec for metric in all_metrics if metric.dataset == dataset]
+        return [metric.metric_spec for metric in all_metrics]
 
 
 class VerificationSuite:
@@ -347,10 +319,24 @@ class VerificationSuite:
             raise DQXError("Suite name cannot be empty")
 
         self._checks: Sequence[CheckProducer | DecoratedCheck] = checks
-        self._provider = MetricProvider(db)
         self._name = name.strip()
 
-    def collect(self, key: ResultKey) -> Context:
+        # Create a context
+        self._context = Context(suite=self._name, db=db)
+
+    @property
+    def provider(self) -> MetricProvider:
+        """
+        The metric provider instance used by the verification suite.
+
+        This property returns the MetricProvider instance that is used by the verification suite to access and manage metrics.
+
+        Returns:
+            MetricProvider instance used by the verification suite
+        """
+        return self._context.provider
+
+    def collect(self, context: Context, key: ResultKey) -> None:
         """
         Collect all checks and build the dependency graph without executing analysis.
 
@@ -363,85 +349,11 @@ class VerificationSuite:
         Raises:
             DQXError: If check collection fails or duplicate checks are found
         """
-        context = Context(suite=self._name)
-        self._execute_checks(context)
-        self._build_dependency_graph(context, key)
-        return context
-
-    def _execute_checks(self, context: Context) -> None:
-        """Execute all checks to collect assertions."""
+        # Execute all checks to collect assertions
         for check in self._checks:
-            check(self._provider, context)
+            check(self.provider, context)
 
-    def _build_dependency_graph(self, context: Context, key: ResultKey) -> None:
-        """Build the dependency graph with symbols and metrics."""
-        for assertion in context._graph.assertions():
-            self._process_assertion_symbols(assertion, key, context)
-
-    def _process_assertion_symbols(self, assertion: graph.AssertionNode, key: ResultKey, context: Context) -> None:
-        """
-        Process symbols for a single assertion with improved performance.
-
-        This method has been updated to accept a context parameter instead of
-        accessing the symbol table through the graph.
-
-        Args:
-            assertion: The assertion node to process
-            key: The result key for metric evaluation
-            context: The context containing the symbol table to register symbols in
-        """
-        # Cache symbol lookups to avoid repeated provider calls
-        symbol_cache: dict[sp.Symbol, SymbolicMetric] = {}
-
-        # Find the check node that contains this assertion
-        check_node = None
-        root = assertion.root
-        for check in root.checks():
-            if assertion in check.children:
-                check_node = check
-                break
-
-        if not check_node:
-            raise RuntimeError("Assertion not found in any check node")
-
-        symbol_table = context.symbol_table
-
-        for sym in sorted(assertion.actual.free_symbols, key=str):
-            # Check if symbol already registered
-            if symbol_table.get(sym) is not None:
-                continue
-
-            if sym in symbol_cache:
-                sm = symbol_cache[sym]
-            else:
-                sm = self._provider.get_symbol(sym)
-                symbol_cache[sym] = sm
-
-            # Register symbol in symbol table
-            self._register_symbol_in_table(sm, key, symbol_table, check_node)
-
-    def _register_symbol_in_table(
-        self, sm: SymbolicMetric, key: ResultKey, symbol_table: SymbolTable, check_node: graph.CheckNode
-    ) -> None:
-        """Register symbol and its dependencies in the symbol table."""
-        # Use the symbol table's register_from_provider method
-        symbol = symbol_table.register_from_provider(sm, key)
-        
-        # If the symbol has multiple datasets or check has datasets, we need to bind it
-        # The register_from_provider already handles the first dataset from sm.datasets
-        # But we need to ensure consistency with the check's datasets
-        entry = symbol_table.get(symbol)
-        if entry and entry.dataset is None and check_node.datasets:
-            # Bind the symbol to the first dataset from the check
-            dataset = check_node.datasets[0]
-            entry.dataset = dataset
-            symbol_table.bind_symbol_to_dataset(symbol, dataset)
-
-        # Track symbol-check relationship
-        symbol_table.register_symbol_for_check(symbol, check_node.name)
-        # Note: CheckNode no longer tracks symbols directly - symbols are managed by AssertionNodes
-
-    def run(self, datasources: dict[str, SqlDataSource], key: ResultKey, threading: bool = False) -> Context:
+    def run(self, datasources: dict[str, SqlDataSource], key: ResultKey, threading: bool = False) -> None:
         """
         Execute the verification suite against the provided data sources.
 
@@ -456,68 +368,31 @@ class VerificationSuite:
         Raises:
             DQXError: If no data sources provided
         """
-        self._validate_datasources(datasources)
+        logger.info(f"Running verification suite '{self._name}' with datasets: {list(datasources.keys())}")
 
-        # Create a context
-        ctx = self.collect(key)
-
-        # Mark checks without datasets as failed if multiple datasets are provided
-        if len(datasources) > 1:
-            for check_node in ctx._graph.checks():
-                # Check if this check has no datasets specified
-                check_fn = None
-                for check in self._checks:
-                    if check.__name__ == check_node.name:
-                        check_fn = check
-                        break
-
-                if check_fn and isinstance(check_fn, DecoratedCheck):
-                    metadata = check_fn._check_metadata  # type: ignore[attr-defined]
-                    if metadata["datasets"] is None:
-                        # Fail the check instead of throwing an error
-                        failure_msg = (
-                            f"Check '{metadata['name']}' does not specify datasets "
-                            f"and cannot be run with multiple datasets. "
-                            f"Either specify datasets explicitly in the @check decorator or provide only one dataset."
-                        )
-                        check_node._value = Some(failure_msg)
-
-        ctx._graph.impute_datasets(list(datasources.keys()))
-
-        # Run the checks per dataset
-        for ds_name, ds in datasources.items():
-            try:
-                self._analyze_datasource(ds_name, ds, ctx, key, threading)
-            except Exception as e:
-                # Log the original error for debugging
-                logging.error(f"Analysis failed for dataset {ds_name}: {str(e)}", exc_info=True)
-                symbol_table = ctx.symbol_table
-                symbol_table.mark_dataset_failed(ds_name, str(e))
-
-        # Update the symbol table to reflect that metrics are now available
-        # This marks symbols as ready for evaluation
-        symbol_table = ctx.symbol_table
-        for ds_name in datasources.keys():
-            symbol_table.mark_dataset_ready(ds_name)
-
-        # Run the checks
-        ctx.evaluate(key)
-        return ctx
-
-    def _validate_datasources(self, datasources: dict[str, SqlDataSource]) -> None:
-        """Validate that datasources are provided."""
+        # Validate the datasources
         if not datasources:
             raise DQXError("No data sources provided!")
 
-    def _analyze_datasource(
-        self, ds_name: str, ds: SqlDataSource, ctx: Context, key: ResultKey, threading: bool
-    ) -> None:
-        """Analyze a single datasource and persist results."""
-        analyzer = Analyzer()
-        analyzer.analyze(ds, ctx.pending_metrics(ds_name), key, threading=threading)
-        analyzer.persist(self._provider._db)
-        # Mark pending metrics as success is now handled by symbol table
-        pass
+        # Build the dependency graph
+        logger.info("Collecting checks and building dependency graph...")
+        self.collect(self._context, key)
+
+        # 1. Impute datasets
+        logger.info("Imputing datasets...")
+        self._context._graph.impute_datasets(list(datasources.keys()))
+
+        # 2. Analyze by datasources
+        for ds in datasources.keys():
+            analyzer = Analyzer()
+            metrics = self._context.pending_metrics(ds)
+            # TODO: Check the metrics and logging
+            analyzer.analyze(datasources[ds], metrics, key, threading=threading)
+            analyzer.persist(self.provider._db)
+
+        # 3. Evaluate assertions
+        evaluator = Evaluator(self.provider, key)
+        self._context._graph.bfs(evaluator)
 
 
 class VerificationSuiteBuilder:
@@ -581,13 +456,14 @@ def _create_check(
     # Use context factory method
     node = context.create_check(name=_check.__name__, tags=tags, label=label, datasets=datasets)
 
-    if context._graph.exists(node):
+    if context._graph.root.exists(node):
         raise DQXError(f"Check {node.name} already exists in the graph!")
 
-    context._graph.add_child(node)  # This node should be the last node in the graph
+    context._graph.root.add_child(node)  # This node should be the last node in the graph
 
     # Call the symbolic check to collect assertions for this check node
-    _check(provider, context)
+    with context.check_context(node):
+        _check(provider, context)
 
 
 @overload

@@ -35,6 +35,7 @@ class Metric(Base):
     metric_id: Mapped[uuid.UUID] = mapped_column(nullable=False, primary_key=True, default=lambda: uuid.uuid4())
     metric_type: Mapped[str] = mapped_column(nullable=False)
     parameters: Mapped[dict[str, Any]] = mapped_column(nullable=False)
+    # dataset: Mapped[str] = mapped_column(nullable=False)
     state: Mapped[bytes] = mapped_column(nullable=False)
     value: Mapped[float] = mapped_column(nullable=False)
     yyyy_mm_dd: Mapped[dt.date] = mapped_column(nullable=False)

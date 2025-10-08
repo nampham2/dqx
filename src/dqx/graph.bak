@@ -1,53 +1,20 @@
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Iterator
-from typing import Any, Generic, Protocol, TypeVar, overload, TYPE_CHECKING
+from typing import Any, Generic, Protocol, TypeVar, overload
 
 import sympy as sp
 from returns.maybe import Maybe, Nothing, Some
-from returns.result import Failure, Result, Success
+from returns.result import Result
 
 from dqx.common import DQXError, SeverityLevel, SymbolicValidator
-from dqx.symbol_table import SymbolTable
+from dqx.provider import SymbolicMetric
+
 
 # Type definitions
 TChild = TypeVar("TChild", bound="BaseNode")
 TNode = TypeVar("TNode", bound="BaseNode")
-
-
-def aggregate_children_status(children: list["AssertionNode"]) -> Maybe[str]:
-    """
-    Aggregate validation status from assertion children.
-
-    Returns:
-        Nothing: All assertions passed or some are still pending
-        Some(str): Error message if any assertion failed
-    """
-    failure_messages = []
-
-    for child in children:
-        if hasattr(child, "_value") and isinstance(child._value, Some):
-            result = child._value.unwrap()
-            if isinstance(result, Failure):
-                # Collect failure message
-                if hasattr(child, "label") and child.label:
-                    failure_messages.append(f"{child.label}: {result.failure()}")
-                else:
-                    failure_messages.append(result.failure())
-
-    # If any failures found, return aggregated error message
-    if failure_messages:
-        if len(failure_messages) == 1:
-            return Some(failure_messages[0])
-        else:
-            return Some(f"Multiple failures: {'; '.join(failure_messages)}")
-
-    # Otherwise return Nothing (success or pending)
-    return Nothing
-
-
-if TYPE_CHECKING:
-    from dqx.api import Context  # Avoid circular import
 
 
 # Base Node Classes
@@ -63,7 +30,6 @@ class BaseNode:
 
     def __init__(self) -> None:
         """Initialize a base node with no parent and no cached root."""
-        self._root: RootNode | None = None
         self.parent: BaseNode | None = None
 
     @property
@@ -71,30 +37,22 @@ class BaseNode:
         """Check if this is a root node."""
         return self.parent is None
 
-    @property
-    def root(self) -> RootNode:
-        """Get the root node of the graph."""
-        if self._root:
-            return self._root
-
-        current: BaseNode = self
-        while current.parent:
-            current = current.parent
-
-        # Verify that we found an actual RootNode
-        if not isinstance(current, RootNode):
-            raise RuntimeError("Node is not attached to a graph")
-
-        self._root = current
-        return self._root
-
-    def format_display(self) -> str:
-        """Return a string representation for display formatting."""
-        raise NotImplementedError("Subclasses must implement format_display")
-
     def accept(self, visitor: NodeVisitor) -> Any:
         """Accept a visitor for traversal."""
         return visitor.visit(self)
+
+    async def accept_async(self, visitor: AsyncNodeVisitor) -> Any:
+        """Accept an asynchronous visitor for traversal."""
+        return await visitor.visit_async(self)
+
+    def is_leaf(self) -> bool:
+        """Check if this node has children.
+
+        This method should be overridden by subclasses that can have children.
+        By default, it returns False, indicating that the node does not have
+        any children.
+        """
+        raise NotImplementedError("Subclasses must implement has_children method.")
 
 
 class CompositeNode(BaseNode, Generic[TChild]):
@@ -119,49 +77,17 @@ class CompositeNode(BaseNode, Generic[TChild]):
         super().__init__()
         self.children: list[TChild] = []  # Instance attribute, not class attribute
 
-    def add_child(self, child: TChild) -> None:
-        """Add a child node to this composite.
+    def is_leaf(self) -> bool:
+        """Check if this node has children.
 
-        Appends the given child node to the end of the children list and
-        sets this node as the child's parent.
-
-        Args:
-            child: The child node to add. Must be an instance of TChild,
-                which is constrained to be a subtype of BaseNode.
-        """
-        self.children.append(child)
-
-        # Set parent reference
-        if hasattr(child, "parent"):
-            child.parent = self
-
-    def remove_child(self, child: TChild) -> None:
-        """Remove a child node from this composite.
-
-        Removes the first occurrence of the specified child from the children list
-        and clears the child's parent reference.
-
-        Args:
-            child: The child node to remove. Must be an existing child
-                in the children list.
-
-        Raises:
-            ValueError: If the child is not in the children list.
-        """
-        self.children.remove(child)
-        # Clear parent reference
-        if hasattr(child, "_parent"):
-            child._parent = None  # type: ignore[attr-defined]
-
-    def get_children(self) -> list[TChild]:
-        """Get all children of this composite node.
+        This method is part of the Composite pattern and must be overridden by
+        subclasses that can have children. It returns False, indicating that the
+        node has children. If the node is a leaf node, it should return True.
 
         Returns:
-            A list containing all child nodes. The list is a direct reference
-            to the internal children list, not a copy. Modifications to the
-            returned list will affect the composite's children.
+            bool: True if the node is a leaf node and has no children, False otherwise.
         """
-        return self.children
+        return False
 
     def accept(self, visitor: NodeVisitor) -> Any:
         """Accept a visitor for the visitor pattern.
@@ -187,8 +113,36 @@ class NodeVisitor(Protocol):
     """Protocol for visitor pattern."""
 
     def visit(self, node: BaseNode) -> Any:
-        """Visit a node."""
-        ...
+        """Visit a node synchronously.
+
+        This method is part of the visitor pattern implementation, allowing
+        external operations to be performed on the node hierarchy without
+        modifying the node classes themselves.
+
+        Args:
+            node: The node to visit. Must implement the BaseNode protocol.
+
+        Returns:
+            The result of the visitor's visit method. The return type
+            depends on the specific visitor implementation.
+        """
+
+
+class AsyncNodeVisitor(Protocol):
+    async def visit_async(self, node: BaseNode) -> Any:
+        """Visit a node asynchronously.
+
+        This method is part of the asynchronous visitor pattern implementation,
+        allowing external operations to be performed on the node hierarchy without
+        modifying the node classes themselves.
+
+        Args:
+            node: A BaseNode instance that will be processed by the visitor.
+
+        Returns:
+            The result of the visitor's visit method. The return type depends on the
+            specific visitor implementation.
+        """
 
 
 class GraphTraverser:
@@ -244,7 +198,7 @@ class GraphTraverser:
 
         # Continue traversal for composite nodes
         if isinstance(node, CompositeNode):
-            for child in node.get_children():
+            for child in node.children:
                 child.accept(self)
 
 
@@ -287,7 +241,7 @@ class RootNode(CompositeNode["CheckNode"]):
         ...     result = assertion.evaluate()
     """
 
-    def __init__(self, name: str, context: Context) -> None:
+    def __init__(self, name: str) -> None:
         """Initialize a root node with the given name and context.
 
         Creates a new RootNode instance that will serve as the top of the
@@ -311,57 +265,6 @@ class RootNode(CompositeNode["CheckNode"]):
         """
         super().__init__()
         self.name = name
-        self._context = context
-
-    @property
-    def symbol_table(self) -> SymbolTable:
-        """Access the symbol table from the context.
-
-        Provides read-only access to the SymbolTable instance managed by the
-        Context. The symbol table contains all registered symbols and their
-        metadata, computation functions, and current values.
-
-        Returns:
-            The SymbolTable instance from the context. Since context is required
-            during initialization, this property always returns a valid SymbolTable.
-
-        Examples:
-            >>> root = RootNode("suite", context)
-            >>> table = root.symbol_table
-            >>> # Can now query symbols
-            >>> entry = table.get(some_symbol)
-            >>> if entry:
-            ...     print(f"Symbol state: {entry.state}")
-        """
-        return self._context.symbol_table
-
-    def format_display(self) -> str:
-        """Generate a formatted string representation for display purposes.
-
-        Creates a human-readable representation of the root node and its
-        entire graph hierarchy using the RootNodeFormatter. This method is
-        typically used for debugging, logging, or presenting the graph
-        structure to users.
-
-        The formatter is imported locally to avoid circular import issues
-        between the graph and display modules.
-
-        Returns:
-            A formatted string showing the root node's name and hierarchical
-            structure of all child checks and assertions.
-
-        Examples:
-            >>> root = RootNode("quality_suite", context)
-            >>> # Add some checks...
-            >>> print(root.format_display())
-            RootNode: quality_suite
-              CheckNode: completeness_check
-                AssertionNode: non_null_count > 0
-        """
-        # Imported here to avoid circular import issues
-        from dqx.display import RootNodeFormatter
-
-        return RootNodeFormatter().format(self)
 
     def exists(self, child: "CheckNode") -> bool:
         """Check if a specific CheckNode exists as a direct child.
@@ -565,32 +468,6 @@ class CheckNode(CompositeNode["AssertionNode"]):
         self.datasets = datasets or []
         self._value: Maybe[str] = Nothing
 
-    @property
-    def context(self) -> Any:
-        """
-        Get context from the root node.
-
-        Returns:
-            The Context instance from the root node.
-        """
-        return self.root._context
-
-    @property
-    def symbol_table(self) -> SymbolTable:
-        """
-        Get symbol table from context.
-
-        Returns:
-            The SymbolTable from the context accessed through the root node.
-        """
-        return self.context.symbol_table
-
-    def format_display(self) -> str:
-        """Return a string representation for display formatting."""
-        from dqx.display import CheckNodeFormatter
-
-        return CheckNodeFormatter().format(self)
-
     def node_name(self) -> str:
         """Get the display name of the node."""
         return self.label or self.name
@@ -645,27 +522,7 @@ class AssertionNode(BaseNode):
         self.severity = severity
         self.datasets: list[str] = []
         self.validator = validator
-        self._value: Maybe[Result[float, str]] = Nothing
-
-    @property
-    def context(self) -> Any:
-        """
-        Get context from the root node.
-
-        Returns:
-            The Context instance from the root node.
-        """
-        return self.root._context
-
-    @property
-    def symbol_table(self) -> SymbolTable:
-        """
-        Get symbol table from context.
-
-        Returns:
-            The SymbolTable from the context accessed through the root node.
-        """
-        return self.context.symbol_table
+        self._value: Result[float, dict[SymbolicMetric | sp.Expr, str]]
 
     def set_label(self, label: str) -> None:
         self.label = label
@@ -685,105 +542,11 @@ class AssertionNode(BaseNode):
             self.datasets = datasets
         else:
             if any(ds not in datasets for ds in self.datasets):
-                self._value = Some(
-                    Failure(
-                        f"The assertion {str(self.actual) or self.label} requires datasets {self.datasets} but got {datasets}"
-                    )
+                raise DQXError(
+                    f"The assertion {str(self.actual) or self.label} requires datasets {self.datasets} but got {datasets}"
                 )
-                return
 
-    def mark_as_failure(self, message: str) -> None:
-        """Mark this assertion as failed with a message."""
-        self._value = Some(Failure(message))
+    def is_leaf(self) -> bool:
+        return True
 
-    def _find_parent_check(self) -> CheckNode:
-        """Find the parent CheckNode by traversing up from the assertion."""
-        # Use the parent property to get the direct parent
-        if isinstance(self.parent, CheckNode):
-            return self.parent  # type: ignore[return-value]
 
-        # This should not happen if the graph is well-formed
-        raise RuntimeError("AssertionNode is not attached to a CheckNode")
-
-    def evaluate(self) -> Result[Any, str]:
-        """
-        Evaluate the assertion expression using SymbolTable.
-
-        Returns:
-            Result containing the evaluated value or error message.
-        """
-        import math
-        
-        # Get symbol values from SymbolTable
-        symbol_table = self.symbol_table
-
-        symbol_values = {}
-        failed_symbols = []
-        missing_symbols = []
-
-        # Check all free symbols in the expression
-        for symbol in self.actual.free_symbols:
-            entry = symbol_table.get(symbol)
-            
-            if entry is None:
-                missing_symbols.append(f"{symbol} (not found)")
-                continue
-
-            # Check if symbol has a value
-            if entry.value is not None:
-                if isinstance(entry.value, Success):
-                    symbol_values[symbol] = entry.value.unwrap()
-                else:
-                    failed_symbols.append(str(symbol))
-            else:
-                # Symbol is pending - not yet evaluated
-                missing_symbols.append(f"{symbol} (pending)")
-
-        # Check for failed symbols
-        if failed_symbols:
-            self._value = Some(Failure(f"Symbol dependencies failed: {', '.join(failed_symbols)}"))
-            return self._value.unwrap()
-
-        # Check for missing symbols
-        if missing_symbols:
-            self._value = Some(Failure(f"Missing symbols: {', '.join(missing_symbols)}"))
-            return self._value.unwrap()
-
-        # Evaluate the expression
-        try:
-            value = float(sp.N(self.actual.subs(symbol_values), 6))
-
-            if math.isnan(value):
-                self._value = Some(Failure("Validating value is NaN"))
-            elif math.isinf(value):
-                self._value = Some(Failure("Validating value is infinity"))
-            else:
-                # Apply validator if present
-                if self.validator and self.validator.fn:
-                    if self.validator.fn(value):
-                        self._value = Some(Success(value))
-                    else:
-                        failure_msg = (
-                            f"Assertion failed: {self.actual} = {value} does not satisfy {self.validator.name}"
-                        )
-                        if self.label:
-                            failure_msg = f"{self.label}: {failure_msg}"
-                        self._value = Some(Failure(failure_msg))
-                else:
-                    # No validator, just store the computed value
-                    self._value = Some(Success(value))
-
-        except Exception as e:
-            self._value = Some(Failure(str(e)))
-
-        return self._value.unwrap()
-
-    def format_display(self) -> str:
-        """Return a string representation for display formatting."""
-        from dqx.display import AssertionNodeFormatter
-
-        return AssertionNodeFormatter().format(self)
-
-    def add_child(self, child: Any) -> None:
-        """AssertionNode should not have children."""
-        raise RuntimeError("AssertionNode cannot have children.")
