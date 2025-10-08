@@ -1,7 +1,11 @@
 from collections import deque
+from typing import TYPE_CHECKING, Optional
 from dqx.graph.base import BaseNode, CompositeNode, NodeVisitor
 from dqx.graph.nodes import CheckNode, AssertionNode, RootNode
 from dqx.graph.visitors import NodeCollector
+
+if TYPE_CHECKING:
+    from dqx.display import NodeFormatter
 
 
 class Graph:
@@ -100,7 +104,7 @@ class Graph:
                 │   └── Assertion2
                 └── Check2
                     └── Assertion3
-            
+
             The BFS order would be: Root, Check1, Check2, Assertion1, Assertion2, Assertion3
         """
         queue: deque[BaseNode] = deque([self.root])
@@ -185,7 +189,7 @@ class Graph:
                 │   └── Assertion2
                 └── Check2
                     └── Assertion3
-            
+
             The DFS order would be: Root, Check1, Assertion1, Assertion2, Check2, Assertion3
         """
         stack: list[BaseNode] = [self.root]
@@ -332,7 +336,7 @@ class Graph:
             >>>
             >>> # Filter high-severity assertions
             >>> critical_assertions = [
-            ...     a for a in all_assertions 
+            ...     a for a in all_assertions
             ...     if a.severity == SeverityLevel.CRITICAL
             ... ]
 
@@ -344,3 +348,34 @@ class Graph:
         visitor = NodeCollector(AssertionNode)
         self.dfs(visitor)
         return visitor.results
+
+    def print_tree(self, formatter: Optional["NodeFormatter"] = None) -> None:
+        """Print the graph structure as a tree to the console.
+
+        This is a convenience method that uses the print_graph function from
+        the display module to visualize the graph structure using Rich's tree
+        rendering capabilities.
+
+        Args:
+            formatter: Optional formatter for node labels. If not provided,
+                uses the default SimpleNodeFormatter which displays nodes
+                with priority: label -> name -> class name.
+
+        Examples:
+            >>> # Print with default formatter
+            >>> graph.print_tree()
+            >>>
+            >>> # Print with custom formatter
+            >>> from dqx.display import NodeFormatter
+            >>> class CustomFormatter:
+            ...     def format_node(self, node):
+            ...         return f"Custom: {node.__class__.__name__}"
+            >>> graph.print_tree(formatter=CustomFormatter())
+
+        Note:
+            This method requires the Rich library to be installed for
+            terminal output formatting.
+        """
+        from dqx.display import print_graph
+
+        print_graph(self, formatter)

@@ -111,7 +111,7 @@ class Evaluator:
 
             match self.metrics[sym]:
                 case Failure(err):
-                    failures[sm] = err
+                    failures[sym] = err
                 case Success(v):
                     successes[sym] = v
 
