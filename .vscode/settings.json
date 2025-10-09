@@ -9,5 +9,10 @@
   },
   "python.analysis.typeCheckingMode": "off",
   "python.analysis.autoImportCompletions": true,
-  "python.analysis.diagnosticMode": "workspace"
+  "python.analysis.diagnosticMode": "workspace",
+  "python.testing.pytestArgs": [
+    "-s", "--color=yes", "tests"
+  ],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true
 }
