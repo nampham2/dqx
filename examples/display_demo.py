@@ -16,12 +16,12 @@ class ColorfulFormatter(NodeFormatter):
         if hasattr(node, "node_name") and callable(node.node_name):
             # CheckNode
             return f"✅ {node.node_name()}"
-        elif hasattr(node, "label") and node.label:
-            # AssertionNode with label
-            return f"📊 {node.label}"
         elif hasattr(node, "name") and node.name:
-            # RootNode
-            return f"🚀 {node.name}"
+            # RootNode or AssertionNode with name
+            if node.__class__.__name__ == "RootNode":
+                return f"🚀 {node.name}"
+            else:
+                return f"� {node.name}"
         else:
             # Fallback to class name
             return f"📌 {node.__class__.__name__}"
@@ -33,32 +33,32 @@ def create_sample_graph() -> Graph:
     root = RootNode("E-commerce Data Quality Suite")
 
     # Create checks
-    order_check = CheckNode("order_validation", label="Order Data Validation")
-    customer_check = CheckNode("customer_validation", label="Customer Data Validation")
-    revenue_check = CheckNode("revenue_monitoring", label="Revenue Monitoring")
+    order_check = CheckNode("Order Data Validation")
+    customer_check = CheckNode("Customer Data Validation")
+    revenue_check = CheckNode("Revenue Monitoring")
 
     # Create order assertions
     order_count = sp.Symbol("order_count")
-    order_assertion1 = AssertionNode(actual=order_count > 0, label="Orders exist")
+    order_assertion1 = AssertionNode(actual=order_count > 0, name="Orders exist")
 
     avg_order_value = sp.Symbol("avg_order_value")
-    order_assertion2 = AssertionNode(actual=avg_order_value > 10, label="Average order value > $10")
+    order_assertion2 = AssertionNode(actual=avg_order_value > 10, name="Average order value > $10")
 
-    order_assertion3 = AssertionNode(actual=avg_order_value < 1000, label="Average order value < $1000")
+    order_assertion3 = AssertionNode(actual=avg_order_value < 1000, name="Average order value < $1000")
 
     # Create customer assertions
     customer_count = sp.Symbol("customer_count")
-    customer_assertion1 = AssertionNode(actual=customer_count > 0, label="Customers exist")
+    customer_assertion1 = AssertionNode(actual=customer_count > 0, name="Customers exist")
 
     email_nulls = sp.Symbol("email_nulls")
-    customer_assertion2 = AssertionNode(actual=email_nulls == 0, label="No null emails")
+    customer_assertion2 = AssertionNode(actual=email_nulls == 0, name="No null emails")
 
     # Create revenue assertions
     daily_revenue = sp.Symbol("daily_revenue")
-    revenue_assertion1 = AssertionNode(actual=daily_revenue > 10000, label="Daily revenue > $10k")
+    revenue_assertion1 = AssertionNode(actual=daily_revenue > 10000, name="Daily revenue > $10k")
 
     dod_change = sp.Symbol("dod_change")
-    revenue_assertion2 = AssertionNode(actual=dod_change < 0.5, label="Day-over-day change < 50%")
+    revenue_assertion2 = AssertionNode(actual=dod_change < 0.5, name="Day-over-day change < 50%")
 
     # Build the graph
     root.add_child(order_check)

@@ -4,10 +4,11 @@ import datetime
 
 import pytest
 import sympy as sp
-from dqx.api import AssertBuilder, Context, VerificationSuite, check, MetricProvider
+
+from dqx.api import AssertBuilder, Context, MetricProvider, VerificationSuite, check
 from dqx.common import ResultKey
-from dqx.orm.repositories import InMemoryMetricDB
 from dqx.graph.nodes import AssertionNode
+from dqx.orm.repositories import InMemoryMetricDB
 
 
 def test_assertion_node_is_immutable() -> None:
@@ -21,8 +22,8 @@ def test_assertion_node_is_immutable() -> None:
     assert not hasattr(node, "set_validator")
 
     # Fields can be set at construction but not modified after
-    node_with_label = AssertionNode(actual=sp.Symbol("x"), label="test label")
-    assert node_with_label.label == "test label"
+    node_with_label = AssertionNode(actual=sp.Symbol("x"), name="test label")
+    assert node_with_label.name == "test label"
 
 
 def test_assert_builder_no_listeners() -> None:
@@ -96,8 +97,8 @@ def test_multiple_assertions_on_same_metric() -> None:
         metric = sp.Symbol("x")
 
         # Multiple assertions on same metric (not chained)
-        ctx.assert_that(metric).on(label="Greater than 40").is_gt(40)
-        ctx.assert_that(metric).on(label="Less than 60").is_lt(60)
+        ctx.assert_that(metric).where(name="Greater than 40").is_gt(40)
+        ctx.assert_that(metric).where(name="Less than 60").is_lt(60)
 
         # Verify we have 2 separate assertions
         check_node = ctx.current_check
@@ -105,8 +106,8 @@ def test_multiple_assertions_on_same_metric() -> None:
         assert len(check_node.children) == 2
 
         # Verify labels were set correctly
-        assert check_node.children[0].label == "Greater than 40"
-        assert check_node.children[1].label == "Less than 60"
+        assert check_node.children[0].name == "Greater than 40"
+        assert check_node.children[1].name == "Less than 60"
 
     suite = VerificationSuite([test_check], db, "test")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})

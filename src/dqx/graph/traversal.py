@@ -332,7 +332,7 @@ class Graph:
             >>> # Get all assertions for evaluation
             >>> all_assertions = graph.assertions()
             >>> for assertion in all_assertions:
-            ...     print(f"Assertion: {assertion.label}, Severity: {assertion.severity}")
+            ...     print(f"Assertion: {assertion.name}, Severity: {assertion.severity}")
             >>>
             >>> # Filter high-severity assertions
             >>> critical_assertions = [

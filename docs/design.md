@@ -857,8 +857,8 @@ def compare_environments(mp: MetricProvider, ctx: Context) -> None:
 
     # Cross-dataset comparison
     revenue_diff = sp.Abs(prod_revenue - staging_revenue)
-    ctx.assert_that(revenue_diff / prod_revenue).on(
-        label="Production-Staging revenue difference"
+    ctx.assert_that(revenue_diff / prod_revenue).where(
+        name="Production-Staging revenue difference"
     ).is_lt(0.01)  # Less than 1% difference
 
 # Run with multiple datasets
@@ -915,7 +915,7 @@ DQXError: "Metric in check 'production_only' requests dataset 'staging',
 Constrain checks to specific datasets for clarity:
 
 ```python
-@check(datasets=["orders"], label="Order validation")
+@check(datasets=["orders"], name="Order validation")
 def validate_orders(mp: MetricProvider, ctx: Context) -> None:
     # All metrics automatically use "orders" dataset
     ctx.assert_that(mp.null_count("order_id")).is_eq(0)
@@ -926,14 +926,14 @@ def validate_orders(mp: MetricProvider, ctx: Context) -> None:
 Leave check unconstrained and specify at metric level:
 
 ```python
-@check(label="Data consistency check")
+@check(name="Data consistency check")
 def validate_migration(mp: MetricProvider, ctx: Context) -> None:
     for column in ["user_id", "amount", "timestamp"]:
         source_nulls = mp.null_count(column, datasets=["source"])
         target_nulls = mp.null_count(column, datasets=["target"])
 
-        ctx.assert_that(source_nulls).on(
-            label=f"Source {column} nulls"
+        ctx.assert_that(source_nulls).where(
+            name=f"Source {column} nulls"
         ).is_eq(target_nulls)
 ```
 
@@ -942,12 +942,12 @@ Create parameterized checks for reuse:
 
 ```python
 def create_completeness_check(dataset_name: str, threshold: float = 0.95):
-    @check(datasets=[dataset_name], label=f"{dataset_name} completeness")
+    @check(datasets=[dataset_name], name=f"{dataset_name} completeness")
     def check_completeness(mp: MetricProvider, ctx: Context) -> None:
         for column in ["id", "created_at", "status"]:
             completeness = 1 - (mp.null_count(column) / mp.num_rows())
-            ctx.assert_that(completeness).on(
-                label=f"{column} completeness",
+            ctx.assert_that(completeness).where(
+                name=f"{column} completeness",
                 severity="P1"
             ).is_geq(threshold)
 
@@ -970,8 +970,8 @@ def validate_all_sources(mp: MetricProvider, ctx: Context) -> None:
 
     for dataset in available_datasets:
         row_count = mp.num_rows(datasets=[dataset])
-        ctx.assert_that(row_count).on(
-            label=f"{dataset} has data"
+        ctx.assert_that(row_count).where(
+            name=f"{dataset} has data"
         ).is_gt(0)
 ```
 
@@ -1092,15 +1092,15 @@ graph TD
 ### 1. Check Definition API
 
 ```python
-@check(label="Order validation", tags=["critical"], datasets=["orders"])
+@check(name="Order validation", tags=["critical"], datasets=["orders"])
 def validate_orders(mp: MetricProvider, ctx: Context) -> None:
     """Define data quality checks using symbolic expressions."""
     # Simple assertions
     ctx.assert_that(mp.null_count("customer_id")).is_eq(0)
 
     # Chained assertions
-    ctx.assert_that(mp.average("price")).on(
-        label="Price validation",
+    ctx.assert_that(mp.average("price")).where(
+        name="Price validation",
         severity="P0"
     ).is_gt(0).is_lt(1000)
 
@@ -1171,33 +1171,33 @@ DQX supports four severity levels for data quality assertions, following a stand
 
 ### Setting Severity on Assertions
 
-Severity is set using the `.on()` method when creating assertions:
+Severity is set using the `.where()` method when creating assertions:
 
 ```python
-@check(label="Critical validations")
+@check(name="Critical validations")
 def validate_critical_fields(mp, ctx):
     # P0: No null primary keys
-    ctx.assert_that(mp.null_count("id")).on(
-        label="Primary key completeness",
+    ctx.assert_that(mp.null_count("id")).where(
+        name="Primary key completeness",
         severity="P0"
     ).is_eq(0)
 
     # P1: Email format validation
     invalid_emails = mp.metric(specs.RegexNonMatchCount("email", r"^[^@]+@[^@]+\.[^@]+$"))
-    ctx.assert_that(invalid_emails).on(
-        label="Email format validation",
+    ctx.assert_that(invalid_emails).where(
+        name="Email format validation",
         severity="P1"
     ).is_leq(mp.num_rows() * 0.01)  # Max 1% invalid
 
     # P2: Optional field completeness
-    ctx.assert_that(mp.null_count("phone_number") / mp.num_rows()).on(
-        label="Phone number completeness",
+    ctx.assert_that(mp.null_count("phone_number") / mp.num_rows()).where(
+        name="Phone number completeness",
         severity="P2"
     ).is_leq(0.3)  # Max 30% missing
 
     # P3: Performance warning
-    ctx.assert_that(mp.average("response_time_ms")).on(
-        label="Average response time",
+    ctx.assert_that(mp.average("response_time_ms")).where(
+        name="Average response time",
         severity="P3"
     ).is_leq(500)
 ```
@@ -1239,20 +1239,20 @@ graph BT
 2. **Consider Business Impact**
    ```python
    # P0: Direct revenue impact
-   ctx.assert_that(mp.sum("transaction_amount")).on(
-       label="Daily revenue total",
+   ctx.assert_that(mp.sum("transaction_amount")).where(
+       name="Daily revenue total",
        severity="P0"
    ).is_geq(expected_daily_min)
 
    # P1: Affects key metrics
-   ctx.assert_that(mp.approx_cardinality("user_id")).on(
-       label="Active user count",
+   ctx.assert_that(mp.approx_cardinality("user_id")).where(
+       name="Active user count",
        severity="P1"
    ).is_geq(expected_users * 0.95)
 
    # P2: Data quality metrics
-   ctx.assert_that(mp.null_count("category") / mp.num_rows()).on(
-       label="Category completeness",
+   ctx.assert_that(mp.null_count("category") / mp.num_rows()).where(
+       name="Category completeness",
        severity="P2"
    ).is_leq(0.05)
    ```
@@ -1307,7 +1307,7 @@ from dqx.common import ResultKey
 import datetime as dt
 
 # Define comprehensive e-commerce checks
-@check(label="Order integrity", tags=["critical", "orders"])
+@check(name="Order integrity", tags=["critical", "orders"])
 def check_order_integrity(mp, ctx):
     """Ensure order data integrity."""
     # No null order IDs
@@ -1319,28 +1319,28 @@ def check_order_integrity(mp, ctx):
 
     # Reasonable order quantities
     avg_items = mp.average("item_count")
-    ctx.assert_that(avg_items).on(
-        label="Average items per order"
+    ctx.assert_that(avg_items).where(
+        name="Average items per order"
     ).is_gt(0).is_lt(50)
 
-@check(label="Customer validation", tags=["critical", "customers"])
+@check(name="Customer validation", tags=["critical", "customers"])
 def check_customer_data(mp, ctx):
     """Validate customer information."""
     # Unique customer IDs
     total_customers = mp.num_rows()
     unique_customers = mp.approx_cardinality("customer_id")
-    ctx.assert_that(unique_customers / total_customers).on(
-        label="Customer ID uniqueness"
+    ctx.assert_that(unique_customers / total_customers).where(
+        name="Customer ID uniqueness"
     ).is_geq(0.99, tol=0.01)
 
     # Email completeness
     email_nulls = mp.null_count("email")
-    ctx.assert_that(email_nulls / total_customers).on(
-        label="Email completeness",
+    ctx.assert_that(email_nulls / total_customers).where(
+        name="Email completeness",
         severity="P1"
     ).is_leq(0.05)  # Max 5% missing emails
 
-@check(label="Revenue monitoring", tags=["monitoring"])
+@check(name="Revenue monitoring", tags=["monitoring"])
 def monitor_revenue_trends(mp, ctx):
     """Monitor revenue trends over time."""
     current_revenue = mp.sum("revenue")
@@ -1348,13 +1348,13 @@ def monitor_revenue_trends(mp, ctx):
 
     # Day-over-day change
     dod_change = (current_revenue - yesterday_revenue) / yesterday_revenue
-    ctx.assert_that(dod_change).on(
-        label="Day-over-day revenue change"
+    ctx.assert_that(dod_change).where(
+        name="Day-over-day revenue change"
     ).is_geq(-0.3).is_leq(0.5)  # -30% to +50% change allowed
 
     # Minimum daily revenue threshold
-    ctx.assert_that(current_revenue).on(
-        label="Daily revenue threshold",
+    ctx.assert_that(current_revenue).where(
+        name="Daily revenue threshold",
         severity="P0"
     ).is_geq(10000)
 
@@ -1387,21 +1387,21 @@ result = suite.run(
 for assertion in result._graph.assertions():
     if assertion._value:
         status = "✓" if assertion._value.unwrap().is_ok() else "✗"
-        print(f"{status} {assertion.label}: {assertion._value}")
+        print(f"{status} {assertion.name}: {assertion._value}")
 ```
 
 ### Example 2: Cross-Dataset Validation
 
 ```python
-@check(label="Data consistency", datasets=["source", "target"])
+@check(name="Data consistency", datasets=["source", "target"])
 def validate_data_migration(mp, ctx):
     """Ensure data consistency between source and target systems."""
     # Row count consistency
     source_count = mp.num_rows(datasets=["source"])
     target_count = mp.num_rows(datasets=["target"])
 
-    ctx.assert_that(target_count / source_count).on(
-        label="Row count ratio"
+    ctx.assert_that(target_count / source_count).where(
+        name="Row count ratio"
     ).is_geq(0.99, tol=0.001).is_leq(1.01, tol=0.001)
 
     # Revenue consistency
@@ -1409,8 +1409,8 @@ def validate_data_migration(mp, ctx):
     target_revenue = mp.sum("revenue", datasets=["target"])
 
     revenue_diff = sp.Abs(source_revenue - target_revenue)
-    ctx.assert_that(revenue_diff).on(
-        label="Revenue difference",
+    ctx.assert_that(revenue_diff).where(
+        name="Revenue difference",
         severity="P0"
     ).is_leq(0.01)  # Max $0.01 difference
 ```
@@ -1426,13 +1426,13 @@ batch_ds = ArrowBatchDataSource.from_parquets([
     "s3://bucket/data/2024-02-*.parquet",
 ])
 
-@check(label="Large dataset validation")
+@check(name="Large dataset validation")
 def validate_large_dataset(mp, ctx):
     """Validate large dataset with statistical methods."""
     # Use approximate algorithms for efficiency
     cardinality = mp.approx_cardinality("user_id")
-    ctx.assert_that(cardinality).on(
-        label="Unique users"
+    ctx.assert_that(cardinality).where(
+        name="Unique users"
     ).is_geq(1_000_000)
 
     # Statistical validation
@@ -1577,7 +1577,7 @@ def custom_validator(value: float) -> bool:
     # Implement validation logic
     return True
 
-ctx.assert_that(metric).on(
+ctx.assert_that(metric).where(
     validator=SymbolicValidator("custom", custom_validator)
 )
 ```

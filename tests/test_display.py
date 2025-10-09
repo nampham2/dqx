@@ -1,15 +1,15 @@
 """Tests for the display module."""
 
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
+import sympy as sp
+from rich.tree import Tree
 
 from dqx.display import NodeFormatter, SimpleNodeFormatter, TreeBuilderVisitor, print_graph
 from dqx.graph.base import BaseNode
-from dqx.graph.nodes import RootNode, CheckNode, AssertionNode
+from dqx.graph.nodes import AssertionNode, CheckNode, RootNode
 from dqx.graph.traversal import Graph
-
-import sympy as sp
-from rich.tree import Tree
 
 
 class TestNodeFormatter:
@@ -91,13 +91,13 @@ class TestNodeFormatter:
     def test_simple_formatter_with_node_name_method(self) -> None:
         """Test that formatter uses node_name() method when available (CheckNode)."""
         # Given a CheckNode with node_name method
-        check = CheckNode(name="check1", label="Check One")
+        check = CheckNode(name="Check One")
 
         # When formatting the node
         formatter = SimpleNodeFormatter()
         result = formatter.format_node(check)
 
-        # Then it should use node_name() which returns label
+        # Then it should use node_name() which returns name
         assert result == "Check One"
 
     def test_simple_formatter_with_node_name_method_no_label(self) -> None:
@@ -268,7 +268,7 @@ class TestPrintGraph:
 
         # Create a simple graph structure
         root = RootNode("test_suite")
-        check = CheckNode("check1", label="Test Check")
+        check = CheckNode("Test Check")
         root.add_child(check)
 
         graph = Graph(root)
@@ -306,13 +306,13 @@ class TestIntegration:
         # Given a real graph structure
         root = RootNode("Quality Suite")
 
-        check1 = CheckNode("completeness", label="Data Completeness")
-        check2 = CheckNode("validity", label="Data Validity")
+        check1 = CheckNode("Data Completeness")
+        check2 = CheckNode("Data Validity")
 
         # Create assertions
         symbol = sp.Symbol("x")
-        assertion1 = AssertionNode(actual=symbol > 0, label="Positive values")
-        assertion2 = AssertionNode(actual=symbol < 100)  # No label
+        assertion1 = AssertionNode(actual=symbol > 0, name="Positive values")
+        assertion2 = AssertionNode(actual=symbol < 100)  # No name
 
         # Build graph
         root.add_child(check1)
@@ -353,8 +353,8 @@ class TestIntegration:
 
         # Create a real graph
         root = RootNode("E-commerce Quality")
-        check = CheckNode("order_validation", label="Order Validation")
-        assertion = AssertionNode(actual=sp.Symbol("order_count") > 0, label="Orders exist")
+        check = CheckNode("Order Validation")
+        assertion = AssertionNode(actual=sp.Symbol("order_count") > 0, name="Orders exist")
 
         root.add_child(check)
         check.add_child(assertion)
