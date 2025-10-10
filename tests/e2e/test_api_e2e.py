@@ -49,7 +49,7 @@ def sketch_check(mp: MetricProvider, ctx: Context) -> None:
 def cross_dataset_check(mp: MetricProvider, ctx: Context) -> None:
     tax_avg_1 = mp.average("tax", dataset="ds1")
     tax_avg_2 = mp.average("tax", dataset="ds2")
-    # Allow for identical datasets (difference can be 0)
+
     ctx.assert_that(sp.Abs(tax_avg_1 / tax_avg_2 - 1)).where(name="Tax average ratio between datasets").is_lt(
         0.2, tol=0.01
     )

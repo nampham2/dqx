@@ -12,6 +12,7 @@ from returns.result import Result
 
 if TYPE_CHECKING:
     from dqx.analyzer import AnalysisReport
+    from dqx.api import AssertionDraft
     from dqx.specs import MetricSpec
 
 
@@ -278,7 +279,7 @@ class Analyzer(Protocol):
 
 @runtime_checkable
 class Context(Protocol):
-    def assert_that(self, expr: sp.Expr) -> Any: ...  # Returns AssertionDraft
+    def assert_that(self, expr: sp.Expr) -> AssertionDraft: ...
 
     @property
     def key(self) -> ResultKeyProvider: ...
