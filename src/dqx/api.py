@@ -4,11 +4,12 @@ import functools
 import threading
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
-from typing import Any, Literal, Protocol, Self, TypedDict, cast, overload, runtime_checkable
+from dataclasses import dataclass, field
+from typing import Any, Literal, Protocol, Self, cast, overload, runtime_checkable
 
 import sympy as sp
 
-from dqx import common, functions, get_logger
+from dqx import functions, get_logger
 from dqx.analyzer import Analyzer
 from dqx.common import DQXError, ResultKey, ResultKeyProvider, SeverityLevel, SqlDataSource, SymbolicValidator
 from dqx.evaluator import Evaluator
@@ -18,20 +19,21 @@ from dqx.orm.repositories import MetricDB
 from dqx.provider import MetricProvider
 from dqx.specs import MetricSpec
 
-CheckProducer = Callable[[MetricProvider, common.Context], None]
+CheckProducer = Callable[[MetricProvider, "Context"], None]
 CheckCreator = Callable[[CheckProducer], CheckProducer]
 
 
 logger = get_logger(__name__)
 
 
-class CheckMetadata(TypedDict):
+@dataclass
+class CheckMetadata:
     """Metadata stored on decorated check functions."""
 
     name: str  # The function name
-    datasets: list[str] | None
-    tags: list[str]
-    display_name: str | None  # WAS: label: str | None
+    datasets: list[str] | None = None
+    tags: list[str] = field(default_factory=list)
+    display_name: str | None = None  # User-provided name
 
 
 @runtime_checkable
@@ -41,7 +43,7 @@ class DecoratedCheck(Protocol):
     __name__: str
     _check_metadata: CheckMetadata
 
-    def __call__(self, mp: MetricProvider, ctx: common.Context) -> None: ...
+    def __call__(self, mp: MetricProvider, ctx: "Context") -> None: ...
 
 
 # Graph node state types
@@ -110,7 +112,7 @@ class AssertBuilder:
 
     def is_positive(self, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is positive."""
-        validator = SymbolicValidator("< 0", lambda x: functions.is_positive(x, tol))
+        validator = SymbolicValidator("> 0", lambda x: functions.is_positive(x, tol))
         self._create_assertion_node(validator)
 
     def _create_assertion_node(self, validator: SymbolicValidator) -> None:
@@ -429,8 +431,8 @@ def _create_check(
     provider: MetricProvider,
     context: Context,
     _check: CheckProducer,
+    name: str,
     tags: list[str] = [],
-    display_name: str | None = None,
     datasets: list[str] | None = None,
 ) -> None:
     """
@@ -447,11 +449,8 @@ def _create_check(
     Raises:
         DQXError: If a check with the same name already exists
     """
-    # Use display_name if provided, otherwise use function name
-    node_name = display_name if display_name else _check.__name__
-
     # Use context factory method
-    node = context.create_check(name=node_name, tags=tags, datasets=datasets)
+    node = context.create_check(name=name, tags=tags, datasets=datasets)
 
     if context._graph.root.exists(node):
         raise DQXError(f"Check {node.name} already exists in the graph!")
@@ -468,16 +467,20 @@ def check(_check: CheckProducer) -> DecoratedCheck: ...
 
 
 @overload
+def check() -> Callable[[CheckProducer], DecoratedCheck]: ...
+
+
+@overload
 def check(
-    *, tags: list[str] = [], name: str | None = None, datasets: list[str] | None = None
+    *, name: str | None = None, tags: list[str] = [], datasets: list[str] | None = None
 ) -> Callable[[CheckProducer], DecoratedCheck]: ...
 
 
 def check(
     _check: CheckProducer | None = None,
     *,
-    tags: list[str] = [],
     name: str | None = None,
+    tags: list[str] = [],
     datasets: list[str] | None = None,
 ) -> DecoratedCheck | Callable[[CheckProducer], DecoratedCheck]:
     """
@@ -505,28 +508,30 @@ def check(
     if _check is not None:
         # Simple @check decorator without parentheses
         wrapped = functools.wraps(_check)(
-            functools.partial(_create_check, _check=_check, tags=tags, display_name=name, datasets=datasets)
+            functools.partial(_create_check, _check=_check, name=_check.__name__, tags=tags, datasets=datasets)
         )
-        # Store metadata for validation
-        wrapped._check_metadata = {  # type: ignore[attr-defined]
-            "name": _check.__name__,
-            "datasets": datasets,
-            "tags": tags,
-            "display_name": name,
-        }
+        # Store metadata using dataclass
+        wrapped._check_metadata = CheckMetadata(  # type: ignore[attr-defined]
+            name=_check.__name__,
+            datasets=datasets,
+            tags=tags,
+            display_name=None,
+        )
         return cast(DecoratedCheck, wrapped)
 
     def decorator(fn: CheckProducer) -> DecoratedCheck:
+        # Use provided name or fall back to function name
+        check_name = name if name is not None else fn.__name__
         wrapped = functools.wraps(fn)(
-            functools.partial(_create_check, _check=fn, tags=tags, display_name=name, datasets=datasets)
+            functools.partial(_create_check, _check=fn, name=check_name, tags=tags, datasets=datasets)
         )
-        # Store metadata for validation
-        wrapped._check_metadata = {  # type: ignore[attr-defined]
-            "name": fn.__name__,
-            "datasets": datasets,
-            "tags": tags,
-            "display_name": name,
-        }
+        # Store metadata using dataclass
+        wrapped._check_metadata = CheckMetadata(  # type: ignore[attr-defined]
+            name=fn.__name__,
+            datasets=datasets,
+            tags=tags,
+            display_name=name,  # This will be None if name wasn't provided
+        )
         return cast(DecoratedCheck, wrapped)
 
     return decorator

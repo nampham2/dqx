@@ -1,5 +1,3 @@
-"""Tests for API changes: removing listener pattern and assertion chaining."""
-
 import datetime
 
 import pytest
@@ -45,7 +43,7 @@ def test_assertion_methods_return_none() -> None:
     context = Context("test", db)
 
     # Create a simple check to have proper context
-    @check  # type: ignore[arg-type]
+    @check
     def test_check(mp: MetricProvider, ctx: Context) -> None:
         builder = ctx.assert_that(sp.Symbol("x"))
 
@@ -72,7 +70,7 @@ def test_no_assertion_chaining() -> None:
     db = InMemoryMetricDB()
     context = Context("test", db)
 
-    @check  # type: ignore[arg-type]
+    @check
     def test_check(mp: MetricProvider, ctx: Context) -> None:
         metric = sp.Symbol("x")
         # This should fail - can't chain assertions
@@ -92,7 +90,7 @@ def test_multiple_assertions_on_same_metric() -> None:
     db = InMemoryMetricDB()
     context = Context("test", db)
 
-    @check  # type: ignore[arg-type]
+    @check
     def test_check(mp: MetricProvider, ctx: Context) -> None:
         metric = sp.Symbol("x")
 
@@ -112,3 +110,67 @@ def test_multiple_assertions_on_same_metric() -> None:
     suite = VerificationSuite([test_check], db, "test")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
     suite.collect(context, key=key)
+
+
+def test_simple_check_uses_function_name() -> None:
+    """Test that @check without params uses function name."""
+
+    # Create a simple check without parameters
+    @check
+    def validate_orders(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(mp.num_rows()).is_gt(0)
+
+    # The metadata should use the function name
+    assert hasattr(validate_orders, "_check_metadata")
+    assert validate_orders._check_metadata.name == "validate_orders"
+    assert validate_orders._check_metadata.display_name is None
+
+
+def test_parametrized_check_uses_provided_name() -> None:
+    """Test that @check with name parameter uses that name."""
+
+    @check(name="Order Validation Check", tags=["critical"])
+    def validate_orders(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(mp.num_rows()).is_gt(0)
+
+    # The metadata should store both names
+    assert validate_orders._check_metadata.name == "validate_orders"  # function name
+    assert validate_orders._check_metadata.display_name == "Order Validation Check"  # provided name
+    assert validate_orders._check_metadata.tags == ["critical"]
+
+
+def test_simple_check_works_in_suite() -> None:
+    """Test that simple @check works in a verification suite."""
+
+    @check
+    def my_simple_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(mp.num_rows()).is_gt(0)
+
+    # Should be able to use in a suite without errors
+    db = InMemoryMetricDB()
+    suite = VerificationSuite([my_simple_check], db, "Test Suite")
+
+    # Collect checks (this is where it would fail with NameError)
+    context = Context("test", db)
+    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+    suite.collect(context, key)
+
+    # Verify the check was registered correctly
+    checks = list(context._graph.root.children)
+    assert len(checks) == 1
+    assert checks[0].name == "my_simple_check"
+
+
+def test_parametrized_check_with_empty_parens() -> None:
+    """Test that @check() with empty parentheses uses function name."""
+
+    @check()
+    def empty_paren_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(mp.num_rows()).is_gt(0)
+
+    # The metadata should use the function name
+    assert hasattr(empty_paren_check, "_check_metadata")
+    assert empty_paren_check._check_metadata.name == "empty_paren_check"
+    assert empty_paren_check._check_metadata.display_name is None
+    assert empty_paren_check._check_metadata.tags == []
+    assert empty_paren_check._check_metadata.datasets is None
