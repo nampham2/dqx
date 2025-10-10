@@ -870,16 +870,17 @@ suite.run({
 
 ### Dataset Propagation and Validation
 
-The framework validates dataset consistency at collection time:
+The framework validates dataset consistency at collection time using the DatasetImputationVisitor:
 
 ```mermaid
 graph TD
+    Visitor[DatasetImputationVisitor<br/>available_datasets: list[str]]
     Check[CheckNode<br/>datasets: list[str] or None]
     Symbol[SymbolicMetric<br/>datasets: list[str]]
     Assertion[AssertionNode<br/>datasets: list[str]]
 
-    Check -->|propagates| Symbol
-    Check -->|propagates| Assertion
+    Visitor -->|validates/imputes| Check
+    Visitor -->|processes symbols in| Assertion
     Symbol -->|validates against| Check
 ```
 

@@ -410,9 +410,9 @@ class VerificationSuite:
         logger.info("Collecting checks and building dependency graph...")
         self.collect(self._context, key)
 
-        # 1. Impute datasets
+        # 1. Impute datasets using visitor pattern
         logger.info("Imputing datasets...")
-        self._context._graph.impute_datasets(list(datasources.keys()))
+        self._context._graph.impute_datasets(list(datasources.keys()), self._context.provider)
 
         # 2. Analyze by datasources
         for ds in datasources.keys():

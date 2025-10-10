@@ -1,11 +1,13 @@
 from collections import deque
 from typing import TYPE_CHECKING, Optional
+
 from dqx.graph.base import BaseNode, CompositeNode, NodeVisitor
-from dqx.graph.nodes import CheckNode, AssertionNode, RootNode
+from dqx.graph.nodes import AssertionNode, CheckNode, RootNode
 from dqx.graph.visitors import NodeCollector
 
 if TYPE_CHECKING:
     from dqx.display import NodeFormatter
+    from dqx.provider import MetricProvider
 
 
 class Graph:
@@ -46,9 +48,6 @@ class Graph:
         >>> # Traverse the graph
         >>> visitor = NodePrinter()
         >>> graph.dfs(visitor)
-        >>>
-        >>> # Propagate datasets
-        >>> graph.impute_datasets(['production_db', 'staging_db'])
         >>>
         >>> # Collect all assertions
         >>> assertions = graph.assertions()
@@ -241,50 +240,6 @@ class Graph:
             if isinstance(current, CompositeNode):
                 stack.extend(reversed(current.children))
 
-    def impute_datasets(self, datasets: list[str]) -> None:
-        """Propagate dataset information through the graph.
-
-        Distributes the list of available datasets to all nodes in the graph
-        hierarchy. This method delegates to the root node's impute_datasets
-        method, which recursively propagates the information to all checks
-        and assertions.
-
-        Dataset imputation is a critical step that must occur after the graph
-        is constructed but before evaluation. It ensures that all nodes are
-        aware of which datasets are available for computation and can validate
-        their requirements accordingly.
-
-        Args:
-            datasets: List of dataset names that are available for computation.
-                Must contain at least one dataset name. These names should
-                correspond to actual loaded datasets in the system.
-
-        Raises:
-            DQXError: If the datasets list is empty, or if any node in the
-                graph has dataset requirements that cannot be satisfied by
-                the provided datasets.
-
-        Examples:
-            >>> # Single dataset
-            >>> graph.impute_datasets(['production_data'])
-            >>>
-            >>> # Multiple datasets for A/B testing
-            >>> graph.impute_datasets(['control_group', 'treatment_group'])
-            >>>
-            >>> # This will raise an error
-            >>> try:
-            ...     graph.impute_datasets([])
-            ... except DQXError as e:
-            ...     print(f"Error: {e}")
-
-        Note:
-            Dataset imputation follows these rules:
-            - If a check has no datasets specified, it inherits all provided datasets
-            - If a check has specific datasets, they must all be in the provided list
-            - Assertions inherit datasets from their parent checks
-        """
-        self.root.impute_datasets(datasets)
-
     def checks(self) -> list[CheckNode]:
         """Collect all CheckNode instances in the graph.
 
@@ -379,3 +334,22 @@ class Graph:
         from dqx.display import print_graph
 
         print_graph(self, formatter)
+
+    def impute_datasets(self, datasets: list[str], provider: "MetricProvider") -> None:
+        """Propagate dataset information through the graph using visitor pattern.
+
+        Args:
+            datasets: List of available dataset names
+            provider: MetricProvider to access SymbolicMetrics
+
+        Raises:
+            DQXError: If validation fails
+        """
+        from dqx.common import DQXError
+        from dqx.graph.visitors import DatasetImputationVisitor
+
+        visitor = DatasetImputationVisitor(datasets, provider)
+        self.dfs(visitor)  # Use DFS to ensure parents are processed before children
+
+        if visitor.has_errors():
+            raise DQXError(visitor.get_error_summary())
