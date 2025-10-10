@@ -51,20 +51,20 @@ from dqx.common import ResultKey
 @check(name="Order validation", tags=["critical"])
 def validate_orders(mp, ctx):
     # Check for null values
-    ctx.assert_that(mp.null_count("customer_id")).is_eq(0)
+    ctx.assert_that(mp.null_count("customer_id")).where(name="No null customer IDs").is_eq(0)
 
     # Validate price ranges with tolerance
-    ctx.assert_that(mp.minimum("price")).is_geq(0.0, tol=0.01)
-    ctx.assert_that(mp.average("price")).is_gt(10.0)
+    ctx.assert_that(mp.minimum("price")).where(name="Minimum price is non-negative").is_geq(0.0, tol=0.01)
+    ctx.assert_that(mp.average("price")).where(name="Average price is reasonable").is_gt(10.0)
 
     # Multiple assertions on the same metric
     ctx.assert_that(mp.average("quantity")).where(
         name="Quantity should be reasonable"
     ).is_gt(0)
-    ctx.assert_that(mp.average("quantity")).is_leq(100)
+    ctx.assert_that(mp.average("quantity")).where(name="Quantity upper bound").is_leq(100)
 
     # Check data volume
-    ctx.assert_that(mp.num_rows()).is_geq(100)
+    ctx.assert_that(mp.num_rows()).where(name="Sufficient data volume").is_geq(100)
 
 # Create your data
 data = pa.table({
@@ -111,7 +111,7 @@ from dqx import specs
 
 # Use built-in metric specs
 negative_values = mp.metric(specs.NegativeCount("balance"))
-ctx.assert_that(negative_values).is_eq(0)  # No negative balances allowed
+ctx.assert_that(negative_values).where(name="No negative balances").is_eq(0)
 
 # Access metrics with time offsets
 yesterday_avg = mp.average("score", key=ctx.key.lag(1))
@@ -148,16 +148,16 @@ def check_completeness(mp, ctx):
 All comparison methods support an optional `tol` parameter for floating-point tolerance:
 
 ```python
-# Basic comparisons
-ctx.assert_that(metric).is_eq(100, tol=0.1)       # Equal within tolerance
-ctx.assert_that(metric).is_gt(0)                  # Greater than
-ctx.assert_that(metric).is_geq(0, tol=1e-6)       # Greater than or equal
-ctx.assert_that(metric).is_lt(1000)               # Less than
-ctx.assert_that(metric).is_leq(1000, tol=0.01)    # Less than or equal
+# Basic comparisons (all require where() with name)
+ctx.assert_that(metric).where(name="Metric equals 100").is_eq(100, tol=0.1)
+ctx.assert_that(metric).where(name="Metric is positive").is_gt(0)
+ctx.assert_that(metric).where(name="Metric is non-negative").is_geq(0, tol=1e-6)
+ctx.assert_that(metric).where(name="Metric less than 1000").is_lt(1000)
+ctx.assert_that(metric).where(name="Metric within limit").is_leq(1000, tol=0.01)
 
 # Special checks
-ctx.assert_that(metric).is_positive()              # Value > 0
-ctx.assert_that(metric).is_negative()              # Value < 0
+ctx.assert_that(metric).where(name="Value is positive").is_positive()
+ctx.assert_that(metric).where(name="Value is negative").is_negative()
 
 # Configure severity and labels
 ctx.assert_that(metric).where(
@@ -258,7 +258,7 @@ class CustomDataSource:
 ### Time-based Comparisons
 
 ```python
-@check
+@check(name="Monitor trends")
 def monitor_trends(mp, ctx):
     # Compare metrics across time periods
     current = mp.average("revenue")
@@ -283,7 +283,7 @@ def monitor_trends(mp, ctx):
 ### Cross-dataset Validation
 
 ```python
-@check
+@check(name="Cross-dataset validation")
 def cross_validate(mp, ctx):
     # Compare metrics across different datasets
     prod_count = mp.num_rows(datasets=["production"])
@@ -521,8 +521,8 @@ When you define a check like this:
 ```python
 @check(name="Price validation")
 def validate_prices(mp, ctx):
-    ctx.assert_that(mp.average("price")).is_gt(0)
-    ctx.assert_that(mp.maximum("price")).is_leq(1000)
+    ctx.assert_that(mp.average("price")).where(name="Average price is positive").is_gt(0)
+    ctx.assert_that(mp.maximum("price")).where(name="Maximum price within limit").is_leq(1000)
 ```
 
 The framework automatically constructs this graph structure:

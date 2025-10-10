@@ -14,9 +14,9 @@ from dqx.provider import MetricProvider
 @check(name="Simple Checks", datasets=["ds1"])
 def simple_checks(mp: MetricProvider, ctx: Context) -> None:
     ctx.assert_that(mp.null_count("delivered")).where(name="Delivered null count is less than 100").is_leq(100)
-    ctx.assert_that(mp.minimum("quantity")).is_leq(2.5)
-    ctx.assert_that(mp.average("price")).is_geq(10.0)
-    ctx.assert_that(mp.ext.day_over_day(specs.Average("tax"))).is_geq(0.5)
+    ctx.assert_that(mp.minimum("quantity")).where(name="Minimum quantity check").is_leq(2.5)
+    ctx.assert_that(mp.average("price")).where(name="Average price check").is_geq(10.0)
+    ctx.assert_that(mp.ext.day_over_day(specs.Average("tax"))).where(name="Tax day-over-day check").is_geq(0.5)
 
 
 @check(name="Delivered null percentage", datasets=["ds1"])
@@ -30,7 +30,7 @@ def null_percentage(mp: MetricProvider, ctx: Context) -> None:
 def manual_day_over_day(mp: MetricProvider, ctx: Context) -> None:
     tax_avg = mp.average("tax")
     tax_avg_lag = mp.average("tax", key=ctx.key.lag(1))
-    ctx.assert_that(tax_avg / tax_avg_lag).where().is_eq(1.0, tol=0.01)
+    ctx.assert_that(tax_avg / tax_avg_lag).where(name="Tax average day-over-day equals 1.0").is_eq(1.0, tol=0.01)
 
 
 @check(name="Rate of change", datasets=["ds2"])
@@ -42,7 +42,7 @@ def rate_of_change(mp: MetricProvider, ctx: Context) -> None:
 
 @check(name="Sketch Check", datasets=["ds1"])
 def sketch_check(mp: MetricProvider, ctx: Context) -> None:
-    ctx.assert_that(mp.approx_cardinality("address")).is_geq(100)
+    ctx.assert_that(mp.approx_cardinality("address")).where(name="Address cardinality >= 100").is_geq(100)
 
 
 @check(name="Cross Dataset Check", datasets=["ds1", "ds2"])
@@ -50,7 +50,9 @@ def cross_dataset_check(mp: MetricProvider, ctx: Context) -> None:
     tax_avg_1 = mp.average("tax", dataset="ds1")
     tax_avg_2 = mp.average("tax", dataset="ds2")
     # Allow for identical datasets (difference can be 0)
-    ctx.assert_that(sp.Abs(tax_avg_1 / tax_avg_2 - 1)).is_lt(0.2, tol=0.01)
+    ctx.assert_that(sp.Abs(tax_avg_1 / tax_avg_2 - 1)).where(name="Tax average ratio between datasets").is_lt(
+        0.2, tol=0.01
+    )
 
 
 def test_verification_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> None:

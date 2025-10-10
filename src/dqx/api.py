@@ -25,52 +25,80 @@ CheckCreator = Callable[[CheckProducer], CheckProducer]
 logger = get_logger(__name__)
 
 
-@runtime_checkable
-class DecoratedCheck(Protocol):
-    """Protocol for check functions."""
-
-    __name__: str
-
-    def __call__(self, mp: MetricProvider, ctx: "Context") -> None: ...
-
-
-# Graph node state types
-GraphState = Literal["PENDING", "SUCCESS", "FAILED"]
-
-
-class AssertBuilder:
+class AssertionDraft:
     """
-    A symbolic assertion that can be configured with validators and evaluated against data.
+    Initial assertion builder that requires a name before making assertions.
 
-    Provides a fluent interface for setting up data quality assertions with various
-    comparison operators and tolerance levels.
+    This is the first stage of assertion building. You must call where()
+    with a name before you can make any assertions.
+
+    Example:
+        draft = ctx.assert_that(mp.average("price"))
+        ready = draft.where(name="Price is positive")
+        ready.is_positive()
     """
 
     def __init__(self, actual: sp.Expr, context: Context | None = None) -> None:
-        self._actual = actual
-        self._name: str | None = None
-        self._severity: SeverityLevel | None = None
-        self._validator: SymbolicValidator | None = None
-        self._context = context
-
-    def where(self, *, name: str | None = None, severity: SeverityLevel | None = None) -> Self:
         """
-        Configure the assertion with optional name and severity.
+        Initialize assertion draft.
 
         Args:
-            name: Human-readable description of the assertion
-            severity: Severity level for assertion failures
+            actual: The symbolic expression to evaluate
+            context: The Context instance (needed to create assertion nodes)
+        """
+        self._actual = actual
+        self._context = context
+
+    def where(self, *, name: str, severity: SeverityLevel | None = None) -> AssertionReady:
+        """
+        Provide a descriptive name for this assertion.
+
+        Args:
+            name: Required description of what this assertion validates
+            severity: Optional severity level (P0, P1, P2, P3)
 
         Returns:
-            Self for method chaining
+            AssertionReady instance with all assertion methods available
+
+        Raises:
+            ValueError: If name is empty or too long
         """
+        if not name or not name.strip():
+            raise ValueError("Assertion name cannot be empty")
+        if len(name) > 255:
+            raise ValueError("Assertion name is too long (max 255 characters)")
+
+        return AssertionReady(actual=self._actual, name=name.strip(), severity=severity, context=self._context)
+
+
+class AssertionReady:
+    """
+    Named assertion ready to perform validations.
+
+    This assertion has been properly named and can now use any of the
+    validation methods like is_gt(), is_eq(), etc.
+    """
+
+    def __init__(
+        self, actual: sp.Expr, name: str, severity: SeverityLevel | None = None, context: Context | None = None
+    ) -> None:
+        """
+        Initialize ready assertion.
+
+        Args:
+            actual: The symbolic expression to evaluate
+            name: Required description of the assertion
+            severity: Optional severity level
+            context: The Context instance
+        """
+        self._actual = actual
         self._name = name
         self._severity = severity
-        return self
+        self._context = context
 
     def is_geq(self, other: float, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is greater than or equal to the given value."""
-        validator = SymbolicValidator(f"\u2265 {other}", lambda x: functions.is_geq(x, other, tol))
+        validator = SymbolicValidator(f"≥ {other}", lambda x: functions.is_geq(x, other, tol))
         self._create_assertion_node(validator)
 
     def is_gt(self, other: float, tol: float = functions.EPSILON) -> None:
@@ -80,7 +108,7 @@ class AssertBuilder:
 
     def is_leq(self, other: float, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is less than or equal to the given value."""
-        validator = SymbolicValidator(f"\u2264 {other}", lambda x: functions.is_leq(x, other, tol))
+        validator = SymbolicValidator(f"≤ {other}", lambda x: functions.is_leq(x, other, tol))
         self._create_assertion_node(validator)
 
     def is_lt(self, other: float, tol: float = functions.EPSILON) -> None:
@@ -105,7 +133,6 @@ class AssertBuilder:
 
     def _create_assertion_node(self, validator: SymbolicValidator) -> None:
         """Create a new assertion node and attach it to the current check."""
-        # If we don't have a context, we can't create new assertions
         if self._context is None:
             return
 
@@ -118,11 +145,27 @@ class AssertBuilder:
 
         # Create assertion node with all fields
         node = self._context.create_assertion(
-            actual=self._actual, name=self._name, severity=self._severity, validator=validator
+            actual=self._actual,
+            name=self._name,  # Always has a name now!
+            severity=self._severity,
+            validator=validator,
         )
 
         # Attach to the current check node
         current.add_child(node)
+
+
+@runtime_checkable
+class DecoratedCheck(Protocol):
+    """Protocol for check functions."""
+
+    __name__: str
+
+    def __call__(self, mp: MetricProvider, ctx: "Context") -> None: ...
+
+
+# Graph node state types
+GraphState = Literal["PENDING", "SUCCESS", "FAILED"]
 
 
 class Context:
@@ -233,20 +276,24 @@ class Context:
             validator=validator,
         )
 
-    def assert_that(self, expr: sp.Expr) -> AssertBuilder:
+    def assert_that(self, expr: sp.Expr) -> AssertionDraft:
         """
-        Create a symbolic assertion for the given expression.
+        Create an assertion draft for the given expression.
+
+        You must provide a name using where() before making assertions:
+
+        Example:
+            ctx.assert_that(mp.average("price"))
+               .where(name="Average price is positive")
+               .is_positive()
 
         Args:
             expr: Symbolic expression to assert on
 
         Returns:
-            SymbolicAssert instance for chaining validation methods
-
-        Raises:
-            DQXError: If no active check node exists to attach assertion to
+            AssertionDraft that requires where() to be called
         """
-        return AssertBuilder(actual=expr, context=self)
+        return AssertionDraft(actual=expr, context=self)
 
     def pending_metrics(self, dataset: str | None = None) -> Sequence[MetricSpec]:
         """

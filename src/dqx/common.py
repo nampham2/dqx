@@ -10,11 +10,9 @@ import duckdb
 import sympy as sp
 from returns.result import Result
 
-
 if TYPE_CHECKING:
-    from dqx.api import AssertBuilder
-    from dqx.specs import MetricSpec
     from dqx.analyzer import AnalysisReport
+    from dqx.specs import MetricSpec
 
 
 class DQXError(Exception): ...
@@ -280,7 +278,7 @@ class Analyzer(Protocol):
 
 @runtime_checkable
 class Context(Protocol):
-    def assert_that(self, expr: sp.Expr) -> AssertBuilder: ...
+    def assert_that(self, expr: sp.Expr) -> Any: ...  # Returns AssertionDraft
 
     @property
     def key(self) -> ResultKeyProvider: ...
