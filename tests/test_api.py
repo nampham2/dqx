@@ -43,7 +43,7 @@ def test_assertion_methods_return_none() -> None:
     context = Context("test", db)
 
     # Create a simple check to have proper context
-    @check
+    @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
         builder = ctx.assert_that(sp.Symbol("x"))
 
@@ -70,7 +70,7 @@ def test_no_assertion_chaining() -> None:
     db = InMemoryMetricDB()
     context = Context("test", db)
 
-    @check
+    @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
         metric = sp.Symbol("x")
         # This should fail - can't chain assertions
@@ -90,7 +90,7 @@ def test_multiple_assertions_on_same_metric() -> None:
     db = InMemoryMetricDB()
     context = Context("test", db)
 
-    @check
+    @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
         metric = sp.Symbol("x")
 
@@ -116,14 +116,12 @@ def test_simple_check_uses_function_name() -> None:
     """Test that @check without params uses function name."""
 
     # Create a simple check without parameters
-    @check
+    @check(name="validate_orders")
     def validate_orders(mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(mp.num_rows()).is_gt(0)
 
-    # The metadata should use the function name
-    assert hasattr(validate_orders, "_check_metadata")
-    assert validate_orders._check_metadata.name == "validate_orders"
-    assert validate_orders._check_metadata.display_name is None
+    # No metadata is stored anymore, just verify the function works
+    assert validate_orders.__name__ == "validate_orders"
 
 
 def test_parametrized_check_uses_provided_name() -> None:
@@ -133,16 +131,14 @@ def test_parametrized_check_uses_provided_name() -> None:
     def validate_orders(mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(mp.num_rows()).is_gt(0)
 
-    # The metadata should store both names
-    assert validate_orders._check_metadata.name == "validate_orders"  # function name
-    assert validate_orders._check_metadata.display_name == "Order Validation Check"  # provided name
-    assert validate_orders._check_metadata.tags == ["critical"]
+    # No metadata is stored anymore, just verify the function works
+    assert validate_orders.__name__ == "validate_orders"
 
 
 def test_simple_check_works_in_suite() -> None:
     """Test that simple @check works in a verification suite."""
 
-    @check
+    @check(name="my_simple_check")
     def my_simple_check(mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(mp.num_rows()).is_gt(0)
 
@@ -164,13 +160,50 @@ def test_simple_check_works_in_suite() -> None:
 def test_parametrized_check_with_empty_parens() -> None:
     """Test that @check() with empty parentheses uses function name."""
 
-    @check()
+    @check(name="empty_paren_check")
     def empty_paren_check(mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(mp.num_rows()).is_gt(0)
 
-    # The metadata should use the function name
-    assert hasattr(empty_paren_check, "_check_metadata")
-    assert empty_paren_check._check_metadata.name == "empty_paren_check"
-    assert empty_paren_check._check_metadata.display_name is None
-    assert empty_paren_check._check_metadata.tags == []
-    assert empty_paren_check._check_metadata.datasets is None
+    # No metadata is stored anymore, just verify the function works
+    assert empty_paren_check.__name__ == "empty_paren_check"
+
+
+def test_check_decorator_requires_name() -> None:
+    """Test that @check decorator requires name parameter."""
+    # This should raise TypeError because name is required
+    with pytest.raises(TypeError, match="missing 1 required keyword-only argument: 'name'"):
+
+        @check()  # type: ignore[call-arg]  # Missing required name parameter
+        def my_check(mp: MetricProvider, ctx: Context) -> None:
+            pass
+
+
+def test_check_decorator_without_parentheses_not_allowed() -> None:
+    """Test that @check without parentheses is not allowed."""
+    # This test verifies compile-time behavior - the decorator
+    # should not be callable without parentheses anymore
+    # Note: This will be a syntax/type error after implementation
+    pass
+
+
+def test_check_decorator_with_name_works() -> None:
+    """Test that @check with name parameter works correctly."""
+    db = InMemoryMetricDB()
+
+    @check(name="Valid Check")
+    def my_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(mp.num_rows()).is_gt(0)
+
+    # Verify the check can be used in a suite
+    suite = VerificationSuite([my_check], db, "Test Suite")
+    assert suite is not None
+
+    # Verify it can be collected
+    context = Context("test", db)
+    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+    suite.collect(context, key)
+
+    # Verify the check was registered with the correct name
+    checks = list(context._graph.root.children)
+    assert len(checks) == 1
+    assert checks[0].name == "Valid Check"

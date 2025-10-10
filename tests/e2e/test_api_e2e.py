@@ -11,7 +11,7 @@ from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
 
 
-@check(datasets=["ds1"])
+@check(name="Simple Checks", datasets=["ds1"])
 def simple_checks(mp: MetricProvider, ctx: Context) -> None:
     ctx.assert_that(mp.null_count("delivered")).where(name="Delivered null count is less than 100").is_leq(100)
     ctx.assert_that(mp.minimum("quantity")).is_leq(2.5)
@@ -26,7 +26,7 @@ def null_percentage(mp: MetricProvider, ctx: Context) -> None:
     ctx.assert_that(null_count / nr).where(name="null percentage is less than 40%").is_leq(0.4)
 
 
-@check
+@check(name="Manual Day Over Day")
 def manual_day_over_day(mp: MetricProvider, ctx: Context) -> None:
     tax_avg = mp.average("tax")
     tax_avg_lag = mp.average("tax", key=ctx.key.lag(1))
@@ -40,12 +40,12 @@ def rate_of_change(mp: MetricProvider, ctx: Context) -> None:
     ctx.assert_that(rate).where(name="Maximum tax rate change is less than 20%").is_leq(0.2)
 
 
-@check(datasets=["ds1"])
+@check(name="Sketch Check", datasets=["ds1"])
 def sketch_check(mp: MetricProvider, ctx: Context) -> None:
     ctx.assert_that(mp.approx_cardinality("address")).is_geq(100)
 
 
-@check(datasets=["ds1", "ds2"])
+@check(name="Cross Dataset Check", datasets=["ds1", "ds2"])
 def cross_dataset_check(mp: MetricProvider, ctx: Context) -> None:
     tax_avg_1 = mp.average("tax", dataset="ds1")
     tax_avg_2 = mp.average("tax", dataset="ds2")

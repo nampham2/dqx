@@ -166,7 +166,11 @@ YOU MUST follow this debugging framework for ANY technical issue:
 - Track patterns in user feedback to improve collaboration over time
 - When you notice something that should be fixed but is unrelated to your current task, document it in your journal rather than fixing it immediately
 
+---
 # Project specific rules
+
+## Documentation
+  - NEVER modify existing files under docs/plans unless you are asked by Nam.
 
 ## Virtual environment
   - The project is managed with uv
@@ -205,4 +209,4 @@ YOU MUST follow this debugging framework for ANY technical issue:
 
 ## Examples
   - To run code coverage: `uv run pytest tests/test_symbol_table.py -v --cov=dqx.symbol_table`
-  - To run ruff and mypy for the whole project: `.github/quality.sh && .github/coverage.sh`
+  - To check and fix some problem for the whole code base, use the pre-commit hook `bin/run-hooks.sh`. Please read the script to know which options to use.

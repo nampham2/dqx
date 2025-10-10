@@ -4,8 +4,7 @@ import functools
 import threading
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass, field
-from typing import Any, Literal, Protocol, Self, cast, overload, runtime_checkable
+from typing import Any, Literal, Protocol, Self, cast, runtime_checkable
 
 import sympy as sp
 
@@ -26,22 +25,11 @@ CheckCreator = Callable[[CheckProducer], CheckProducer]
 logger = get_logger(__name__)
 
 
-@dataclass
-class CheckMetadata:
-    """Metadata stored on decorated check functions."""
-
-    name: str  # The function name
-    datasets: list[str] | None = None
-    tags: list[str] = field(default_factory=list)
-    display_name: str | None = None  # User-provided name
-
-
 @runtime_checkable
 class DecoratedCheck(Protocol):
-    """Protocol for check functions with metadata."""
+    """Protocol for check functions."""
 
     __name__: str
-    _check_metadata: CheckMetadata
 
     def __call__(self, mp: MetricProvider, ctx: "Context") -> None: ...
 
@@ -462,76 +450,38 @@ def _create_check(
         _check(provider, context)
 
 
-@overload
-def check(_check: CheckProducer) -> DecoratedCheck: ...
-
-
-@overload
-def check() -> Callable[[CheckProducer], DecoratedCheck]: ...
-
-
-@overload
 def check(
-    *, name: str | None = None, tags: list[str] = [], datasets: list[str] | None = None
-) -> Callable[[CheckProducer], DecoratedCheck]: ...
-
-
-def check(
-    _check: CheckProducer | None = None,
     *,
-    name: str | None = None,
+    name: str,
     tags: list[str] = [],
     datasets: list[str] | None = None,
-) -> DecoratedCheck | Callable[[CheckProducer], DecoratedCheck]:
+) -> Callable[[CheckProducer], DecoratedCheck]:
     """
     Decorator for creating data quality check functions.
 
-    Can be used with or without parameters:
-
-    @check
-    def my_check(mp: MetricProvider, ctx: Context) -> None:
-        # check logic
+    Must be used with parentheses and a name:
 
     @check(name="Important Check", tags=["critical"], datasets=["ds1"])
     def my_labeled_check(mp: MetricProvider, ctx: Context) -> None:
         # check logic
 
     Args:
-        _check: The check function (when used without parentheses)
+        name: Human-readable name for the check (required)
         tags: Optional tags for categorizing the check
-        name: Optional human-readable name for the check
-        datasets: Optional list of datasets the check applies to.
+        datasets: Optional list of datasets the check applies to
 
     Returns:
-        Decorated check function or decorator function
+        Decorated check function
+
+    Raises:
+        TypeError: If called without the required 'name' parameter
     """
-    if _check is not None:
-        # Simple @check decorator without parentheses
-        wrapped = functools.wraps(_check)(
-            functools.partial(_create_check, _check=_check, name=_check.__name__, tags=tags, datasets=datasets)
-        )
-        # Store metadata using dataclass
-        wrapped._check_metadata = CheckMetadata(  # type: ignore[attr-defined]
-            name=_check.__name__,
-            datasets=datasets,
-            tags=tags,
-            display_name=None,
-        )
-        return cast(DecoratedCheck, wrapped)
 
     def decorator(fn: CheckProducer) -> DecoratedCheck:
-        # Use provided name or fall back to function name
-        check_name = name if name is not None else fn.__name__
         wrapped = functools.wraps(fn)(
-            functools.partial(_create_check, _check=fn, name=check_name, tags=tags, datasets=datasets)
+            functools.partial(_create_check, _check=fn, name=name, tags=tags, datasets=datasets)
         )
-        # Store metadata using dataclass
-        wrapped._check_metadata = CheckMetadata(  # type: ignore[attr-defined]
-            name=fn.__name__,
-            datasets=datasets,
-            tags=tags,
-            display_name=name,  # This will be None if name wasn't provided
-        )
+        # No metadata storage needed anymore
         return cast(DecoratedCheck, wrapped)
 
     return decorator
