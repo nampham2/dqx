@@ -3,7 +3,7 @@ import datetime
 import pytest
 import sympy as sp
 
-from dqx.api import AssertBuilder, Context, MetricProvider, VerificationSuite, check
+from dqx.api import Context, MetricProvider, VerificationSuite, check
 from dqx.common import ResultKey
 from dqx.graph.nodes import AssertionNode
 from dqx.orm.repositories import InMemoryMetricDB
@@ -24,19 +24,6 @@ def test_assertion_node_is_immutable() -> None:
     assert node_with_label.name == "test label"
 
 
-def test_assert_builder_no_listeners() -> None:
-    """AssertBuilder should not use listeners."""
-    expr = sp.Symbol("x")
-
-    # Should not accept listeners parameter
-    with pytest.raises(TypeError):
-        AssertBuilder(actual=expr, listeners=[], context=None)  # type: ignore[call-arg]
-
-    # Should work without listeners
-    builder = AssertBuilder(actual=expr, context=None)
-    assert builder is not None
-
-
 def test_assertion_methods_return_none() -> None:
     """Assertion methods should not return AssertBuilder for chaining."""
     db = InMemoryMetricDB()
@@ -45,18 +32,19 @@ def test_assertion_methods_return_none() -> None:
     # Create a simple check to have proper context
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
-        builder = ctx.assert_that(sp.Symbol("x"))
+        draft = ctx.assert_that(sp.Symbol("x"))
+        ready = draft.where(name="Test assertion 1")
 
         # These should return None, not AssertBuilder
-        result = builder.is_gt(0)  # type: ignore[func-returns-value]
+        result = ready.is_gt(0)  # type: ignore[func-returns-value]
         assert result is None  # Should return None
 
         # Try other assertion methods
-        builder2 = ctx.assert_that(sp.Symbol("y"))
-        result2 = builder2.is_eq(5)  # type: ignore[func-returns-value]
+        ready2 = ctx.assert_that(sp.Symbol("y")).where(name="Test assertion 2")
+        result2 = ready2.is_eq(5)  # type: ignore[func-returns-value]
         assert result2 is None  # Should return None
 
-        result3 = ctx.assert_that(sp.Symbol("z")).is_leq(10)  # type: ignore[func-returns-value]
+        result3 = ctx.assert_that(sp.Symbol("z")).where(name="Test assertion 3").is_leq(10)  # type: ignore[func-returns-value]
         assert result3 is None  # Should return None
 
     # Set up suite with the check
@@ -74,7 +62,7 @@ def test_no_assertion_chaining() -> None:
     def test_check(mp: MetricProvider, ctx: Context) -> None:
         metric = sp.Symbol("x")
         # This should fail - can't chain assertions
-        result = ctx.assert_that(metric).is_gt(0)  # type: ignore[func-returns-value]
+        result = ctx.assert_that(metric).where(name="Test assertion").is_gt(0)  # type: ignore[func-returns-value]
         # Result should be None, so calling is_lt on it should fail
         with pytest.raises(AttributeError):
             result.is_lt(100)  # type: ignore[attr-defined]
@@ -118,7 +106,7 @@ def test_simple_check_uses_function_name() -> None:
     # Create a simple check without parameters
     @check(name="validate_orders")
     def validate_orders(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).is_gt(0)
+        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
 
     # No metadata is stored anymore, just verify the function works
     assert validate_orders.__name__ == "validate_orders"
@@ -129,7 +117,7 @@ def test_parametrized_check_uses_provided_name() -> None:
 
     @check(name="Order Validation Check", tags=["critical"])
     def validate_orders(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).is_gt(0)
+        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
 
     # No metadata is stored anymore, just verify the function works
     assert validate_orders.__name__ == "validate_orders"
@@ -140,7 +128,7 @@ def test_simple_check_works_in_suite() -> None:
 
     @check(name="my_simple_check")
     def my_simple_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).is_gt(0)
+        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
 
     # Should be able to use in a suite without errors
     db = InMemoryMetricDB()
@@ -162,7 +150,7 @@ def test_parametrized_check_with_empty_parens() -> None:
 
     @check(name="empty_paren_check")
     def empty_paren_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).is_gt(0)
+        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
 
     # No metadata is stored anymore, just verify the function works
     assert empty_paren_check.__name__ == "empty_paren_check"
@@ -192,7 +180,7 @@ def test_check_decorator_with_name_works() -> None:
 
     @check(name="Valid Check")
     def my_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).is_gt(0)
+        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
 
     # Verify the check can be used in a suite
     suite = VerificationSuite([my_check], db, "Test Suite")
@@ -207,3 +195,154 @@ def test_check_decorator_with_name_works() -> None:
     checks = list(context._graph.root.children)
     assert len(checks) == 1
     assert checks[0].name == "Valid Check"
+
+
+# NEW TESTS FOR ASSERTION DRAFT AND READY
+
+
+def test_assertion_draft_creation() -> None:
+    """AssertionDraft should only expose where() method."""
+    from dqx.api import AssertionDraft
+
+    expr = sp.Symbol("x")
+    draft = AssertionDraft(actual=expr, context=None)
+
+    # Should have where method
+    assert hasattr(draft, "where")
+
+    # Should NOT have assertion methods
+    assert not hasattr(draft, "is_gt")
+    assert not hasattr(draft, "is_eq")
+    assert not hasattr(draft, "is_positive")
+
+
+def test_assertion_ready_has_all_methods() -> None:
+    """AssertionReady should have all assertion methods."""
+    from dqx.api import AssertionReady
+
+    expr = sp.Symbol("x")
+    ready = AssertionReady(actual=expr, name="Test assertion", context=None)
+
+    # Should have all assertion methods
+    assert hasattr(ready, "is_gt")
+    assert hasattr(ready, "is_geq")
+    assert hasattr(ready, "is_lt")
+    assert hasattr(ready, "is_leq")
+    assert hasattr(ready, "is_eq")
+    assert hasattr(ready, "is_positive")
+    assert hasattr(ready, "is_negative")
+
+    # Should NOT have where method
+    assert not hasattr(ready, "where")
+
+
+def test_context_assert_that_returns_draft() -> None:
+    """Context.assert_that should return AssertionDraft."""
+    from dqx.api import AssertionDraft
+
+    db = InMemoryMetricDB()
+    context = Context("test", db)
+
+    draft = context.assert_that(sp.Symbol("x"))
+    assert isinstance(draft, AssertionDraft)
+
+
+def test_assertion_workflow_end_to_end() -> None:
+    """Test complete assertion workflow from draft to execution."""
+    db = InMemoryMetricDB()
+    context = Context("test", db)
+
+    @check(name="Test Check")
+    def test_check(mp: MetricProvider, ctx: Context) -> None:
+        # Create draft
+        draft = ctx.assert_that(sp.Symbol("x"))
+
+        # Convert to ready with name
+        ready = draft.where(name="X is positive")
+
+        # Make assertion
+        ready.is_positive()
+
+        # Verify assertion was created
+        assert ctx.current_check is not None
+        assert len(ctx.current_check.children) == 1
+        assert ctx.current_check.children[0].name == "X is positive"
+
+    suite = VerificationSuite([test_check], db, "test")
+    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+    suite.collect(context, key=key)
+
+
+def test_cannot_use_assertion_methods_on_draft() -> None:
+    """Assertion methods should not be available on AssertionDraft."""
+    from dqx.api import AssertionDraft
+
+    draft = AssertionDraft(sp.Symbol("x"), context=None)
+
+    # These should raise AttributeError
+    with pytest.raises(AttributeError):
+        draft.is_gt(0)  # type: ignore
+
+    with pytest.raises(AttributeError):
+        draft.is_positive()  # type: ignore
+
+
+def test_where_requires_name_parameter() -> None:
+    """The where() method should require name parameter."""
+    from dqx.api import AssertionDraft
+
+    draft = AssertionDraft(sp.Symbol("x"), context=None)
+
+    # Should fail without name
+    with pytest.raises(TypeError, match="missing 1 required keyword-only argument: 'name'"):
+        draft.where()  # type: ignore
+
+    # Should work with name
+    ready = draft.where(name="Valid name")
+    assert ready is not None
+
+
+def test_assertion_ready_always_has_name() -> None:
+    """AssertionReady should always have a name set."""
+    db = InMemoryMetricDB()
+    context = Context("test", db)
+
+    @check(name="Test Check")
+    def test_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(sp.Symbol("x")).where(name="My assertion").is_positive()
+
+        # Check that the assertion node has the name
+        assert ctx.current_check is not None
+        assertion_node = ctx.current_check.children[0]
+        assert assertion_node.name == "My assertion"
+
+    suite = VerificationSuite([test_check], db, "test")
+    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+    suite.collect(context, key=key)
+
+
+def test_where_validates_name() -> None:
+    """The where() method should validate name parameter."""
+    from dqx.api import AssertionDraft
+
+    draft = AssertionDraft(sp.Symbol("x"), context=None)
+
+    # Empty string should fail
+    with pytest.raises(ValueError, match="Assertion name cannot be empty"):
+        draft.where(name="")
+
+    # Whitespace only should fail
+    with pytest.raises(ValueError, match="Assertion name cannot be empty"):
+        draft.where(name="   ")
+
+    # Too long name should fail
+    with pytest.raises(ValueError, match="Assertion name is too long"):
+        draft.where(name="x" * 256)
+
+    # Valid name should work
+    ready = draft.where(name="Valid assertion name")
+    assert ready is not None
+
+    # Name should be stripped
+    ready2 = draft.where(name="  Trimmed name  ")
+    assert ready2._name == "Trimmed name"
