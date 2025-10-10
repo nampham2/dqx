@@ -1,10 +1,12 @@
 """Tests for Graph.print_tree method."""
 
 from unittest.mock import Mock, patch
-from dqx.graph.nodes import RootNode, CheckNode, AssertionNode
-from dqx.graph.traversal import Graph
-from dqx.display import NodeFormatter
+
 import sympy as sp
+
+from dqx.display import NodeFormatter
+from dqx.graph.nodes import AssertionNode, CheckNode, RootNode
+from dqx.graph.traversal import Graph
 
 
 class TestGraphPrintTree:
@@ -42,11 +44,11 @@ class TestGraphPrintTree:
         """Test print_tree with a more complex graph structure."""
         # Given a complex graph
         root = RootNode("Quality Suite")
-        check1 = CheckNode("completeness", label="Data Completeness")
-        check2 = CheckNode("validity", label="Data Validity")
+        check1 = CheckNode("Data Completeness")
+        check2 = CheckNode("Data Validity")
 
-        assertion1 = AssertionNode(actual=sp.Symbol("x") > 0, label="Positive values")
-        assertion2 = AssertionNode(actual=sp.Symbol("y") < 100, label="Upper bound check")
+        assertion1 = AssertionNode(actual=sp.Symbol("x") > 0, name="Positive values")
+        assertion2 = AssertionNode(actual=sp.Symbol("y") < 100, name="Upper bound check")
 
         root.add_child(check1)
         root.add_child(check2)

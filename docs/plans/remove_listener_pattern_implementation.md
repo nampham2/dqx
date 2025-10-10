@@ -133,7 +133,7 @@ def test_assertion_methods_return_none():
 3. Update `AssertBuilder.clone()` method:
    - Remove it entirely (no longer needed without chaining)
 
-4. Update `AssertBuilder.on()` method (around line 95):
+4. Update `AssertBuilder.where()` method (around line 95):
    - Remove the loop that notifies listeners
    - Just store the values internally
 
@@ -203,8 +203,8 @@ def test_multiple_assertions_on_same_metric():
     # ... setup code ...
 
     # Multiple assertions on same metric (not chained)
-    ctx.assert_that(metric).on(label="Greater than 40").is_gt(40)
-    ctx.assert_that(metric).on(label="Less than 60").is_lt(60)
+    ctx.assert_that(metric).where(name="Greater than 40").is_gt(40)
+    ctx.assert_that(metric).where(name="Less than 60").is_lt(60)
 
     # ... rest of test ...
 ```
@@ -304,11 +304,11 @@ Users will need to update their code:
 
 ```python
 # Old style (chained):
-ctx.assert_that(metric).on(label="Range check").is_geq(0).is_leq(100)
+ctx.assert_that(metric).where(name="Range check").is_geq(0).is_leq(100)
 
 # New style (separate assertions):
-ctx.assert_that(metric).on(label="Minimum check").is_geq(0)
-ctx.assert_that(metric).on(label="Maximum check").is_leq(100)
+ctx.assert_that(metric).where(name="Minimum check").is_geq(0)
+ctx.assert_that(metric).where(name="Maximum check").is_leq(100)
 ```
 
 ## Benefits of This Change

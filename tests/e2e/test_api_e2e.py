@@ -6,38 +6,38 @@ import sympy as sp
 from dqx import specs
 from dqx.api import VerificationSuite, check
 from dqx.common import Context, ResultKey
-from dqx.provider import MetricProvider
 from dqx.extensions.pyarrow_ds import ArrowDataSource
 from dqx.orm.repositories import InMemoryMetricDB
+from dqx.provider import MetricProvider
 
 
 @check(datasets=["ds1"])
 def simple_checks(mp: MetricProvider, ctx: Context) -> None:
-    ctx.assert_that(mp.null_count("delivered")).on(label="Delivered null count is less than 100").is_leq(100)
+    ctx.assert_that(mp.null_count("delivered")).where(name="Delivered null count is less than 100").is_leq(100)
     ctx.assert_that(mp.minimum("quantity")).is_leq(2.5)
     ctx.assert_that(mp.average("price")).is_geq(10.0)
     ctx.assert_that(mp.ext.day_over_day(specs.Average("tax"))).is_geq(0.5)
 
 
-@check(label="Delivered null percentage", datasets=["ds1"])
+@check(name="Delivered null percentage", datasets=["ds1"])
 def null_percentage(mp: MetricProvider, ctx: Context) -> None:
     null_count = mp.null_count("delivered", dataset="ds1")
     nr = mp.num_rows()
-    ctx.assert_that(null_count / nr).on(label="null percentage is less than 40%").is_leq(0.4)
+    ctx.assert_that(null_count / nr).where(name="null percentage is less than 40%").is_leq(0.4)
 
 
 @check
 def manual_day_over_day(mp: MetricProvider, ctx: Context) -> None:
     tax_avg = mp.average("tax")
     tax_avg_lag = mp.average("tax", key=ctx.key.lag(1))
-    ctx.assert_that(tax_avg / tax_avg_lag).on().is_eq(1.0, tol=0.01)
+    ctx.assert_that(tax_avg / tax_avg_lag).where().is_eq(1.0, tol=0.01)
 
 
-@check(label="Rate of change", datasets=["ds2"])
+@check(name="Rate of change", datasets=["ds2"])
 def rate_of_change(mp: MetricProvider, ctx: Context) -> None:
     tax_avg = mp.ext.day_over_day(specs.Maximum("tax"))
     rate = sp.Abs(tax_avg - 1.0)
-    ctx.assert_that(rate).on(label="Maximum tax rate change is less than 20%").is_leq(0.2)
+    ctx.assert_that(rate).where(name="Maximum tax rate change is less than 20%").is_leq(0.2)
 
 
 @check(datasets=["ds1"])

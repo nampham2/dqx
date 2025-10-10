@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from contextlib import contextmanager
 import functools
-from collections.abc import Callable, Sequence
 import threading
-from typing import Any, Protocol, Self, overload, runtime_checkable, TypedDict, cast, Literal
+from collections.abc import Callable, Sequence
+from contextlib import contextmanager
+from typing import Any, Literal, Protocol, Self, TypedDict, cast, overload, runtime_checkable
 
 import sympy as sp
 
 from dqx import common, functions, get_logger
 from dqx.analyzer import Analyzer
-from dqx.common import DQXError, SqlDataSource, ResultKey, ResultKeyProvider, SeverityLevel, SymbolicValidator
+from dqx.common import DQXError, ResultKey, ResultKeyProvider, SeverityLevel, SqlDataSource, SymbolicValidator
 from dqx.evaluator import Evaluator
 from dqx.graph.nodes import AssertionNode, CheckNode, RootNode
 from dqx.graph.traversal import Graph
@@ -28,10 +28,10 @@ logger = get_logger(__name__)
 class CheckMetadata(TypedDict):
     """Metadata stored on decorated check functions."""
 
-    name: str
+    name: str  # The function name
     datasets: list[str] | None
     tags: list[str]
-    label: str | None
+    display_name: str | None  # WAS: label: str | None
 
 
 @runtime_checkable
@@ -58,23 +58,23 @@ class AssertBuilder:
 
     def __init__(self, actual: sp.Expr, context: Context | None = None) -> None:
         self._actual = actual
-        self._label: str | None = None
+        self._name: str | None = None
         self._severity: SeverityLevel | None = None
         self._validator: SymbolicValidator | None = None
         self._context = context
 
-    def on(self, *, label: str | None = None, severity: SeverityLevel | None = None) -> Self:
+    def where(self, *, name: str | None = None, severity: SeverityLevel | None = None) -> Self:
         """
-        Configure the assertion with optional label and severity.
+        Configure the assertion with optional name and severity.
 
         Args:
-            label: Human-readable description of the assertion
+            name: Human-readable description of the assertion
             severity: Severity level for assertion failures
 
         Returns:
             Self for method chaining
         """
-        self._label = label
+        self._name = name
         self._severity = severity
         return self
 
@@ -128,7 +128,7 @@ class AssertBuilder:
 
         # Create assertion node with all fields
         node = self._context.create_assertion(
-            actual=self._actual, label=self._label, severity=self._severity, validator=validator
+            actual=self._actual, name=self._name, severity=self._severity, validator=validator
         )
 
         # Attach to the current check node
@@ -198,16 +198,14 @@ class Context:
         self,
         name: str,
         tags: list[str] | None = None,
-        label: str | None = None,
         datasets: list[str] | None = None,
     ) -> CheckNode:
         """
         Factory method to create a check node.
 
         Args:
-            name: Unique identifier for the check
+            name: Name for the check (either user-provided or function name)
             tags: Optional tags for categorizing the check
-            label: Optional human-readable label
             datasets: Optional list of datasets the check applies to
 
         Returns:
@@ -216,14 +214,13 @@ class Context:
         return CheckNode(
             name=name,
             tags=tags,
-            label=label,
             datasets=datasets,
         )
 
     def create_assertion(
         self,
         actual: sp.Expr,
-        label: str | None = None,
+        name: str | None = None,
         severity: SeverityLevel | None = None,
         validator: SymbolicValidator | None = None,
     ) -> AssertionNode:
@@ -232,7 +229,7 @@ class Context:
 
         Args:
             actual: Symbolic expression to evaluate
-            label: Optional human-readable description
+            name: Optional human-readable description
             severity: Optional severity level for failures
             validator: Optional validator function
 
@@ -241,7 +238,7 @@ class Context:
         """
         return AssertionNode(
             actual=actual,
-            label=label,
+            name=name,
             severity=severity,
             validator=validator,
         )
@@ -433,7 +430,7 @@ def _create_check(
     context: Context,
     _check: CheckProducer,
     tags: list[str] = [],
-    label: str | None = None,
+    display_name: str | None = None,
     datasets: list[str] | None = None,
 ) -> None:
     """
@@ -444,14 +441,17 @@ def _create_check(
         context: Execution context
         _check: Check function to execute
         tags: Optional tags for the check
-        label: Optional human-readable label
+        display_name: Optional human-readable name
         datasets: Optional list of datasets the check applies to
 
     Raises:
         DQXError: If a check with the same name already exists
     """
+    # Use display_name if provided, otherwise use function name
+    node_name = display_name if display_name else _check.__name__
+
     # Use context factory method
-    node = context.create_check(name=_check.__name__, tags=tags, label=label, datasets=datasets)
+    node = context.create_check(name=node_name, tags=tags, datasets=datasets)
 
     if context._graph.root.exists(node):
         raise DQXError(f"Check {node.name} already exists in the graph!")
@@ -469,7 +469,7 @@ def check(_check: CheckProducer) -> DecoratedCheck: ...
 
 @overload
 def check(
-    *, tags: list[str] = [], label: str | None = None, datasets: list[str] | None = None
+    *, tags: list[str] = [], name: str | None = None, datasets: list[str] | None = None
 ) -> Callable[[CheckProducer], DecoratedCheck]: ...
 
 
@@ -477,7 +477,7 @@ def check(
     _check: CheckProducer | None = None,
     *,
     tags: list[str] = [],
-    label: str | None = None,
+    name: str | None = None,
     datasets: list[str] | None = None,
 ) -> DecoratedCheck | Callable[[CheckProducer], DecoratedCheck]:
     """
@@ -489,17 +489,15 @@ def check(
     def my_check(mp: MetricProvider, ctx: Context) -> None:
         # check logic
 
-    @check(tags=["critical"], label="Important Check", datasets=["ds1"])
+    @check(name="Important Check", tags=["critical"], datasets=["ds1"])
     def my_labeled_check(mp: MetricProvider, ctx: Context) -> None:
         # check logic
 
     Args:
         _check: The check function (when used without parentheses)
         tags: Optional tags for categorizing the check
-        label: Optional human-readable label for the check
+        name: Optional human-readable name for the check
         datasets: Optional list of datasets the check applies to.
-                 If not specified and multiple datasets are provided at runtime,
-                 an error will be raised.
 
     Returns:
         Decorated check function or decorator function
@@ -507,27 +505,27 @@ def check(
     if _check is not None:
         # Simple @check decorator without parentheses
         wrapped = functools.wraps(_check)(
-            functools.partial(_create_check, _check=_check, tags=tags, label=label, datasets=datasets)
+            functools.partial(_create_check, _check=_check, tags=tags, display_name=name, datasets=datasets)
         )
         # Store metadata for validation
         wrapped._check_metadata = {  # type: ignore[attr-defined]
             "name": _check.__name__,
             "datasets": datasets,
             "tags": tags,
-            "label": label,
+            "display_name": name,
         }
         return cast(DecoratedCheck, wrapped)
 
     def decorator(fn: CheckProducer) -> DecoratedCheck:
         wrapped = functools.wraps(fn)(
-            functools.partial(_create_check, _check=fn, tags=tags, label=label, datasets=datasets)
+            functools.partial(_create_check, _check=fn, tags=tags, display_name=name, datasets=datasets)
         )
         # Store metadata for validation
         wrapped._check_metadata = {  # type: ignore[attr-defined]
             "name": fn.__name__,
             "datasets": datasets,
             "tags": tags,
-            "label": label,
+            "display_name": name,
         }
         return cast(DecoratedCheck, wrapped)
 

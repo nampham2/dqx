@@ -100,7 +100,7 @@ Based on my analysis of the dqx codebase, here's the complete hierarchy of the g
 @check
 def my_check(mp: MetricProvider, ctx: Context):
     # Creates AssertionNode as child of CheckNode
-    ctx.assert_that(mp.count("col") > 100).on(label="Count check")
+    ctx.assert_that(mp.count("col") > 100).where(name="Count check")
 
 # Graph structure:
 # RootNode
@@ -578,8 +578,8 @@ def quality_check(mp: MetricProvider, ctx: Context) -> None:
     group_mgr = AssertionGroupManager()
 
     with group_mgr.group("critical", severity="ERROR", fail_fast=True):
-        ctx.assert_that(mp.count("id") > 0).on(label="Has records")
-        ctx.assert_that(mp.null_ratio("id") == 0).on(label="No null IDs")
+        ctx.assert_that(mp.count("id") > 0).where(name="Has records")
+        ctx.assert_that(mp.null_ratio("id") == 0).where(name="No null IDs")
 
     with group_mgr.group("warnings", severity="WARN"):
         ctx.assert_that(mp.distinct_ratio("category") > 0.1)
@@ -603,7 +603,7 @@ class AssertionGroupBuilder:
     def with_severity(self, severity: SeverityLevel) -> Self:
         self.group_config['severity'] = severity
         for assertion in self.assertions:
-            assertion.on(severity=severity)
+            assertion.where(severity=severity)
         return self
 
     def fail_fast(self) -> Self:

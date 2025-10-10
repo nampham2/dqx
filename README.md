@@ -48,7 +48,7 @@ from dqx.orm.repositories import InMemoryMetricDB
 from dqx.common import ResultKey
 
 # Define your data quality check
-@check(label="Order validation", tags=["critical"])
+@check(name="Order validation", tags=["critical"])
 def validate_orders(mp, ctx):
     # Check for null values
     ctx.assert_that(mp.null_count("customer_id")).is_eq(0)
@@ -58,8 +58,8 @@ def validate_orders(mp, ctx):
     ctx.assert_that(mp.average("price")).is_gt(10.0)
 
     # Multiple assertions on the same metric
-    ctx.assert_that(mp.average("quantity")).on(
-        label="Quantity should be reasonable"
+    ctx.assert_that(mp.average("quantity")).where(
+        name="Quantity should be reasonable"
     ).is_gt(0)
     ctx.assert_that(mp.average("quantity")).is_leq(100)
 
@@ -87,7 +87,7 @@ context = suite.run({"orders": data_source}, key)
 # Inspect results
 for assertion in context._graph.assertions():
     if assertion._value:
-        print(f"{assertion.label}: {assertion._value}")
+        print(f"{assertion.name}: {assertion._value}")
 ```
 
 ## 📊 Available Metrics
@@ -127,7 +127,7 @@ yesterday_avg = mp.average("score", key=ctx.key.lag(1))
 
 ```python
 @check(
-    label="Data completeness check",
+    name="Data completeness check",
     tags=["completeness", "critical"],
     datasets=["main_table"]  # Optional: specify required datasets
 )
@@ -137,8 +137,8 @@ def check_completeness(mp, ctx):
 
     for column in ["id", "name", "email"]:
         null_percentage = mp.null_count(column) / total_rows
-        ctx.assert_that(null_percentage).on(
-            label=f"{column} null percentage",
+        ctx.assert_that(null_percentage).where(
+            name=f"{column} null percentage",
             severity="P0"  # Critical severity
         ).is_leq(0.05)  # Max 5% nulls
 ```
@@ -160,8 +160,8 @@ ctx.assert_that(metric).is_positive()              # Value > 0
 ctx.assert_that(metric).is_negative()              # Value < 0
 
 # Configure severity and labels
-ctx.assert_that(metric).on(
-    label="Critical business rule",
+ctx.assert_that(metric).where(
+    name="Critical business rule",
     severity="P0"  # Severity levels: "P0", "P1", "P2", "P3"
 ).is_geq(0)
 ```
@@ -173,24 +173,24 @@ To perform multiple validations on the same metric, create separate assertions:
 ```python
 # Validate a ratio is within acceptable bounds
 ratio = mp.average("price") / mp.average("tax")
-ctx.assert_that(ratio).on(
-    label="Price/tax ratio lower bound"
+ctx.assert_that(ratio).where(
+    name="Price/tax ratio lower bound"
 ).is_geq(0.95)
-ctx.assert_that(ratio).on(
-    label="Price/tax ratio upper bound"
+ctx.assert_that(ratio).where(
+    name="Price/tax ratio upper bound"
 ).is_leq(1.05)
 
 # Complex validation with multiple conditions
 revenue = mp.sum("revenue")
-ctx.assert_that(revenue).on(
-    label="Revenue is positive",
+ctx.assert_that(revenue).where(
+    name="Revenue is positive",
     severity="P0"
 ).is_positive()
-ctx.assert_that(revenue).on(
-    label="Revenue upper limit"
+ctx.assert_that(revenue).where(
+    name="Revenue upper limit"
 ).is_lt(1000000)
-ctx.assert_that(revenue).on(
-    label="Revenue lower limit"
+ctx.assert_that(revenue).where(
+    name="Revenue lower limit"
 ).is_geq(10000)
 
 # Each assertion is evaluated independently, providing:
@@ -267,16 +267,16 @@ def monitor_trends(mp, ctx):
 
     # Day-over-day check
     dod_ratio = current / yesterday
-    ctx.assert_that(dod_ratio).on(
-        label="Daily revenue change lower bound"
+    ctx.assert_that(dod_ratio).where(
+        name="Daily revenue change lower bound"
     ).is_geq(0.9)  # No more than 10% drop
-    ctx.assert_that(dod_ratio).on(
-        label="Daily revenue change upper bound"
+    ctx.assert_that(dod_ratio).where(
+        name="Daily revenue change upper bound"
     ).is_leq(1.1)  # No more than 10% increase
 
     # Week-over-week trend
-    ctx.assert_that(current / last_week).on(
-        label="Weekly revenue trend"
+    ctx.assert_that(current / last_week).where(
+        name="Weekly revenue trend"
     ).is_geq(0.8)  # No more than 20% drop
 ```
 
@@ -291,11 +291,11 @@ def cross_validate(mp, ctx):
 
     # Ensure data consistency
     ratio = prod_count / staging_count
-    ctx.assert_that(ratio).on(
-        label="Production/Staging lower bound"
+    ctx.assert_that(ratio).where(
+        name="Production/Staging lower bound"
     ).is_geq(0.95, tol=0.01)
-    ctx.assert_that(ratio).on(
-        label="Production/Staging upper bound"
+    ctx.assert_that(ratio).where(
+        name="Production/Staging upper bound"
     ).is_leq(1.05, tol=0.01)
 ```
 
@@ -497,7 +497,7 @@ The RootNode provides convenient methods for graph traversal:
 ```python
 # Get all assertions in the graph
 for assertion in graph.assertions():
-    print(f"{assertion.label}: {assertion._value}")
+    print(f"{assertion.name}: {assertion._value}")
 
 # Get all pending metrics for a dataset
 for metric in graph.pending_metrics("orders"):
@@ -519,7 +519,7 @@ The graph supports multi-dataset validation with validation at the assertion lev
 
 When you define a check like this:
 ```python
-@check(label="Price validation")
+@check(name="Price validation")
 def validate_prices(mp, ctx):
     ctx.assert_that(mp.average("price")).is_gt(0)
     ctx.assert_that(mp.maximum("price")).is_leq(1000)
