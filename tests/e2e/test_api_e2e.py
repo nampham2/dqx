@@ -26,7 +26,7 @@ def null_percentage(mp: MetricProvider, ctx: Context) -> None:
     ctx.assert_that(null_count / nr).where(name="null percentage is less than 40%").is_leq(0.4)
 
 
-@check(name="Manual Day Over Day")
+@check(name="Manual Day Over Day", datasets=["ds1"])
 def manual_day_over_day(mp: MetricProvider, ctx: Context) -> None:
     tax_avg = mp.average("tax")
     tax_avg_lag = mp.average("tax", key=ctx.key.lag(1))

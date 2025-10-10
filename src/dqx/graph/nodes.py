@@ -3,7 +3,7 @@ from __future__ import annotations
 import sympy as sp
 from returns.result import Result
 
-from dqx.common import DQXError, SeverityLevel, SymbolicValidator
+from dqx.common import SeverityLevel, SymbolicValidator
 from dqx.graph.base import BaseNode, CompositeNode
 from dqx.provider import SymbolicMetric
 
@@ -12,13 +12,12 @@ class RootNode(CompositeNode["CheckNode"]):
     """Root node of the verification graph hierarchy.
 
     The RootNode serves as the top-level container in the data quality verification
-    graph structure. It manages a collection of CheckNodes and orchestrates dataset
-    propagation and graph traversal operations.
+    graph structure. It manages a collection of CheckNodes and orchestrates
+    graph traversal operations.
 
     Key responsibilities:
         - Maintains the graph structure with CheckNodes as direct children
         - Provides traversal methods to iterate over checks and assertions
-        - Propagates dataset information through the graph hierarchy
         - Accesses symbol table through the provided Context instance
 
     The RootNode follows a dependency injection pattern where it receives a Context
@@ -37,9 +36,6 @@ class RootNode(CompositeNode["CheckNode"]):
         >>> # Add checks to the root
         >>> check = CheckNode("completeness_check")
         >>> root.add_child(check)
-        >>>
-        >>> # Propagate datasets
-        >>> root.impute_datasets(['dataset1', 'dataset2'])
         >>>
         >>> # Traverse all assertions
         >>> for assertion in root.assertions():
@@ -97,54 +93,6 @@ class RootNode(CompositeNode["CheckNode"]):
         """
         return child in self.children
 
-    def impute_datasets(self, datasets: list[str]) -> None:
-        """Propagate dataset information through the graph hierarchy.
-
-        Distributes dataset availability information to all checks and their
-        assertions in the graph. Each check validates whether it can run with
-        the provided datasets, and propagates this information to its assertions.
-
-        This method is typically called after datasets are loaded and before
-        evaluation begins. It ensures that all nodes in the graph are aware
-        of which datasets are available for computation.
-
-        The propagation follows these steps:
-            1. Validate that at least one dataset is provided
-            2. Call impute_datasets on each child check
-            3. Each check validates its dataset requirements
-            4. Each check propagates to its child assertions
-
-        Args:
-            datasets: List of dataset names that are available for computation.
-                Must contain at least one dataset name. These names should
-                correspond to actual loaded datasets in the system.
-
-        Raises:
-            DQXError: If the datasets list is empty.
-
-        Examples:
-            >>> root = RootNode("suite", context)
-            >>> # After adding checks and assertions...
-            >>>
-            >>> # Single dataset
-            >>> root.impute_datasets(['production_data'])
-            >>>
-            >>> # Multiple datasets
-            >>> root.impute_datasets(['train_data', 'test_data', 'validation_data'])
-            >>>
-            >>> # This will raise an error
-            >>> try:
-            ...     root.impute_datasets([])
-            ... except DQXError as e:
-            ...     print(f"Error: {e}")
-        """
-        if not datasets:
-            raise DQXError("At least one dataset must be provided!")
-
-        # Propagate datasets to checks
-        for check in self.children:
-            check.impute_datasets(datasets)
-
 
 class CheckNode(CompositeNode["AssertionNode"]):
     """
@@ -172,24 +120,6 @@ class CheckNode(CompositeNode["AssertionNode"]):
         self.name = name
         self.tags = tags or []
         self.datasets = datasets or []
-
-    def impute_datasets(self, datasets: list[str]) -> None:
-        """Validate and set datasets for this check."""
-        if not datasets:
-            raise DQXError("At least one dataset must be provided!")
-
-        # No datasets set yet, so impute with provided datasets
-        if len(self.datasets) == 0:
-            self.datasets = datasets
-        elif any(ds not in datasets for ds in self.datasets):
-            # Validate existing datasets
-            # self._value = Some(f"The check {self.node_name()} requires datasets {self.datasets} but got {datasets}")
-            # In case of error, do not propagate datasets to children
-            return
-
-        # Always propagate the datasets to assertions
-        for child in self.children:
-            child.impute_datasets(self.datasets)
 
 
 class AssertionNode(BaseNode):
@@ -219,22 +149,8 @@ class AssertionNode(BaseNode):
         self.actual = actual
         self.name = name
         self.severity = severity
-        self.datasets: list[str] = []
         self.validator = validator
         self._value: Result[float, dict[SymbolicMetric | sp.Expr, str]]
-
-    def impute_datasets(self, datasets: list[str]) -> None:
-        """Validate and set datasets for this assertion."""
-        if not datasets:
-            raise DQXError("At least one dataset must be provided!")
-
-        if not self.datasets:
-            self.datasets = datasets
-        else:
-            if any(ds not in datasets for ds in self.datasets):
-                raise DQXError(
-                    f"The assertion {str(self.actual) or self.name} requires datasets {self.datasets} but got {datasets}"
-                )
 
     def is_leaf(self) -> bool:
         return True
