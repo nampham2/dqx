@@ -173,10 +173,6 @@ class CheckNode(CompositeNode["AssertionNode"]):
         self.tags = tags or []
         self.datasets = datasets or []
 
-    def node_name(self) -> str:
-        """Get the display name of the node."""
-        return self.name
-
     def impute_datasets(self, datasets: list[str]) -> None:
         """Validate and set datasets for this check."""
         if not datasets:
