@@ -346,3 +346,40 @@ def test_where_validates_name() -> None:
     # Name should be stripped
     ready2 = draft.where(name="  Trimmed name  ")
     assert ready2._name == "Trimmed name"
+
+
+def test_assertion_severity_is_mandatory_with_p1_default() -> None:
+    """Test that assertions require severity and default to P1."""
+    # Create a mock context and provider
+    db = InMemoryMetricDB()
+    context = Context(suite="test_suite", db=db)
+
+    # Create a check to hold our assertions
+    @check(name="Test Check")
+    def test_check(mp: MetricProvider, ctx: Context) -> None:
+        # Create assertion without severity - should default to P1
+        ctx.assert_that(sp.Symbol("x")).where(name="Default severity test").is_gt(0)
+
+        # Create assertion with explicit P0 severity
+        ctx.assert_that(sp.Symbol("y")).where(name="Explicit P0 test", severity="P0").is_gt(0)
+
+        # Create assertion with explicit P2 severity
+        ctx.assert_that(sp.Symbol("z")).where(name="Explicit P2 test", severity="P2").is_gt(0)
+
+    # Execute the check
+    test_check(context.provider, context)
+
+    # Get the check node and its assertions
+    check_node = list(context._graph.root.children)[0]
+    assertions = list(check_node.children)
+
+    # Verify severities
+    assert len(assertions) == 3
+    assert assertions[0].severity == "P1"  # Default
+    assert assertions[1].severity == "P0"  # Explicit P0
+    assert assertions[2].severity == "P2"  # Explicit P2
+
+    # Verify that severity is never None
+    for assertion in assertions:
+        assert assertion.severity is not None
+        assert assertion.severity in ["P0", "P1", "P2", "P3"]

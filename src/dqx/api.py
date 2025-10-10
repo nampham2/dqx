@@ -49,13 +49,14 @@ class AssertionDraft:
         self._actual = actual
         self._context = context
 
-    def where(self, *, name: str, severity: SeverityLevel | None = None) -> AssertionReady:
+    def where(self, *, name: str, severity: SeverityLevel = "P1") -> AssertionReady:
         """
         Provide a descriptive name for this assertion.
 
         Args:
             name: Required description of what this assertion validates
-            severity: Optional severity level (P0, P1, P2, P3)
+            severity: Severity level (P0, P1, P2, P3). Defaults to "P1".
+                     All assertions must have a severity level.
 
         Returns:
             AssertionReady instance with all assertion methods available
@@ -80,7 +81,7 @@ class AssertionReady:
     """
 
     def __init__(
-        self, actual: sp.Expr, name: str, severity: SeverityLevel | None = None, context: Context | None = None
+        self, actual: sp.Expr, name: str, severity: SeverityLevel = "P1", context: Context | None = None
     ) -> None:
         """
         Initialize ready assertion.
@@ -88,7 +89,7 @@ class AssertionReady:
         Args:
             actual: The symbolic expression to evaluate
             name: Required description of the assertion
-            severity: Optional severity level
+            severity: Severity level (P0, P1, P2, P3). Defaults to "P1".
             context: The Context instance
         """
         self._actual = actual
@@ -254,7 +255,7 @@ class Context:
         self,
         actual: sp.Expr,
         name: str | None = None,
-        severity: SeverityLevel | None = None,
+        severity: SeverityLevel = "P1",
         validator: SymbolicValidator | None = None,
     ) -> AssertionNode:
         """
@@ -263,7 +264,7 @@ class Context:
         Args:
             actual: Symbolic expression to evaluate
             name: Optional human-readable description
-            severity: Optional severity level for failures
+            severity: Severity level for failures (P0, P1, P2, P3). Defaults to "P1".
             validator: Optional validator function
 
         Returns:

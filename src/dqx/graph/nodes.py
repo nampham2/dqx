@@ -203,7 +203,7 @@ class AssertionNode(BaseNode):
         self,
         actual: sp.Expr,
         name: str | None = None,
-        severity: SeverityLevel | None = None,
+        severity: SeverityLevel = "P1",
         validator: SymbolicValidator | None = None,
     ) -> None:
         """
@@ -212,7 +212,7 @@ class AssertionNode(BaseNode):
         Args:
             actual: The symbolic expression to evaluate
             name: Optional human-readable description
-            severity: Optional severity level for failures
+            severity: Severity level for failures (P0, P1, P2, P3). Defaults to "P1".
             validator: Optional validation function to apply
         """
         super().__init__()
