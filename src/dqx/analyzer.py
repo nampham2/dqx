@@ -12,15 +12,14 @@ from typing import TypeVar
 
 import duckdb
 import numpy as np
-import toolz
 from rich.console import Console
 
 from dqx import models
 from dqx.common import (
-    DQXError,
     BatchSqlDataSource,
-    SqlDataSource,
+    DQXError,
     ResultKey,
+    SqlDataSource,
 )
 from dqx.dialect import get_dialect
 from dqx.ops import SketchOp, SqlOp
@@ -39,9 +38,31 @@ class AnalysisReport(UserDict[MetricKey, models.Metric]):
         self.data = data if data is not None else {}
 
     def merge(self, other: AnalysisReport) -> AnalysisReport:
-        merged_report = toolz.merge_with(models.Metric.reduce, self, other)
+        """Merge two AnalysisReports, using Metric.reduce for conflicts.
 
-        return AnalysisReport(data=merged_report)
+        When the same (metric_spec, result_key) exists in both reports,
+        the values are merged using Metric.reduce which applies the
+        appropriate state merge operation (e.g., sum for SimpleAdditiveState).
+
+        Args:
+            other: Another AnalysisReport to merge with this one
+
+        Returns:
+            A new AnalysisReport containing all metrics from both reports
+        """
+        # Start with a copy of self.data for efficiency
+        merged_data = dict(self.data)
+
+        # Merge items from other
+        for key, metric in other.items():
+            if key in merged_data:
+                # Key exists in both: use Metric.reduce to merge
+                merged_data[key] = models.Metric.reduce([merged_data[key], metric])
+            else:
+                # Key only in other: just add it
+                merged_data[key] = metric
+
+        return AnalysisReport(data=merged_data)
 
     def show(self) -> None:
         # TODO(npham): Add more visualization options
@@ -52,9 +73,13 @@ def analyze_sketch_ops(ds: T, ops: Sequence[SketchOp], batch_size: int = 100_000
     if len(ops) == 0:
         return
 
-    # Deduping the ops
-    groups: dict[SketchOp, list[SketchOp]] = toolz.groupby(lambda op: op, ops)
-    distinct_ops = list(groups.keys())
+    # Deduping the ops preserving order of first occurrence
+    seen = set()
+    distinct_ops = []
+    for op in ops:
+        if op not in seen:
+            seen.add(op)
+            distinct_ops.append(op)
 
     # Constructing the query
     logger.info(f"Analyzing SketchOps: {distinct_ops}")
@@ -84,9 +109,13 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp]) -> None:
     if len(ops) == 0:
         return
 
-    # Deduping the ops
-    groups: dict[SqlOp, list[SqlOp]] = toolz.groupby(lambda op: op, ops)
-    distinct_ops = list(groups.keys())
+    # Deduping the ops preserving order of first occurrence
+    seen = set()
+    distinct_ops = []
+    for op in ops:
+        if op not in seen:
+            seen.add(op)
+            distinct_ops.append(op)
 
     # Constructing the query
     logger.info(f"Analyzing SqlOps: {distinct_ops}")
@@ -107,7 +136,16 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp]) -> None:
     result: dict[str, np.ndarray] = ds.query(sql).fetchnumpy()
 
     # Assign the collected values to the ops
-    cols: dict[SqlOp, str] = {op: op.sql_col for op in distinct_ops}
+    # Create a mapping from all ops to their sql_col (duplicates will map to same col)
+    cols: dict[SqlOp, str] = {}
+    for op in ops:
+        # Find the corresponding distinct op that has the same value
+        for distinct_op in distinct_ops:
+            if op == distinct_op:
+                cols[op] = distinct_op.sql_col
+                break
+
+    # Now assign values to all ops
     for op in ops:
         op.assign(result[cols[op]][0])
 

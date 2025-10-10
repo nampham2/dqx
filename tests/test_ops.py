@@ -1,4 +1,5 @@
 import pytest
+
 from dqx import ops, states
 from dqx.common import DQXError
 from dqx.ops import Op, SketchOp, SqlOp
@@ -148,23 +149,21 @@ def test_variance() -> None:
     assert isinstance(op, Op)
     assert isinstance(op, SqlOp)
     assert op.name == "variance(column)"
-    # Note: There's a bug in Variance.__eq__ - it compares against Sum instead of Variance
-    # We'll test the current behavior
+    # Test correct equality behavior
     op1 = ops.Variance("column")
     op2 = ops.Variance("column")
-    # Due to the bug, this will return NotImplemented and fall back to object comparison
-    assert op1 != op2  # Different objects due to bug
+    assert op1 == op2  # Same column, should be equal
 
 
-def test_variance_bug_with_sum() -> None:
-    # Test the bug in Variance.__eq__ where it compares against Sum instead of Variance
+def test_variance_not_equal_to_sum() -> None:
+    # Test that Variance is correctly not equal to Sum (bug is fixed)
     variance_op = ops.Variance("test_col")
     sum_op = ops.Sum("test_col")
     sum_op_different = ops.Sum("different_col")
 
-    # Due to the bug, Variance will compare equality with Sum objects
-    assert variance_op == sum_op  # Same column, so should be equal due to bug
-    assert variance_op != sum_op_different  # Different column, so should be unequal
+    # Variance should not be equal to Sum, even with same column
+    assert variance_op != sum_op  # Different op types
+    assert variance_op != sum_op_different  # Different op types and columns
 
 
 def test_negative_count() -> None:
@@ -381,10 +380,11 @@ def test_equality_edge_cases() -> None:
     assert sum_op != "not an op"
     assert sum_op != 42
 
-    # Test Variance equality with non-Sum (due to bug)
+    # Test Variance equality with non-Variance
     variance = ops.Variance("col")
     assert variance != "not an op"
     assert variance != 42
+    assert variance != ops.Sum("col")  # Different op type
 
     # Test First equality with non-First
     first = ops.First("col")
@@ -409,7 +409,7 @@ def test_inequality_different_columns() -> None:
     assert ops.Minimum("col1") != ops.Minimum("col2")
     assert ops.Maximum("col1") != ops.Maximum("col2")
     assert ops.Sum("col1") != ops.Sum("col2")
-    assert ops.Variance("col1") != ops.Variance("col2")  # Note: this might behave unexpectedly due to bug
+    assert ops.Variance("col1") != ops.Variance("col2")  # Works correctly now
     assert ops.First("col1") != ops.First("col2")
     assert ops.NullCount("col1") != ops.NullCount("col2")
     assert ops.NegativeCount("col1") != ops.NegativeCount("col2")

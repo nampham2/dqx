@@ -4,8 +4,8 @@ from typing import Any, Generic, Literal, Protocol, TypeVar, runtime_checkable
 
 from dqx import states
 from dqx.common import DQXError
-from dqx.utils import random_prefix
 from dqx.states import CardinalitySketch, SketchState
+from dqx.utils import random_prefix
 
 OpsType = Literal["sql", "sketch"]
 
@@ -255,7 +255,7 @@ class Variance(OpValueMixin[float], SqlOp[float]):
         return f"{self.prefix}_{self.name}"
 
     def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, Sum):
+        if not isinstance(other, Variance):
             return NotImplemented
         return self.column == other.column
 

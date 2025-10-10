@@ -12,11 +12,12 @@ import pyarrow as pa
 import pytest
 
 from dqx import models, specs
-from dqx.analyzer import Analyzer, AnalysisReport, analyze_sketch_ops, analyze_sql_ops
+from dqx.analyzer import AnalysisReport, Analyzer, analyze_sketch_ops, analyze_sql_ops
 from dqx.common import DQXError, ResultKey, SqlDataSource
 from dqx.extensions.pyarrow_ds import ArrowDataSource
 from dqx.ops import SketchOp, SqlOp
-from dqx.orm.repositories import InMemoryMetricDB, Metric as MetricTable
+from dqx.orm.repositories import InMemoryMetricDB
+from dqx.orm.repositories import Metric as MetricTable
 from dqx.states import Average, SimpleAdditiveState, SketchState
 
 
@@ -256,8 +257,8 @@ class TestAnalysisReport:
         assert len(report) == 1
         assert report[(metric_spec, result_key)].value == 10.0
 
-    def test_report_merge(self, result_key: ResultKey) -> None:
-        """Test merging two reports."""
+    def test_report_merge_basic(self, result_key: ResultKey) -> None:
+        """Test basic merging of two reports."""
         # Create first report
         metric1_spec = specs.NumRows()
         state1 = SimpleAdditiveState(10.0)
@@ -281,6 +282,123 @@ class TestAnalysisReport:
         assert len(merged) == 2
         assert merged[(metric1_spec, result_key)].value == 15.0  # 10 + 5
         assert merged[(metric2_spec, result_key)].value == 20.0
+
+    def test_merge_empty_reports(self) -> None:
+        """Test merging two empty AnalysisReports."""
+        report1 = AnalysisReport()
+        report2 = AnalysisReport()
+        merged = report1.merge(report2)
+        assert len(merged) == 0
+
+    def test_merge_non_overlapping_reports(self, result_key: ResultKey) -> None:
+        """Test merging reports with different metrics."""
+        metric1 = models.Metric.build(specs.Average("price"), result_key, SimpleAdditiveState(10.0))
+        metric2 = models.Metric.build(specs.Average("quantity"), result_key, SimpleAdditiveState(5.0))
+
+        report1 = AnalysisReport({(metric1.spec, result_key): metric1})
+        report2 = AnalysisReport({(metric2.spec, result_key): metric2})
+
+        merged = report1.merge(report2)
+        assert len(merged) == 2
+        assert (metric1.spec, result_key) in merged
+        assert (metric2.spec, result_key) in merged
+
+    def test_merge_overlapping_reports(self, result_key: ResultKey) -> None:
+        """Test merging reports with same metric - should use Metric.reduce."""
+        spec = specs.Average("price")
+
+        # Create two metrics with same spec but different values
+        metric1 = models.Metric.build(spec, result_key, SimpleAdditiveState(10.0))
+        metric2 = models.Metric.build(spec, result_key, SimpleAdditiveState(20.0))
+
+        report1 = AnalysisReport({(spec, result_key): metric1})
+        report2 = AnalysisReport({(spec, result_key): metric2})
+
+        merged = report1.merge(report2)
+        assert len(merged) == 1
+
+        # The merge should have used Metric.reduce
+        # which calls state.merge, which for SimpleAdditiveState adds values
+        merged_metric = merged[(spec, result_key)]
+        assert merged_metric.value == 30.0  # 10.0 + 20.0
+
+    def test_merge_with_different_result_keys(self) -> None:
+        """Test merging reports with different ResultKeys."""
+        key1 = ResultKey(yyyy_mm_dd=dt.date(2024, 1, 1), tags={})
+        key2 = ResultKey(yyyy_mm_dd=dt.date(2024, 1, 2), tags={})
+        spec = specs.Average("price")
+
+        metric1 = models.Metric.build(spec, key1, SimpleAdditiveState(10.0))
+        metric2 = models.Metric.build(spec, key2, SimpleAdditiveState(20.0))
+
+        report1 = AnalysisReport({(spec, key1): metric1})
+        report2 = AnalysisReport({(spec, key2): metric2})
+
+        merged = report1.merge(report2)
+        assert len(merged) == 2
+        assert merged[(spec, key1)].value == 10.0
+        assert merged[(spec, key2)].value == 20.0
+
+    def test_merge_multiple_metrics_simultaneously(self, result_key: ResultKey) -> None:
+        """Test merging multiple different metrics at once."""
+        # Report 1: price average and sum
+        price_avg1 = models.Metric.build(specs.Average("price"), result_key, SimpleAdditiveState(10.0))
+        price_sum1 = models.Metric.build(specs.Sum("price"), result_key, SimpleAdditiveState(100.0))
+        report1 = AnalysisReport({(price_avg1.spec, result_key): price_avg1, (price_sum1.spec, result_key): price_sum1})
+
+        # Report 2: price average, quantity average, and quantity sum
+        price_avg2 = models.Metric.build(specs.Average("price"), result_key, SimpleAdditiveState(5.0))
+        qty_avg = models.Metric.build(specs.Average("quantity"), result_key, SimpleAdditiveState(3.0))
+        qty_sum = models.Metric.build(specs.Sum("quantity"), result_key, SimpleAdditiveState(30.0))
+        report2 = AnalysisReport(
+            {
+                (price_avg2.spec, result_key): price_avg2,
+                (qty_avg.spec, result_key): qty_avg,
+                (qty_sum.spec, result_key): qty_sum,
+            }
+        )
+
+        merged = report1.merge(report2)
+        assert len(merged) == 4
+        # Price average should be merged: 10.0 + 5.0 = 15.0
+        assert merged[(specs.Average("price"), result_key)].value == 15.0
+        # Price sum should remain from report1
+        assert merged[(specs.Sum("price"), result_key)].value == 100.0
+        # Quantity metrics should be from report2
+        assert merged[(specs.Average("quantity"), result_key)].value == 3.0
+        assert merged[(specs.Sum("quantity"), result_key)].value == 30.0
+
+    def test_merge_empty_with_non_empty(self, result_key: ResultKey) -> None:
+        """Test merging empty report with non-empty report."""
+        metric = models.Metric.build(specs.Average("price"), result_key, SimpleAdditiveState(10.0))
+
+        empty_report = AnalysisReport()
+        non_empty_report = AnalysisReport({(metric.spec, result_key): metric})
+
+        # Test both directions
+        merged1 = empty_report.merge(non_empty_report)
+        merged2 = non_empty_report.merge(empty_report)
+
+        assert len(merged1) == 1
+        assert len(merged2) == 1
+        assert merged1[(metric.spec, result_key)].value == 10.0
+        assert merged2[(metric.spec, result_key)].value == 10.0
+
+    def test_merge_preserve_identity_behavior(self, result_key: ResultKey) -> None:
+        """Test that Metric.reduce behavior with identity matches toolz.merge_with."""
+        spec = specs.Average("price")
+
+        # Create metrics
+        metric1 = models.Metric.build(spec, result_key, SimpleAdditiveState(10.0))
+        metric2 = models.Metric.build(spec, result_key, SimpleAdditiveState(20.0))
+
+        # Test reduce directly
+        reduced = models.Metric.reduce([metric1, metric2])
+        assert reduced.value == 30.0
+
+        # Verify the identity behavior
+        identity = metric1.identity()
+        assert identity.value == 0.0  # SimpleAdditiveState identity is 0.0
 
     def test_report_show(self, result_key: ResultKey, capsys: pytest.CaptureFixture[str]) -> None:
         """Test the show method of AnalysisReport."""
@@ -523,6 +641,77 @@ class TestAnalyzeFunctions:
         # Verify ops got values
         assert op1.value() == 1.0  # 1 row
         assert op2.value() == 42.0  # Average of [42.0]
+
+    def test_sql_ops_deduplication(self) -> None:
+        """Test that duplicate SQL ops are only executed once."""
+        # Create test data
+        data = pa.Table.from_pydict({"value": [1, 2, 3, 4, 5]})
+        ds = ArrowDataSource(data)
+
+        # Create duplicate ops
+        sum1 = cast(SqlOp, specs.Sum("value").analyzers[0])
+        sum2 = cast(SqlOp, specs.Sum("value").analyzers[0])
+        avg1 = cast(SqlOp, specs.Average("value").analyzers[1])  # Average has NumRows at [0], Average at [1]
+        avg2 = cast(SqlOp, specs.Average("value").analyzers[1])
+
+        ops = [sum1, sum2, avg1, avg2, sum1]  # sum1 appears 3 times total
+
+        # Analyze
+        analyze_sql_ops(ds, ops)
+
+        # All duplicate ops should have the same value assigned
+        assert sum1.value() == 15.0  # 1+2+3+4+5
+        assert sum2.value() == 15.0  # Same instance should have same value
+        assert avg1.value() == 3.0  # (1+2+3+4+5)/5
+        assert avg2.value() == 3.0  # Same instance should have same value
+
+    def test_sql_ops_order_preservation(self) -> None:
+        """Test that deduplication preserves order of first occurrence."""
+        data = pa.Table.from_pydict({"a": [1, 2, 3], "b": [4, 5, 6]})
+        ds = ArrowDataSource(data)
+
+        # Create ops in specific order
+        max_a = cast(SqlOp, specs.Maximum("a").analyzers[0])
+        sum_b = cast(SqlOp, specs.Sum("b").analyzers[0])
+        avg_a = cast(SqlOp, specs.Average("a").analyzers[1])  # Average has NumRows at [0], Average at [1]
+        min_b = cast(SqlOp, specs.Minimum("b").analyzers[0])
+
+        # Add with duplicates in different positions
+        ops = [max_a, sum_b, avg_a, max_a, min_b, sum_b, avg_a]
+
+        # Analyze the ops
+        analyze_sql_ops(ds, ops)
+
+        # Verify all ops got values assigned
+        assert max_a.value() == 3.0
+        assert sum_b.value() == 15.0
+        assert avg_a.value() == 2.0
+        assert min_b.value() == 4.0
+
+    def test_mixed_column_deduplication(self) -> None:
+        """Test deduplication with ops on different columns."""
+        data = pa.Table.from_pydict({"price": [10.0, 20.0, 30.0], "quantity": [1, 2, 3], "tax": [1.0, 2.0, 3.0]})
+        ds = ArrowDataSource(data)
+
+        # Create ops on different columns with some duplicates
+        sum_price1 = cast(SqlOp, specs.Sum("price").analyzers[0])
+        avg_qty1 = cast(SqlOp, specs.Average("quantity").analyzers[1])  # Average has NumRows at [0], Average at [1]
+        sum_price2 = cast(SqlOp, specs.Sum("price").analyzers[0])  # Duplicate
+        max_tax = cast(SqlOp, specs.Maximum("tax").analyzers[0])
+        avg_qty2 = cast(SqlOp, specs.Average("quantity").analyzers[1])  # Duplicate
+        min_price = cast(SqlOp, specs.Minimum("price").analyzers[0])
+
+        ops = [sum_price1, avg_qty1, sum_price2, max_tax, avg_qty2, min_price]
+
+        analyze_sql_ops(ds, ops)
+
+        # Verify all ops got values
+        assert sum_price1.value() == 60.0  # Sum of price
+        assert sum_price2.value() == 60.0  # Duplicate should have same value
+        assert avg_qty1.value() == 2.0  # Average of quantity
+        assert avg_qty2.value() == 2.0  # Duplicate should have same value
+        assert max_tax.value() == 3.0  # Max tax
+        assert min_price.value() == 10.0  # Min price
 
 
 class TestDuckDBSetup:
