@@ -108,24 +108,24 @@ class DatasetImputationVisitor:
             metric = self.provider.get_symbol(symbol)
 
             # Get parent check's datasets
-            check_datasets = node.parent.datasets
+            parent_datasets = node.parent.datasets
 
             # Validate or impute dataset
             if metric.dataset:
                 # Validate existing dataset
-                if metric.dataset not in check_datasets:
+                if metric.dataset not in parent_datasets:
                     self._errors.append(
                         f"Symbol '{metric.name}' requires dataset '{metric.dataset}' "
-                        f"but parent check only has datasets: {check_datasets}"
+                        f"but parent check only has datasets: {parent_datasets}"
                     )
             else:
                 # Impute dataset
-                if len(check_datasets) == 1:
-                    metric.dataset = check_datasets[0]
+                if len(parent_datasets) == 1:
+                    metric.dataset = parent_datasets[0]
                 else:
                     self._errors.append(
                         f"Cannot impute dataset for symbol '{metric.name}': "
-                        f"parent check has multiple datasets: {check_datasets}"
+                        f"parent check has multiple datasets: {parent_datasets}"
                     )
 
     def get_errors(self) -> list[str]:
