@@ -15,7 +15,7 @@ class TestDatasetImputationVisitor:
     """Test suite for DatasetImputationVisitor."""
 
     def test_propagates_datasets_from_root_to_check(self) -> None:
-        """When CheckNode has no datasets, it inherits from available datasets."""
+        """When CheckNode has no datasets, it inherits from parent's datasets."""
         # Arrange
         root = RootNode("test_suite")
         check = root.add_check("test_check")  # No datasets specified
@@ -23,6 +23,7 @@ class TestDatasetImputationVisitor:
         visitor = DatasetImputationVisitor(["prod", "staging"], provider=None)
 
         # Act
+        visitor.visit(root)  # Visit root first
         visitor.visit(check)
 
         # Assert
@@ -37,6 +38,7 @@ class TestDatasetImputationVisitor:
         visitor = DatasetImputationVisitor(["prod", "staging"], provider=None)
 
         # Act
+        visitor.visit(root)  # Visit root first
         visitor.visit(check)
 
         # Assert
@@ -51,6 +53,7 @@ class TestDatasetImputationVisitor:
         visitor = DatasetImputationVisitor(["prod", "staging"], provider=None)
 
         # Act
+        visitor.visit(root)  # Visit root first to populate datasets
         visitor.visit(check)
 
         # Assert
@@ -77,6 +80,7 @@ class TestDatasetImputationVisitor:
         visitor = DatasetImputationVisitor(["prod"], provider=provider)
 
         # Act - First imputation
+        visitor.visit(root)
         visitor.visit(check)
         visitor.visit(assertion)
         first_check_datasets = check.datasets.copy()
@@ -84,6 +88,7 @@ class TestDatasetImputationVisitor:
 
         # Act - Second imputation
         visitor2 = DatasetImputationVisitor(["prod"], provider=provider)
+        visitor2.visit(root)
         visitor2.visit(check)
         visitor2.visit(assertion)
 
@@ -112,26 +117,6 @@ class TestDatasetImputationVisitor:
 
         # Assert
         assert symbolic_metric.dataset == "prod"  # Should be preserved
-        assert not visitor.has_errors()
-
-    def test_handles_missing_symbols_gracefully(self) -> None:
-        """Visitor handles symbols without SymbolicMetrics."""
-        # Arrange
-        root = RootNode("test_suite")
-        check = root.add_check("test_check", datasets=["prod"])
-        assertion = check.add_assertion(actual=sp.Symbol("missing_symbol"), name="test_assertion")
-
-        # Create mock provider that raises DQXError for missing symbol
-        provider = Mock(spec=MetricProvider)
-        provider.get_symbol.side_effect = DQXError("Symbol missing_symbol not found.")
-
-        visitor = DatasetImputationVisitor(["prod"], provider=provider)
-
-        # Act
-        visitor.visit(assertion)
-
-        # Assert - Should not fail, just skip the symbol
-        # Errors should not include this (we log warnings instead)
         assert not visitor.has_errors()
 
     def test_error_on_symbolic_metric_dataset_mismatch(self) -> None:
@@ -216,8 +201,8 @@ class TestDatasetImputationVisitor:
         with pytest.raises(DQXError, match="At least one dataset must be provided"):
             DatasetImputationVisitor([], provider=None)
 
-    def test_visit_root_node_does_nothing(self) -> None:
-        """Visiting RootNode doesn't modify anything."""
+    def test_visit_root_node_sets_datasets(self) -> None:
+        """Visiting RootNode sets its datasets from available datasets."""
         # Arrange
         root = RootNode("test_suite")
         visitor = DatasetImputationVisitor(["prod"], provider=None)
@@ -227,7 +212,7 @@ class TestDatasetImputationVisitor:
 
         # Assert
         assert not visitor.has_errors()
-        # RootNode doesn't have datasets attribute, so nothing to check
+        assert root.datasets == ["prod"]  # RootNode now has datasets set
 
     def test_multiple_errors_are_collected(self) -> None:
         """Multiple validation errors are collected and reported together."""
@@ -243,6 +228,7 @@ class TestDatasetImputationVisitor:
         visitor = DatasetImputationVisitor(["prod", "staging"], provider=None)
 
         # Act
+        visitor.visit(root)  # Visit root first
         visitor.visit(check1)
         visitor.visit(check2)
 
@@ -253,6 +239,79 @@ class TestDatasetImputationVisitor:
         assert any("check1" in err and "invalid1" in err for err in errors)
         assert any("check2" in err and "invalid2" in err for err in errors)
 
+    def test_root_node_receives_available_datasets(self) -> None:
+        """RootNode should be populated with available datasets when visited."""
+        # Arrange
+        root = RootNode("test_suite")
+        visitor = DatasetImputationVisitor(["prod", "staging", "dev"], provider=None)
+
+        # Act
+        visitor.visit(root)
+
+        # Assert
+        assert root.datasets == ["prod", "staging", "dev"]
+
+    def test_root_node_datasets_are_copied_not_referenced(self) -> None:
+        """RootNode should get a copy of datasets, not a reference."""
+        # Arrange
+        available = ["prod", "staging"]
+        root = RootNode("test_suite")
+        visitor = DatasetImputationVisitor(available, provider=None)
+
+        # Act
+        visitor.visit(root)
+        available.append("dev")  # Modify original list
+
+        # Assert
+        assert root.datasets == ["prod", "staging"]  # Should not include "dev"
+
+    def test_check_validates_against_parent_not_available(self) -> None:
+        """CheckNode should validate against parent datasets, not available."""
+        # Arrange
+        root = RootNode("test_suite")
+        check = root.add_check("test_check", datasets=["dev"])
+
+        # Manually set root datasets to simulate a filtered scenario
+        root.datasets = ["prod", "staging"]  # "dev" is not included
+
+        visitor = DatasetImputationVisitor(["prod", "staging", "dev"], provider=None)
+
+        # Act - Don't visit root (it already has datasets set)
+        visitor.visit(check)
+
+        # Assert
+        assert visitor.has_errors()
+        errors = visitor.get_errors()
+        assert any("parent datasets" in err for err in errors)
+        assert any("dev" in err for err in errors)
+
+    def test_hierarchical_flow_root_to_check_to_assertion(self) -> None:
+        """Test complete hierarchical flow from root to assertion."""
+        # Arrange
+        root = RootNode("test_suite")
+        check = root.add_check("test_check")  # No datasets
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test")
+
+        # Mock provider
+        provider = Mock(spec=MetricProvider)
+        metric = Mock(spec=SymbolicMetric)
+        metric.name = "x_1"
+        metric.dataset = None
+        provider.get_symbol.return_value = metric
+
+        visitor = DatasetImputationVisitor(["prod"], provider=provider)
+
+        # Act - Visit in hierarchical order
+        visitor.visit(root)  # Sets root.datasets = ["prod"]
+        visitor.visit(check)  # Sets check.datasets = ["prod"] from parent
+        visitor.visit(assertion)  # Imputes metric.dataset = "prod"
+
+        # Assert
+        assert root.datasets == ["prod"]
+        assert check.datasets == ["prod"]
+        assert metric.dataset == "prod"
+        assert not visitor.has_errors()
+
     def test_error_summary_formatting(self) -> None:
         """Error summary is properly formatted."""
         # Arrange
@@ -262,6 +321,7 @@ class TestDatasetImputationVisitor:
         visitor = DatasetImputationVisitor(["prod"], provider=None)
 
         # Act
+        visitor.visit(root)  # Visit root first
         visitor.visit(check)
 
         # Assert

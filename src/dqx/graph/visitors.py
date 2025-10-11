@@ -2,7 +2,7 @@ from typing import Generic, TypeVar
 
 from dqx.common import DQXError
 from dqx.graph.base import BaseNode
-from dqx.graph.nodes import AssertionNode, CheckNode
+from dqx.graph.nodes import AssertionNode, CheckNode, RootNode
 from dqx.provider import MetricProvider
 
 TNode = TypeVar("TNode", bound=BaseNode)
@@ -45,30 +45,46 @@ class DatasetImputationVisitor:
         Args:
             node: The node to visit
         """
-        if isinstance(node, CheckNode):
+        if isinstance(node, RootNode):
+            self._visit_root_node(node)
+        elif isinstance(node, CheckNode):
             self._visit_check_node(node)
         elif isinstance(node, AssertionNode):
             self._visit_assertion_node(node)
 
+    def _visit_root_node(self, node: RootNode) -> None:
+        """Set available datasets on the RootNode.
+
+        This establishes the top-level datasets that will flow down
+        through the hierarchy.
+
+        Args:
+            node: The RootNode to process
+        """
+        node.datasets = self.available_datasets.copy()
+
     def _visit_check_node(self, node: CheckNode) -> None:
         """Validate and impute datasets for a CheckNode.
 
-        If the CheckNode has no datasets, impute from available_datasets.
-        If it has datasets, validate they are all in available_datasets.
+        If the CheckNode has no datasets, impute from parent's datasets.
+        If it has datasets, validate they are all in parent's datasets.
 
         Args:
             node: The CheckNode to process
         """
+        # Get parent's datasets (RootNode should have them by now)
+        parent_datasets = node.parent.datasets
+
         if not node.datasets:
-            # Impute from available datasets
-            node.datasets = self.available_datasets.copy()
+            # Impute from parent datasets
+            node.datasets = parent_datasets.copy()
         else:
-            # Validate existing datasets
+            # Validate existing datasets against parent
             for dataset in node.datasets:
-                if dataset not in self.available_datasets:
+                if dataset not in parent_datasets:
                     self._errors.append(
                         f"Check '{node.name}' specifies dataset '{dataset}' "
-                        f"which is not in available datasets: {self.available_datasets}"
+                        f"which is not in parent datasets: {parent_datasets}"
                     )
 
     def _visit_assertion_node(self, node: AssertionNode) -> None:
@@ -89,37 +105,28 @@ class DatasetImputationVisitor:
         symbols = node.actual.free_symbols
 
         for symbol in symbols:
-            try:
-                metric = self.provider.get_symbol(symbol)
+            metric = self.provider.get_symbol(symbol)
 
-                # Get parent check's datasets
-                parent_check = node.parent
-                if not isinstance(parent_check, CheckNode):
-                    continue
+            # Get parent check's datasets
+            check_datasets = node.parent.datasets
 
-                check_datasets = parent_check.datasets or self.available_datasets
-
-                # Validate or impute dataset
-                if metric.dataset:
-                    # Validate existing dataset
-                    if metric.dataset not in check_datasets:
-                        self._errors.append(
-                            f"Symbol '{metric.name}' requires dataset '{metric.dataset}' "
-                            f"but parent check only has datasets: {check_datasets}"
-                        )
+            # Validate or impute dataset
+            if metric.dataset:
+                # Validate existing dataset
+                if metric.dataset not in check_datasets:
+                    self._errors.append(
+                        f"Symbol '{metric.name}' requires dataset '{metric.dataset}' "
+                        f"but parent check only has datasets: {check_datasets}"
+                    )
+            else:
+                # Impute dataset
+                if len(check_datasets) == 1:
+                    metric.dataset = check_datasets[0]
                 else:
-                    # Impute dataset
-                    if len(check_datasets) == 1:
-                        metric.dataset = check_datasets[0]
-                    else:
-                        self._errors.append(
-                            f"Cannot impute dataset for symbol '{metric.name}': "
-                            f"parent check has multiple datasets: {check_datasets}"
-                        )
-
-            except DQXError:
-                # Symbol not found in provider, skip
-                pass
+                    self._errors.append(
+                        f"Cannot impute dataset for symbol '{metric.name}': "
+                        f"parent check has multiple datasets: {check_datasets}"
+                    )
 
     def get_errors(self) -> list[str]:
         """Get the list of collected errors.
