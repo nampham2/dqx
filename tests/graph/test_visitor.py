@@ -6,7 +6,7 @@ import pytest
 import sympy as sp
 
 from dqx.common import DQXError
-from dqx.graph.nodes import AssertionNode, CheckNode, RootNode
+from dqx.graph.nodes import RootNode
 from dqx.graph.visitors import DatasetImputationVisitor
 from dqx.provider import MetricProvider, SymbolicMetric
 
@@ -18,8 +18,7 @@ class TestDatasetImputationVisitor:
         """When CheckNode has no datasets, it inherits from available datasets."""
         # Arrange
         root = RootNode("test_suite")
-        check = CheckNode("test_check")  # No datasets specified
-        root.add_child(check)
+        check = root.add_check("test_check")  # No datasets specified
 
         visitor = DatasetImputationVisitor(["prod", "staging"], provider=None)
 
@@ -33,8 +32,7 @@ class TestDatasetImputationVisitor:
         """When CheckNode has datasets, they are preserved if valid."""
         # Arrange
         root = RootNode("test_suite")
-        check = CheckNode("test_check", datasets=["prod"])
-        root.add_child(check)
+        check = root.add_check("test_check", datasets=["prod"])
 
         visitor = DatasetImputationVisitor(["prod", "staging"], provider=None)
 
@@ -48,8 +46,7 @@ class TestDatasetImputationVisitor:
         """When CheckNode specifies dataset not in available, collect error."""
         # Arrange
         root = RootNode("test_suite")
-        check = CheckNode("test_check", datasets=["invalid_dataset"])
-        root.add_child(check)
+        check = root.add_check("test_check", datasets=["invalid_dataset"])
 
         visitor = DatasetImputationVisitor(["prod", "staging"], provider=None)
 
@@ -67,10 +64,8 @@ class TestDatasetImputationVisitor:
         """Running imputation twice produces the same result."""
         # Arrange
         root = RootNode("test_suite")
-        check = CheckNode("test_check")
-        assertion = AssertionNode(actual=sp.Symbol("x_1"), name="test_assertion")
-        root.add_child(check)
-        check.add_child(assertion)
+        check = root.add_check("test_check")
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test_assertion")
 
         # Create mock provider with symbolic metric
         provider = Mock(spec=MetricProvider)
@@ -100,10 +95,8 @@ class TestDatasetImputationVisitor:
         """Datasets explicitly set on SymbolicMetric are preserved."""
         # Arrange
         root = RootNode("test_suite")
-        check = CheckNode("test_check", datasets=["prod", "staging"])
-        assertion = AssertionNode(actual=sp.Symbol("x_1"), name="test_assertion")
-        root.add_child(check)
-        check.add_child(assertion)
+        check = root.add_check("test_check", datasets=["prod", "staging"])
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test_assertion")
 
         # Create mock provider with symbolic metric that has explicit dataset
         provider = Mock(spec=MetricProvider)
@@ -125,10 +118,8 @@ class TestDatasetImputationVisitor:
         """Visitor handles symbols without SymbolicMetrics."""
         # Arrange
         root = RootNode("test_suite")
-        check = CheckNode("test_check", datasets=["prod"])
-        assertion = AssertionNode(actual=sp.Symbol("missing_symbol"), name="test_assertion")
-        root.add_child(check)
-        check.add_child(assertion)
+        check = root.add_check("test_check", datasets=["prod"])
+        assertion = check.add_assertion(actual=sp.Symbol("missing_symbol"), name="test_assertion")
 
         # Create mock provider that raises DQXError for missing symbol
         provider = Mock(spec=MetricProvider)
@@ -147,10 +138,8 @@ class TestDatasetImputationVisitor:
         """Error when SymbolicMetric requires dataset not in check."""
         # Arrange
         root = RootNode("test_suite")
-        check = CheckNode("test_check", datasets=["staging"])
-        assertion = AssertionNode(actual=sp.Symbol("x_1"), name="test_assertion")
-        root.add_child(check)
-        check.add_child(assertion)
+        check = root.add_check("test_check", datasets=["staging"])
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test_assertion")
 
         # Create mock provider with symbolic metric requiring different dataset
         provider = Mock(spec=MetricProvider)
@@ -176,10 +165,8 @@ class TestDatasetImputationVisitor:
         """Error when metric has no dataset but check has multiple."""
         # Arrange
         root = RootNode("test_suite")
-        check = CheckNode("test_check", datasets=["prod", "staging"])
-        assertion = AssertionNode(actual=sp.Symbol("x_1"), name="test_assertion")
-        root.add_child(check)
-        check.add_child(assertion)
+        check = root.add_check("test_check", datasets=["prod", "staging"])
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test_assertion")
 
         # Create mock provider with symbolic metric without dataset
         provider = Mock(spec=MetricProvider)
@@ -204,10 +191,8 @@ class TestDatasetImputationVisitor:
         """Successfully impute dataset when check has single dataset."""
         # Arrange
         root = RootNode("test_suite")
-        check = CheckNode("test_check", datasets=["prod"])
-        assertion = AssertionNode(actual=sp.Symbol("x_1"), name="test_assertion")
-        root.add_child(check)
-        check.add_child(assertion)
+        check = root.add_check("test_check", datasets=["prod"])
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test_assertion")
 
         # Create mock provider with symbolic metric without dataset
         provider = Mock(spec=MetricProvider)
@@ -250,12 +235,10 @@ class TestDatasetImputationVisitor:
         root = RootNode("test_suite")
 
         # First check with invalid dataset
-        check1 = CheckNode("check1", datasets=["invalid1"])
-        root.add_child(check1)
+        check1 = root.add_check("check1", datasets=["invalid1"])
 
         # Second check with another invalid dataset
-        check2 = CheckNode("check2", datasets=["invalid2"])
-        root.add_child(check2)
+        check2 = root.add_check("check2", datasets=["invalid2"])
 
         visitor = DatasetImputationVisitor(["prod", "staging"], provider=None)
 
@@ -274,8 +257,7 @@ class TestDatasetImputationVisitor:
         """Error summary is properly formatted."""
         # Arrange
         root = RootNode("test_suite")
-        check = CheckNode("test_check", datasets=["invalid"])
-        root.add_child(check)
+        check = root.add_check("test_check", datasets=["invalid"])
 
         visitor = DatasetImputationVisitor(["prod"], provider=None)
 
@@ -306,10 +288,8 @@ class TestDatasetImputationIntegration:
         """Test dataset propagation through entire graph."""
         # Arrange
         root = RootNode("test_suite")
-        check = CheckNode("test_check")  # No datasets
-        assertion = AssertionNode(actual=sp.Symbol("x_1") + sp.Symbol("x_2"), name="sum_assertion")
-        root.add_child(check)
-        check.add_child(assertion)
+        check = root.add_check("test_check")  # No datasets
+        assertion = check.add_assertion(actual=sp.Symbol("x_1") + sp.Symbol("x_2"), name="sum_assertion")
 
         # Create mock provider with two symbolic metrics
         provider = Mock(spec=MetricProvider)
@@ -348,16 +328,12 @@ class TestDatasetImputationIntegration:
         root = RootNode("test_suite")
 
         # Check with invalid dataset
-        check1 = CheckNode("check1", datasets=["invalid"])
-        assertion1 = AssertionNode(actual=sp.Symbol("x_1"), name="assertion1")
-        root.add_child(check1)
-        check1.add_child(assertion1)
+        check1 = root.add_check("check1", datasets=["invalid"])
+        assertion1 = check1.add_assertion(actual=sp.Symbol("x_1"), name="assertion1")
 
         # Check with valid dataset but mismatched metric
-        check2 = CheckNode("check2", datasets=["prod"])
-        assertion2 = AssertionNode(actual=sp.Symbol("x_2"), name="assertion2")
-        root.add_child(check2)
-        check2.add_child(assertion2)
+        check2 = root.add_check("check2", datasets=["prod"])
+        assertion2 = check2.add_assertion(actual=sp.Symbol("x_2"), name="assertion2")
 
         # Mock provider
         provider = Mock(spec=MetricProvider)

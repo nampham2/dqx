@@ -8,7 +8,7 @@ from dqx.graph.base import BaseNode, CompositeNode
 from dqx.provider import SymbolicMetric
 
 
-class RootNode(CompositeNode["CheckNode"]):
+class RootNode(CompositeNode[None, "CheckNode"]):
     """Root node of the verification graph hierarchy.
 
     The RootNode serves as the top-level container in the data quality verification
@@ -29,43 +29,45 @@ class RootNode(CompositeNode["CheckNode"]):
         _context: Reference to the Context instance that owns the symbol table
 
     Examples:
-        >>> from dqx.api import Context
-        >>> context = Context()
-        >>> root = RootNode("data_quality_suite", context)
+        >>> root = RootNode("data_quality_suite")
         >>>
-        >>> # Add checks to the root
-        >>> check = CheckNode("completeness_check")
-        >>> root.add_child(check)
+        >>> # Add checks to the root using factory method
+        >>> check = root.add_check("completeness_check")
         >>>
-        >>> # Traverse all assertions
-        >>> for assertion in root.assertions():
-        ...     result = assertion.evaluate()
+        >>> # Add assertions to the check
+        >>> assertion = check.add_assertion(sp.Symbol("x"), name="x > 0")
     """
 
     def __init__(self, name: str) -> None:
-        """Initialize a root node with the given name and context.
-
-        Creates a new RootNode instance that will serve as the top of the
-        verification graph hierarchy. The node starts with an empty collection
-        of children that can be populated with CheckNode instances.
+        """Initialize a root node.
 
         Args:
-            name: Human-readable name for the verification suite. This should
-                be descriptive of the suite's purpose, e.g., "user_data_quality"
-                or "transaction_validation".
-            context: The Context instance that provides access to the symbol table
-                and other shared resources. This context is passed down to child
-                nodes to ensure consistent access to shared state.
-
-        Examples:
-            >>> from dqx.api import Context
-            >>> context = Context()
-            >>> root = RootNode("my_quality_checks", context)
-            >>> print(root.name)
-            my_quality_checks
+            name: Human-readable name for the verification suite
         """
-        super().__init__()
+        super().__init__(parent=None)  # Root always has None parent
         self.name = name
+
+    def add_check(
+        self,
+        name: str,
+        tags: list[str] | None = None,
+        datasets: list[str] | None = None,
+    ) -> CheckNode:
+        """Factory method to create and add a check node.
+
+        This ensures the check has the correct parent type.
+
+        Args:
+            name: Name for the check
+            tags: Optional tags for categorizing the check
+            datasets: Optional list of datasets this check applies to
+
+        Returns:
+            The newly created CheckNode
+        """
+        check = CheckNode(parent=self, name=name, tags=tags, datasets=datasets)
+        self.add_child(check)
+        return check
 
     def exists(self, child: "CheckNode") -> bool:
         """Check if a specific CheckNode exists as a direct child.
@@ -83,69 +85,94 @@ class RootNode(CompositeNode["CheckNode"]):
             root, False otherwise.
 
         Examples:
-            >>> root = RootNode("suite", context)
-            >>> check = CheckNode("my_check")
-            >>> root.add_child(check)
+            >>> root = RootNode("suite")
+            >>> check = root.add_check("my_check")
             >>> assert root.exists(check) == True
             >>>
-            >>> other_check = CheckNode("other_check")
+            >>> other_root = RootNode("other_suite")
+            >>> other_check = other_root.add_check("other_check")
             >>> assert root.exists(other_check) == False
         """
         return child in self.children
 
 
-class CheckNode(CompositeNode["AssertionNode"]):
-    """
-    Node representing a data quality check.
+class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
+    """Node representing a data quality check.
 
-    CheckNode manages a collection of AssertionNode children and derives
-    its state from their evaluation results.
+    Parent type is RootNode (never None).
+    Child type is AssertionNode.
     """
 
     def __init__(
         self,
+        parent: RootNode,
         name: str,
         tags: list[str] | None = None,
         datasets: list[str] | None = None,
     ) -> None:
-        """
-        Initialize a check node.
+        """Initialize a check node.
 
         Args:
-            name: Name for the check (either user-provided or function name)
+            parent: The RootNode parent (required)
+            name: Name for the check
             tags: Optional tags for categorizing the check
             datasets: Optional list of datasets this check applies to
         """
-        super().__init__()
+        super().__init__(parent)
         self.name = name
         self.tags = tags or []
         self.datasets = datasets or []
 
-
-class AssertionNode(BaseNode):
-    """
-    Node representing an assertion to be evaluated.
-
-    AssertionNodes are leaf nodes and cannot have children.
-    """
-
-    def __init__(
+    def add_assertion(
         self,
         actual: sp.Expr,
         name: str | None = None,
         severity: SeverityLevel = "P1",
         validator: SymbolicValidator | None = None,
-    ) -> None:
-        """
-        Initialize an assertion node.
+    ) -> AssertionNode:
+        """Factory method to create and add an assertion node.
+
+        This ensures the assertion has the correct parent type.
 
         Args:
             actual: The symbolic expression to evaluate
             name: Optional human-readable description
-            severity: Severity level for failures (P0, P1, P2, P3). Defaults to "P1".
-            validator: Optional validation function to apply
+            severity: Severity level for failures
+            validator: Optional validation function
+
+        Returns:
+            The newly created AssertionNode
         """
-        super().__init__()
+        assertion = AssertionNode(parent=self, actual=actual, name=name, severity=severity, validator=validator)
+        self.add_child(assertion)
+        return assertion
+
+
+class AssertionNode(BaseNode["CheckNode"]):
+    """Node representing an assertion to be evaluated.
+
+    Parent type is CheckNode (never None).
+    AssertionNodes are leaf nodes and cannot have children.
+    """
+
+    def __init__(
+        self,
+        parent: CheckNode,
+        actual: sp.Expr,
+        name: str | None = None,
+        severity: SeverityLevel = "P1",
+        validator: SymbolicValidator | None = None,
+    ) -> None:
+        """Initialize an assertion node.
+
+        Args:
+            parent: The CheckNode parent (required)
+            actual: The symbolic expression to evaluate
+            name: Optional human-readable description
+            severity: Severity level for failures
+            validator: Optional validation function
+        """
+        super().__init__(parent)
         self.actual = actual
         self.name = name
         self.severity = severity

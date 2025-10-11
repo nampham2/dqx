@@ -42,8 +42,7 @@ class Graph:
         >>> graph = Graph(root)
         >>>
         >>> # Add checks and assertions
-        >>> check = CheckNode("completeness_check")
-        >>> root.add_child(check)
+        >>> check = root.add_check("completeness_check")
         >>>
         >>> # Traverse the graph
         >>> visitor = NodePrinter()
