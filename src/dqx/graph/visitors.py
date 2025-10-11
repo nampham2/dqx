@@ -66,22 +66,25 @@ class DatasetImputationVisitor:
     def _visit_check_node(self, node: CheckNode) -> None:
         """Validate and impute datasets for a CheckNode.
 
-        If the CheckNode has no datasets, impute from available_datasets.
-        If it has datasets, validate they are all in available_datasets.
+        If the CheckNode has no datasets, impute from parent's datasets.
+        If it has datasets, validate they are all in parent's datasets.
 
         Args:
             node: The CheckNode to process
         """
+        # Get parent's datasets (RootNode should have them by now)
+        parent_datasets = node.parent.datasets
+
         if not node.datasets:
-            # Impute from available datasets
-            node.datasets = self.available_datasets.copy()
+            # Impute from parent datasets
+            node.datasets = parent_datasets.copy()
         else:
-            # Validate existing datasets
+            # Validate existing datasets against parent
             for dataset in node.datasets:
-                if dataset not in self.available_datasets:
+                if dataset not in parent_datasets:
                     self._errors.append(
                         f"Check '{node.name}' specifies dataset '{dataset}' "
-                        f"which is not in available datasets: {self.available_datasets}"
+                        f"which is not in parent datasets: {parent_datasets}"
                     )
 
     def _visit_assertion_node(self, node: AssertionNode) -> None:
