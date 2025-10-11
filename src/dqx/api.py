@@ -144,16 +144,13 @@ class AssertionReady:
                 "Assertions must be created within a @check decorated function."
             )
 
-        # Create assertion node with all fields
-        node = self._context.create_assertion(
+        # Use the check node's factory method to create and add the assertion
+        current.add_assertion(
             actual=self._actual,
             name=self._name,  # Always has a name now!
             severity=self._severity,
             validator=validator,
         )
-
-        # Attach to the current check node
-        current.add_child(node)
 
 
 @runtime_checkable
@@ -245,11 +242,8 @@ class Context:
         Returns:
             CheckNode that can access context through its root node
         """
-        return CheckNode(
-            name=name,
-            tags=tags,
-            datasets=datasets,
-        )
+        # Use the root node's factory method
+        return self._graph.root.add_check(name=name, tags=tags, datasets=datasets)
 
     def create_assertion(
         self,
@@ -270,12 +264,16 @@ class Context:
         Returns:
             AssertionNode that can access context through its root node
         """
-        return AssertionNode(
-            actual=actual,
-            name=name,
-            severity=severity,
-            validator=validator,
-        )
+        # Get the current check node
+        current = self.current_check
+        if not current:
+            raise DQXError(
+                "Cannot create assertion outside of check context. "
+                "Assertions must be created within a @check decorated function."
+            )
+
+        # Use the check node's factory method
+        return current.add_assertion(actual=actual, name=name, severity=severity, validator=validator)
 
     def assert_that(self, expr: sp.Expr) -> AssertionDraft:
         """
@@ -485,13 +483,9 @@ def _create_check(
     Raises:
         DQXError: If a check with the same name already exists
     """
-    # Use context factory method
-    node = context.create_check(name=name, tags=tags, datasets=datasets)
-
-    if context._graph.root.exists(node):
-        raise DQXError(f"Check {node.name} already exists in the graph!")
-
-    context._graph.root.add_child(node)  # This node should be the last node in the graph
+    # Create the check node using root's factory method
+    # This will automatically add it to the root and set the parent
+    node = context._graph.root.add_check(name=name, tags=tags, datasets=datasets)
 
     # Call the symbolic check to collect assertions for this check node
     with context.check_context(node):

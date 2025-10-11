@@ -5,14 +5,17 @@ import sympy as sp
 
 from dqx.api import Context, MetricProvider, VerificationSuite, check
 from dqx.common import ResultKey
-from dqx.graph.nodes import AssertionNode
 from dqx.orm.repositories import InMemoryMetricDB
 
 
 def test_assertion_node_is_immutable() -> None:
     """AssertionNode should be immutable after creation."""
     # Test that AssertionNode doesn't have setter methods
-    node = AssertionNode(actual=sp.Symbol("x"))
+    from dqx.graph.nodes import RootNode
+
+    root = RootNode("test_suite")
+    check = root.add_check("test_check")
+    node = check.add_assertion(actual=sp.Symbol("x"))
 
     # These methods should not exist
     assert not hasattr(node, "set_label")
@@ -20,7 +23,7 @@ def test_assertion_node_is_immutable() -> None:
     assert not hasattr(node, "set_validator")
 
     # Fields can be set at construction but not modified after
-    node_with_label = AssertionNode(actual=sp.Symbol("x"), name="test label")
+    node_with_label = check.add_assertion(actual=sp.Symbol("x"), name="test label")
     assert node_with_label.name == "test label"
 
 

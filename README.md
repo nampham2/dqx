@@ -525,19 +525,24 @@ def validate_prices(mp, ctx):
     ctx.assert_that(mp.maximum("price")).where(name="Maximum price within limit").is_leq(1000)
 ```
 
-The framework automatically constructs this graph structure:
+The framework automatically constructs this graph structure with strongly typed parent relationships:
 ```
-RootNode
-└── CheckNode("Price validation")
+RootNode (parent: None)
+└── CheckNode("Price validation", parent: RootNode)
     ├── SymbolNode(average_price)
     │   └── MetricNode(Average("price"))
     │       └── AnalyzerNode(SQL: AVG(price))
     ├── SymbolNode(max_price)
     │   └── MetricNode(Maximum("price"))
     │       └── AnalyzerNode(SQL: MAX(price))
-    ├── AssertionNode(average_price > 0)
-    └── AssertionNode(max_price <= 1000)
+    ├── AssertionNode(average_price > 0, parent: CheckNode)
+    └── AssertionNode(max_price <= 1000, parent: CheckNode)
 ```
+
+Note: Each node type has a strongly typed parent relationship:
+- `RootNode` always has `None` as parent
+- `CheckNode` always has a `RootNode` parent
+- `AssertionNode` always has a `CheckNode` parent
 
 This graph structure enables:
 - Efficient execution (each metric computed once)
