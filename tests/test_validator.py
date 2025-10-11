@@ -2,6 +2,8 @@ import sympy as sp
 
 from dqx.graph.nodes import RootNode
 from dqx.graph.traversal import Graph
+from dqx.orm.repositories import InMemoryMetricDB
+from dqx.provider import MetricProvider
 from dqx.validator import SuiteValidator, ValidationIssue, ValidationReport
 
 
@@ -98,7 +100,11 @@ def test_suite_validator_clean_suite() -> None:
     graph = Graph(root)
     validator = SuiteValidator()
 
-    report = validator.validate(graph)
+    # Create a provider for validation
+    db = InMemoryMetricDB()
+    provider = MetricProvider(db)
+
+    report = validator.validate(graph, provider)
     assert not report.has_errors()
     assert not report.has_warnings()
 
@@ -113,7 +119,11 @@ def test_suite_validator_duplicate_check_names() -> None:
     graph = Graph(root)
     validator = SuiteValidator()
 
-    report = validator.validate(graph)
+    # Create a provider for validation
+    db = InMemoryMetricDB()
+    provider = MetricProvider(db)
+
+    report = validator.validate(graph, provider)
     assert report.has_errors()
     assert "Duplicate check name" in str(report)
 
@@ -132,7 +142,11 @@ def test_suite_validator_empty_checks() -> None:
     graph = Graph(root)
     validator = SuiteValidator()
 
-    report = validator.validate(graph)
+    # Create a provider for validation
+    db = InMemoryMetricDB()
+    provider = MetricProvider(db)
+
+    report = validator.validate(graph, provider)
     assert report.has_warnings()
     assert "Empty Check" in str(report)
 
@@ -148,7 +162,11 @@ def test_suite_validator_duplicate_assertion_names() -> None:
     graph = Graph(root)
     validator = SuiteValidator()
 
-    report = validator.validate(graph)
+    # Create a provider for validation
+    db = InMemoryMetricDB()
+    provider = MetricProvider(db)
+
+    report = validator.validate(graph, provider)
     assert report.has_errors()
     assert "Same" in str(report)
     assert "Test Check" in str(report)
@@ -169,8 +187,12 @@ def test_suite_validator_performance() -> None:
     graph = Graph(root)
     validator = SuiteValidator()
 
+    # Create a provider for validation
+    db = InMemoryMetricDB()
+    provider = MetricProvider(db)
+
     start = time.time()
-    report = validator.validate(graph)
+    report = validator.validate(graph, provider)
     duration = time.time() - start
 
     # Should complete quickly even for large suites

@@ -351,23 +351,29 @@ class SuiteValidator:
         ]
         self._composite = CompositeValidationVisitor(self._validators)
 
-    def validate(self, graph: Graph) -> ValidationReport:
+    def validate(self, graph: Graph, provider: MetricProvider) -> ValidationReport:
         """Run validation on a graph.
 
         Args:
             graph: The graph to validate
+            provider: MetricProvider for dataset validation (required)
 
         Returns:
             ValidationReport with all issues found
         """
-        # Reset composite visitor to ensure clean state
-        self._composite.reset()
+        # Build validator list including DatasetValidator
+        validators = self._validators.copy()
+        dataset_validator = DatasetValidator(provider)
+        validators.append(dataset_validator)
+
+        # Create composite with all validators
+        composite = CompositeValidationVisitor(validators)
 
         # Single-pass traversal
-        graph.bfs(self._composite)
+        graph.bfs(composite)
 
         # Get all issues
-        issues = self._composite.get_all_issues()
+        issues = composite.get_all_issues()
 
         # Build report
         report = ValidationReport()

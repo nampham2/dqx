@@ -385,7 +385,7 @@ class VerificationSuite:
             check_fn(self.provider, temp_context)
 
         # Run validation on the graph
-        return self._validator.validate(temp_context._graph)
+        return self._validator.validate(temp_context._graph, temp_context.provider)
 
     def collect(self, context: Context, key: ResultKey) -> None:
         """
@@ -405,7 +405,7 @@ class VerificationSuite:
             check(self.provider, context)
 
         # Run validation
-        report = self._validator.validate(context._graph)
+        report = self._validator.validate(context._graph, context.provider)
 
         # Only raise on errors, log warnings
         if report.has_errors():
