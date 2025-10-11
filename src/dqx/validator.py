@@ -221,9 +221,59 @@ class DatasetValidator(BaseValidator):
         self._provider = provider
 
     def process_node(self, node: BaseNode) -> None:
-        """Process a node to check for dataset mismatches."""
-        # TODO: Implement in next task
-        pass
+        """Process a node to check for dataset mismatches and ambiguities."""
+        if not isinstance(node, AssertionNode):
+            return
+
+        parent_check = node.parent
+
+        # Only validate if parent check has datasets specified
+        if not parent_check.datasets:
+            return
+
+        parent_datasets = parent_check.datasets
+
+        # Extract symbols from assertion expression
+        symbols = node.actual.free_symbols
+
+        for symbol in symbols:
+            try:
+                metric = self._provider.get_symbol(symbol)
+
+                if metric.dataset is None:
+                    # If check has multiple datasets, this is ambiguous
+                    if len(parent_datasets) > 1:
+                        self._issues.append(
+                            ValidationIssue(
+                                rule=self.name,
+                                message=(
+                                    f"Symbol '{metric.name}' in assertion '{node.name}' "
+                                    f"has no dataset specified, but parent check '{parent_check.name}' "
+                                    f"has multiple datasets: {parent_datasets}. Unable to determine which dataset to use."
+                                ),
+                                node_path=["root", f"check:{parent_check.name}", f"assertion:{node.name}"],
+                            )
+                        )
+                    # If check has exactly one dataset, imputation will handle it
+                    continue
+
+                # Validate symbol's dataset is in parent's datasets
+                if metric.dataset not in parent_datasets:
+                    self._issues.append(
+                        ValidationIssue(
+                            rule=self.name,
+                            message=(
+                                f"Symbol '{metric.name}' in assertion '{node.name}' "
+                                f"has dataset '{metric.dataset}' which is not in "
+                                f"parent check '{parent_check.name}' datasets: {parent_datasets}"
+                            ),
+                            node_path=["root", f"check:{parent_check.name}", f"assertion:{node.name}"],
+                        )
+                    )
+            except Exception:
+                # Symbol not found in provider, skip silently
+                # This can happen during early validation before all symbols are registered
+                pass
 
 
 class CompositeValidationVisitor:
