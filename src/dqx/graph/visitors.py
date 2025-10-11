@@ -2,7 +2,7 @@ from typing import Generic, TypeVar
 
 from dqx.common import DQXError
 from dqx.graph.base import BaseNode
-from dqx.graph.nodes import AssertionNode, CheckNode
+from dqx.graph.nodes import AssertionNode, CheckNode, RootNode
 from dqx.provider import MetricProvider
 
 TNode = TypeVar("TNode", bound=BaseNode)
@@ -45,10 +45,23 @@ class DatasetImputationVisitor:
         Args:
             node: The node to visit
         """
-        if isinstance(node, CheckNode):
+        if isinstance(node, RootNode):
+            self._visit_root_node(node)
+        elif isinstance(node, CheckNode):
             self._visit_check_node(node)
         elif isinstance(node, AssertionNode):
             self._visit_assertion_node(node)
+
+    def _visit_root_node(self, node: RootNode) -> None:
+        """Set available datasets on the RootNode.
+
+        This establishes the top-level datasets that will flow down
+        through the hierarchy.
+
+        Args:
+            node: The RootNode to process
+        """
+        node.datasets = self.available_datasets.copy()
 
     def _visit_check_node(self, node: CheckNode) -> None:
         """Validate and impute datasets for a CheckNode.
