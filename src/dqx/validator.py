@@ -10,13 +10,14 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from dqx.graph.base import BaseNode, NodeVisitor
+from dqx.graph.base import BaseNode
 from dqx.graph.nodes import AssertionNode, CheckNode
 from dqx.graph.traversal import Graph
 
-# Data structures
+if TYPE_CHECKING:
+    from dqx.provider import MetricProvider
 
 
 @dataclass
@@ -98,9 +99,6 @@ class ValidationReport:
                 lines.append(f"    Path: {' > '.join(issue.node_path)}")
 
         return "\n".join(lines)
-
-
-# Validators
 
 
 class BaseValidator(ABC):
@@ -211,10 +209,24 @@ class DuplicateAssertionNameValidator(BaseValidator):
                     )
 
 
-# Composite visitor for single-pass traversal
+class DatasetValidator(BaseValidator):
+    """Detects dataset mismatches between CheckNodes and their AssertionNodes' symbols."""
+
+    name = "dataset_mismatch"
+    is_error = True
+
+    def __init__(self, provider: "MetricProvider") -> None:
+        """Initialize validator with provider."""
+        super().__init__()
+        self._provider = provider
+
+    def process_node(self, node: BaseNode) -> None:
+        """Process a node to check for dataset mismatches."""
+        # TODO: Implement in next task
+        pass
 
 
-class CompositeValidationVisitor(NodeVisitor):
+class CompositeValidationVisitor:
     """Runs multiple validators in a single graph traversal for performance."""
 
     def __init__(self, validators: list[BaseValidator]) -> None:
@@ -275,9 +287,6 @@ class CompositeValidationVisitor(NodeVisitor):
         self._nodes = []
         for validator in self._validators:
             validator.reset()
-
-
-# Main API
 
 
 class SuiteValidator:
