@@ -26,6 +26,7 @@ class RootNode(CompositeNode[None, "CheckNode"]):
 
     Attributes:
         name: Human-readable name identifying this verification suite
+        datasets: List of dataset names available in this suite (populated during imputation)
         _context: Reference to the Context instance that owns the symbol table
 
     Examples:
@@ -46,6 +47,7 @@ class RootNode(CompositeNode[None, "CheckNode"]):
         """
         super().__init__(parent=None)  # Root always has None parent
         self.name = name
+        self.datasets: list[str] = []
 
     def add_check(
         self,
