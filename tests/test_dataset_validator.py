@@ -35,3 +35,28 @@ def test_dataset_validator_detects_mismatch() -> None:
     assert "testing" in issues[0].message
     assert "production" in issues[0].message
     assert "staging" in issues[0].message
+
+
+def test_dataset_validator_allows_valid_configuration() -> None:
+    """Test that DatasetValidator allows matching datasets."""
+    # Arrange: Create a real provider
+    db = InMemoryMetricDB()
+    provider = MetricProvider(db)
+
+    # Create a graph with matching datasets
+    root = RootNode("test_suite")
+    check = root.add_check("price_check", datasets=["production", "staging"])
+
+    # Symbol has dataset that IS in check's datasets
+    symbol = provider.average("price", dataset="production")
+
+    check.add_assertion(symbol, name="avg price > 0")
+
+    # Act: Run the validator
+    validator = DatasetValidator(provider)
+    for child in check.children:
+        validator.process_node(child)
+
+    # Assert: Should have no errors
+    issues = validator.get_issues()
+    assert len(issues) == 0
