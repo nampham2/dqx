@@ -384,8 +384,8 @@ class VerificationSuite:
         for check_fn in self._checks:
             check_fn(self.provider, temp_context)
 
-        # Run validation on the graph
-        return self._validator.validate(temp_context._graph, temp_context.provider)
+        # Run validation on the graph using the same provider that was used to register symbols
+        return self._validator.validate(temp_context._graph, self.provider)
 
     def collect(self, context: Context, key: ResultKey) -> None:
         """
