@@ -72,7 +72,7 @@ class DatasetImputationVisitor:
         Args:
             node: The CheckNode to process
         """
-        # Get parent's datasets (RootNode should have them by now)
+        # Get parent's datasets
         parent_datasets = node.parent.datasets
 
         if not node.datasets:
