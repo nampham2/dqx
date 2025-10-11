@@ -239,6 +239,79 @@ class TestDatasetImputationVisitor:
         assert any("check1" in err and "invalid1" in err for err in errors)
         assert any("check2" in err and "invalid2" in err for err in errors)
 
+    def test_root_node_receives_available_datasets(self) -> None:
+        """RootNode should be populated with available datasets when visited."""
+        # Arrange
+        root = RootNode("test_suite")
+        visitor = DatasetImputationVisitor(["prod", "staging", "dev"], provider=None)
+
+        # Act
+        visitor.visit(root)
+
+        # Assert
+        assert root.datasets == ["prod", "staging", "dev"]
+
+    def test_root_node_datasets_are_copied_not_referenced(self) -> None:
+        """RootNode should get a copy of datasets, not a reference."""
+        # Arrange
+        available = ["prod", "staging"]
+        root = RootNode("test_suite")
+        visitor = DatasetImputationVisitor(available, provider=None)
+
+        # Act
+        visitor.visit(root)
+        available.append("dev")  # Modify original list
+
+        # Assert
+        assert root.datasets == ["prod", "staging"]  # Should not include "dev"
+
+    def test_check_validates_against_parent_not_available(self) -> None:
+        """CheckNode should validate against parent datasets, not available."""
+        # Arrange
+        root = RootNode("test_suite")
+        check = root.add_check("test_check", datasets=["dev"])
+
+        # Manually set root datasets to simulate a filtered scenario
+        root.datasets = ["prod", "staging"]  # "dev" is not included
+
+        visitor = DatasetImputationVisitor(["prod", "staging", "dev"], provider=None)
+
+        # Act - Don't visit root (it already has datasets set)
+        visitor.visit(check)
+
+        # Assert
+        assert visitor.has_errors()
+        errors = visitor.get_errors()
+        assert any("parent datasets" in err for err in errors)
+        assert any("dev" in err for err in errors)
+
+    def test_hierarchical_flow_root_to_check_to_assertion(self) -> None:
+        """Test complete hierarchical flow from root to assertion."""
+        # Arrange
+        root = RootNode("test_suite")
+        check = root.add_check("test_check")  # No datasets
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test")
+
+        # Mock provider
+        provider = Mock(spec=MetricProvider)
+        metric = Mock(spec=SymbolicMetric)
+        metric.name = "x_1"
+        metric.dataset = None
+        provider.get_symbol.return_value = metric
+
+        visitor = DatasetImputationVisitor(["prod"], provider=provider)
+
+        # Act - Visit in hierarchical order
+        visitor.visit(root)  # Sets root.datasets = ["prod"]
+        visitor.visit(check)  # Sets check.datasets = ["prod"] from parent
+        visitor.visit(assertion)  # Imputes metric.dataset = "prod"
+
+        # Assert
+        assert root.datasets == ["prod"]
+        assert check.datasets == ["prod"]
+        assert metric.dataset == "prod"
+        assert not visitor.has_errors()
+
     def test_error_summary_formatting(self) -> None:
         """Error summary is properly formatted."""
         # Arrange
