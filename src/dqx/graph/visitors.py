@@ -89,37 +89,28 @@ class DatasetImputationVisitor:
         symbols = node.actual.free_symbols
 
         for symbol in symbols:
-            try:
-                metric = self.provider.get_symbol(symbol)
+            metric = self.provider.get_symbol(symbol)
 
-                # Get parent check's datasets
-                parent_check = node.parent
-                if not isinstance(parent_check, CheckNode):
-                    continue
+            # Get parent check's datasets
+            check_datasets = node.parent.datasets
 
-                check_datasets = parent_check.datasets or self.available_datasets
-
-                # Validate or impute dataset
-                if metric.dataset:
-                    # Validate existing dataset
-                    if metric.dataset not in check_datasets:
-                        self._errors.append(
-                            f"Symbol '{metric.name}' requires dataset '{metric.dataset}' "
-                            f"but parent check only has datasets: {check_datasets}"
-                        )
+            # Validate or impute dataset
+            if metric.dataset:
+                # Validate existing dataset
+                if metric.dataset not in check_datasets:
+                    self._errors.append(
+                        f"Symbol '{metric.name}' requires dataset '{metric.dataset}' "
+                        f"but parent check only has datasets: {check_datasets}"
+                    )
+            else:
+                # Impute dataset
+                if len(check_datasets) == 1:
+                    metric.dataset = check_datasets[0]
                 else:
-                    # Impute dataset
-                    if len(check_datasets) == 1:
-                        metric.dataset = check_datasets[0]
-                    else:
-                        self._errors.append(
-                            f"Cannot impute dataset for symbol '{metric.name}': "
-                            f"parent check has multiple datasets: {check_datasets}"
-                        )
-
-            except DQXError:
-                # Symbol not found in provider, skip
-                pass
+                    self._errors.append(
+                        f"Cannot impute dataset for symbol '{metric.name}': "
+                        f"parent check has multiple datasets: {check_datasets}"
+                    )
 
     def get_errors(self) -> list[str]:
         """Get the list of collected errors.

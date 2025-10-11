@@ -114,26 +114,6 @@ class TestDatasetImputationVisitor:
         assert symbolic_metric.dataset == "prod"  # Should be preserved
         assert not visitor.has_errors()
 
-    def test_handles_missing_symbols_gracefully(self) -> None:
-        """Visitor handles symbols without SymbolicMetrics."""
-        # Arrange
-        root = RootNode("test_suite")
-        check = root.add_check("test_check", datasets=["prod"])
-        assertion = check.add_assertion(actual=sp.Symbol("missing_symbol"), name="test_assertion")
-
-        # Create mock provider that raises DQXError for missing symbol
-        provider = Mock(spec=MetricProvider)
-        provider.get_symbol.side_effect = DQXError("Symbol missing_symbol not found.")
-
-        visitor = DatasetImputationVisitor(["prod"], provider=provider)
-
-        # Act
-        visitor.visit(assertion)
-
-        # Assert - Should not fail, just skip the symbol
-        # Errors should not include this (we log warnings instead)
-        assert not visitor.has_errors()
-
     def test_error_on_symbolic_metric_dataset_mismatch(self) -> None:
         """Error when SymbolicMetric requires dataset not in check."""
         # Arrange
