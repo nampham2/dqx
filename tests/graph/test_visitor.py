@@ -15,7 +15,7 @@ class TestDatasetImputationVisitor:
     """Test suite for DatasetImputationVisitor."""
 
     def test_propagates_datasets_from_root_to_check(self) -> None:
-        """When CheckNode has no datasets, it inherits from available datasets."""
+        """When CheckNode has no datasets, it inherits from parent's datasets."""
         # Arrange
         root = RootNode("test_suite")
         check = root.add_check("test_check")  # No datasets specified
@@ -23,6 +23,7 @@ class TestDatasetImputationVisitor:
         visitor = DatasetImputationVisitor(["prod", "staging"], provider=None)
 
         # Act
+        visitor.visit(root)  # Visit root first
         visitor.visit(check)
 
         # Assert
@@ -37,6 +38,7 @@ class TestDatasetImputationVisitor:
         visitor = DatasetImputationVisitor(["prod", "staging"], provider=None)
 
         # Act
+        visitor.visit(root)  # Visit root first
         visitor.visit(check)
 
         # Assert
@@ -51,6 +53,7 @@ class TestDatasetImputationVisitor:
         visitor = DatasetImputationVisitor(["prod", "staging"], provider=None)
 
         # Act
+        visitor.visit(root)  # Visit root first to populate datasets
         visitor.visit(check)
 
         # Assert
@@ -77,6 +80,7 @@ class TestDatasetImputationVisitor:
         visitor = DatasetImputationVisitor(["prod"], provider=provider)
 
         # Act - First imputation
+        visitor.visit(root)
         visitor.visit(check)
         visitor.visit(assertion)
         first_check_datasets = check.datasets.copy()
@@ -84,6 +88,7 @@ class TestDatasetImputationVisitor:
 
         # Act - Second imputation
         visitor2 = DatasetImputationVisitor(["prod"], provider=provider)
+        visitor2.visit(root)
         visitor2.visit(check)
         visitor2.visit(assertion)
 
@@ -196,8 +201,8 @@ class TestDatasetImputationVisitor:
         with pytest.raises(DQXError, match="At least one dataset must be provided"):
             DatasetImputationVisitor([], provider=None)
 
-    def test_visit_root_node_does_nothing(self) -> None:
-        """Visiting RootNode doesn't modify anything."""
+    def test_visit_root_node_sets_datasets(self) -> None:
+        """Visiting RootNode sets its datasets from available datasets."""
         # Arrange
         root = RootNode("test_suite")
         visitor = DatasetImputationVisitor(["prod"], provider=None)
@@ -207,7 +212,7 @@ class TestDatasetImputationVisitor:
 
         # Assert
         assert not visitor.has_errors()
-        # RootNode doesn't have datasets attribute, so nothing to check
+        assert root.datasets == ["prod"]  # RootNode now has datasets set
 
     def test_multiple_errors_are_collected(self) -> None:
         """Multiple validation errors are collected and reported together."""
@@ -223,6 +228,7 @@ class TestDatasetImputationVisitor:
         visitor = DatasetImputationVisitor(["prod", "staging"], provider=None)
 
         # Act
+        visitor.visit(root)  # Visit root first
         visitor.visit(check1)
         visitor.visit(check2)
 
@@ -242,6 +248,7 @@ class TestDatasetImputationVisitor:
         visitor = DatasetImputationVisitor(["prod"], provider=None)
 
         # Act
+        visitor.visit(root)  # Visit root first
         visitor.visit(check)
 
         # Assert
