@@ -1,17 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import sympy as sp
 from returns.result import Result
 
 from dqx.common import SeverityLevel, SymbolicValidator
 from dqx.graph.base import BaseNode, CompositeNode
 from dqx.provider import SymbolicMetric
-
-if TYPE_CHECKING:
-    # Avoid circular imports
-    pass
 
 
 class RootNode(CompositeNode[None, "CheckNode"]):
@@ -111,7 +105,7 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
 
     def __init__(
         self,
-        parent: RootNode,  # Required, not optional!
+        parent: RootNode,
         name: str,
         tags: list[str] | None = None,
         datasets: list[str] | None = None,
@@ -163,7 +157,7 @@ class AssertionNode(BaseNode["CheckNode"]):
 
     def __init__(
         self,
-        parent: CheckNode,  # Required, not optional!
+        parent: CheckNode,
         actual: sp.Expr,
         name: str | None = None,
         severity: SeverityLevel = "P1",
