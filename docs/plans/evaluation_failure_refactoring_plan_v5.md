@@ -321,6 +321,24 @@ class TestEvaluatorFailureHandling:
 
         assert isinstance(result, Success)
         assert result.unwrap() == 42.0
+
+    def test_constant_expression_nan(self):
+        """Test NaN from constant expression like 0/0."""
+        provider = Mock(spec=MetricProvider)
+        key = ResultKey(yyyy_mm_dd=date.today())
+        evaluator = Evaluator(provider, key)
+
+        # Evaluate 0/0 which should result in NaN
+        result = evaluator.evaluate(sp.sympify("0/0"))
+
+        # Should return EvaluationFailure with no symbols
+        assert isinstance(result, Failure)
+        failures = result.failure()
+        assert len(failures) == 1
+        failure = failures[0]
+        assert failure.error_message == "Validating value is NaN"
+        assert failure.expression == "nan"  # sympy evaluates 0/0 to nan
+        assert len(failure.symbols) == 0  # No symbols in constant expression
 ```
 
 **How to run tests**:
@@ -484,6 +502,8 @@ def _gather(self, expr: sp.Expr) -> Result[tuple[dict[sp.Symbol, float], list[Sy
 
 def evaluate(self, expr: sp.Expr) -> Result[float, list[EvaluationFailure]]:
     """Evaluate a symbolic expression by substituting collected metric values.
+
+    For comprehensive error reporting examples, see examples/evaluation_failure_demo.py
 
     Args:
         expr: Symbolic expression to evaluate
@@ -914,7 +934,7 @@ def scenario_3_expression_infinity():
             metric_spec=Count("session"),
             dataset="web_analytics"
         ),
-        errors = SymbolicMetric(
+        errors: SymbolicMetric(
             name="errors", symbol=errors,
             fn=lambda k: Success(0.000001),  # Very small value
             key_provider=Mock(),
