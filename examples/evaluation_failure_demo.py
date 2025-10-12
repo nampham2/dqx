@@ -8,6 +8,7 @@ fail to evaluate or produce invalid results.
 from datetime import date
 from unittest.mock import Mock
 
+import sympy as sp
 from returns.result import Failure, Success
 
 from dqx.common import EvaluationFailure, ResultKey
@@ -161,6 +162,60 @@ def demo_boolean_expression_failure() -> None:
         print("   Use validators to perform comparisons on metric values.")
 
 
+def demo_complex_number_handling() -> None:
+    """Demo 5: Complex number handling."""
+    print("\n" + "=" * 60)
+    print("DEMO 5: Complex Number Handling")
+    print("=" * 60)
+
+    provider = MetricProvider(db=Mock())
+    key = ResultKey(yyyy_mm_dd=date.today(), tags={})
+
+    # Create metrics that will produce complex numbers
+    negative_returns = provider.sum("return_amount", dataset="returns")
+    provider._symbol_index[negative_returns].fn = lambda k: Success(-100.0)
+
+    negative_balance = provider.sum("balance", dataset="accounts")
+    provider._symbol_index[negative_balance].fn = lambda k: Success(-50.0)
+
+    positive_multiplier = provider.sum("multiplier", dataset="config")
+    provider._symbol_index[positive_multiplier].fn = lambda k: Success(2.0)
+
+    evaluator = Evaluator(provider, key)
+
+    # Example 1: Square root of negative returns
+    print("\n📊 Example 1: Square root of negative value")
+    expr = sp.sqrt(negative_returns)
+    result = evaluator.evaluate(expr)
+
+    if isinstance(result, Failure):
+        print(f"\nExpression: sqrt({-100.0})")
+        print("Result: FAILED")
+        print_failure_details(result.failure())
+
+    # Example 2: Logarithm of negative balance
+    print("\n\n📊 Example 2: Logarithm of negative value")
+    expr = sp.log(negative_balance)
+    result = evaluator.evaluate(expr)
+
+    if isinstance(result, Failure):
+        print(f"\nExpression: log({-50.0})")
+        print("Result: FAILED")
+        print_failure_details(result.failure())
+
+    # Example 3: Complex arithmetic
+    print("\n\n📊 Example 3: Complex arithmetic expression")
+    expr = sp.sqrt(negative_returns) * positive_multiplier
+    result = evaluator.evaluate(expr)
+
+    if isinstance(result, Failure):
+        print(f"\nExpression: sqrt({-100.0}) * {2.0}")
+        print("Result: FAILED")
+        print_failure_details(result.failure())
+        print("\n💡 Note: Complex numbers cannot be used as metric values.")
+        print("   Ensure all metric calculations produce real numbers.")
+
+
 if __name__ == "__main__":
     print("🔍 DQX Evaluation Failure Handling Demo")
     print("This demo showcases the improved error reporting with EvaluationFailure\n")
@@ -169,6 +224,7 @@ if __name__ == "__main__":
     demo_nan_handling()
     demo_complex_expression()
     demo_boolean_expression_failure()
+    demo_complex_number_handling()
 
     print("\n" + "=" * 60)
     print("✨ Key Features Demonstrated:")
@@ -176,5 +232,6 @@ if __name__ == "__main__":
     print("- Detailed symbol information including dataset and metric specs")
     print("- Graceful handling of NaN and infinity values")
     print("- Boolean expressions properly fail (metrics must be numeric)")
+    print("- Complex number detection and proper error reporting")
     print("- Clear indication of which specific metrics failed")
     print("=" * 60)

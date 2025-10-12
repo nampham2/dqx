@@ -190,6 +190,19 @@ class Evaluator:
                     ]
                 )
 
+            # Check if the result is complex (has imaginary part)
+            if substituted.is_complex and not substituted.is_real:
+                real_part, imag_part = substituted.as_real_imag()
+                return Failure(
+                    [
+                        EvaluationFailure(
+                            error_message=f"Validating value is complex: {float(real_part)} + {float(imag_part)}i",
+                            expression=str(expr),
+                            symbols=symbol_infos,
+                        )
+                    ]
+                )
+
             expr_val = float(sp.N(substituted, 6))
 
             # Handle NaN and regular infinity
