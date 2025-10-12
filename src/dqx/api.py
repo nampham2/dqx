@@ -10,7 +10,15 @@ import sympy as sp
 
 from dqx import functions, get_logger
 from dqx.analyzer import Analyzer
-from dqx.common import DQXError, ResultKey, ResultKeyProvider, SeverityLevel, SqlDataSource, SymbolicValidator
+from dqx.common import (
+    AssertionResult,
+    DQXError,
+    ResultKey,
+    ResultKeyProvider,
+    SeverityLevel,
+    SqlDataSource,
+    SymbolicValidator,
+)
 from dqx.evaluator import Evaluator
 from dqx.graph.nodes import AssertionNode, CheckNode, RootNode
 from dqx.graph.traversal import Graph
@@ -358,6 +366,10 @@ class VerificationSuite:
         # Create validator instance
         self._validator = SuiteValidator()
 
+        # State tracking for result collection
+        self.is_evaluated = False  # Track if assertions have been evaluated
+        self._key: ResultKey | None = None  # Store the key used during run()
+
     @property
     def provider(self) -> MetricProvider:
         """
@@ -426,13 +438,20 @@ class VerificationSuite:
             Context containing the execution results
 
         Raises:
-            DQXError: If no data sources provided
+            DQXError: If no data sources provided or suite already executed
         """
+        # Prevent multiple runs
+        if self.is_evaluated:
+            raise DQXError("Verification suite has already been executed. Create a new suite instance to run again.")
+
         logger.info(f"Running verification suite '{self._name}' with datasets: {list(datasources.keys())}")
 
         # Validate the datasources
         if not datasources:
             raise DQXError("No data sources provided!")
+
+        # Store the key for later use in collect_results
+        self._key = key
 
         # Build the dependency graph
         logger.info("Collecting checks and building dependency graph...")
@@ -453,6 +472,85 @@ class VerificationSuite:
         # 3. Evaluate assertions
         evaluator = Evaluator(self.provider, key)
         self._context._graph.bfs(evaluator)
+
+        # Mark suite as evaluated only after successful completion
+        self.is_evaluated = True
+
+    def collect_results(self) -> list[AssertionResult]:
+        """
+        Collect all assertion results after suite execution.
+
+        This method traverses the evaluation graph and extracts results from
+        all assertions, converting them into AssertionResult objects suitable
+        for persistence or reporting. The ResultKey used during run() is
+        automatically applied to all results.
+
+        Returns:
+            List of AssertionResult instances, one for each assertion in the suite.
+            Results are returned in graph traversal order (breadth-first).
+
+        Raises:
+            DQXError: If called before run() has been executed successfully.
+
+        Example:
+            >>> suite = VerificationSuite(checks, db, "My Suite")
+            >>> suite.run(datasources, key)
+            >>> results = suite.collect_results()  # No key needed!
+            >>> for r in results:
+            ...     print(f"{r.check}/{r.assertion}: {r.status}")
+            ...     if r.status == "FAILURE":
+            ...         failures = r.value.failure()
+            ...         for f in failures:
+            ...             print(f"  Error: {f.error_message}")
+        """
+        if not self.is_evaluated:
+            raise DQXError("Cannot collect results before suite execution. Call run() first to evaluate assertions.")
+
+        # Check that we have a key
+        if self._key is None:
+            raise DQXError("No ResultKey available. This should not happen after successful run().")
+
+        # Import here to avoid circular imports
+        from returns.result import Failure, Success
+
+        # Use the stored key
+        key = self._key
+        results = []
+
+        # Use the graph's built-in method to get all assertions
+        for assertion in self._context._graph.assertions():
+            # Extract parent hierarchy
+            check_node = assertion.parent  # Parent is always a CheckNode
+
+            # Use pattern matching for cleaner Result handling
+            status: Literal["SUCCESS", "FAILURE"]
+            match assertion._value:
+                case Success(_):
+                    status = "SUCCESS"
+                case Failure(_):
+                    status = "FAILURE"
+
+            # Create result record
+            # Handle the case where assertion.name might be None (shouldn't happen with new API)
+            assertion_name = assertion.name
+            if assertion_name is None:
+                # This shouldn't happen with the new where() API, but handle it gracefully
+                assertion_name = f"Unnamed assertion ({str(assertion.actual)[:50]})"
+
+            result = AssertionResult(
+                yyyy_mm_dd=key.yyyy_mm_dd,
+                suite=self._name,
+                check=check_node.name,
+                assertion=assertion_name,
+                severity=assertion.severity,
+                status=status,
+                value=assertion._value,
+                expression=str(assertion.actual),
+                tags=key.tags,
+            )
+            results.append(result)
+
+        return results
 
 
 class VerificationSuiteBuilder:

@@ -315,6 +315,60 @@ dataset_pending = context.pending_metrics("specific_dataset")
 # - Planning execution strategies
 ```
 
+### Collecting Assertion Results
+
+After running a verification suite, you can collect detailed results for all assertions. The API has been designed for simplicity - no need to pass the ResultKey again:
+
+```python
+# Run the suite once
+suite.run(datasources, key)
+
+# Check if evaluation is complete
+if suite.is_evaluated:
+    # Collect results - no key parameter needed!
+    results = suite.collect_results()
+
+    # Process results
+    for result in results:
+        print(f"{result.check}/{result.assertion}: {result.status}")
+
+        if result.status == "FAILURE":
+            # Extract error details directly from Result object
+            failures = result.value.failure()
+            for failure in failures:
+                print(f"  Error: {failure.error_message}")
+
+# Convert to DataFrame for analysis
+import pandas as pd
+df = pd.DataFrame([{
+    "date": r.yyyy_mm_dd,
+    "check": r.check,
+    "assertion": r.assertion,
+    "status": r.status,
+    "value": r.value.unwrap() if r.value.is_ok() else None
+} for r in results])
+
+# Or create a DuckDB relation
+import duckdb
+conn = duckdb.connect()
+relation = conn.from_pandas(df)
+```
+
+**Key Features**:
+- **Single-run enforcement**: A suite can only be run once per instance
+- **No redundant parameters**: ResultKey is stored during run() and reused automatically
+- **Pattern matching**: Clean Result type handling using Python 3.10+ match statements
+- **Direct error access**: Extract error details directly from the Result object
+
+The `AssertionResult` dataclass provides:
+- Full context (suite/check/assertion hierarchy)
+- Success/failure status
+- The actual Result object for advanced usage
+- Severity levels and tags
+- Direct access to errors via `value.failure()`
+
+The `is_evaluated` flag indicates whether the suite has been executed, ensuring results are available before collection.
+
 ### Error Handling and Validation
 
 DQX provides comprehensive validation and clear error messages:
