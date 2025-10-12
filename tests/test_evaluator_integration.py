@@ -44,9 +44,9 @@ class TestEvaluatorIntegration:
         check2 = root.add_check("inventory_checks", datasets=["inventory"])
 
         # Add assertions
-        assertion1 = check1.add_assertion(x1 > 50, name="avg_price > 50")
-        assertion2 = check1.add_assertion(x1 + x3 < 200, name="avg_price + avg_cost < 200")
-        assertion3 = check2.add_assertion(x2 == 50, name="sum_quantity == 50")
+        assertion1 = check1.add_assertion(x1, name="avg_price")
+        assertion2 = check1.add_assertion(x1 + x3, name="avg_price + avg_cost")
+        assertion3 = check2.add_assertion(x2, name="sum_quantity")
 
         # Create evaluator and traverse
         evaluator = Evaluator(provider, key)
@@ -54,9 +54,9 @@ class TestEvaluatorIntegration:
         await graph.async_dfs(evaluator)
 
         # Check results
-        # Assertion 1: Should succeed (100 > 50)
+        # Assertion 1: Should succeed with value 100.0
         assert isinstance(assertion1._value, Success)
-        assert assertion1._value.unwrap() == 1.0  # sympy evaluates True to 1.0
+        assert assertion1._value.unwrap() == 100.0
 
         # Assertion 2: Should fail due to x3 failure
         assert isinstance(assertion2._value, Failure)
@@ -65,7 +65,6 @@ class TestEvaluatorIntegration:
         failure = failures[0]
         assert isinstance(failure, EvaluationFailure)
         assert failure.error_message == "One or more metrics failed to evaluate"
-        # The expression includes the full comparison
         assert str(x1 + x3) in failure.expression
         assert len(failure.symbols) == 2
 
@@ -74,11 +73,9 @@ class TestEvaluatorIntegration:
         assert isinstance(failed_symbol.value, Failure)
         assert failed_symbol.value.failure() == "Database connection error"
 
-        # Assertion 3: Should succeed (50 == 50)
+        # Assertion 3: Should succeed with value 50.0
         assert isinstance(assertion3._value, Success)
-        # Note: sympy's == operator may evaluate to False for float comparisons
-        # due to precision issues, so this could be 0.0 or 1.0
-        assert assertion3._value.unwrap() in (0.0, 1.0)
+        assert assertion3._value.unwrap() == 50.0
 
     @pytest.mark.asyncio
     async def test_nan_handling_in_graph_traversal(self) -> None:

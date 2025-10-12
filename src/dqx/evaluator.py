@@ -179,12 +179,7 @@ class Evaluator:
         try:
             # Substitute values and evaluate
             substituted = expr.subs(symbol_values)
-
-            # Handle boolean results from comparisons
-            if isinstance(substituted, (sp.logic.boolalg.BooleanTrue, sp.logic.boolalg.BooleanFalse)):
-                expr_val = 1.0 if substituted == sp.true else 0.0
-            else:
-                expr_val = float(sp.N(substituted, 6))
+            expr_val = float(sp.N(substituted, 6))
 
             # Handle NaN and infinity
             if math.isnan(expr_val):

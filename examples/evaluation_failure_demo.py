@@ -130,10 +130,10 @@ def demo_complex_expression() -> None:
         print_failure_details(result.failure())
 
 
-def demo_boolean_expression() -> None:
-    """Demo 4: Boolean expression evaluation."""
+def demo_boolean_expression_failure() -> None:
+    """Demo 4: Boolean expressions should fail."""
     print("\n" + "=" * 60)
-    print("DEMO 4: Boolean Expression Evaluation")
+    print("DEMO 4: Boolean Expression Failure")
     print("=" * 60)
 
     provider = MetricProvider(db=Mock())
@@ -149,15 +149,16 @@ def demo_boolean_expression() -> None:
     evaluator = Evaluator(provider, key)
 
     # Boolean comparison: current_revenue > target_revenue
+    # This should fail because metrics must evaluate to numeric values
     expr = current_revenue > target_revenue
     result = evaluator.evaluate(expr)
 
-    if isinstance(result, Success):
+    if isinstance(result, Failure):
         print("\nExpression: current_revenue > target_revenue")
-        print(f"Result: {bool(result.unwrap())} (evaluates to {result.unwrap()})")
-        print(f"Details: {15000.0} > {12000.0} = True")
-    else:
+        print("Result: FAILED (as expected)")
         print_failure_details(result.failure())
+        print("\n💡 Note: Metrics must evaluate to numeric values.")
+        print("   Use validators to perform comparisons on metric values.")
 
 
 if __name__ == "__main__":
@@ -167,13 +168,13 @@ if __name__ == "__main__":
     demo_metric_failure()
     demo_nan_handling()
     demo_complex_expression()
-    demo_boolean_expression()
+    demo_boolean_expression_failure()
 
     print("\n" + "=" * 60)
     print("✨ Key Features Demonstrated:")
     print("- Structured error reporting with EvaluationFailure dataclass")
     print("- Detailed symbol information including dataset and metric specs")
     print("- Graceful handling of NaN and infinity values")
-    print("- Support for boolean expressions")
+    print("- Boolean expressions properly fail (metrics must be numeric)")
     print("- Clear indication of which specific metrics failed")
     print("=" * 60)
