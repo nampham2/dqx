@@ -170,9 +170,10 @@ class TestEvaluatorFailureHandling:
             )
 
         def get_symbol_mock(s: sp.Symbol) -> Mock:
+            # Create a mock spec that returns the metric name when converted to string
             mock_spec = Mock()
-            mock_spec.configure_mock(**{"__str__.return_value": metrics[s][0]})
-            return Mock(name=metrics[s][0], dataset=metrics[s][1], metric_spec=mock_spec)
+            mock_spec.__str__ = Mock(return_value=metrics[s][0])  # type: ignore
+            return Mock(name=str(s), dataset=metrics[s][1], metric_spec=mock_spec)
 
         provider.get_symbol.side_effect = get_symbol_mock
 

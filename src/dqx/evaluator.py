@@ -108,6 +108,10 @@ class Evaluator:
         symbol_values: dict[sp.Symbol, float] = {}
         symbol_infos: list[SymbolInfo] = []
 
+        # Convert to sympy expression if needed (handles boolean values)
+        if not isinstance(expr, sp.Basic):
+            expr = sp.sympify(expr)
+
         for sym in expr.free_symbols:
             if sym not in self.metrics:
                 sm = self.metric_for_symbol(sym)
@@ -151,6 +155,10 @@ class Evaluator:
             Failure containing a list of EvaluationFailure objects if any
             symbols fail to evaluate or if the result is NaN/infinity.
         """
+        # Convert to sympy expression if needed (handles boolean values)
+        if not isinstance(expr, sp.Basic):
+            expr = sp.sympify(expr)
+
         # Gather symbol values and information
         symbol_values, symbol_infos = self._gather(expr)
 
@@ -169,7 +177,14 @@ class Evaluator:
 
         # All symbols evaluated successfully, compute the expression
         try:
-            expr_val = float(sp.N(expr.subs(symbol_values), 6))
+            # Substitute values and evaluate
+            substituted = expr.subs(symbol_values)
+
+            # Handle boolean results from comparisons
+            if isinstance(substituted, (sp.logic.boolalg.BooleanTrue, sp.logic.boolalg.BooleanFalse)):
+                expr_val = 1.0 if substituted == sp.true else 0.0
+            else:
+                expr_val = float(sp.N(substituted, 6))
 
             # Handle NaN and infinity
             if math.isnan(expr_val):
