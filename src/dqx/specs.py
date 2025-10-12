@@ -147,6 +147,9 @@ class Average:
             return False
         return self.name == other.name and self.parameters == other.parameters
 
+    def __str__(self) -> str:
+        return self.name
+
 
 class Variance:
     metric_type: MetricType = "Variance"

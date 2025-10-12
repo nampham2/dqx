@@ -1,9 +1,10 @@
 import math
+from typing import Tuple
 
 import sympy as sp
 from returns.result import Failure, Result, Success
 
-from dqx.common import DQXError, ResultKey
+from dqx.common import DQXError, EvaluationFailure, ResultKey, SymbolInfo
 from dqx.graph.base import BaseNode
 from dqx.graph.nodes import AssertionNode
 from dqx.provider import MetricProvider, SymbolicMetric
@@ -85,81 +86,122 @@ class Evaluator:
         """
         return self.provider.get_symbol(symbol)
 
-    def _gather(self, expr: sp.Expr) -> Result[dict[sp.Symbol, float], dict[sp.Symbol, str]]:
-        """Gather metric values for all symbols in an expression.
+    def _gather(self, expr: sp.Expr) -> Tuple[dict[sp.Symbol, float], list[SymbolInfo]]:
+        """Gather metric values and symbol information for all symbols in an expression.
 
         Extracts all free symbols from the expression and retrieves their
-        corresponding values from the collected metrics. If any symbol fails
-        to evaluate, returns a Failure with error messages for all failed symbols.
+        corresponding values from the collected metrics. Always collects both
+        successful values and symbol information for all symbols, regardless
+        of their evaluation status.
 
         Args:
             expr: Symbolic expression containing symbols to gather values for
 
         Returns:
-            Success containing a dictionary mapping symbols to their float values if
-            all symbols evaluated successfully. Failure containing a dictionary
-            mapping symbols to error messages if any symbols failed.
+            Tuple containing:
+            - Dictionary mapping symbols to their float values (empty if failures)
+            - List of SymbolInfo objects for all symbols in the expression
 
         Raises:
             DQXError: If a symbol in the expression is not found in collected metrics
         """
-        successes: dict[sp.Symbol, float] = {}
-        failures: dict[sp.Symbol, str] = {}  # Fixed: Use sp.Symbol as key type
+        symbol_values: dict[sp.Symbol, float] = {}
+        symbol_infos: list[SymbolInfo] = []
 
         for sym in expr.free_symbols:
             if sym not in self.metrics:
                 sm = self.metric_for_symbol(sym)
                 raise DQXError(f"Symbol {sm.name} not found in collected metrics.")
 
-            match self.metrics[sym]:
-                case Failure(err):
-                    failures[sym] = err  # Now correctly uses sp.Symbol
-                case Success(v):
-                    successes[sym] = v
+            # Get the symbolic metric for this symbol
+            sm = self.metric_for_symbol(sym)
+            metric_result = self.metrics[sym]
 
-        if failures:
-            return Failure(failures)
-        return Success(successes)
+            # Create SymbolInfo for this symbol
+            symbol_info = SymbolInfo(
+                name=str(sym), metric=str(sm.metric_spec), dataset=sm.dataset or "", value=metric_result
+            )
+            symbol_infos.append(symbol_info)
 
-    def evaluate(self, expr: sp.Expr) -> Result[float, dict[SymbolicMetric | sp.Expr, str]]:
+            # Collect successful values
+            if isinstance(metric_result, Success):
+                symbol_values[sym] = metric_result.unwrap()
+
+        return symbol_values, symbol_infos
+
+    def evaluate(self, expr: sp.Expr) -> Result[float, list[EvaluationFailure]]:
         """Evaluate a symbolic expression by substituting collected metric values.
 
-        First gathers all symbol values from the expression, then substitutes them
-        and evaluates the result. Handles special numeric cases like NaN and infinity
-        by returning appropriate failure messages.
+        Gathers all symbol values from the expression, then substitutes them
+        and evaluates the result. Handles both metric failures and special
+        numeric cases (NaN/infinity) by returning EvaluationFailure objects.
 
         The evaluation process:
-        1. Gather all symbol values using _gather()
-        2. Substitute values into the expression
-        3. Evaluate to a float with 6 decimal precision
-        4. Check for NaN or infinity results
+        1. Gather all symbol values and information using _gather()
+        2. Check for metric failures and return early if found
+        3. Substitute values into the expression
+        4. Evaluate to a float with 6 decimal precision
+        5. Check for NaN or infinity results
 
         Args:
             expr: Symbolic expression to evaluate
 
         Returns:
             Success containing the evaluated float value if evaluation succeeds.
-            Failure containing error messages if any symbols fail to evaluate
-            or if the result is NaN/infinity.
+            Failure containing a list of EvaluationFailure objects if any
+            symbols fail to evaluate or if the result is NaN/infinity.
         """
-        sv = self._gather(expr)
-        match sv:
-            case Success(symbol_values):
-                expr_val = float(sp.N(expr.subs(symbol_values), 6))
+        # Gather symbol values and information
+        symbol_values, symbol_infos = self._gather(expr)
 
-                # Handling nan and inf values
-                if math.isnan(expr_val):
-                    return Failure({sp.Expr: "Validating value is NaN"})
-                elif math.isinf(expr_val):
-                    return Failure({sp.Expr: "Validating value is infinity"})
+        # Check if any symbols failed to evaluate
+        failed_symbols = [si for si in symbol_infos if isinstance(si.value, Failure)]
+        if failed_symbols:
+            return Failure(
+                [
+                    EvaluationFailure(
+                        error_message="One or more metrics failed to evaluate",
+                        expression=str(expr),
+                        symbols=symbol_infos,
+                    )
+                ]
+            )
 
-                return Success(expr_val)
+        # All symbols evaluated successfully, compute the expression
+        try:
+            expr_val = float(sp.N(expr.subs(symbol_values), 6))
 
-            case Failure(errors):
-                return Failure(errors)
+            # Handle NaN and infinity
+            if math.isnan(expr_val):
+                return Failure(
+                    [
+                        EvaluationFailure(
+                            error_message="Validating value is NaN", expression=str(expr), symbols=symbol_infos
+                        )
+                    ]
+                )
+            elif math.isinf(expr_val):
+                return Failure(
+                    [
+                        EvaluationFailure(
+                            error_message="Validating value is infinity", expression=str(expr), symbols=symbol_infos
+                        )
+                    ]
+                )
 
-        # Unreachable state
-        raise RuntimeError("Unreachable state in evaluation.")
+            return Success(expr_val)
+
+        except Exception as e:
+            # Handle any unexpected errors during evaluation
+            return Failure(
+                [
+                    EvaluationFailure(
+                        error_message=f"Error evaluating expression: {str(e)}",
+                        expression=str(expr),
+                        symbols=symbol_infos,
+                    )
+                ]
+            )
 
     def visit(self, node: BaseNode) -> None:
         """Visit a node in the DQX graph and evaluate assertions.
