@@ -33,7 +33,7 @@ def print_failure_details(failures: list[EvaluationFailure]) -> None:
                     print(f"        Value: {symbol.value.unwrap()}")
 
 
-def demo_metric_failure():
+def demo_metric_failure() -> None:
     """Demo 1: Metric failure propagation."""
     print("\n" + "=" * 60)
     print("DEMO 1: Metric Failure Propagation")
@@ -68,7 +68,7 @@ def demo_metric_failure():
         print(f"Result: {result.unwrap()}")
 
 
-def demo_nan_handling():
+def demo_nan_handling() -> None:
     """Demo 2: NaN handling."""
     print("\n" + "=" * 60)
     print("DEMO 2: NaN/Infinity Handling")
@@ -96,7 +96,7 @@ def demo_nan_handling():
         print_failure_details(result.failure())
 
 
-def demo_complex_expression():
+def demo_complex_expression() -> None:
     """Demo 3: Complex expression with multiple failures."""
     print("\n" + "=" * 60)
     print("DEMO 3: Complex Expression with Multiple Data Sources")
@@ -130,7 +130,7 @@ def demo_complex_expression():
         print_failure_details(result.failure())
 
 
-def demo_boolean_expression():
+def demo_boolean_expression() -> None:
     """Demo 4: Boolean expression evaluation."""
     print("\n" + "=" * 60)
     print("DEMO 4: Boolean Expression Evaluation")
