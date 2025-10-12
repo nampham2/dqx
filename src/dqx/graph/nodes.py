@@ -3,9 +3,8 @@ from __future__ import annotations
 import sympy as sp
 from returns.result import Result
 
-from dqx.common import SeverityLevel, SymbolicValidator
+from dqx.common import EvaluationFailure, SeverityLevel, SymbolicValidator
 from dqx.graph.base import BaseNode, CompositeNode
-from dqx.provider import SymbolicMetric
 
 
 class RootNode(CompositeNode[None, "CheckNode"]):
@@ -179,7 +178,7 @@ class AssertionNode(BaseNode["CheckNode"]):
         self.name = name
         self.severity = severity
         self.validator = validator
-        self._value: Result[float, dict[SymbolicMetric | sp.Expr, str]]
+        self._value: Result[float, list[EvaluationFailure]]
 
     def is_leaf(self) -> bool:
         return True

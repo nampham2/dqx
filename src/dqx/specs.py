@@ -76,6 +76,9 @@ class NumRows:
             return False
         return self.name == other.name and self.parameters == other.parameters
 
+    def __str__(self) -> str:
+        return self.name
+
 
 class First:
     metric_type: MetricType = "First"
@@ -110,6 +113,9 @@ class First:
         if not isinstance(other, First):
             return False
         return self.name == other.name and self.parameters == other.parameters
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class Average:
@@ -147,6 +153,9 @@ class Average:
             return False
         return self.name == other.name and self.parameters == other.parameters
 
+    def __str__(self) -> str:
+        return self.name
+
 
 class Variance:
     metric_type: MetricType = "Variance"
@@ -183,6 +192,9 @@ class Variance:
             return False
         return self.name == other.name and self.parameters == other.parameters
 
+    def __str__(self) -> str:
+        return self.name
+
 
 class Minimum:
     metric_type: MetricType = "Minimum"
@@ -217,6 +229,9 @@ class Minimum:
         if not isinstance(other, Minimum):
             return False
         return self.name == other.name and self.parameters == other.parameters
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class Maximum:
@@ -253,6 +268,9 @@ class Maximum:
             return False
         return self.name == other.name and self.parameters == other.parameters
 
+    def __str__(self) -> str:
+        return self.name
+
 
 class Sum:
     metric_type: MetricType = "Sum"
@@ -287,6 +305,9 @@ class Sum:
         if not isinstance(other, Sum):
             return False
         return self.name == other.name and self.parameters == other.parameters
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class NullCount:
@@ -323,6 +344,9 @@ class NullCount:
             return False
         return self.name == other.name and self.parameters == other.parameters
 
+    def __str__(self) -> str:
+        return self.name
+
 
 class NegativeCount:
     metric_type: MetricType = "NegativeCount"
@@ -357,6 +381,9 @@ class NegativeCount:
         if not isinstance(other, NegativeCount):
             return False
         return self.name == other.name and self.parameters == other.parameters
+
+    def __str__(self) -> str:
+        return self.name
 
 
 class ApproxCardinality:
@@ -396,6 +423,9 @@ class ApproxCardinality:
         if not isinstance(other, ApproxCardinality):
             return False
         return self.name == other.name and self.parameters == other.parameters
+
+    def __str__(self) -> str:
+        return self.name
 
 
 def _build_registry() -> dict[MetricType, Type[MetricSpec]]:

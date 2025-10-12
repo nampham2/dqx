@@ -16,6 +16,25 @@ if TYPE_CHECKING:
     from dqx.specs import MetricSpec
 
 
+@dataclass
+class SymbolInfo:
+    """Information about a symbol in an expression"""
+
+    name: str  # Symbol name (e.g., "x_1")
+    metric: str  # Human-readable metric name
+    dataset: str  # Dataset name
+    value: Result[float, str]  # Success(10.5) or Failure("error")
+
+
+@dataclass
+class EvaluationFailure:
+    """Failure information for evaluation errors"""
+
+    error_message: str  # Overall error message
+    expression: str  # The symbolic expression
+    symbols: list[SymbolInfo]  # List of symbol information
+
+
 class DQXError(Exception): ...
 
 
