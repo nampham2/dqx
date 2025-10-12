@@ -665,7 +665,7 @@ assert result.failure()[0].error_message == "error message"
 
 **Commit**: `chore: cleanup and format code`
 
-### Task 9: Documentation
+### Task 9: Documentation and Demo
 
 **Branch**: Continue on same branch
 
@@ -674,6 +674,382 @@ assert result.failure()[0].error_message == "error message"
 - `src/dqx/evaluator.py` - Ensure all docstrings are updated
 - `src/dqx/graph/nodes.py` - Update AssertionNode docstring
 - Create `docs/evaluation_failure_guide.md` if needed
+- Create `examples/evaluation_failure_demo.py` - Demo script
+
+**Demo Script Implementation** (`examples/evaluation_failure_demo.py`):
+```python
+"""Demo script showing EvaluationFailure error reporting in various scenarios."""
+import sympy as sp
+from datetime import date
+from dqx.common import EvaluationFailure, SymbolInfo, ResultKey
+from dqx.evaluator import Evaluator
+from dqx.provider import MetricProvider, SymbolicMetric
+from dqx.specs import Average, Sum, Count, Min, Max
+from returns.result import Success, Failure
+from unittest.mock import Mock
+from typing import List
+
+
+def print_evaluation_failure(failures: List[EvaluationFailure]) -> None:
+    """Pretty print evaluation failures."""
+    for i, failure in enumerate(failures, 1):
+        print(f"\n{'='*80}")
+        print(f"FAILURE #{i}")
+        print(f"{'='*80}")
+        print(f"Error: {failure.error_message}")
+        print(f"Expression: {failure.expression}")
+        print(f"\nSymbol Details:")
+        print(f"{'Symbol':<10} {'Metric':<25} {'Dataset':<15} {'Value':<15} {'Status'}")
+        print(f"{'-'*10} {'-'*25} {'-'*15} {'-'*15} {'-'*6}")
+
+        for symbol in failure.symbols:
+            status = "✓" if symbol.value.is_success() else "✗"
+            if symbol.value.is_success():
+                value = f"{symbol.value.unwrap():.2f}"
+                error = ""
+            else:
+                value = "N/A"
+                error = f" ({symbol.value.failure()})"
+
+            print(f"{symbol.name:<10} {symbol.metric:<25} {symbol.dataset:<15} {value:<15} {status}{error}")
+
+
+def scenario_1_multiple_metric_failures():
+    """Scenario 1: Multiple metric failures with 5+ symbols."""
+    print("\n" + "="*80)
+    print("SCENARIO 1: Multiple Metric Failures")
+    print("="*80)
+    print("Expression: (revenue - costs) / (users * conversion_rate * avg_order_value)")
+
+    provider = Mock(spec=MetricProvider)
+    key = ResultKey(yyyy_mm_dd=date.today())
+    evaluator = Evaluator(provider, key)
+
+    # Create symbols
+    revenue = sp.Symbol("revenue")
+    costs = sp.Symbol("costs")
+    users = sp.Symbol("users")
+    conversion_rate = sp.Symbol("conv_rate")
+    avg_order_value = sp.Symbol("avg_order")
+
+    # Create symbolic metrics with various failures
+    metrics = {
+        revenue: SymbolicMetric(
+            name="revenue", symbol=revenue,
+            fn=lambda k: Failure("Database connection timeout"),
+            key_provider=Mock(),
+            metric_spec=Sum("revenue"),
+            dataset="transactions"
+        ),
+        costs: SymbolicMetric(
+            name="costs", symbol=costs,
+            fn=lambda k: Success(50000.0),
+            key_provider=Mock(),
+            metric_spec=Sum("operating_costs"),
+            dataset="finance"
+        ),
+        users: SymbolicMetric(
+            name="users", symbol=users,
+            fn=lambda k: Failure("Permission denied: insufficient privileges"),
+            key_provider=Mock(),
+            metric_spec=Count("user_id"),
+            dataset="users"
+        ),
+        conversion_rate: SymbolicMetric(
+            name="conv_rate", symbol=conversion_rate,
+            fn=lambda k: Success(0.05),
+            key_provider=Mock(),
+            metric_spec=Average("conversion_rate"),
+            dataset="analytics"
+        ),
+        avg_order_value: SymbolicMetric(
+            name="avg_order", symbol=avg_order_value,
+            fn=lambda k: Failure("Column 'order_value' not found"),
+            key_provider=Mock(),
+            metric_spec=Average("order_value"),
+            dataset="orders"
+        ),
+    }
+
+    # Mock provider methods
+    provider.symbolic_metrics = list(metrics.values())
+    provider.get_symbol.side_effect = lambda s: metrics[s]
+
+    # Mock metrics collection
+    evaluator._metrics = {sym: metric.fn(key) for sym, metric in metrics.items()}
+
+    # Evaluate expression
+    expr = (revenue - costs) / (users * conversion_rate * avg_order_value)
+    result = evaluator.evaluate(expr)
+
+    if isinstance(result, Failure):
+        print_evaluation_failure(result.failure())
+
+
+def scenario_2_expression_nan():
+    """Scenario 2: Expression results in NaN with 5+ symbols."""
+    print("\n" + "="*80)
+    print("SCENARIO 2: Expression Results in NaN")
+    print("="*80)
+    print("Expression: (sales_na - sales_eu) / (sales_apac + sales_latam - sales_total)")
+
+    provider = Mock(spec=MetricProvider)
+    key = ResultKey(yyyy_mm_dd=date.today())
+    evaluator = Evaluator(provider, key)
+
+    # Create symbols
+    sales_na = sp.Symbol("sales_na")
+    sales_eu = sp.Symbol("sales_eu")
+    sales_apac = sp.Symbol("sales_apac")
+    sales_latam = sp.Symbol("sales_latam")
+    sales_total = sp.Symbol("sales_total")
+
+    # Create metrics that will cause division by zero
+    metrics = {
+        sales_na: SymbolicMetric(
+            name="sales_na", symbol=sales_na,
+            fn=lambda k: Success(100000.0),
+            key_provider=Mock(),
+            metric_spec=Sum("sales_amount"),
+            dataset="sales_north_america"
+        ),
+        sales_eu: SymbolicMetric(
+            name="sales_eu", symbol=sales_eu,
+            fn=lambda k: Success(80000.0),
+            key_provider=Mock(),
+            metric_spec=Sum("sales_amount"),
+            dataset="sales_europe"
+        ),
+        sales_apac: SymbolicMetric(
+            name="sales_apac", symbol=sales_apac,
+            fn=lambda k: Success(60000.0),
+            key_provider=Mock(),
+            metric_spec=Sum("sales_amount"),
+            dataset="sales_asia_pacific"
+        ),
+        sales_latam: SymbolicMetric(
+            name="sales_latam", symbol=sales_latam,
+            fn=lambda k: Success(40000.0),
+            key_provider=Mock(),
+            metric_spec=Sum("sales_amount"),
+            dataset="sales_latin_america"
+        ),
+        sales_total: SymbolicMetric(
+            name="sales_total", symbol=sales_total,
+            fn=lambda k: Success(100000.0),  # Equals sum of apac + latam
+            key_provider=Mock(),
+            metric_spec=Sum("sales_amount"),
+            dataset="sales_global"
+        ),
+    }
+
+    # Mock provider methods
+    provider.symbolic_metrics = list(metrics.values())
+    provider.get_symbol.side_effect = lambda s: metrics[s]
+
+    # Mock metrics collection
+    evaluator._metrics = {sym: metric.fn(key) for sym, metric in metrics.items()}
+
+    # Evaluate expression (denominator will be 0)
+    expr = (sales_na - sales_eu) / (sales_apac + sales_latam - sales_total)
+    result = evaluator.evaluate(expr)
+
+    if isinstance(result, Failure):
+        print_evaluation_failure(result.failure())
+
+
+def scenario_3_expression_infinity():
+    """Scenario 3: Expression results in infinity with 6 symbols."""
+    print("\n" + "="*80)
+    print("SCENARIO 3: Expression Results in Infinity")
+    print("="*80)
+    print("Expression: (views * clicks * conversions) / (bounces - sessions + errors)")
+
+    provider = Mock(spec=MetricProvider)
+    key = ResultKey(yyyy_mm_dd=date.today())
+    evaluator = Evaluator(provider, key)
+
+    # Create symbols
+    views = sp.Symbol("views")
+    clicks = sp.Symbol("clicks")
+    conversions = sp.Symbol("conversions")
+    bounces = sp.Symbol("bounces")
+    sessions = sp.Symbol("sessions")
+    errors = sp.Symbol("errors")
+
+    # Create metrics that will cause division by very small number
+    metrics = {
+        views: SymbolicMetric(
+            name="views", symbol=views,
+            fn=lambda k: Success(1000000.0),
+            key_provider=Mock(),
+            metric_spec=Count("page_view"),
+            dataset="web_analytics"
+        ),
+        clicks: SymbolicMetric(
+            name="clicks", symbol=clicks,
+            fn=lambda k: Success(50000.0),
+            key_provider=Mock(),
+            metric_spec=Count("click_event"),
+            dataset="web_analytics"
+        ),
+        conversions: SymbolicMetric(
+            name="conversions", symbol=conversions,
+            fn=lambda k: Success(1000.0),
+            key_provider=Mock(),
+            metric_spec=Count("conversion"),
+            dataset="web_analytics"
+        ),
+        bounces: SymbolicMetric(
+            name="bounces", symbol=bounces,
+            fn=lambda k: Success(10000.0),
+            key_provider=Mock(),
+            metric_spec=Count("bounce"),
+            dataset="web_analytics"
+        ),
+        sessions: SymbolicMetric(
+            name="sessions", symbol=sessions,
+            fn=lambda k: Success(10000.0),
+            key_provider=Mock(),
+            metric_spec=Count("session"),
+            dataset="web_analytics"
+        ),
+        errors = SymbolicMetric(
+            name="errors", symbol=errors,
+            fn=lambda k: Success(0.000001),  # Very small value
+            key_provider=Mock(),
+            metric_spec=Count("error"),
+            dataset="web_analytics"
+        ),
+    }
+
+    # Mock provider methods
+    provider.symbolic_metrics = list(metrics.values())
+    provider.get_symbol.side_effect = lambda s: metrics[s]
+
+    # Mock metrics collection
+    evaluator._metrics = {sym: metric.fn(key) for sym, metric in metrics.items()}
+
+    # Evaluate expression (very large numerator / very small denominator)
+    expr = (views * clicks * conversions) / (bounces - sessions + errors)
+    result = evaluator.evaluate(expr)
+
+    if isinstance(result, Failure):
+        print_evaluation_failure(result.failure())
+
+
+def scenario_4_complex_mixed():
+    """Scenario 4: Complex expression with mixed failures and 8 symbols."""
+    print("\n" + "="*80)
+    print("SCENARIO 4: Complex Mixed Expression")
+    print("="*80)
+    print("Expression: ((revenue * margin - fixed_costs) / active_users) + ")
+    print("            (ad_spend / (impressions * ctr * conversion))")
+
+    provider = Mock(spec=MetricProvider)
+    key = ResultKey(yyyy_mm_dd=date.today())
+    evaluator = Evaluator(provider, key)
+
+    # Create symbols
+    revenue = sp.Symbol("revenue")
+    margin = sp.Symbol("margin")
+    fixed_costs = sp.Symbol("fixed_costs")
+    active_users = sp.Symbol("active_users")
+    ad_spend = sp.Symbol("ad_spend")
+    impressions = sp.Symbol("impressions")
+    ctr = sp.Symbol("ctr")
+    conversion = sp.Symbol("conversion")
+
+    # Mix of successful and failed metrics
+    metrics = {
+        revenue: SymbolicMetric(
+            name="revenue", symbol=revenue,
+            fn=lambda k: Success(1000000.0),
+            key_provider=Mock(),
+            metric_spec=Sum("revenue"),
+            dataset="financial"
+        ),
+        margin: SymbolicMetric(
+            name="margin", symbol=margin,
+            fn=lambda k: Failure("ETL pipeline failed: data quality check failed"),
+            key_provider=Mock(),
+            metric_spec=Average("profit_margin"),
+            dataset="financial"
+        ),
+        fixed_costs: SymbolicMetric(
+            name="fixed_costs", symbol=fixed_costs,
+            fn=lambda k: Success(200000.0),
+            key_provider=Mock(),
+            metric_spec=Sum("fixed_cost"),
+            dataset="financial"
+        ),
+        active_users: SymbolicMetric(
+            name="active_users", symbol=active_users,
+            fn=lambda k: Failure("Redis cache unavailable"),
+            key_provider=Mock(),
+            metric_spec=Count("distinct user_id"),
+            dataset="user_activity"
+        ),
+        ad_spend: SymbolicMetric(
+            name="ad_spend", symbol=ad_spend,
+            fn=lambda k: Success(50000.0),
+            key_provider=Mock(),
+            metric_spec=Sum("spend"),
+            dataset="marketing"
+        ),
+        impressions: SymbolicMetric(
+            name="impressions", symbol=impressions,
+            fn=lambda k: Success(10000000.0),
+            key_provider=Mock(),
+            metric_spec=Count("impression"),
+            dataset="marketing"
+        ),
+        ctr: SymbolicMetric(
+            name="ctr", symbol=ctr,
+            fn=lambda k: Failure("Division by zero in CTR calculation"),
+            key_provider=Mock(),
+            metric_spec=Average("click_through_rate"),
+            dataset="marketing"
+        ),
+        conversion: SymbolicMetric(
+            name="conversion", symbol=conversion,
+            fn=lambda k: Success(0.02),
+            key_provider=Mock(),
+            metric_spec=Average("conversion_rate"),
+            dataset="marketing"
+        ),
+    }
+
+    # Mock provider methods
+    provider.symbolic_metrics = list(metrics.values())
+    provider.get_symbol.side_effect = lambda s: metrics[s]
+
+    # Mock metrics collection
+    evaluator._metrics = {sym: metric.fn(key) for sym, metric in metrics.items()}
+
+    # Evaluate complex expression
+    expr = ((revenue * margin - fixed_costs) / active_users) + \
+           (ad_spend / (impressions * ctr * conversion))
+    result = evaluator.evaluate(expr)
+
+    if isinstance(result, Failure):
+        print_evaluation_failure(result.failure())
+
+
+if __name__ == "__main__":
+    print("DQX EvaluationFailure Demo")
+    print("=" * 80)
+    print("This demo shows how DQX reports errors in various failure scenarios.")
+    print("Each scenario uses expressions with at least 5 symbols.")
+
+    scenario_1_multiple_metric_failures()
+    scenario_2_expression_nan()
+    scenario_3_expression_infinity()
+    scenario_4_complex_mixed()
+
+    print("\n" + "="*80)
+    print("Demo completed!")
+```
 
 **Example documentation**:
 ```markdown
@@ -693,9 +1069,11 @@ if isinstance(assertion._value, Failure):
             error = symbol.value.swap().value_or("")
             print(f"  {status} {symbol.name} ({symbol.metric}): {value} {error}")
 ```
+
+For a comprehensive demonstration of error reporting, see `examples/evaluation_failure_demo.py`.
 ```
 
-**Commit**: `docs: update documentation for EvaluationFailure`
+**Commit**: `docs: update documentation and add comprehensive error demo`
 
 ## Development Workflow
 
