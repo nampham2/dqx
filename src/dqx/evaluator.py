@@ -1,10 +1,12 @@
 import math
+
 import sympy as sp
+from returns.result import Failure, Result, Success
+
 from dqx.common import DQXError, ResultKey
-from dqx.graph.nodes import AssertionNode
 from dqx.graph.base import BaseNode
+from dqx.graph.nodes import AssertionNode
 from dqx.provider import MetricProvider, SymbolicMetric
-from returns.result import Result, Success, Failure
 
 
 class Evaluator:
@@ -83,7 +85,7 @@ class Evaluator:
         """
         return self.provider.get_symbol(symbol)
 
-    def _gather(self, expr: sp.Expr) -> Result[dict[sp.Symbol, float], dict[SymbolicMetric, str]]:
+    def _gather(self, expr: sp.Expr) -> Result[dict[sp.Symbol, float], dict[sp.Symbol, str]]:
         """Gather metric values for all symbols in an expression.
 
         Extracts all free symbols from the expression and retrieves their
@@ -96,13 +98,13 @@ class Evaluator:
         Returns:
             Success containing a dictionary mapping symbols to their float values if
             all symbols evaluated successfully. Failure containing a dictionary
-            mapping SymbolicMetrics to error messages if any symbols failed.
+            mapping symbols to error messages if any symbols failed.
 
         Raises:
             DQXError: If a symbol in the expression is not found in collected metrics
         """
         successes: dict[sp.Symbol, float] = {}
-        failures: dict[SymbolicMetric, str] = {}
+        failures: dict[sp.Symbol, str] = {}  # Fixed: Use sp.Symbol as key type
 
         for sym in expr.free_symbols:
             if sym not in self.metrics:
@@ -111,7 +113,7 @@ class Evaluator:
 
             match self.metrics[sym]:
                 case Failure(err):
-                    failures[sym] = err
+                    failures[sym] = err  # Now correctly uses sp.Symbol
                 case Success(v):
                     successes[sym] = v
 

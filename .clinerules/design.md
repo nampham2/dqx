@@ -59,7 +59,7 @@ While the problem is encoded as a graph, the output is stored in a different for
 for presentation.
 For the users to comprehend the result, it's easier to present it in a tabular format.
 
-suite | check | assertion | metric | result | debug
+yyyy_mm_dd | suite | check | assertion | metric | errors | tags
 
 The result could be Success(value) or Failure(Message)
 
