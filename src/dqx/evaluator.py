@@ -179,9 +179,20 @@ class Evaluator:
         try:
             # Substitute values and evaluate
             substituted = expr.subs(symbol_values)
+
+            # Check for complex infinity (zoo) before converting to float
+            if substituted == sp.zoo:
+                return Failure(
+                    [
+                        EvaluationFailure(
+                            error_message="Validating value is infinity", expression=str(expr), symbols=symbol_infos
+                        )
+                    ]
+                )
+
             expr_val = float(sp.N(substituted, 6))
 
-            # Handle NaN and infinity
+            # Handle NaN and regular infinity
             if math.isnan(expr_val):
                 return Failure(
                     [
