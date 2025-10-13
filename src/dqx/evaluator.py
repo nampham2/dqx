@@ -29,15 +29,17 @@ class Evaluator:
         _metrics: Dictionary mapping symbols to their computed Result values
     """
 
-    def __init__(self, provider: MetricProvider, key: ResultKey):
+    def __init__(self, provider: MetricProvider, key: ResultKey, suite_name: str):
         """Initialize the Evaluator with a metric provider and result key.
 
         Args:
             provider: MetricProvider instance containing symbolic metric definitions
             key: ResultKey specifying the context for metric evaluation (e.g., date, tags)
+            suite_name: Name of the verification suite for context tracking
         """
         self.provider = provider
-        self.key = key
+        self._key = key
+        self._suite_name = suite_name
         self._metrics: dict[sp.Basic, Result[float, str]] | None = None
 
     @property
@@ -53,7 +55,7 @@ class Evaluator:
             Each Result is either Success[float] or Failure[str].
         """
         if self._metrics is None:
-            self._metrics = self.collect_metrics(self.key)
+            self._metrics = self.collect_metrics(self._key)
         return self._metrics
 
     def collect_metrics(self, key: ResultKey) -> dict[sp.Basic, Result[float, str]]:
@@ -123,7 +125,13 @@ class Evaluator:
 
             # Create SymbolInfo for this symbol
             symbol_info = SymbolInfo(
-                name=str(sym), metric=str(sm.metric_spec), dataset=sm.dataset or "", value=metric_result
+                name=str(sym),
+                metric=str(sm.metric_spec),
+                dataset=sm.dataset,
+                value=metric_result,
+                yyyy_mm_dd=self._key.yyyy_mm_dd,
+                suite=self._suite_name,
+                tags=self._key.tags,
             )
             symbol_infos.append(symbol_info)
 
@@ -270,3 +278,26 @@ class Evaluator:
             node: The graph node to visit asynchronously
         """
         self.visit(node)
+
+    def collect_symbols(self, expr: sp.Expr) -> list[SymbolInfo]:
+        """Collect symbol information for all symbols in an expression.
+
+        This method gathers SymbolInfo objects for all symbols referenced
+        in the given expression without evaluating the expression itself.
+        It's useful for introspection and debugging purposes.
+
+        Args:
+            expr: Symbolic expression containing symbols to collect
+
+        Returns:
+            List of SymbolInfo objects with complete context information
+            including suite name, date, and tags from the evaluator's context
+
+        Example:
+            evaluator = Evaluator(provider, key, "My Suite")
+            expr = x_1 + x_2 * 2
+            symbols = evaluator.collect_symbols(expr)
+            # Returns [SymbolInfo(...), SymbolInfo(...)]
+        """
+        _, symbol_infos = self._gather(expr)
+        return symbol_infos

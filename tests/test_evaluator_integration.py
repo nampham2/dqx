@@ -53,7 +53,7 @@ class TestEvaluatorIntegration:
         assertion3 = check2.add_assertion(x2, name="sum_quantity", validator=quantity_validator)
 
         # Create evaluator and traverse
-        evaluator = Evaluator(provider, key)
+        evaluator = Evaluator(provider, key, "Test Suite")
         graph = Graph(root)
         await graph.async_dfs(evaluator)
 
@@ -102,7 +102,7 @@ class TestEvaluatorIntegration:
         assertion = check.add_assertion(sp.zoo * x1 / x2, name="sp.zoo * x1 / x2", validator=nan_validator)
 
         # Traverse graph
-        evaluator = Evaluator(provider, key)
+        evaluator = Evaluator(provider, key, "Test Suite")
         graph = Graph(root)
         await graph.async_dfs(evaluator)
 
@@ -132,7 +132,7 @@ class TestEvaluatorIntegration:
         # Complex expression across datasets
         expr = (orders_metric / users_metric) - (inventory_metric / users_metric)
 
-        evaluator = Evaluator(provider, key)
+        evaluator = Evaluator(provider, key, "Test Suite")
         result = evaluator.evaluate(expr)
 
         # Should succeed: (1000/100) - (500/100) = 10 - 5 = 5
@@ -148,7 +148,7 @@ class TestEvaluatorIntegration:
         symbol = provider.average("revenue", dataset="transactions")
         provider._symbol_index[symbol].fn = lambda k: Failure("Query timeout after 30s")
 
-        evaluator = Evaluator(provider, key)
+        evaluator = Evaluator(provider, key, "Test Suite")
         result = evaluator.evaluate(symbol * 2)
 
         assert isinstance(result, Failure)

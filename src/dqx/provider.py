@@ -41,8 +41,23 @@ class SymbolicMetricBase(ABC):
     def symbols(self) -> Iterable[sp.Symbol]:
         return self._symbol_index.keys()
 
-    def get_symbol(self, symbol: sp.Symbol) -> SymbolicMetric:
-        """Find the first symbol data that matches the given symbol."""
+    def get_symbol(self, symbol: sp.Symbol | str) -> SymbolicMetric:
+        """Find the first symbol data that matches the given symbol.
+
+        Args:
+            symbol: Either a sympy Symbol object or a string representation
+                   of the symbol (e.g., "x_1")
+
+        Returns:
+            SymbolicMetric containing the symbol's metadata
+
+        Raises:
+            DQXError: If the symbol is not found
+        """
+        # Convert string to Symbol if needed
+        if isinstance(symbol, str):
+            symbol = sp.Symbol(symbol)
+
         first_or_none = next(filter(lambda s: s.symbol == symbol, self._metrics), None)
         if not first_or_none:
             raise DQXError(f"Symbol {symbol} not found.")

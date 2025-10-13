@@ -18,12 +18,28 @@ if TYPE_CHECKING:
 
 @dataclass
 class SymbolInfo:
-    """Information about a symbol in an expression"""
+    """Information about a symbol in an expression.
 
-    name: str  # Symbol name (e.g., "x_1")
-    metric: str  # Human-readable metric name
-    dataset: str  # Dataset name
-    value: Result[float, str]  # Success(10.5) or Failure("error")
+    Captures metadata about a computed metric symbol, including its value
+    and the context in which it was evaluated.
+
+    Attributes:
+        name: Symbol identifier (e.g., "x_1", "x_2")
+        metric: Human-readable metric description (e.g., "average(price)")
+        dataset: Name of the dataset this metric was computed from (optional)
+        value: Computation result - Success(float) or Failure(error_message)
+        yyyy_mm_dd: Date when the metric was evaluated
+        suite: Name of the verification suite that evaluated this symbol
+        tags: Additional metadata from ResultKey (e.g., {"env": "prod"})
+    """
+
+    name: str
+    metric: str
+    dataset: str | None
+    value: Result[float, str]
+    yyyy_mm_dd: datetime.date
+    suite: str
+    tags: Tags = field(default_factory=dict)
 
 
 @dataclass

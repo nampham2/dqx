@@ -35,7 +35,7 @@ class TestEvaluatorValidation:
         assertion = check.add_assertion(x1, name="price > 50", validator=validator)
 
         # Execute
-        evaluator = Evaluator(provider, key)
+        evaluator = Evaluator(provider, key, "Test Suite")
         evaluator.visit(assertion)
 
         # Verify
@@ -63,7 +63,7 @@ class TestEvaluatorValidation:
         assertion = check.add_assertion(x1, name="price > 50", validator=validator)
 
         # Execute
-        evaluator = Evaluator(provider, key)
+        evaluator = Evaluator(provider, key, "Test Suite")
         evaluator.visit(assertion)
 
         # Verify
@@ -91,7 +91,7 @@ class TestEvaluatorValidation:
         assertion = check.add_assertion(x1, name="price > 50", validator=validator)
 
         # Execute
-        evaluator = Evaluator(provider, key)
+        evaluator = Evaluator(provider, key, "Test Suite")
         evaluator.visit(assertion)
 
         # Verify
@@ -121,7 +121,7 @@ class TestEvaluatorValidation:
         assertion = check.add_assertion(x1, name="will fail", validator=validator)
 
         # Execute - should raise DQXError
-        evaluator = Evaluator(provider, key)
+        evaluator = Evaluator(provider, key, "Test Suite")
         with pytest.raises(Exception) as exc_info:
             evaluator.visit(assertion)
 
@@ -163,7 +163,7 @@ class TestEvaluatorValidation:
         )  # Should pass: 5 >= 5
 
         # Execute
-        evaluator = Evaluator(provider, key)
+        evaluator = Evaluator(provider, key, "Test Suite")
         graph = Graph(root)
         await graph.async_dfs(evaluator)
 
@@ -195,7 +195,7 @@ class TestEvaluatorValidation:
         assertion = check.add_assertion(margin_expr, name="profit margin > 30%", validator=validator)
 
         # Execute
-        evaluator = Evaluator(provider, key)
+        evaluator = Evaluator(provider, key, "Test Suite")
         evaluator.visit(assertion)
 
         # Verify
@@ -226,7 +226,7 @@ class TestEvaluatorValidation:
             x1, name="zero is not positive", validator=SymbolicValidator("> 0", lambda x: x > 0)
         )
 
-        evaluator = Evaluator(provider, key)
+        evaluator = Evaluator(provider, key, "Test Suite")
         evaluator.visit(assertion1)
 
         assert assertion1._result == "FAILURE"  # 0 is not > 0

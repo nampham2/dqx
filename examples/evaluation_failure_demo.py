@@ -55,7 +55,7 @@ def demo_metric_failure() -> None:
     provider._symbol_index[users].fn = lambda k: Success(100.0)
 
     # Create evaluator and evaluate expression
-    evaluator = Evaluator(provider, key)
+    evaluator = Evaluator(provider, key, "Test Suite")
 
     # Try to calculate profit per user: (revenue - costs) / users
     expr = (revenue - costs) / users
@@ -85,7 +85,7 @@ def demo_nan_handling() -> None:
     zero_divisor = provider.sum("cancelled_orders", dataset="sales")
     provider._symbol_index[zero_divisor].fn = lambda k: Success(0.0)
 
-    evaluator = Evaluator(provider, key)
+    evaluator = Evaluator(provider, key, "Test Suite")
 
     # Calculate metric that produces infinity: total_sales / zero_divisor = 1000/0 = infinity
     expr = total_sales / zero_divisor
@@ -119,7 +119,7 @@ def demo_complex_expression() -> None:
     customer_count = provider.approx_cardinality("customer_id", dataset="customers")
     provider._symbol_index[customer_count].fn = lambda k: Failure("Permission denied on table 'customers'")
 
-    evaluator = Evaluator(provider, key)
+    evaluator = Evaluator(provider, key, "Test Suite")
 
     # Complex business metric: (orders - shipping*returns) / customers
     expr = (orders_total - shipping_cost * returns_count) / customer_count
@@ -147,7 +147,7 @@ def demo_boolean_expression_failure() -> None:
     target_revenue = provider.sum("target", dataset="sales_targets")
     provider._symbol_index[target_revenue].fn = lambda k: Success(12000.0)
 
-    evaluator = Evaluator(provider, key)
+    evaluator = Evaluator(provider, key, "Test Suite")
 
     # Boolean comparison: current_revenue > target_revenue
     # This should fail because metrics must evaluate to numeric values
@@ -181,7 +181,7 @@ def demo_complex_number_handling() -> None:
     positive_multiplier = provider.sum("multiplier", dataset="config")
     provider._symbol_index[positive_multiplier].fn = lambda k: Success(2.0)
 
-    evaluator = Evaluator(provider, key)
+    evaluator = Evaluator(provider, key, "Test Suite")
 
     # Example 1: Square root of negative returns
     print("\n📊 Example 1: Square root of negative value")

@@ -18,6 +18,7 @@ from dqx.common import (
     SeverityLevel,
     SqlDataSource,
     SymbolicValidator,
+    SymbolInfo,
 )
 from dqx.evaluator import Evaluator
 from dqx.graph.nodes import CheckNode, RootNode
@@ -416,7 +417,7 @@ class VerificationSuite:
             analyzer.persist(self.provider._db)
 
         # 3. Evaluate assertions
-        evaluator = Evaluator(self.provider, key)
+        evaluator = Evaluator(self.provider, key, self._name)
         self._context._graph.bfs(evaluator)
 
         # Mark suite as evaluated only after successful completion
@@ -481,6 +482,58 @@ class VerificationSuite:
             results.append(result)
 
         return results
+
+    def collect_symbols(self) -> list[SymbolInfo]:
+        """
+        Collect all symbol values after suite execution.
+
+        This method retrieves information about all symbols (metrics) that were
+        registered during suite setup, evaluates them, and returns their values
+        along with metadata. Symbols are sorted by name for consistent ordering.
+
+        Returns:
+            List of SymbolInfo instances, sorted by symbol name (x_1, x_2, etc.).
+            Each contains the symbol name, metric description, dataset,
+            computed value, and context information (date, suite, tags).
+
+        Raises:
+            DQXError: If called before run() has been executed successfully.
+
+        Example:
+            >>> suite = VerificationSuite(checks, db, "My Suite")
+            >>> suite.run(datasources, key)
+            >>> symbols = suite.collect_symbols()
+            >>> for s in symbols:
+            ...     if s.value.is_success():
+            ...         print(f"{s.metric}: {s.value.unwrap()}")
+        """
+        if not self.is_evaluated:
+            raise DQXError("Cannot collect symbols before suite execution. Call run() first to evaluate assertions.")
+
+        if self._key is None:
+            raise DQXError("No ResultKey available. This should not happen after successful run().")
+
+        symbols = []
+
+        # Iterate through all registered symbols
+        for symbolic_metric in self._context.provider.symbolic_metrics:
+            # Evaluate the symbol to get its value
+            value = symbolic_metric.fn(self._key)
+
+            # Create SymbolInfo with all fields
+            symbol_info = SymbolInfo(
+                name=str(symbolic_metric.symbol),
+                metric=str(symbolic_metric.metric_spec),
+                dataset=symbolic_metric.dataset,
+                value=value,
+                yyyy_mm_dd=self._key.yyyy_mm_dd,
+                suite=self._name,
+                tags=self._key.tags,
+            )
+            symbols.append(symbol_info)
+
+        # Sort by symbol name before returning
+        return sorted(symbols, key=lambda s: s.name)
 
 
 class VerificationSuiteBuilder:

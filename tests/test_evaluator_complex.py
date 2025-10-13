@@ -23,7 +23,7 @@ class TestEvaluatorComplexNumberHandling:
         negative_metric = provider.sum("returns", dataset="financials")
         provider._symbol_index[negative_metric].fn = lambda k: Success(-100.0)
 
-        evaluator = Evaluator(provider, key)
+        evaluator = Evaluator(provider, key, "Test Suite")
 
         # sqrt(-100) = 10i
         expr = sp.sqrt(negative_metric)
@@ -42,7 +42,7 @@ class TestEvaluatorComplexNumberHandling:
         negative_balance = provider.sum("balance", dataset="accounts")
         provider._symbol_index[negative_balance].fn = lambda k: Success(-50.0)
 
-        evaluator = Evaluator(provider, key)
+        evaluator = Evaluator(provider, key, "Test Suite")
 
         # log(-50) produces complex result
         expr = sp.log(negative_balance)
@@ -63,7 +63,7 @@ class TestEvaluatorComplexNumberHandling:
         negative_value = provider.sum("value", dataset="metrics")
         provider._symbol_index[negative_value].fn = lambda k: Success(-8.0)
 
-        evaluator = Evaluator(provider, key)
+        evaluator = Evaluator(provider, key, "Test Suite")
 
         # (-8)^(1/3) has complex solutions
         expr = negative_value ** (1 / 3)
@@ -82,7 +82,7 @@ class TestEvaluatorComplexNumberHandling:
         positive_metric = provider.sum("revenue", dataset="sales")
         provider._symbol_index[positive_metric].fn = lambda k: Success(100.0)
 
-        evaluator = Evaluator(provider, key)
+        evaluator = Evaluator(provider, key, "Test Suite")
 
         # sqrt(100) = 10
         expr = sp.sqrt(positive_metric)
@@ -99,7 +99,7 @@ class TestEvaluatorComplexNumberHandling:
         real_metric = provider.sum("real_part", dataset="complex_data")
         provider._symbol_index[real_metric].fn = lambda k: Success(5.0)
 
-        evaluator = Evaluator(provider, key)
+        evaluator = Evaluator(provider, key, "Test Suite")
 
         # 5 + 3i
         expr = real_metric + 3 * sp.I
@@ -120,7 +120,7 @@ class TestEvaluatorComplexNumberHandling:
         provider._symbol_index[metric_a].fn = lambda k: Success(-1.0)
         provider._symbol_index[metric_b].fn = lambda k: Success(2.0)
 
-        evaluator = Evaluator(provider, key)
+        evaluator = Evaluator(provider, key, "Test Suite")
 
         # sqrt(-1) * 2 = 2i
         expr = sp.sqrt(metric_a) * metric_b
