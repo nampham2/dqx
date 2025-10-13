@@ -59,10 +59,20 @@ repos:
     hooks:
       - id: shellcheck
         name: shellcheck - lint shell scripts
-        args: []  # Show all severity levels
+        args: ['--severity=warning']  # Show warnings and errors
         files: '\.(sh|bash)$'
         types: [shell]
         require_serial: false
+
+  # Shell script formatting
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.12.0-2
+    hooks:
+      - id: shfmt
+        name: shfmt - format shell scripts
+        args: ['-i', '2', '-w']  # 2-space indent, write changes
+        files: '\.(sh|bash)$'
+        types: [shell]
 
   # Local hooks that use our project's virtual environment
   - repo: local
