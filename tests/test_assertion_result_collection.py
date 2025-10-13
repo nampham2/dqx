@@ -147,22 +147,17 @@ class TestAssertionResultCollection:
         assert r3.assertion == "Minimum value check"
         assert r3.severity == "P2"
 
-        # Note: There appears to be an issue with the evaluator where it returns
-        # the metric value as SUCCESS instead of evaluating the assertion condition.
-        # This is a pre-existing issue not related to our collect_results implementation.
-        if r3.status == "OK":
-            # Evaluator returned the metric value instead of assertion result
-            assert r3.metric.unwrap() == 10.0  # The minimum value
-            # Skip the failure assertions since evaluator has this issue
-            pytest.skip("Known evaluator issue - returns metric value instead of assertion result")
-        else:
-            assert r3.status == "FAILURE"
-            assert isinstance(r3.metric, Failure)
+        # With the new validation logic:
+        # - The metric computation succeeds (we get 10.0)
+        # - But the validation fails (10.0 is not > 20.0)
+        assert r3.status == "FAILURE"  # Validation failed
+        assert isinstance(r3.metric, Success)  # But metric computation succeeded
+        assert r3.metric.unwrap() == 10.0  # The minimum value
 
-            # Verify failures can be accessed directly from Result
-            failures = r3.metric.failure()
-            assert len(failures) > 0
-            assert "20" in failures[0].error_message
+        # The expression should show the full validation
+        assert r3.expression is not None
+        assert ">" in r3.expression
+        assert "20" in r3.expression
 
     def test_is_evaluated_only_set_on_success(self) -> None:
         """Should NOT set is_evaluated if run() fails."""
@@ -272,28 +267,17 @@ class TestAssertionResultCollection:
 
         result = results[0]
 
-        # The assertion should fail since we have 1 row which is not > 10
-        # But we need to check what actually happened
-        if result.status == "OK":
-            # This means the evaluator didn't properly fail the assertion
-            # Let's check the actual value
-            assert result.metric.unwrap() == 1.0  # We have 1 row
-            # For now, let's skip the rest of this test since the evaluator
-            # seems to be returning the metric value instead of the assertion result
-            pytest.skip("Evaluator behavior needs investigation - returning metric value instead of assertion result")
-        else:
-            assert result.status == "FAILURE"
+        # With the new validation logic:
+        # - The metric computation succeeds (we get 1 row)
+        # - But the validation fails (1 is not > 10)
+        assert result.status == "FAILURE"  # Validation failed
+        assert isinstance(result.metric, Success)  # But metric computation succeeded
+        assert result.metric.unwrap() == 1.0  # We have 1 row
 
-            # Extract failure details directly from Result
-            failures = result.metric.failure()
-            assert isinstance(failures, list)
-            assert len(failures) > 0
-
-            # Verify failure structure
-            first_failure = failures[0]
-            assert hasattr(first_failure, "error_message")
-            assert hasattr(first_failure, "expression")
-            assert hasattr(first_failure, "symbols")
+        # The expression should show the full validation
+        assert result.expression is not None
+        assert ">" in result.expression
+        assert "10" in result.expression
 
 
 def test_assertion_result_dataclass() -> None:
