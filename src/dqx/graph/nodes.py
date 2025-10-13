@@ -102,8 +102,8 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
         self,
         actual: sp.Expr,
         name: str,
+        validator: SymbolicValidator,
         severity: SeverityLevel = "P1",
-        validator: SymbolicValidator | None = None,
     ) -> AssertionNode:
         """Factory method to create and add an assertion node.
 
@@ -112,13 +112,13 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
         Args:
             actual: The symbolic expression to evaluate
             name: Optional human-readable description
+            validator: Validation function
             severity: Severity level for failures
-            validator: Optional validation function
 
         Returns:
             The newly created AssertionNode
         """
-        assertion = AssertionNode(parent=self, actual=actual, name=name, severity=severity, validator=validator)
+        assertion = AssertionNode(parent=self, actual=actual, name=name, validator=validator, severity=severity)
         self.add_child(assertion)
         return assertion
 
@@ -135,8 +135,8 @@ class AssertionNode(BaseNode["CheckNode"]):
         parent: CheckNode,
         actual: sp.Expr,
         name: str,
+        validator: SymbolicValidator,
         severity: SeverityLevel = "P1",
-        validator: SymbolicValidator | None = None,
     ) -> None:
         """Initialize an assertion node.
 
@@ -144,8 +144,8 @@ class AssertionNode(BaseNode["CheckNode"]):
             parent: The CheckNode parent (required)
             actual: The symbolic expression to evaluate
             name: Optional human-readable description
+            validator: Validation function
             severity: Severity level for failures
-            validator: Optional validation function
         """
         super().__init__(parent)
         self.actual = actual

@@ -466,7 +466,6 @@ class VerificationSuite:
         for assertion in self._context._graph.assertions():
             # Extract parent hierarchy
             check_node = assertion.parent  # Parent is always a CheckNode
-            assert assertion.validator is not None
 
             result = AssertionResult(
                 yyyy_mm_dd=key.yyyy_mm_dd,

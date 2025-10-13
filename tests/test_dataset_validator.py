@@ -1,5 +1,6 @@
 """Tests for DatasetValidator."""
 
+from dqx.common import SymbolicValidator
 from dqx.graph.nodes import RootNode
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
@@ -20,7 +21,8 @@ def test_dataset_validator_detects_mismatch() -> None:
     symbol = provider.average("price", dataset="testing")
 
     # Add assertion using the symbol
-    check.add_assertion(symbol, name="avg price > 0")
+    price_validator = SymbolicValidator("> 0", lambda x: x > 0)
+    check.add_assertion(symbol, name="avg price > 0", validator=price_validator)
 
     # Act: Run the validator
     validator = DatasetValidator(provider)
@@ -50,7 +52,8 @@ def test_dataset_validator_allows_valid_configuration() -> None:
     # Symbol has dataset that IS in check's datasets
     symbol = provider.average("price", dataset="production")
 
-    check.add_assertion(symbol, name="avg price > 0")
+    price_validator = SymbolicValidator("> 0", lambda x: x > 0)
+    check.add_assertion(symbol, name="avg price > 0", validator=price_validator)
 
     # Act: Run the validator
     validator = DatasetValidator(provider)
@@ -72,7 +75,8 @@ def test_dataset_validator_skips_when_no_datasets_specified() -> None:
     check = root.add_check("price_check")
 
     symbol = provider.average("price", dataset="testing")
-    check.add_assertion(symbol, name="avg price > 0")
+    price_validator = SymbolicValidator("> 0", lambda x: x > 0)
+    check.add_assertion(symbol, name="avg price > 0", validator=price_validator)
 
     validator = DatasetValidator(provider)
     for child in check.children:
@@ -93,7 +97,8 @@ def test_dataset_validator_errors_on_ambiguous_none_dataset() -> None:
 
     # Symbol has no dataset - ambiguous!
     symbol = provider.average("price", dataset=None)
-    check.add_assertion(symbol, name="avg price > 0")
+    price_validator = SymbolicValidator("> 0", lambda x: x > 0)
+    check.add_assertion(symbol, name="avg price > 0", validator=price_validator)
 
     validator = DatasetValidator(provider)
     for child in check.children:
@@ -118,7 +123,8 @@ def test_dataset_validator_allows_none_dataset_with_single_check_dataset() -> No
 
     # Symbol has no dataset - OK, will be imputed
     symbol = provider.average("price", dataset=None)
-    check.add_assertion(symbol, name="avg price > 0")
+    price_validator = SymbolicValidator("> 0", lambda x: x > 0)
+    check.add_assertion(symbol, name="avg price > 0", validator=price_validator)
 
     validator = DatasetValidator(provider)
     for child in check.children:
@@ -141,7 +147,8 @@ def test_dataset_validator_handles_multiple_symbols() -> None:
     invalid_symbol = provider.average("cost", dataset="testing")
 
     # Assertion with expression using both symbols
-    check.add_assertion(valid_symbol + invalid_symbol, name="combined metric")
+    combined_validator = SymbolicValidator("> 0", lambda x: x > 0)
+    check.add_assertion(valid_symbol + invalid_symbol, name="combined metric", validator=combined_validator)
 
     validator = DatasetValidator(provider)
     for child in check.children:

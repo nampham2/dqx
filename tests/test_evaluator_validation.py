@@ -99,31 +99,6 @@ class TestEvaluatorValidation:
         assert isinstance(assertion._metric, Failure)
         assert assertion._result == "FAILURE"
 
-    def test_no_validator_results_in_ok_status(self) -> None:
-        """Test that assertions without validators get OK status if metric succeeds."""
-        # Setup
-        provider = MetricProvider(db=Mock())
-        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-
-        # Create a metric
-        x1 = provider.average("price", dataset="orders")
-        provider._symbol_index[x1].fn = lambda k: Success(100.0)
-
-        # Create graph with assertion without validator
-        root = RootNode("test_suite")
-        check = root.add_check("price_check", datasets=["orders"])
-        assertion = check.add_assertion(x1, name="price metric", validator=None)
-
-        # Execute
-        evaluator = Evaluator(provider, key)
-        evaluator.visit(assertion)
-
-        # Verify
-        assert assertion._metric is not None
-        assert isinstance(assertion._metric, Success)
-        assert assertion._metric.unwrap() == 100.0
-        assert assertion._result == "OK"
-
     def test_validator_exception_handling(self) -> None:
         """Test that validator exceptions are properly handled."""
         # Setup

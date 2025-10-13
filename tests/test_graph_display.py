@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import sympy as sp
 
+from dqx.common import SymbolicValidator
 from dqx.display import NodeFormatter
 from dqx.graph.nodes import RootNode
 from dqx.graph.traversal import Graph
@@ -47,8 +48,10 @@ class TestGraphPrintTree:
         check1 = root.add_check("Data Completeness")
         check2 = root.add_check("Data Validity")
 
-        check1.add_assertion(actual=sp.Symbol("x") > 0, name="Positive values")
-        check2.add_assertion(actual=sp.Symbol("y") < 100, name="Upper bound check")
+        positive_validator = SymbolicValidator("> 0", lambda x: x > 0)
+        upper_bound_validator = SymbolicValidator("< 100", lambda x: x < 100)
+        check1.add_assertion(actual=sp.Symbol("x") > 0, name="Positive values", validator=positive_validator)
+        check2.add_assertion(actual=sp.Symbol("y") < 100, name="Upper bound check", validator=upper_bound_validator)
 
         graph = Graph(root)
 

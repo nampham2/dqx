@@ -1,5 +1,6 @@
 import sympy as sp
 
+from dqx.common import SymbolicValidator
 from dqx.graph.nodes import RootNode
 from dqx.graph.traversal import Graph
 from dqx.orm.repositories import InMemoryMetricDB
@@ -95,7 +96,8 @@ def test_suite_validator_clean_suite() -> None:
     """Test validator with a clean suite (no issues)."""
     root = RootNode("clean_suite")
     check = root.add_check("Good Check")
-    check.add_assertion(sp.Symbol("x"), name="X is positive")
+    positive_validator = SymbolicValidator("> 0", lambda x: x > 0)
+    check.add_assertion(sp.Symbol("x"), name="X is positive", validator=positive_validator)
 
     graph = Graph(root)
     validator = SuiteValidator()
@@ -137,7 +139,8 @@ def test_suite_validator_empty_checks() -> None:
 
     # Normal check
     normal = root.add_check("Normal Check")
-    normal.add_assertion(sp.Symbol("x"), name="Test")
+    test_validator = SymbolicValidator("not None", lambda x: x is not None)
+    normal.add_assertion(sp.Symbol("x"), name="Test", validator=test_validator)
 
     graph = Graph(root)
     validator = SuiteValidator()
@@ -155,9 +158,12 @@ def test_suite_validator_duplicate_assertion_names() -> None:
     """Test validator detects duplicate assertion names within a check."""
     root = RootNode("suite")
     check = root.add_check("Test Check")
-    check.add_assertion(sp.Symbol("x"), name="Same")
-    check.add_assertion(sp.Symbol("y"), name="Same")
-    check.add_assertion(sp.Symbol("z"), name="Different")
+    validator_x = SymbolicValidator("> 0", lambda x: x > 0)
+    validator_y = SymbolicValidator("< 100", lambda x: x < 100)
+    validator_z = SymbolicValidator("!= 0", lambda x: x != 0)
+    check.add_assertion(sp.Symbol("x"), name="Same", validator=validator_x)
+    check.add_assertion(sp.Symbol("y"), name="Same", validator=validator_y)
+    check.add_assertion(sp.Symbol("z"), name="Different", validator=validator_z)
 
     graph = Graph(root)
     validator = SuiteValidator()
@@ -182,7 +188,14 @@ def test_suite_validator_performance() -> None:
     for i in range(100):
         check = root.add_check(f"Check_{i}")
         for j in range(10):
-            check.add_assertion(sp.Symbol(f"x_{i}_{j}"), name=f"Assert_{j}")
+            # Create validator with closure over j value
+            max_value = j + 1
+
+            def validator_fn(x: float, mv: int = max_value) -> bool:
+                return bool(0 <= x <= mv)
+
+            range_validator = SymbolicValidator(f"in [0, {max_value}]", validator_fn)
+            check.add_assertion(sp.Symbol(f"x_{i}_{j}"), name=f"Assert_{j}", validator=range_validator)
 
     graph = Graph(root)
     validator = SuiteValidator()
