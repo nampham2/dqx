@@ -75,6 +75,7 @@ When asked to do something, just do it - including obvious follow-up actions nee
   - NEVER use temporal/historical context in names (e.g., "NewAPI", "LegacyHandler", "UnifiedTool", "ImprovedInterface", "EnhancedParser")
   - NEVER use pattern names unless they add clarity (e.g., prefer "Tool" over "ToolFactory")
 
+
   Good names tell a story about the domain:
   - `Tool` not `AbstractToolInterface`
   - `RemoteTool` not `MCPToolWrapper`
@@ -110,6 +111,7 @@ When asked to do something, just do it - including obvious follow-up actions nee
 - YOU MUST commit frequently throughout the development process, even if your high-level tasks are not yet done. Commit your journal entries.
 - NEVER SKIP, EVADE OR DISABLE A PRE-COMMIT HOOK. If there are problems with pre-commit hooks, fix and commit again.
 - NEVER use `git add -A` unless you've just done a `git status` - Don't add random test files to the repo.
+- YOU MUST USE commitizen tool (`cz` command) to generate commit. Please read README.md for more information about using `cz`.
 
 ## Testing
 
