@@ -6,6 +6,7 @@ import pytest
 import sympy as sp
 from rich.tree import Tree
 
+from dqx.common import SymbolicValidator
 from dqx.display import NodeFormatter, SimpleNodeFormatter, TreeBuilderVisitor, print_graph
 from dqx.graph.base import BaseNode
 from dqx.graph.nodes import RootNode
@@ -312,8 +313,10 @@ class TestIntegration:
 
         # Create assertions
         symbol = sp.Symbol("x")
-        check1.add_assertion(actual=symbol > 0, name="Positive values")
-        check1.add_assertion(actual=symbol < 100, name="Upper bound check")
+        positive_validator = SymbolicValidator("> 0", lambda x: x > 0)
+        upper_bound_validator = SymbolicValidator("< 100", lambda x: x < 100)
+        check1.add_assertion(actual=symbol > 0, name="Positive values", validator=positive_validator)
+        check1.add_assertion(actual=symbol < 100, name="Upper bound check", validator=upper_bound_validator)
 
         # Create visitor and traverse
         formatter = SimpleNodeFormatter()
@@ -349,7 +352,8 @@ class TestIntegration:
         # Create a real graph
         root = RootNode("E-commerce Quality")
         check = root.add_check("Order Validation")
-        check.add_assertion(actual=sp.Symbol("order_count") > 0, name="Orders exist")
+        orders_exist_validator = SymbolicValidator("> 0", lambda x: x > 0)
+        check.add_assertion(actual=sp.Symbol("order_count") > 0, name="Orders exist", validator=orders_exist_validator)
 
         graph = Graph(root)
 

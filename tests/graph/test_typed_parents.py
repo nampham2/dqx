@@ -3,6 +3,7 @@
 import pytest
 import sympy as sp
 
+from dqx.common import SymbolicValidator
 from dqx.graph.base import BaseNode
 from dqx.graph.nodes import AssertionNode, CheckNode, RootNode
 
@@ -34,7 +35,8 @@ def test_assertion_node_requires_check_parent() -> None:
     check = CheckNode(parent=root, name="my_check")
 
     # This should work
-    assertion = AssertionNode(parent=check, actual=sp.Symbol("x"), name="test_assertion")
+    test_validator = SymbolicValidator("valid", lambda x: x > 0)
+    assertion = AssertionNode(parent=check, actual=sp.Symbol("x"), name="test_assertion", validator=test_validator)
     assert assertion.parent is check
     assert isinstance(assertion.parent, CheckNode)
 
@@ -52,7 +54,8 @@ def test_factory_methods_create_proper_hierarchy() -> None:
     assert check in root.children
 
     # Use factory method to create assertion
-    assertion = check.add_assertion(actual=sp.Symbol("x"), name="x > 0")
+    positive_validator = SymbolicValidator("> 0", lambda x: x > 0)
+    assertion = check.add_assertion(actual=sp.Symbol("x"), name="x > 0", validator=positive_validator)
     assert assertion.parent is check
     assert assertion in check.children
 
@@ -63,7 +66,8 @@ def test_type_safety_at_runtime() -> None:
 
     # Test AssertionNode with wrong parent type
     with pytest.raises(TypeError) as exc_info:
-        AssertionNode(parent=root, actual=sp.Symbol("x"), name="bad_assertion")  # type: ignore
+        bad_validator = SymbolicValidator("bad", lambda x: False)
+        AssertionNode(parent=root, actual=sp.Symbol("x"), name="bad_assertion", validator=bad_validator)  # type: ignore
     assert "AssertionNode requires parent of type CheckNode" in str(exc_info.value)
     assert "but got RootNode" in str(exc_info.value)
 

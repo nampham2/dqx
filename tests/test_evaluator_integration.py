@@ -7,7 +7,7 @@ import pytest
 import sympy as sp
 from returns.result import Failure, Success
 
-from dqx.common import EvaluationFailure, ResultKey
+from dqx.common import EvaluationFailure, ResultKey, SymbolicValidator
 from dqx.evaluator import Evaluator
 from dqx.graph.nodes import RootNode
 from dqx.graph.traversal import Graph
@@ -44,9 +44,13 @@ class TestEvaluatorIntegration:
         check2 = root.add_check("inventory_checks", datasets=["inventory"])
 
         # Add assertions
-        assertion1 = check1.add_assertion(x1, name="avg_price")
-        assertion2 = check1.add_assertion(x1 + x3, name="avg_price + avg_cost")
-        assertion3 = check2.add_assertion(x2, name="sum_quantity")
+        price_validator = SymbolicValidator("> 0", lambda x: x > 0)
+        combined_validator = SymbolicValidator("> 0", lambda x: x > 0)
+        quantity_validator = SymbolicValidator(">= 0", lambda x: x >= 0)
+
+        assertion1 = check1.add_assertion(x1, name="avg_price", validator=price_validator)
+        assertion2 = check1.add_assertion(x1 + x3, name="avg_price + avg_cost", validator=combined_validator)
+        assertion3 = check2.add_assertion(x2, name="sum_quantity", validator=quantity_validator)
 
         # Create evaluator and traverse
         evaluator = Evaluator(provider, key)
@@ -94,7 +98,8 @@ class TestEvaluatorIntegration:
         root = RootNode("nan_test_suite")
         check = root.add_check("nan_check", datasets=["dataset1"])
         # Use sp.zoo to force NaN result
-        assertion = check.add_assertion(sp.zoo * x1 / x2, name="sp.zoo * x1 / x2")
+        nan_validator = SymbolicValidator("finite", lambda x: not float("inf") and not float("-inf"))
+        assertion = check.add_assertion(sp.zoo * x1 / x2, name="sp.zoo * x1 / x2", validator=nan_validator)
 
         # Traverse graph
         evaluator = Evaluator(provider, key)

@@ -5,7 +5,7 @@ from unittest.mock import Mock
 import pytest
 import sympy as sp
 
-from dqx.common import DQXError
+from dqx.common import DQXError, SymbolicValidator
 from dqx.graph.nodes import RootNode
 from dqx.graph.visitors import DatasetImputationVisitor
 from dqx.provider import MetricProvider, SymbolicMetric
@@ -68,7 +68,8 @@ class TestDatasetImputationVisitor:
         # Arrange
         root = RootNode("test_suite")
         check = root.add_check("test_check")
-        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test_assertion")
+        validator = SymbolicValidator("not None", lambda x: x is not None)
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test_assertion", validator=validator)
 
         # Create mock provider with symbolic metric
         provider = Mock(spec=MetricProvider)
@@ -101,7 +102,8 @@ class TestDatasetImputationVisitor:
         # Arrange
         root = RootNode("test_suite")
         check = root.add_check("test_check", datasets=["prod", "staging"])
-        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test_assertion")
+        dataset_validator = SymbolicValidator("valid", lambda x: x > 0)
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test_assertion", validator=dataset_validator)
 
         # Create mock provider with symbolic metric that has explicit dataset
         provider = Mock(spec=MetricProvider)
@@ -124,7 +126,8 @@ class TestDatasetImputationVisitor:
         # Arrange
         root = RootNode("test_suite")
         check = root.add_check("test_check", datasets=["staging"])
-        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test_assertion")
+        mismatch_validator = SymbolicValidator("valid", lambda x: x > 0)
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test_assertion", validator=mismatch_validator)
 
         # Create mock provider with symbolic metric requiring different dataset
         provider = Mock(spec=MetricProvider)
@@ -151,7 +154,8 @@ class TestDatasetImputationVisitor:
         # Arrange
         root = RootNode("test_suite")
         check = root.add_check("test_check", datasets=["prod", "staging"])
-        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test_assertion")
+        ambiguous_validator = SymbolicValidator("valid", lambda x: x > 0)
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test_assertion", validator=ambiguous_validator)
 
         # Create mock provider with symbolic metric without dataset
         provider = Mock(spec=MetricProvider)
@@ -177,7 +181,8 @@ class TestDatasetImputationVisitor:
         # Arrange
         root = RootNode("test_suite")
         check = root.add_check("test_check", datasets=["prod"])
-        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test_assertion")
+        single_validator = SymbolicValidator("valid", lambda x: x > 0)
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test_assertion", validator=single_validator)
 
         # Create mock provider with symbolic metric without dataset
         provider = Mock(spec=MetricProvider)
@@ -290,7 +295,8 @@ class TestDatasetImputationVisitor:
         # Arrange
         root = RootNode("test_suite")
         check = root.add_check("test_check")  # No datasets
-        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test")
+        flow_validator = SymbolicValidator("valid", lambda x: x > 0)
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test", validator=flow_validator)
 
         # Mock provider
         provider = Mock(spec=MetricProvider)
@@ -349,7 +355,10 @@ class TestDatasetImputationIntegration:
         # Arrange
         root = RootNode("test_suite")
         check = root.add_check("test_check")  # No datasets
-        assertion = check.add_assertion(actual=sp.Symbol("x_1") + sp.Symbol("x_2"), name="sum_assertion")
+        sum_validator = SymbolicValidator("> 0", lambda x: x > 0)
+        assertion = check.add_assertion(
+            actual=sp.Symbol("x_1") + sp.Symbol("x_2"), name="sum_assertion", validator=sum_validator
+        )
 
         # Create mock provider with two symbolic metrics
         provider = Mock(spec=MetricProvider)
@@ -389,11 +398,13 @@ class TestDatasetImputationIntegration:
 
         # Check with invalid dataset
         check1 = root.add_check("check1", datasets=["invalid"])
-        assertion1 = check1.add_assertion(actual=sp.Symbol("x_1"), name="assertion1")
+        validator1 = SymbolicValidator("valid", lambda x: x > 0)
+        assertion1 = check1.add_assertion(actual=sp.Symbol("x_1"), name="assertion1", validator=validator1)
 
         # Check with valid dataset but mismatched metric
         check2 = root.add_check("check2", datasets=["prod"])
-        assertion2 = check2.add_assertion(actual=sp.Symbol("x_2"), name="assertion2")
+        validator2 = SymbolicValidator("valid", lambda x: x > 0)
+        assertion2 = check2.add_assertion(actual=sp.Symbol("x_2"), name="assertion2", validator=validator2)
 
         # Mock provider
         provider = Mock(spec=MetricProvider)

@@ -248,16 +248,12 @@ class Evaluator:
             # Apply validator to determine pass/fail
             match node._metric:
                 case Success(value):
-                    if node.validator and node.validator.fn:
-                        try:
-                            # validator.fn returns True if assertion passes
-                            passed = node.validator.fn(value)
-                            node._result = "OK" if passed else "FAILURE"
-                        except Exception as e:
-                            raise DQXError(f"Validator execution failed: {str(e)}") from e
-                    else:
-                        # No validator means no validation - just checking if metric computes
-                        node._result = "OK"
+                    try:
+                        # validator.fn returns True if assertion passes
+                        passed = node.validator.fn(value)  # type: ignore[misc]
+                        node._result = "OK" if passed else "FAILURE"
+                    except Exception as e:
+                        raise DQXError(f"Validator execution failed: {str(e)}") from e
                 case Failure(_):
                     # If metric computation failed, assertion fails
                     node._result = "FAILURE"
