@@ -72,6 +72,7 @@ class AssertionResult:
         expression: String representation of the symbolic expression
         tags: Tags from the ResultKey (e.g., {"env": "prod"})
     """
+
     yyyy_mm_dd: datetime.date
     suite: str
     check: str
@@ -142,9 +143,11 @@ from dqx.orm.repositories import InMemoryMetricDB
 from dqx.common import ResultKey
 import datetime
 
+
 @check(name="dummy")
 def dummy_check(mp, ctx):
     ctx.assert_that(mp.num_rows()).where(name="test").is_gt(0)
+
 
 db = InMemoryMetricDB()
 suite = VerificationSuite([dummy_check], db, "Test Suite")
@@ -237,7 +240,7 @@ def collect_results(self, key: ResultKey) -> list[AssertionResult]:
             value=assertion._value,
             error_message=error_msg,
             expression=str(assertion.actual),
-            tags=key.tags
+            tags=key.tags,
         )
         results.append(result)
 
@@ -259,6 +262,7 @@ Create a new test file with comprehensive test coverage:
 
 ```python
 """Tests for assertion result collection functionality."""
+
 import datetime
 import pytest
 from returns.result import Success, Failure
@@ -275,6 +279,7 @@ class TestAssertionResultCollection:
 
     def test_collect_results_before_run_raises_error(self):
         """Should raise DQXError if collect_results called before run()."""
+
         @check(name="dummy check")
         def dummy_check(mp, ctx):
             ctx.assert_that(mp.num_rows()).where(name="rows > 0").is_gt(0)
@@ -295,11 +300,13 @@ class TestAssertionResultCollection:
     def test_collect_results_after_successful_run(self):
         """Should return results for all assertions after successful run."""
         # Create test data
-        data = pa.table({
-            "id": [1, 2, 3, 4, 5],
-            "value": [10.0, 20.0, 30.0, 40.0, 50.0],
-            "category": ["A", "B", "A", "B", "A"]
-        })
+        data = pa.table(
+            {
+                "id": [1, 2, 3, 4, 5],
+                "value": [10.0, 20.0, 30.0, 40.0, 50.0],
+                "category": ["A", "B", "A", "B", "A"],
+            }
+        )
         datasource = ArrowDataSource(data)
 
         # Define checks with multiple assertions
@@ -307,29 +314,30 @@ class TestAssertionResultCollection:
         def validate_data(mp, ctx):
             # This should pass
             ctx.assert_that(mp.num_rows()).where(
-                name="Has 5 rows",
-                severity="P0"
+                name="Has 5 rows", severity="P0"
             ).is_eq(5)
 
             # This should also pass
             ctx.assert_that(mp.average("value")).where(
-                name="Average value is 30",
-                severity="P1"
+                name="Average value is 30", severity="P1"
             ).is_eq(30.0)
 
             # This should fail
             ctx.assert_that(mp.minimum("value")).where(
-                name="Minimum value check",
-                severity="P2"
-            ).is_gt(20.0)  # Will fail since min is 10
+                name="Minimum value check", severity="P2"
+            ).is_gt(
+                20.0
+            )  # Will fail since min is 10
 
         # Build and run suite
         db = InMemoryMetricDB()
-        suite = VerificationSuiteBuilder("Test Suite", db).add_check(validate_data).build()
+        suite = (
+            VerificationSuiteBuilder("Test Suite", db).add_check(validate_data).build()
+        )
 
         key = ResultKey(
             yyyy_mm_dd=datetime.date(2024, 1, 15),
-            tags={"env": "test", "version": "1.0"}
+            tags={"env": "test", "version": "1.0"},
         )
 
         # Run the suite
@@ -384,9 +392,7 @@ class TestAssertionResultCollection:
             # Create assertion without name (edge case)
             # Note: In real API this shouldn't happen, but let's test it
             assertion = ctx.create_assertion(
-                mp.num_rows(),
-                name=None,  # No name provided
-                severity="P1"
+                mp.num_rows(), name=None, severity="P1"  # No name provided
             )
 
         db = InMemoryMetricDB()
@@ -467,7 +473,7 @@ def test_assertion_result_dataclass():
         value=Success(42.0),
         error_message=None,
         expression="x > 0",
-        tags={"env": "prod"}
+        tags={"env": "prod"},
     )
 
     # Should be able to access all fields
@@ -483,13 +489,15 @@ def test_assertion_result_dataclass():
     assert result.tags == {"env": "prod"}
 
     # Test with failure
-    failure_value = Failure([
-        EvaluationFailure(
-            error_message="Value 5 is not greater than 10",
-            expression="x > 10",
-            symbols=[]
-        )
-    ])
+    failure_value = Failure(
+        [
+            EvaluationFailure(
+                error_message="Value 5 is not greater than 10",
+                expression="x > 10",
+                symbols=[],
+            )
+        ]
+    )
 
     failure_result = AssertionResult(
         yyyy_mm_dd=datetime.date(2024, 1, 1),
@@ -501,7 +509,7 @@ def test_assertion_result_dataclass():
         value=failure_value,
         error_message="Value 5 is not greater than 10",
         expression="x > 10",
-        tags={}
+        tags={},
     )
 
     assert failure_result.status == "FAILURE"
@@ -535,6 +543,7 @@ Create a practical example showing how to use the feature:
 
 ```python
 """Demo of collecting and using assertion results."""
+
 import datetime
 import pandas as pd
 import pyarrow as pa
@@ -545,15 +554,37 @@ from dqx.orm.repositories import InMemoryMetricDB
 
 
 # Create sample e-commerce data
-orders_data = pa.table({
-    "order_id": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-    "customer_id": [101, 102, 103, 104, 105, 106, 107, 108, 109, 110],
-    "amount": [50.0, 150.0, 75.0, 200.0, 30.0, 120.0, 90.0, 180.0, 60.0, 250.0],
-    "status": ["completed", "completed", "pending", "completed", "cancelled",
-               "completed", "completed", "pending", "completed", "completed"],
-    "created_at": ["2024-01-01", "2024-01-01", "2024-01-02", "2024-01-02", "2024-01-03",
-                   "2024-01-03", "2024-01-04", "2024-01-04", "2024-01-05", "2024-01-05"]
-})
+orders_data = pa.table(
+    {
+        "order_id": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+        "customer_id": [101, 102, 103, 104, 105, 106, 107, 108, 109, 110],
+        "amount": [50.0, 150.0, 75.0, 200.0, 30.0, 120.0, 90.0, 180.0, 60.0, 250.0],
+        "status": [
+            "completed",
+            "completed",
+            "pending",
+            "completed",
+            "cancelled",
+            "completed",
+            "completed",
+            "pending",
+            "completed",
+            "completed",
+        ],
+        "created_at": [
+            "2024-01-01",
+            "2024-01-01",
+            "2024-01-02",
+            "2024-01-02",
+            "2024-01-03",
+            "2024-01-03",
+            "2024-01-04",
+            "2024-01-04",
+            "2024-01-05",
+            "2024-01-05",
+        ],
+    }
+)
 
 
 # Define data quality checks
@@ -561,18 +592,15 @@ orders_data = pa.table({
 def validate_order_amounts(mp, ctx):
     """Validate order amounts are within expected ranges."""
     ctx.assert_that(mp.minimum("amount")).where(
-        name="No negative amounts",
-        severity="P0"
+        name="No negative amounts", severity="P0"
     ).is_geq(0.0)
 
     ctx.assert_that(mp.average("amount")).where(
-        name="Average order value check",
-        severity="P1"
+        name="Average order value check", severity="P1"
     ).is_between(50.0, 200.0)
 
     ctx.assert_that(mp.maximum("amount")).where(
-        name="Maximum order limit",
-        severity="P2"
+        name="Maximum order limit", severity="P2"
     ).is_leq(1000.0)
 
 
@@ -580,13 +608,11 @@ def validate_order_amounts(mp, ctx):
 def validate_completeness(mp, ctx):
     """Check for data completeness."""
     ctx.assert_that(mp.null_count("order_id")).where(
-        name="Order ID completeness",
-        severity="P0"
+        name="Order ID completeness", severity="P0"
     ).is_eq(0)
 
     ctx.assert_that(mp.null_count("customer_id")).where(
-        name="Customer ID completeness",
-        severity="P0"
+        name="Customer ID completeness", severity="P0"
     ).is_eq(0)
 
 
@@ -597,20 +623,23 @@ def validate_business_rules(mp, ctx):
 
     # This will fail - we have 2 pending orders
     ctx.assert_that(mp.num_rows()).where(
-        name="Minimum order volume",
-        severity="P1"
-    ).is_geq(20)  # Will fail - only have 10 orders
+        name="Minimum order volume", severity="P1"
+    ).is_geq(
+        20
+    )  # Will fail - only have 10 orders
 
 
 def main():
     """Run the demo."""
     # Setup
     db = InMemoryMetricDB()
-    suite = (VerificationSuiteBuilder("E-commerce Data Quality", db)
-             .add_check(validate_order_amounts)
-             .add_check(validate_completeness)
-             .add_check(validate_business_rules)
-             .build())
+    suite = (
+        VerificationSuiteBuilder("E-commerce Data Quality", db)
+        .add_check(validate_order_amounts)
+        .add_check(validate_completeness)
+        .add_check(validate_business_rules)
+        .build()
+    )
 
     # Create data source
     datasource = ArrowDataSource(orders_data)
@@ -618,7 +647,7 @@ def main():
     # Run validation
     key = ResultKey(
         yyyy_mm_dd=datetime.date.today(),
-        tags={"environment": "production", "version": "1.0"}
+        tags={"environment": "production", "version": "1.0"},
     )
 
     print("Running data quality checks...")
@@ -642,19 +671,21 @@ def main():
 
     # Convert to pandas DataFrame for analysis
     print("\nConverting to DataFrame...")
-    df = pd.DataFrame([
-        {
-            "date": r.yyyy_mm_dd,
-            "suite": r.suite,
-            "check": r.check,
-            "assertion": r.assertion,
-            "severity": r.severity,
-            "status": r.status,
-            "value": r.value.unwrap() if r.value.is_ok() else None,
-            "error": r.error_message
-        }
-        for r in results
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "date": r.yyyy_mm_dd,
+                "suite": r.suite,
+                "check": r.check,
+                "assertion": r.assertion,
+                "severity": r.severity,
+                "status": r.status,
+                "value": r.value.unwrap() if r.value.is_ok() else None,
+                "error": r.error_message,
+            }
+            for r in results
+        ]
+    )
 
     print("\nSummary by Status:")
     print(df.groupby("status").size())
@@ -712,16 +743,23 @@ if suite.is_evaluated:
 
 # Convert to DataFrame for analysis
 import pandas as pd
-df = pd.DataFrame([{
-    "date": r.yyyy_mm_dd,
-    "check": r.check,
-    "assertion": r.assertion,
-    "status": r.status,
-    "value": r.value.unwrap() if r.value.is_ok() else None
-} for r in results])
+
+df = pd.DataFrame(
+    [
+        {
+            "date": r.yyyy_mm_dd,
+            "check": r.check,
+            "assertion": r.assertion,
+            "status": r.status,
+            "value": r.value.unwrap() if r.value.is_ok() else None,
+        }
+        for r in results
+    ]
+)
 
 # Or create a DuckDB relation
 import duckdb
+
 conn = duckdb.connect()
 relation = conn.from_pandas(df)
 ```
@@ -780,7 +818,7 @@ A: Not directly because of the Result type. You'll need to extract the value fir
 json_safe = {
     "assertion": r.assertion,
     "value": r.value.unwrap() if r.value.is_ok() else None,
-    "error": r.error_message
+    "error": r.error_message,
 }
 ```
 

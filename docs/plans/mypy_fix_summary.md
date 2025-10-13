@@ -33,6 +33,7 @@ CheckProducer = Callable[[MetricProvider, "Context"], None]
 # Before
 def __call__(self, mp: MetricProvider, ctx: common.Context) -> None: ...
 
+
 # After
 def __call__(self, mp: MetricProvider, ctx: "Context") -> None: ...
 ```
@@ -42,12 +43,15 @@ def __call__(self, mp: MetricProvider, ctx: "Context") -> None: ...
 @overload
 def check(_check: CheckProducer) -> DecoratedCheck: ...
 
+
 @overload
 def check() -> Callable[[CheckProducer], DecoratedCheck]: ...  # NEW
 
+
 @overload
 def check(
-    *, name: str | None = None,  # Made optional
+    *,
+    name: str | None = None,  # Made optional
     tags: list[str] = [],
     datasets: list[str] | None = None
 ) -> Callable[[CheckProducer], DecoratedCheck]: ...

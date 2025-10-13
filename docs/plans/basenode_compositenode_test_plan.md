@@ -121,6 +121,7 @@ uv run pytest tests/ -v
 2. Create the test file with proper imports:
    ```python
    """Unit tests for BaseNode and CompositeNode classes."""
+
    from __future__ import annotations
 
    import pytest
@@ -295,6 +296,7 @@ Commit: `git commit -am "test: add is_leaf implementation tests"`
    ```python
    class TestCompositeNode(CompositeNode[TestNode]):
        """Concrete implementation of CompositeNode for testing."""
+
        pass
    ```
 
@@ -376,6 +378,7 @@ def test_children_type_safety(self) -> None:
     # Assert
     assert all(isinstance(child, TestNode) for child in node.children)
 
+
 def test_is_leaf_returns_false(self) -> None:
     """Test that CompositeNode.is_leaf always returns False."""
     # Arrange
@@ -386,6 +389,7 @@ def test_is_leaf_returns_false(self) -> None:
 
     # Assert
     assert result is False
+
 
 def test_is_leaf_returns_false_even_with_no_children(self) -> None:
     """Test that is_leaf returns False regardless of children."""
@@ -494,6 +498,7 @@ class TestEdgeCases:
 
         with pytest.raises(ValueError, match="Test async error"):
             import asyncio
+
             asyncio.run(node.accept_async(visitor))
 ```
 
@@ -532,6 +537,7 @@ Here's what your final test file structure should look like:
 
 ```python
 """Unit tests for BaseNode and CompositeNode classes."""
+
 from __future__ import annotations
 
 import asyncio
@@ -570,6 +576,7 @@ class TestChildNode(BaseNode):
 
 class TestCompositeNode(CompositeNode[TestNode]):
     """Concrete implementation of CompositeNode for testing."""
+
     pass
 
 
@@ -591,21 +598,25 @@ class TestVisitor:
 # Test classes
 class TestBaseNode:
     """Test suite for BaseNode functionality."""
+
     # ... test methods ...
 
 
 class TestCompositeNode:
     """Test suite for CompositeNode functionality."""
+
     # ... test methods ...
 
 
 class TestBaseNodeCompositeNodeIntegration:
     """Test integration between BaseNode and CompositeNode."""
+
     # ... test methods ...
 
 
 class TestEdgeCases:
     """Test edge cases and error conditions."""
+
     # ... test methods ...
 ```
 

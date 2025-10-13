@@ -198,7 +198,11 @@ def process_node(self, node: BaseNode) -> None:
                                 f"has no dataset specified, but parent check '{parent_check.name}' "
                                 f"has multiple datasets: {parent_datasets}. Unable to determine which dataset to use."
                             ),
-                            node_path=["root", f"check:{parent_check.name}", f"assertion:{node.name}"]
+                            node_path=[
+                                "root",
+                                f"check:{parent_check.name}",
+                                f"assertion:{node.name}",
+                            ],
                         )
                     )
                 # If check has exactly one dataset, imputation will handle it
@@ -214,7 +218,11 @@ def process_node(self, node: BaseNode) -> None:
                             f"has dataset '{metric.dataset}' which is not in "
                             f"parent check '{parent_check.name}' datasets: {parent_datasets}"
                         ),
-                        node_path=["root", f"check:{parent_check.name}", f"assertion:{node.name}"]
+                        node_path=[
+                            "root",
+                            f"check:{parent_check.name}",
+                            f"assertion:{node.name}",
+                        ],
                     )
                 )
         except Exception:
@@ -368,10 +376,7 @@ def test_dataset_validator_handles_multiple_symbols():
     invalid_symbol = provider.average("cost", dataset="testing")
 
     # Assertion with expression using both symbols
-    check.add_assertion(
-        valid_symbol + invalid_symbol,
-        name="combined metric"
-    )
+    check.add_assertion(valid_symbol + invalid_symbol, name="combined metric")
 
     validator = DatasetValidator(provider)
     for child in check.children:
@@ -522,9 +527,7 @@ def test_dataset_validator_prevents_suite_execution():
         ctx.assert_that(avg_price).where(name="avg price > 0").is_gt(0)
 
     suite = (
-        VerificationSuiteBuilder("test_suite", db)
-        .add_check(validate_prices)
-        .build()
+        VerificationSuiteBuilder("test_suite", db).add_check(validate_prices).build()
     )
 
     # Act & Assert: plan() should raise validation error
@@ -568,9 +571,7 @@ def test_dataset_validator_allows_valid_flow():
         ctx.assert_that(avg_price).where(name="avg price > 0").is_gt(0)
 
     suite = (
-        VerificationSuiteBuilder("test_suite", db)
-        .add_check(validate_prices)
-        .build()
+        VerificationSuiteBuilder("test_suite", db).add_check(validate_prices).build()
     )
 
     # Should not have validation errors
@@ -709,12 +710,14 @@ from dqx.orm.repositories import InMemoryMetricDB
 
 db = InMemoryMetricDB()
 
+
 # Test 1: Dataset mismatch
 @check(name="mismatch_check", datasets=["prod", "staging"])
 def mismatch_check(mp, ctx):
     # This should trigger an error - "testing" not in ["prod", "staging"]
     metric = mp.average("column", dataset="testing")
     ctx.assert_that(metric).where(name="test").is_gt(0)
+
 
 # Test 2: Ambiguous dataset
 @check(name="ambiguous_check", datasets=["prod", "staging"])
@@ -723,12 +726,14 @@ def ambiguous_check(mp, ctx):
     metric = mp.average("column")  # dataset=None
     ctx.assert_that(metric).where(name="test").is_gt(0)
 
+
 # Test 3: Valid single dataset imputation
 @check(name="valid_check", datasets=["prod"])
 def valid_check(mp, ctx):
     # This is OK - will be imputed to "prod"
     metric = mp.average("column")  # dataset=None
     ctx.assert_that(metric).where(name="test").is_gt(0)
+
 
 suite = (
     VerificationSuiteBuilder("test", db)

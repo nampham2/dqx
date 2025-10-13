@@ -84,6 +84,7 @@ repos:
         args: ['--line-length=88']  # Match Black's default
         files: '\.(md|rst|tex)$'
         types: [text]
+        exclude: '^docs/plans/'  # Exclude planning docs with pseudo-code
 
   # YAML validation and linting
   - repo: https://github.com/adrienverge/yamllint

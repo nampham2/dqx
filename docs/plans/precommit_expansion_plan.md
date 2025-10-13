@@ -450,20 +450,21 @@ Here's some Python code:
 
 ```python
 # Poorly formatted code
-def   bad_function(x,y,z):
-     return x+y+z
+def bad_function(x, y, z):
+    return x + y + z
 
-class  BadClass:
-    def __init__(self,name):
-        self.name=name
+
+class BadClass:
+    def __init__(self, name):
+        self.name = name
 ```
 
 Another example:
 
 ```python
 # More bad formatting
-data={'key1':'value1','key2':'value2','key3':'value3'}
-result=bad_function(1,2,3)
+data = {"key1": "value1", "key2": "value2", "key3": "value3"}
+result = bad_function(1, 2, 3)
 ```
 EOF
 ```
@@ -707,7 +708,8 @@ rm demo_bad.sh
 cat > demo_bad.md << 'EOF'
 # Demo
 ```python
-def bad(x,y):return x+y
+def bad(x, y):
+    return x + y
 ```
 EOF
 

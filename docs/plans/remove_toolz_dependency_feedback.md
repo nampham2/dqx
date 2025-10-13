@@ -41,7 +41,9 @@ The current `Metric.reduce` implementation has a subtle behavior that should be 
 ```python
 @classmethod
 def reduce(cls, metrics: Sequence[Metric]) -> Metric:
-    return functools.reduce(lambda left, right: left.merge(right), metrics, metrics[0].identity())
+    return functools.reduce(
+        lambda left, right: left.merge(right), metrics, metrics[0].identity()
+    )
 ```
 
 It uses `metrics[0].identity()` as the initial value. The test should verify this matches the exact behavior of `toolz.merge_with`.
@@ -79,7 +81,9 @@ The proposed tests are good but could be more comprehensive:
 While using `set()` for deduplication works because ops implement `__eq__` and `__hash__`, consider a more explicit approach that preserves order:
 
 ```python
-def analyze_sketch_ops(ds: T, ops: Sequence[SketchOp], batch_size: int = 100_000) -> None:
+def analyze_sketch_ops(
+    ds: T, ops: Sequence[SketchOp], batch_size: int = 100_000
+) -> None:
     if len(ops) == 0:
         return
 

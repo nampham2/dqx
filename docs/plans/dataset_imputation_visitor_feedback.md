@@ -86,11 +86,13 @@ def test_imputation_is_idempotent(self):
     # Run imputation again
     # Assert state unchanged
 
+
 def test_preserves_explicitly_set_datasets(self):
     """Datasets explicitly set on SymbolicMetric are preserved."""
     # Create metric with dataset="prod"
     # Run imputation with ["prod", "staging"]
     # Assert metric still has dataset="prod"
+
 
 def test_handles_missing_symbols_gracefully(self):
     """Visitor handles symbols without SymbolicMetrics."""
@@ -107,23 +109,30 @@ def get_errors(self) -> list[str]:
     """Get list of individual error messages."""
     return self.errors.copy()
 
+
 def get_error_summary(self) -> str:
     """Get summary of all errors."""
     if not self.errors:
         return ""
     error_count = len(self.errors)
-    return f"Dataset validation failed with {error_count} error(s):\n" + \
-           "\n".join(f"  - {err}" for err in self.errors)
+    return f"Dataset validation failed with {error_count} error(s):\n" + "\n".join(
+        f"  - {err}" for err in self.errors
+    )
 ```
 
 ### 6. Optional Fail-Fast Mode
 For large graphs, consider adding an option to stop on first error:
 
 ```python
-def __init__(self, available_datasets: list[str], provider: MetricProvider,
-             fail_fast: bool = False):
+def __init__(
+    self,
+    available_datasets: list[str],
+    provider: MetricProvider,
+    fail_fast: bool = False,
+):
     self.fail_fast = fail_fast
     # ... other init code ...
+
 
 def _add_error(self, error: str) -> None:
     self.errors.append(error)

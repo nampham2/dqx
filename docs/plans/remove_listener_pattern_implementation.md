@@ -96,6 +96,7 @@ def test_assert_builder_no_listeners():
     builder = AssertBuilder(actual=expr, context=None)
     assert builder is not None
 
+
 def test_assertion_methods_return_none():
     """Assertion methods should not return AssertBuilder for chaining."""
     context = Context("test", InMemoryMetricDB())
@@ -121,6 +122,7 @@ def test_assertion_methods_return_none():
    @runtime_checkable
    class AssertListener(Protocol):
        """Protocol for objects that listen to assertion configuration changes."""
+
        def set_label(self, label: str) -> None: ...
        def set_severity(self, severity: SeverityLevel) -> None: ...
        def set_validator(self, validator: SymbolicValidator) -> None: ...
@@ -149,7 +151,9 @@ def test_assertion_methods_return_none():
 ```python
 def is_gt(self, other: float, tol: float = functions.EPSILON) -> None:
     """Assert that the expression is greater than the given value."""
-    validator = SymbolicValidator(f"> {other}", lambda x: functions.is_gt(x, other, tol))
+    validator = SymbolicValidator(
+        f"> {other}", lambda x: functions.is_gt(x, other, tol)
+    )
     self._create_assertion_node(validator)
 ```
 

@@ -28,6 +28,7 @@ This plan details the complete process for removing the `toolz` dependency from 
 
 ```python
 """Test AnalysisReport.merge behavior without toolz dependency."""
+
 import pytest
 import threading
 import time
@@ -51,16 +52,8 @@ def test_merge_non_overlapping_reports():
     """Test merging reports with different metrics."""
     key = ResultKey(yyyy_mm_dd=dt.date(2024, 1, 1))
 
-    metric1 = Metric.build(
-        Average("price"),
-        key,
-        DoubleValueState(10.0)
-    )
-    metric2 = Metric.build(
-        Average("quantity"),
-        key,
-        DoubleValueState(5.0)
-    )
+    metric1 = Metric.build(Average("price"), key, DoubleValueState(10.0))
+    metric2 = Metric.build(Average("quantity"), key, DoubleValueState(5.0))
 
     report1 = AnalysisReport({(metric1.spec, key): metric1})
     report2 = AnalysisReport({(metric2.spec, key): metric2})
@@ -117,20 +110,21 @@ def test_merge_multiple_metrics_simultaneously():
     # Report 1: price average and sum
     price_avg1 = Metric.build(Average("price"), key, DoubleValueState(10.0))
     price_sum1 = Metric.build(Sum("price"), key, DoubleValueState(100.0))
-    report1 = AnalysisReport({
-        (price_avg1.spec, key): price_avg1,
-        (price_sum1.spec, key): price_sum1
-    })
+    report1 = AnalysisReport(
+        {(price_avg1.spec, key): price_avg1, (price_sum1.spec, key): price_sum1}
+    )
 
     # Report 2: price average, quantity average, and quantity sum
     price_avg2 = Metric.build(Average("price"), key, DoubleValueState(5.0))
     qty_avg = Metric.build(Average("quantity"), key, DoubleValueState(3.0))
     qty_sum = Metric.build(Sum("quantity"), key, DoubleValueState(30.0))
-    report2 = AnalysisReport({
-        (price_avg2.spec, key): price_avg2,
-        (qty_avg.spec, key): qty_avg,
-        (qty_sum.spec, key): qty_sum
-    })
+    report2 = AnalysisReport(
+        {
+            (price_avg2.spec, key): price_avg2,
+            (qty_avg.spec, key): qty_avg,
+            (qty_sum.spec, key): qty_sum,
+        }
+    )
 
     merged = report1.merge(report2)
     assert len(merged) == 4
@@ -195,6 +189,7 @@ uv run pytest tests/test_analyzer_merge_refactor.py -v
 
 ```python
 """Performance tests for analyzer operations."""
+
 import time
 import pytest
 from dqx.analyzer import AnalysisReport
@@ -303,6 +298,7 @@ uv run pytest tests/test_analyzer_performance.py -v -m performance
 
 ```python
 """Test analyzer deduplication behavior without toolz.groupby."""
+
 import pytest
 from dqx.analyzer import analyze_sketch_ops, analyze_sql_ops
 from dqx.ops import SqlOp, Sum, Average, Maximum, Minimum
@@ -329,7 +325,7 @@ def test_sql_ops_deduplication():
 
     # All duplicate ops should have the same value assigned
     assert sum1.value == sum2.value == 15.0  # 1+2+3+4+5
-    assert avg1.value == avg2.value == 3.0   # (1+2+3+4+5)/5
+    assert avg1.value == avg2.value == 3.0  # (1+2+3+4+5)/5
 
 
 def test_sql_ops_order_preservation():
@@ -358,6 +354,7 @@ def test_sql_ops_order_preservation():
 
     # Temporarily replace the function
     import dqx.analyzer
+
     original_func = dqx.analyzer.analyze_sql_ops
     dqx.analyzer.analyze_sql_ops = mock_analyze
 
@@ -388,11 +385,9 @@ def test_empty_ops_handling():
 
 def test_mixed_column_deduplication():
     """Test deduplication with ops on different columns."""
-    data = pa.table({
-        "price": [10.0, 20.0, 30.0],
-        "quantity": [1, 2, 3],
-        "tax": [1.0, 2.0, 3.0]
-    })
+    data = pa.table(
+        {"price": [10.0, 20.0, 30.0], "quantity": [1, 2, 3], "tax": [1.0, 2.0, 3.0]}
+    )
     ds = ArrowDataSource(data)
 
     # Create ops on different columns with some duplicates
@@ -402,14 +397,14 @@ def test_mixed_column_deduplication():
         Sum("price"),  # Duplicate
         Maximum("tax"),
         Average("quantity"),  # Duplicate
-        Minimum("price")
+        Minimum("price"),
     ]
 
     analyze_sql_ops(ds, ops)
 
     # Verify all ops got values
     assert ops[0].value == ops[2].value == 60.0  # Sum of price
-    assert ops[1].value == ops[4].value == 2.0   # Average of quantity
+    assert ops[1].value == ops[4].value == 2.0  # Average of quantity
     assert ops[3].value == 3.0  # Max tax
     assert ops[5].value == 10.0  # Min price
 ```
@@ -430,7 +425,9 @@ uv run pytest tests/test_analyzer_dedup_refactor.py -v
 
 1. In `analyze_sketch_ops` function (around line 53):
 ```python
-def analyze_sketch_ops(ds: T, ops: Sequence[SketchOp], batch_size: int = 100_000) -> None:
+def analyze_sketch_ops(
+    ds: T, ops: Sequence[SketchOp], batch_size: int = 100_000
+) -> None:
     if len(ops) == 0:
         return
 

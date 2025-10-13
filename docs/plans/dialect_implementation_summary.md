@@ -35,16 +35,18 @@ class SqlDataSource(Protocol):
 ```python
 def analyze_sql_ops(ds: T, ops: Sequence[SqlOp]) -> None:
     # ...
-    if hasattr(ds, 'dialect'):
+    if hasattr(ds, "dialect"):
         # Use dialect for SQL generation
         expressions = [ds.dialect.translate_sql_op(op) for op in distinct_ops]
         sql = ds.dialect.build_cte_query(ds.cte, expressions)
     else:
         # Legacy behavior for backward compatibility
-        sql = textwrap.dedent(f"""
+        sql = textwrap.dedent(
+            f"""
             WITH source AS ( {ds.cte} )
             SELECT {", ".join(op.sql for op in distinct_ops)} FROM source
-            """)
+            """
+        )
 ```
 
 ### 3. Updated DataSource Implementations
@@ -53,7 +55,9 @@ All existing DataSource implementations now accept an optional dialect parameter
 
 ```python
 class ArrowDataSource:
-    def __init__(self, table: pa.RecordBatch | pa.Table, dialect: Dialect | None = None):
+    def __init__(
+        self, table: pa.RecordBatch | pa.Table, dialect: Dialect | None = None
+    ):
         self._table = table
         self._table_name = random_prefix(k=6)
         self.dialect = dialect or DuckDBDialect()
@@ -93,12 +97,16 @@ class PostgreSQLDialect:
                 return f"COUNT(*)::FLOAT8 AS {op.sql_col}"
             case ops.NullCount(column=col):
                 # PostgreSQL doesn't have COUNT_IF
-                return f"COUNT(CASE WHEN {col} IS NULL THEN 1 END)::FLOAT8 AS {op.sql_col}"
+                return (
+                    f"COUNT(CASE WHEN {col} IS NULL THEN 1 END)::FLOAT8 AS {op.sql_col}"
+                )
             # ... handle other operations
 
     def build_cte_query(self, cte_sql: str, select_expressions: list[str]) -> str:
         from dqx.dialect import build_cte_query
+
         return build_cte_query(cte_sql, select_expressions)
+
 
 # Usage
 ds = ArrowDataSource(table, dialect=PostgreSQLDialect())

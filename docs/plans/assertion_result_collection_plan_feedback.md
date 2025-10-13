@@ -64,10 +64,10 @@ if not assertion._value.is_ok():
                         "name": s.name,
                         "metric": s.metric,
                         "dataset": s.dataset,
-                        "value": str(s.value)
+                        "value": str(s.value),
                     }
                     for s in f.symbols
-                ]
+                ],
             }
             for f in failures
         ]
@@ -78,7 +78,9 @@ if not assertion._value.is_ok():
 Use try/finally to ensure flag is set even on partial failures:
 
 ```python
-def run(self, datasources: dict[str, SqlDataSource], key: ResultKey, threading: bool = False) -> None:
+def run(
+    self, datasources: dict[str, SqlDataSource], key: ResultKey, threading: bool = False
+) -> None:
     """Execute the verification suite..."""
     try:
         # ... existing run logic ...

@@ -38,7 +38,7 @@ match node._metric:
         passed = node.validator.fn(value)
 
 # Using the new field name
-metric=assertion._metric,  # was: value
+metric = (assertion._metric,)  # was: value
 ```
 
 ✅ **ALWAYS write comments like these:**
@@ -53,7 +53,7 @@ match node._metric:
         passed = node.validator.fn(value)
 
 # The metric computation result
-metric=assertion._metric,
+metric = (assertion._metric,)
 ```
 
 Remember: Git tracks history. Comments explain the present.
@@ -127,7 +127,12 @@ git commit -m "feat: add AssertionStatus type alias for validation results"
 **Changes:**
 ```python
 # At the top, add to imports
-from dqx.common import AssertionStatus, EvaluationFailure, SeverityLevel, SymbolicValidator
+from dqx.common import (
+    AssertionStatus,
+    EvaluationFailure,
+    SeverityLevel,
+    SymbolicValidator,
+)
 
 # In AssertionNode.__init__, change:
 # OLD:
@@ -167,6 +172,7 @@ git commit -m "refactor: rename AssertionNode._value to _metric and add _result 
 ```python
 # Add to imports at the top
 from dqx.common import AssertionStatus, DQXError
+
 
 # Replace the visit method (around line 240):
 def visit(self, node: BaseNode) -> None:
@@ -239,6 +245,7 @@ class AssertionResult:
         expression: String representation of the symbolic expression
         tags: Tags from the ResultKey (e.g., {"env": "prod"})
     """
+
     yyyy_mm_dd: datetime.date
     suite: str
     check: str
@@ -294,10 +301,14 @@ def collect_results(self) -> list[AssertionResult]:
         ...             print(f"  Error: {f.error_message}")
     """
     if not self.is_evaluated:
-        raise DQXError("Cannot collect results before suite execution. Call run() first to evaluate assertions.")
+        raise DQXError(
+            "Cannot collect results before suite execution. Call run() first to evaluate assertions."
+        )
 
     if self._key is None:
-        raise DQXError("No ResultKey available. This should not happen after successful run().")
+        raise DQXError(
+            "No ResultKey available. This should not happen after successful run()."
+        )
 
     key = self._key
     results = []
@@ -533,6 +544,7 @@ git commit -m "test: add comprehensive tests for assertion validation logic"
 # OLD: failures = result.value.failure()
 # NEW: failures = result.metric.failure()
 
+
 # Add a new check that demonstrates validation failures:
 @check(name="Validation Failures", datasets=["orders"])
 def validation_failures(mp: MetricProvider, ctx: Context) -> None:
@@ -549,9 +561,9 @@ def validation_failures(mp: MetricProvider, ctx: Context) -> None:
 
     # Return rate is 0.0, but we assert it should be > 0.01
     return_rate = mp.sum("returns") / mp.num_rows()
-    ctx.assert_that(return_rate).where(
-        name="Return rate > 1%", severity="P1"
-    ).is_gt(0.01)
+    ctx.assert_that(return_rate).where(name="Return rate > 1%", severity="P1").is_gt(
+        0.01
+    )
 ```
 
 **Update the output to distinguish failure types:**
@@ -647,6 +659,7 @@ from dqx.common import ResultKey
 from dqx.extensions.pyarrow_ds import ArrowDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 
+
 @check(name="Value checks")
 def check_values(mp, ctx):
     # This should pass: metric=20, validation: 20 > 0 ✓
@@ -658,16 +671,17 @@ def check_values(mp, ctx):
     # This should fail: metric=20, validation: 20 > 50 ✗
     ctx.assert_that(mp.average("good")).where(name="Good values exceed 50").is_gt(50)
 
+
 # Create test data
-data = pa.table({
-    "good": [10.0, 20.0, 30.0],
-    "bad": [-10.0, -20.0, -30.0]
-})
+data = pa.table({"good": [10.0, 20.0, 30.0], "bad": [-10.0, -20.0, -30.0]})
 
 # Run checks
 db = InMemoryMetricDB()
 suite = VerificationSuiteBuilder("Test", db).add_check(check_values).build()
-suite.run({"data": ArrowDataSource(data)}, ResultKey(yyyy_mm_dd=datetime.date.today(), tags={}))
+suite.run(
+    {"data": ArrowDataSource(data)},
+    ResultKey(yyyy_mm_dd=datetime.date.today(), tags={}),
+)
 
 # Check results
 results = suite.collect_results()

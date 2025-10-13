@@ -93,10 +93,10 @@ def test_assert_builder_where_method():
     assert_builder = ctx.assert_that(expr)
 
     # Should have where method
-    assert hasattr(assert_builder, 'where')
+    assert hasattr(assert_builder, "where")
 
     # Should NOT have on method
-    assert not hasattr(assert_builder, 'on')
+    assert not hasattr(assert_builder, "on")
 
     # Test method chaining
     result = assert_builder.where(name="Test assertion")
@@ -118,26 +118,28 @@ def test_where_method_parameters():
 
 def test_check_decorator_with_name():
     """Test that @check decorator accepts name instead of label."""
+
     # Define a check with name parameter
     @check(name="My validation check", tags=["test"])
     def my_check(mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
 
     # Verify metadata is stored correctly
-    assert hasattr(my_check, '_check_metadata')
-    assert my_check._check_metadata['display_name'] == "My validation check"
-    assert my_check._check_metadata['name'] == 'my_check'  # Function name
+    assert hasattr(my_check, "_check_metadata")
+    assert my_check._check_metadata["display_name"] == "My validation check"
+    assert my_check._check_metadata["name"] == "my_check"  # Function name
 
 
 def test_check_decorator_without_name():
     """Test that @check decorator uses function name when name not provided."""
+
     @check(tags=["test"])
     def validate_something(mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(mp.num_rows()).is_gt(0)
 
     # Should use function name
-    assert my_check._check_metadata['name'] == 'validate_something'
-    assert my_check._check_metadata['display_name'] is None
+    assert my_check._check_metadata["name"] == "validate_something"
+    assert my_check._check_metadata["display_name"] is None
 ```
 
 **How to run**:
@@ -170,8 +172,11 @@ def __init__(self, actual: sp.Expr, context: Context | None = None) -> None:
     self._validator: SymbolicValidator | None = None
     self._context = context
 
+
 # CHANGE 2: Rename on() method to where()
-def where(self, *, name: str | None = None, severity: SeverityLevel | None = None) -> Self:
+def where(
+    self, *, name: str | None = None, severity: SeverityLevel | None = None
+) -> Self:
     """
     Configure the assertion with optional name and severity.
 
@@ -185,6 +190,7 @@ def where(self, *, name: str | None = None, severity: SeverityLevel | None = Non
     self._name = name  # WAS: self._label = label
     self._severity = severity
     return self
+
 
 # CHANGE 3: Update _create_assertion_node to use self._name
 def _create_assertion_node(self, validator: SymbolicValidator) -> None:
@@ -204,7 +210,7 @@ def _create_assertion_node(self, validator: SymbolicValidator) -> None:
         actual=self._actual,
         name=self._name,  # WAS: label=self._label
         severity=self._severity,
-        validator=validator
+        validator=validator,
     )
 
     # Attach to the current check node
@@ -317,6 +323,7 @@ git commit -m "refactor: update Context methods to use name instead of label"
 ```python
 class CheckMetadata(TypedDict):
     """Metadata stored on decorated check functions."""
+
     name: str  # The function name
     datasets: list[str] | None
     tags: list[str]
@@ -332,7 +339,10 @@ def check(_check: CheckProducer) -> DecoratedCheck: ...
 
 @overload
 def check(
-    *, tags: list[str] = [], name: str | None = None, datasets: list[str] | None = None  # WAS: label
+    *,
+    tags: list[str] = [],
+    name: str | None = None,
+    datasets: list[str] | None = None,  # WAS: label
 ) -> Callable[[CheckProducer], DecoratedCheck]: ...
 
 
@@ -368,7 +378,13 @@ def check(
     if _check is not None:
         # Simple @check decorator without parentheses
         wrapped = functools.wraps(_check)(
-            functools.partial(_create_check, _check=_check, tags=tags, display_name=name, datasets=datasets)
+            functools.partial(
+                _create_check,
+                _check=_check,
+                tags=tags,
+                display_name=name,
+                datasets=datasets,
+            )
         )
         # Store metadata for validation
         wrapped._check_metadata = {  # type: ignore[attr-defined]
@@ -381,7 +397,13 @@ def check(
 
     def decorator(fn: CheckProducer) -> DecoratedCheck:
         wrapped = functools.wraps(fn)(
-            functools.partial(_create_check, _check=fn, tags=tags, display_name=name, datasets=datasets)
+            functools.partial(
+                _create_check,
+                _check=fn,
+                tags=tags,
+                display_name=name,
+                datasets=datasets,
+            )
         )
         # Store metadata for validation
         wrapped._check_metadata = {  # type: ignore[attr-defined]
@@ -575,15 +597,18 @@ ctx.assert_that(metric).on(label="Greater than 40").is_gt(40)
 # NEW
 ctx.assert_that(metric).where(name="Greater than 40").is_gt(40)
 
+
 # OLD
 @check(label="Order validation", tags=["critical"])
 def validate_orders(mp, ctx):
     pass
 
+
 # NEW
 @check(name="Order validation", tags=["critical"])
 def validate_orders(mp, ctx):
     pass
+
 
 # OLD
 node = CheckNode("check1", label="Check One")
@@ -735,6 +760,7 @@ from dqx.orm.repositories import InMemoryMetricDB
 from dqx.common import ResultKey
 import datetime as dt
 
+
 # Define a check using the new API
 @check(name="Data validation check", tags=["test"])
 def validate_data(mp, ctx):
@@ -745,17 +771,13 @@ def validate_data(mp, ctx):
     # Test without name (should still work)
     ctx.assert_that(mp.average("value")).is_gt(10)
 
+
 # Create test data
-data = pa.table({
-    "id": [1, 2, 3, 4, 5],
-    "value": [15, 20, 25, 30, 35]
-})
+data = pa.table({"id": [1, 2, 3, 4, 5], "value": [15, 20, 25, 30, 35]})
 
 # Build and run suite
 db = InMemoryMetricDB()
-suite = (VerificationSuiteBuilder("Test Suite", db)
-         .add_check(validate_data)
-         .build())
+suite = VerificationSuiteBuilder("Test Suite", db).add_check(validate_data).build()
 
 # Execute
 ds = ArrowDataSource(data)

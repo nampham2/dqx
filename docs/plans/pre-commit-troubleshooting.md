@@ -174,6 +174,7 @@ test.py:4:4: breakpoint called
 
 # For legitimate debug output, use logging:
 import logging
+
 logger = logging.getLogger(__name__)
 logger.debug("Debug information here")
 ```

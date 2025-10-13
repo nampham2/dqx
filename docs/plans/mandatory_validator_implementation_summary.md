@@ -67,9 +67,7 @@ check.add_assertion(symbol, name="price > 0")  # No validation!
 
 # After (validator is required)
 check.add_assertion(
-    symbol,
-    name="price > 0",
-    validator=SymbolicValidator("> 0", lambda x: x > 0)
+    symbol, name="price > 0", validator=SymbolicValidator("> 0", lambda x: x > 0)
 )
 ```
 

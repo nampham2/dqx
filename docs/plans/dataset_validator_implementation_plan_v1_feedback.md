@@ -56,7 +56,11 @@ def process_node(self, node: BaseNode) -> None:
                                 f"has no dataset specified, but parent check '{parent_check.name}' "
                                 f"has multiple datasets: {parent_datasets}. Unable to determine which dataset to use."
                             ),
-                            node_path=["root", f"check:{parent_check.name}", f"assertion:{node.name}"]
+                            node_path=[
+                                "root",
+                                f"check:{parent_check.name}",
+                                f"assertion:{node.name}",
+                            ],
                         )
                     )
                 # If check has exactly one dataset, imputation will handle it
@@ -72,7 +76,11 @@ def process_node(self, node: BaseNode) -> None:
                             f"has dataset '{metric.dataset}' which is not in "
                             f"parent check '{parent_check.name}' datasets: {parent_datasets}"
                         ),
-                        node_path=["root", f"check:{parent_check.name}", f"assertion:{node.name}"]
+                        node_path=[
+                            "root",
+                            f"check:{parent_check.name}",
+                            f"assertion:{node.name}",
+                        ],
                     )
                 )
         except Exception:

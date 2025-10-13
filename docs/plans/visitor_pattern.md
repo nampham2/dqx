@@ -17,7 +17,9 @@ def impute_datasets(self, datasets: list[str]) -> None:
         self.datasets = datasets
     elif any(ds not in datasets for ds in self.datasets):
         # Validate existing datasets
-        self._value = Some(f"The check {self.node_name()} requires datasets {self.datasets} but got {datasets}")
+        self._value = Some(
+            f"The check {self.node_name()} requires datasets {self.datasets} but got {datasets}"
+        )
         # In case of error, do not propagate datasets to children
         return
 
@@ -199,7 +201,9 @@ def impute_datasets(self, datasets: list[str]) -> None:
     if visitor.errors:
         # You could choose to raise the first error or aggregate them
         node, error = visitor.errors[0]
-        raise DQXError(f"Dataset validation error in {node.__class__.__name__}: {error}")
+        raise DQXError(
+            f"Dataset validation error in {node.__class__.__name__}: {error}"
+        )
 ```
 
 ### 3. Remove Redundant impute_datasets Methods
@@ -349,14 +353,17 @@ class BaseNode:
         visit_method = getattr(visitor, method_name, visitor.visit_default)
         visit_method(self)
 
+
 # Alternatively, each node class can implement its own accept method:
 class RootNode(BaseNode):
     def accept(self, visitor: NodeVisitor) -> None:
         visitor.visit_root_node(self)
 
+
 class CheckNode(BaseNode):
     def accept(self, visitor: NodeVisitor) -> None:
         visitor.visit_check_node(self)
+
 
 # And so on...
 ```
@@ -388,7 +395,9 @@ def impute_datasets(self, datasets: list[str]) -> None:
     if visitor.errors:
         # You could choose to raise the first error or aggregate them
         node, error = visitor.errors[0]
-        raise DQXError(f"Dataset validation error in {node.__class__.__name__}: {error}")
+        raise DQXError(
+            f"Dataset validation error in {node.__class__.__name__}: {error}"
+        )
 ```
 
 This implementation properly follows the Visitor pattern with double dispatch, making the code more maintainable and aligned with SOLID principles.
@@ -435,19 +444,19 @@ class NodeVisitor:
         visit_method = dispatch_table.get(node_type, self.visit_default)
         visit_method(node)
 
-    def visit_root_node(self, node: 'RootNode') -> None:
+    def visit_root_node(self, node: "RootNode") -> None:
         """Visit method for RootNode."""
         self.visit_default(node)
 
-    def visit_check_node(self, node: 'CheckNode') -> None:
+    def visit_check_node(self, node: "CheckNode") -> None:
         """Visit method for CheckNode."""
         self.visit_default(node)
 
-    def visit_assertion_node(self, node: 'AssertionNode') -> None:
+    def visit_assertion_node(self, node: "AssertionNode") -> None:
         """Visit method for AssertionNode."""
         self.visit_default(node)
 
-    def visit_composite_node(self, node: 'CompositeNode') -> None:
+    def visit_composite_node(self, node: "CompositeNode") -> None:
         """Visit method for CompositeNode."""
         self.visit_default(node)
 

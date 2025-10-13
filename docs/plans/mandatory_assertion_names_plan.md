@@ -29,7 +29,9 @@ Assertions can currently be created without names, making debugging and reportin
 ctx.assert_that(mp.average("price")).is_positive()
 
 # Current (good) - clear description
-ctx.assert_that(mp.average("price")).where(name="Average price must be positive").is_positive()
+ctx.assert_that(mp.average("price")).where(
+    name="Average price must be positive"
+).is_positive()
 ```
 
 ### Solution
@@ -77,7 +79,9 @@ class AssertionDraft:
         self._actual = actual
         self._context = context
 
-    def where(self, *, name: str, severity: SeverityLevel | None = None) -> AssertionReady:
+    def where(
+        self, *, name: str, severity: SeverityLevel | None = None
+    ) -> AssertionReady:
         """
         Provide a descriptive name for this assertion.
 
@@ -100,7 +104,7 @@ class AssertionDraft:
             actual=self._actual,
             name=name.strip(),
             severity=severity,
-            context=self._context
+            context=self._context,
         )
 ```
 
@@ -148,7 +152,7 @@ class AssertionReady:
         actual: sp.Expr,
         name: str,
         severity: SeverityLevel | None = None,
-        context: Context | None = None
+        context: Context | None = None,
     ) -> None:
         """
         Initialize ready assertion.
@@ -166,27 +170,37 @@ class AssertionReady:
 
     def is_geq(self, other: float, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is greater than or equal to the given value."""
-        validator = SymbolicValidator(f"≥ {other}", lambda x: functions.is_geq(x, other, tol))
+        validator = SymbolicValidator(
+            f"≥ {other}", lambda x: functions.is_geq(x, other, tol)
+        )
         self._create_assertion_node(validator)
 
     def is_gt(self, other: float, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is greater than the given value."""
-        validator = SymbolicValidator(f"> {other}", lambda x: functions.is_gt(x, other, tol))
+        validator = SymbolicValidator(
+            f"> {other}", lambda x: functions.is_gt(x, other, tol)
+        )
         self._create_assertion_node(validator)
 
     def is_leq(self, other: float, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is less than or equal to the given value."""
-        validator = SymbolicValidator(f"≤ {other}", lambda x: functions.is_leq(x, other, tol))
+        validator = SymbolicValidator(
+            f"≤ {other}", lambda x: functions.is_leq(x, other, tol)
+        )
         self._create_assertion_node(validator)
 
     def is_lt(self, other: float, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is less than the given value."""
-        validator = SymbolicValidator(f"< {other}", lambda x: functions.is_lt(x, other, tol))
+        validator = SymbolicValidator(
+            f"< {other}", lambda x: functions.is_lt(x, other, tol)
+        )
         self._create_assertion_node(validator)
 
     def is_eq(self, other: float, tol: float = functions.EPSILON) -> None:
         """Assert that the expression equals the given value within tolerance."""
-        validator = SymbolicValidator(f"= {other}", lambda x: functions.is_eq(x, other, tol))
+        validator = SymbolicValidator(
+            f"= {other}", lambda x: functions.is_eq(x, other, tol)
+        )
         self._create_assertion_node(validator)
 
     def is_negative(self, tol: float = functions.EPSILON) -> None:
@@ -216,7 +230,7 @@ class AssertionReady:
             actual=self._actual,
             name=self._name,  # Always has a name now!
             severity=self._severity,
-            validator=validator
+            validator=validator,
         )
 
         # Attach to the current check node
@@ -330,6 +344,7 @@ def test_something():
     ctx.assert_that(mp.num_rows()).is_gt(0)
     ctx.assert_that(mp.average("price")).is_positive()
 
+
 # After
 def test_something():
     ctx.assert_that(mp.num_rows()).where(name="Has data").is_gt(0)
@@ -388,7 +403,9 @@ def test_where_requires_name_parameter() -> None:
     draft = AssertionDraft(sp.Symbol("x"), context=None)
 
     # Should fail without name
-    with pytest.raises(TypeError, match="missing 1 required keyword-only argument: 'name'"):
+    with pytest.raises(
+        TypeError, match="missing 1 required keyword-only argument: 'name'"
+    ):
         draft.where()  # type: ignore
 
     # Should work with name
@@ -442,6 +459,7 @@ def test_where_validates_name() -> None:
 def test_thread_safety() -> None:
     """Test that assertion building is thread-safe."""
     import threading
+
     db = InMemoryMetricDB()
     context = Context("test", db)
     results = []
@@ -487,7 +505,9 @@ Search for assertion examples and update them:
 ctx.assert_that(mp.null_count("customer_id")).is_eq(0)
 
 # NEW
-ctx.assert_that(mp.null_count("customer_id")).where(name="No null customer IDs").is_eq(0)
+ctx.assert_that(mp.null_count("customer_id")).where(name="No null customer IDs").is_eq(
+    0
+)
 ```
 
 ### Task 8: Run Full Test Suite and Fix Any Issues

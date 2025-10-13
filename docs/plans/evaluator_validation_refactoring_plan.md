@@ -89,7 +89,12 @@ git commit -m "feat: add AssertionStatus type alias for validation results"
 **Changes:**
 ```python
 # At the top, add to imports
-from dqx.common import AssertionStatus, EvaluationFailure, SeverityLevel, SymbolicValidator
+from dqx.common import (
+    AssertionStatus,
+    EvaluationFailure,
+    SeverityLevel,
+    SymbolicValidator,
+)
 
 # In AssertionNode.__init__, change:
 # OLD:
@@ -127,6 +132,7 @@ git commit -m "refactor: rename AssertionNode._value to _metric and add _result 
 ```python
 # Add to imports at the top
 from dqx.common import AssertionStatus
+
 
 # Replace the visit method (around line 240):
 def visit(self, node: BaseNode) -> None:
@@ -191,6 +197,7 @@ class AssertionResult:
         metric: The metric computation result (Success with value or Failure with errors)
         ... rest of attributes ...
     """
+
     yyyy_mm_dd: datetime.date
     suite: str
     check: str
@@ -225,10 +232,14 @@ def collect_results(self) -> list[AssertionResult]:
     ... existing docstring ...
     """
     if not self.is_evaluated:
-        raise DQXError("Cannot collect results before suite execution. Call run() first to evaluate assertions.")
+        raise DQXError(
+            "Cannot collect results before suite execution. Call run() first to evaluate assertions."
+        )
 
     if self._key is None:
-        raise DQXError("No ResultKey available. This should not happen after successful run().")
+        raise DQXError(
+            "No ResultKey available. This should not happen after successful run()."
+        )
 
     key = self._key
     results = []
@@ -249,7 +260,9 @@ def collect_results(self) -> list[AssertionResult]:
             check=check_node.name,
             assertion=assertion_name,
             severity=assertion.severity,
-            status="SUCCESS" if status == "OK" else "FAILURE",  # Convert to expected format
+            status=(
+                "SUCCESS" if status == "OK" else "FAILURE"
+            ),  # Convert to expected format
             metric=assertion._metric,  # Changed from value
             expression=str(assertion.actual),
             tags=key.tags,
@@ -471,6 +484,7 @@ from dqx.common import ResultKey
 from dqx.extensions.pyarrow_ds import ArrowDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 
+
 @check(name="Value checks")
 def check_values(mp, ctx):
     # This should pass
@@ -478,21 +492,24 @@ def check_values(mp, ctx):
     # This should fail
     ctx.assert_that(mp.average("bad")).where(name="Bad values are positive").is_gt(0)
 
+
 # Create test data
-data = pa.table({
-    "good": [10.0, 20.0, 30.0],
-    "bad": [-10.0, -20.0, -30.0]
-})
+data = pa.table({"good": [10.0, 20.0, 30.0], "bad": [-10.0, -20.0, -30.0]})
 
 # Run checks
 db = InMemoryMetricDB()
 suite = VerificationSuiteBuilder("Test", db).add_check(check_values).build()
-suite.run({"data": ArrowDataSource(data)}, ResultKey(yyyy_mm_dd=datetime.date.today(), tags={}))
+suite.run(
+    {"data": ArrowDataSource(data)},
+    ResultKey(yyyy_mm_dd=datetime.date.today(), tags={}),
+)
 
 # Check results
 results = suite.collect_results()
 for r in results:
-    print(f"{r.assertion}: {r.status} (metric={r.metric.unwrap() if r.metric.is_ok() else 'failed'})")
+    print(
+        f"{r.assertion}: {r.status} (metric={r.metric.unwrap() if r.metric.is_ok() else 'failed'})"
+    )
 ```
 
 Expected output:

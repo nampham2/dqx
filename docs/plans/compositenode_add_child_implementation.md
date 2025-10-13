@@ -18,7 +18,7 @@ The project uses a tree structure to represent data quality checks:
 Currently, to add a child to a CompositeNode, you must:
 ```python
 parent.children.append(child)  # Add to list
-child.parent = parent          # Manually set parent - easy to forget!
+child.parent = parent  # Manually set parent - easy to forget!
 ```
 
 We want a single method that does both operations.
@@ -95,24 +95,24 @@ from dqx.common import DQXError
 
 **Step 2**: Add the method to the `CompositeNode` class (add this after the `is_leaf` method):
 ```python
-    def add_child(self, child: TChild) -> CompositeNode[TChild]:
-        """Add a child node and set its parent reference.
+def add_child(self, child: TChild) -> CompositeNode[TChild]:
+    """Add a child node and set its parent reference.
 
-        Args:
-            child: The child node to add
+    Args:
+        child: The child node to add
 
-        Returns:
-            Self for method chaining
+    Returns:
+        Self for method chaining
 
-        Raises:
-            DQXError: If the child is already in the children list
-        """
-        if child in self.children:
-            raise DQXError("Child node is already in the children list")
+    Raises:
+        DQXError: If the child is already in the children list
+    """
+    if child in self.children:
+        raise DQXError("Child node is already in the children list")
 
-        self.children.append(child)
-        child.parent = self
-        return self
+    self.children.append(child)
+    child.parent = self
+    return self
 ```
 
 **How to test**:
@@ -136,15 +136,15 @@ git commit -m "feat: implement add_child method in CompositeNode"
 **What to do**: Add another test method to `TestCompositeNodeAddChild` class:
 
 ```python
-    def test_add_child_sets_parent_reference(self) -> None:
-        """Test that add_child sets the child's parent reference."""
-        parent = MockCompositeNode()
-        child = MockNode()
+def test_add_child_sets_parent_reference(self) -> None:
+    """Test that add_child sets the child's parent reference."""
+    parent = MockCompositeNode()
+    child = MockNode()
 
-        parent.add_child(child)
+    parent.add_child(child)
 
-        assert child.parent is parent
-        assert child.is_root is False
+    assert child.parent is parent
+    assert child.is_root is False
 ```
 
 **How to test**:
@@ -167,19 +167,19 @@ git commit -m "test: add test for parent reference in add_child"
 **What to do**: Add test for the error case:
 
 ```python
-    def test_add_child_raises_error_on_duplicate(self) -> None:
-        """Test that add_child raises DQXError when adding duplicate child."""
-        from dqx.common import DQXError
+def test_add_child_raises_error_on_duplicate(self) -> None:
+    """Test that add_child raises DQXError when adding duplicate child."""
+    from dqx.common import DQXError
 
-        parent = MockCompositeNode()
-        child = MockNode()
+    parent = MockCompositeNode()
+    child = MockNode()
 
-        # Add child first time - should work
+    # Add child first time - should work
+    parent.add_child(child)
+
+    # Try to add same child again - should raise error
+    with pytest.raises(DQXError, match="Child node is already in the children list"):
         parent.add_child(child)
-
-        # Try to add same child again - should raise error
-        with pytest.raises(DQXError, match="Child node is already in the children list"):
-            parent.add_child(child)
 ```
 
 **How to test**:
@@ -200,22 +200,22 @@ git commit -m "test: add test for duplicate child prevention"
 **What to do**: Test that a child can be moved between parents:
 
 ```python
-    def test_add_child_allows_reparenting(self) -> None:
-        """Test that a child can be moved from one parent to another."""
-        parent1 = MockCompositeNode()
-        parent2 = MockCompositeNode()
-        child = MockNode()
+def test_add_child_allows_reparenting(self) -> None:
+    """Test that a child can be moved from one parent to another."""
+    parent1 = MockCompositeNode()
+    parent2 = MockCompositeNode()
+    child = MockNode()
 
-        # Add to first parent
-        parent1.add_child(child)
-        assert child.parent is parent1
-        assert child in parent1.children
+    # Add to first parent
+    parent1.add_child(child)
+    assert child.parent is parent1
+    assert child in parent1.children
 
-        # Move to second parent
-        parent2.add_child(child)
-        assert child.parent is parent2
-        assert child in parent2.children
-        assert child in parent1.children  # Still in first parent's list!
+    # Move to second parent
+    parent2.add_child(child)
+    assert child.parent is parent2
+    assert child in parent2.children
+    assert child in parent1.children  # Still in first parent's list!
 ```
 
 **How to test**:
@@ -236,19 +236,19 @@ git commit -m "test: add test for child re-parenting behavior"
 **What to do**: Verify the fluent interface pattern:
 
 ```python
-    def test_add_child_returns_self_for_chaining(self) -> None:
-        """Test that add_child returns self to enable method chaining."""
-        parent = MockCompositeNode()
-        child1 = MockNode()
-        child2 = MockNode()
+def test_add_child_returns_self_for_chaining(self) -> None:
+    """Test that add_child returns self to enable method chaining."""
+    parent = MockCompositeNode()
+    child1 = MockNode()
+    child2 = MockNode()
 
-        # Chain multiple add_child calls
-        result = parent.add_child(child1).add_child(child2)
+    # Chain multiple add_child calls
+    result = parent.add_child(child1).add_child(child2)
 
-        assert result is parent
-        assert len(parent.children) == 2
-        assert child1.parent is parent
-        assert child2.parent is parent
+    assert result is parent
+    assert len(parent.children) == 2
+    assert child1.parent is parent
+    assert child2.parent is parent
 ```
 
 **How to test**: Run all tests for this class:

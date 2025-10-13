@@ -82,12 +82,11 @@ ls -la src/dqx/validators/
 import pytest
 from dqx.validators.base import ValidationIssue
 
+
 def test_validation_issue_creation():
     """Test creating a validation issue."""
     issue = ValidationIssue(
-        rule="test_rule",
-        message="Something went wrong",
-        node_path=["root", "check1"]
+        rule="test_rule", message="Something went wrong", node_path=["root", "check1"]
     )
 
     assert issue.rule == "test_rule"
@@ -98,6 +97,7 @@ def test_validation_issue_creation():
 **Now implement in `src/dqx/validators/base.py`**:
 ```python
 """Base classes for validation system."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -106,6 +106,7 @@ from dataclasses import dataclass
 @dataclass
 class ValidationIssue:
     """Represents a single validation issue found in the graph."""
+
     rule: str  # Name of the rule that found this issue
     message: str  # Human-readable description
     node_path: list[str]  # Path to the problematic node
@@ -114,6 +115,7 @@ class ValidationIssue:
 **Update `src/dqx/validators/__init__.py`**:
 ```python
 """Validation system for DQX verification suites."""
+
 from dqx.validators.base import ValidationIssue
 
 __all__ = ["ValidationIssue"]
@@ -159,18 +161,20 @@ def test_validation_report_add_issues():
     report = ValidationReport()
 
     # Add an error from a rule that produces errors
-    report.add_error(ValidationIssue(
-        rule="duplicate_check",
-        message="Duplicate found",
-        node_path=["root"]
-    ))
+    report.add_error(
+        ValidationIssue(
+            rule="duplicate_check", message="Duplicate found", node_path=["root"]
+        )
+    )
 
     # Add a warning from a rule that produces warnings
-    report.add_warning(ValidationIssue(
-        rule="empty_check",
-        message="Empty check found",
-        node_path=["root", "check1"]
-    ))
+    report.add_warning(
+        ValidationIssue(
+            rule="empty_check",
+            message="Empty check found",
+            node_path=["root", "check1"],
+        )
+    )
 
     assert report.has_errors()
     assert report.has_warnings()
@@ -182,17 +186,21 @@ def test_validation_report_string_format():
     """Test report string formatting."""
     report = ValidationReport()
 
-    report.add_error(ValidationIssue(
-        rule="duplicate_check",
-        message="Duplicate check name: 'test_check'",
-        node_path=["root", "check:test_check"]
-    ))
+    report.add_error(
+        ValidationIssue(
+            rule="duplicate_check",
+            message="Duplicate check name: 'test_check'",
+            node_path=["root", "check:test_check"],
+        )
+    )
 
-    report.add_warning(ValidationIssue(
-        rule="empty_check",
-        message="Check 'test' has no assertions",
-        node_path=["root", "check:test"]
-    ))
+    report.add_warning(
+        ValidationIssue(
+            rule="empty_check",
+            message="Check 'test' has no assertions",
+            node_path=["root", "check:test"],
+        )
+    )
 
     report_str = str(report)
     assert "ERROR" in report_str
@@ -204,6 +212,7 @@ def test_validation_report_string_format():
 **Implement in `src/dqx/validators/report.py`**:
 ```python
 """Validation report for collecting and formatting issues."""
+
 from __future__ import annotations
 
 from dqx.validators.base import ValidationIssue
@@ -268,6 +277,7 @@ class ValidationReport:
 **Update `src/dqx/validators/__init__.py`**:
 ```python
 """Validation system for DQX verification suites."""
+
 from dqx.validators.base import ValidationIssue
 from dqx.validators.report import ValidationReport
 
@@ -359,6 +369,7 @@ def test_duplicate_check_name_visitor_multiple_duplicates():
 **Implement in `src/dqx/validators/visitors.py`**:
 ```python
 """Validation visitors for DQX graph traversal."""
+
 from __future__ import annotations
 
 from collections import defaultdict
@@ -390,11 +401,13 @@ class DuplicateCheckNameVisitor(NodeVisitor):
         # Process duplicates
         for name, nodes in self._check_names.items():
             if len(nodes) > 1:
-                self._issues.append(ValidationIssue(
-                    rule=self.name,
-                    message=f"Duplicate check name: '{name}' appears {len(nodes)} times",
-                    node_path=["root", f"check:{name}"]
-                ))
+                self._issues.append(
+                    ValidationIssue(
+                        rule=self.name,
+                        message=f"Duplicate check name: '{name}' appears {len(nodes)} times",
+                        node_path=["root", f"check:{name}"],
+                    )
+                )
 
         return self._issues
 ```
@@ -415,6 +428,7 @@ git commit -m "feat: add DuplicateCheckNameVisitor using visitor pattern"
 ```python
 import sympy as sp  # Add at top
 
+
 def test_empty_check_visitor():
     """Test visitor that detects checks with no assertions."""
     root = RootNode("test_suite")
@@ -424,10 +438,7 @@ def test_empty_check_visitor():
 
     # Check with assertions
     normal_check = root.add_check("Normal Check")
-    normal_check.add_assertion(
-        actual=sp.Symbol("x"),
-        name="Test assertion"
-    )
+    normal_check.add_assertion(actual=sp.Symbol("x"), name="Test assertion")
 
     graph = Graph(root)
     visitor = EmptyCheckVisitor()
@@ -479,11 +490,13 @@ class EmptyCheckVisitor(NodeVisitor):
         if isinstance(node, CheckNode):
             # Check if this check has no children
             if len(node.children) == 0:
-                self._issues.append(ValidationIssue(
-                    rule=self.name,
-                    message=f"Check '{node.name}' has no assertions",
-                    node_path=["root", f"check:{node.name}"]
-                ))
+                self._issues.append(
+                    ValidationIssue(
+                        rule=self.name,
+                        message=f"Check '{node.name}' has no assertions",
+                        node_path=["root", f"check:{node.name}"],
+                    )
+                )
 
     def get_issues(self) -> list[ValidationIssue]:
         """Get validation issues after traversal."""
@@ -517,14 +530,20 @@ class DuplicateAssertionNameVisitor(NodeVisitor):
             # Report duplicates
             for name, count in self._assertion_names.items():
                 if count > 1:
-                    self._issues.append(ValidationIssue(
-                        rule=self.name,
-                        message=(
-                            f"Assertion name '{name}' appears {count} times "
-                            f"in check '{node.name}'"
-                        ),
-                        node_path=["root", f"check:{node.name}", f"assertion:{name}"]
-                    ))
+                    self._issues.append(
+                        ValidationIssue(
+                            rule=self.name,
+                            message=(
+                                f"Assertion name '{name}' appears {count} times "
+                                f"in check '{node.name}'"
+                            ),
+                            node_path=[
+                                "root",
+                                f"check:{node.name}",
+                                f"assertion:{name}",
+                            ],
+                        )
+                    )
 
     def get_issues(self) -> list[ValidationIssue]:
         """Get validation issues after traversal."""
@@ -656,6 +675,7 @@ def test_suite_validator_edge_cases():
 
 ```python
 """Main validator that orchestrates all validation visitors."""
+
 from __future__ import annotations
 
 from dqx.graph.traversal import Graph
@@ -703,6 +723,7 @@ class SuiteValidator:
 **Update `src/dqx/validators/__init__.py`**:
 ```python
 """Validation system for DQX verification suites."""
+
 from dqx.validators.base import ValidationIssue
 from dqx.validators.report import ValidationReport
 from dqx.validators.suite_validator import SuiteValidator
@@ -735,6 +756,7 @@ from dqx import get_logger
 # Capture log output for testing
 import logging
 
+
 def test_suite_validation_on_collect_success(caplog):
     """Test that validation runs during collect with valid suite."""
     db = InMemoryMetricDB()
@@ -747,10 +769,12 @@ def test_suite_validation_on_collect_success(caplog):
     def check2(mp, ctx):
         ctx.assert_that(mp.average("price")).where(name="Price check").is_positive()
 
-    suite = VerificationSuiteBuilder("Valid Suite", db)\
-        .add_check(check1)\
-        .add_check(check2)\
+    suite = (
+        VerificationSuiteBuilder("Valid Suite", db)
+        .add_check(check1)
+        .add_check(check2)
         .build()
+    )
 
     # Should not raise any errors
     suite.collect(suite._context, ResultKey())
@@ -768,10 +792,12 @@ def test_suite_validation_on_collect_failure():
     def check2(mp, ctx):
         ctx.assert_that(mp.average("price")).where(name="Test").is_positive()
 
-    suite = VerificationSuiteBuilder("Invalid Suite", db)\
-        .add_check(check1)\
-        .add_check(check2)\
+    suite = (
+        VerificationSuiteBuilder("Invalid Suite", db)
+        .add_check(check1)
+        .add_check(check2)
         .build()
+    )
 
     # Should raise DQXError with validation message
     with pytest.raises(DQXError) as exc_info:
@@ -789,9 +815,7 @@ def test_suite_validation_warnings_logged(caplog):
     def empty_check(mp, ctx):
         pass  # No assertions!
 
-    suite = VerificationSuiteBuilder("Test Suite", db)\
-        .add_check(empty_check)\
-        .build()
+    suite = VerificationSuiteBuilder("Test Suite", db).add_check(empty_check).build()
 
     # Enable logging
     with caplog.at_level(logging.WARNING):
@@ -799,7 +823,9 @@ def test_suite_validation_warnings_logged(caplog):
         suite.collect(suite._context, ResultKey())
 
     # Check that warning was logged
-    assert any("validation warnings" in record.message.lower() for record in caplog.records)
+    assert any(
+        "validation warnings" in record.message.lower() for record in caplog.records
+    )
     assert any("Empty Check" in record.message for record in caplog.records)
 
 
@@ -811,9 +837,7 @@ def test_explicit_validate_method():
     def empty_check(mp, ctx):
         pass  # No assertions!
 
-    suite = VerificationSuiteBuilder("Test Suite", db)\
-        .add_check(empty_check)\
-        .build()
+    suite = VerificationSuiteBuilder("Test Suite", db).add_check(empty_check).build()
 
     # Call validate explicitly
     report = suite.validate()
@@ -945,18 +969,22 @@ from dqx.common import ResultKey
 
 db = InMemoryMetricDB()
 
+
 # Create problematic checks
 @check(name="Duplicate Check")
 def check1(mp, ctx):
     ctx.assert_that(mp.num_rows()).where(name="Test").is_gt(0)
 
+
 @check(name="Duplicate Check")  # Duplicate!
 def check2(mp, ctx):
     ctx.assert_that(mp.average("price")).where(name="Test").is_positive()
 
+
 @check(name="Empty Check")
 def check3(mp, ctx):
     pass  # No assertions!
+
 
 @check(name="Good Check")
 def check4(mp, ctx):
@@ -964,13 +992,16 @@ def check4(mp, ctx):
     ctx.assert_that(mp.sum("amount")).where(name="Same").is_gt(0)
     ctx.assert_that(mp.sum("tax")).where(name="Same").is_gt(0)
 
+
 # Build suite
-suite = VerificationSuiteBuilder("Test Suite", db)\
-    .add_check(check1)\
-    .add_check(check2)\
-    .add_check(check3)\
-    .add_check(check4)\
+suite = (
+    VerificationSuiteBuilder("Test Suite", db)
+    .add_check(check1)
+    .add_check(check2)
+    .add_check(check3)
+    .add_check(check4)
     .build()
+)
 
 # Try to validate explicitly
 print("=== Explicit Validation ===")

@@ -71,7 +71,11 @@ The `provider.py` module is part of the DQX (Data Quality eXcellence) framework.
    ```python
    # OLD CODE (WRONG):
    metric = SymbolicMetric(
-       name="test_metric", symbol=symbol, fn=fn, key_provider=key_provider, dependencies=dependencies
+       name="test_metric",
+       symbol=symbol,
+       fn=fn,
+       key_provider=key_provider,
+       dependencies=dependencies,
    )
    assert metric.datasets == []
 
@@ -81,7 +85,7 @@ The `provider.py` module is part of the DQX (Data Quality eXcellence) framework.
        symbol=symbol,
        fn=fn,
        key_provider=key_provider,
-       metric_spec=Mock(spec=specs.MetricSpec)
+       metric_spec=Mock(spec=specs.MetricSpec),
    )
    assert metric.dataset is None  # Default is None, not []
    ```
@@ -122,7 +126,7 @@ git commit -m "fix: update TestSymbolicMetric tests to match current implementat
        fn=fn,
        key=key_provider,  # Note: parameter name is 'key' not 'key_provider'
        metric_spec=Mock(spec=specs.MetricSpec),
-       dataset="dataset1"  # singular, not plural
+       dataset="dataset1",  # singular, not plural
    )
    ```
 

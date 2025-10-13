@@ -53,6 +53,7 @@ from dqx.common import DQXError
 # If file already exists, add to it. Otherwise create with:
 """Tests for visitor classes in the graph module."""
 
+
 class TestDatasetImputationVisitor:
     def test_propagates_datasets_from_root_to_check(self):
         """When CheckNode has no datasets, it inherits from available datasets."""
@@ -215,7 +216,9 @@ def _visit_check(self, node: CheckNode) -> None:
     """Process CheckNode - validate or inherit datasets."""
     if node.datasets:
         # Validate existing datasets
-        invalid_datasets = [ds for ds in node.datasets if ds not in self.available_datasets]
+        invalid_datasets = [
+            ds for ds in node.datasets if ds not in self.available_datasets
+        ]
         if invalid_datasets:
             error_msg = (
                 f"CheckNode '{node.name}' requires datasets {invalid_datasets} "
@@ -324,17 +327,20 @@ def has_errors(self) -> bool:
     """Check if any validation errors occurred."""
     return len(self.errors) > 0
 
+
 def get_errors(self) -> list[str]:
     """Get list of individual error messages."""
     return self.errors.copy()
+
 
 def get_error_summary(self) -> str:
     """Get summary of all errors."""
     if not self.errors:
         return ""
     error_count = len(self.errors)
-    return f"Dataset validation failed with {error_count} error(s):\n" + \
-           "\n".join(f"  - {err}" for err in self.errors)
+    return f"Dataset validation failed with {error_count} error(s):\n" + "\n".join(
+        f"  - {err}" for err in self.errors
+    )
 ```
 
 **Commit after:** Adding error methods
@@ -437,6 +443,7 @@ Add integration tests to the same visitor test file:
 ```python
 # Add to tests/graph/test_visitor.py
 
+
 class TestDatasetImputationIntegration:
     """Integration tests for dataset imputation across the full graph."""
 
@@ -512,8 +519,7 @@ def create_test_graph():
     root = RootNode("test")
     check = CheckNode("check1", datasets=["prod"])
     assertion = AssertionNode(
-        actual=sp.Symbol("x_1"),  # References a metric
-        name="test assertion"
+        actual=sp.Symbol("x_1"), name="test assertion"  # References a metric
     )
     root.add_child(check)
     check.add_child(assertion)

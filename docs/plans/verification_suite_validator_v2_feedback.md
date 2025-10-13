@@ -28,11 +28,12 @@ Removing severity from ValidationIssue and using visitor pattern shows good unde
 ```python
 class CompositeValidationVisitor(NodeVisitor):
     """Single visitor that runs all validation rules in one pass."""
+
     def __init__(self):
         self._validators = [
             DuplicateCheckNameValidator(),
             EmptyCheckValidator(),
-            DuplicateAssertionNameValidator()
+            DuplicateAssertionNameValidator(),
         ]
 
     def visit(self, node: BaseNode) -> Any:
@@ -75,9 +76,11 @@ class SuiteValidator:
 ```python
 class ValidationContext:
     """Context passed to validators during traversal."""
+
     suite_name: str
     available_datasets: list[str]
     suite_metadata: dict[str, Any]
+
 
 class NodeVisitor(Protocol):
     def visit(self, node: BaseNode, context: ValidationContext) -> Any: ...
@@ -110,8 +113,8 @@ class ValidationReport:
             "warnings": [issue.to_dict() for issue in self._warnings],
             "summary": {
                 "error_count": len(self._errors),
-                "warning_count": len(self._warnings)
-            }
+                "warning_count": len(self._warnings),
+            },
         }
 ```
 
@@ -124,6 +127,7 @@ class ValidationReport:
 @dataclass
 class NodePath:
     """Represents a path through the graph hierarchy."""
+
     segments: list[tuple[str, str]]  # (node_type, node_name)
 
     def __str__(self) -> str:
@@ -146,7 +150,9 @@ class ValidationIssue:
     rule: str
     message: str
     node_path: list[str]
-    fix_suggestion: str | None = None  # "Consider renaming check to 'validate_orders_v2'"
+    fix_suggestion: str | None = (
+        None  # "Consider renaming check to 'validate_orders_v2'"
+    )
 ```
 
 ### 4. Consider Validation Levels

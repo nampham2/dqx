@@ -52,10 +52,10 @@ This plan guides you through adding a tree visualization feature to the DQX data
 ```python
 def format_node(self, node: BaseNode) -> str:
     # Try node_name() method first (for CheckNode)
-    if hasattr(node, 'node_name') and callable(node.node_name):
+    if hasattr(node, "node_name") and callable(node.node_name):
         return node.node_name()
     # Then try name attribute
-    elif hasattr(node, 'name') and node.name:
+    elif hasattr(node, "name") and node.name:
         return node.name
     # Finally, use class name
     else:
@@ -157,6 +157,7 @@ if node.parent not in self.node_to_tree_map:
 - Add imports at the top:
   ```python
   from typing import TYPE_CHECKING, Optional
+
   if TYPE_CHECKING:
       from dqx.display import NodeFormatter
   ```

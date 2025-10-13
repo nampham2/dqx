@@ -99,6 +99,7 @@ def test_dataset_validator_detects_mismatch():
 
 class MockProvider:
     """Minimal mock provider for testing."""
+
     def __init__(self):
         self._metrics = []
         self._symbol_index = {}
@@ -198,7 +199,11 @@ def process_node(self, node: BaseNode) -> None:
                                 f"has dataset '{metric.dataset}' which is not in "
                                 f"parent check '{parent_check.name}' datasets: {parent_datasets}"
                             ),
-                            node_path=["root", f"check:{parent_check.name}", f"assertion:{node.name}"]
+                            node_path=[
+                                "root",
+                                f"check:{parent_check.name}",
+                                f"assertion:{node.name}",
+                            ],
                         )
                     )
             except Exception:
@@ -252,6 +257,7 @@ from dqx.specs import Average
 @dataclass
 class MockSymbolicMetric:
     """Mock SymbolicMetric for testing."""
+
     name: str
     symbol: sp.Symbol
     dataset: str | None = None
@@ -260,6 +266,7 @@ class MockSymbolicMetric:
 
 class MockProvider:
     """Mock provider that tracks symbols and their datasets."""
+
     def __init__(self):
         self._symbol_counter = 0
         self._symbol_index = {}
@@ -273,7 +280,7 @@ class MockProvider:
             name=f"average({column})",
             symbol=symbol,
             dataset=dataset,
-            metric_spec=Average(column)
+            metric_spec=Average(column),
         )
 
         self._symbol_index[symbol] = metric
@@ -439,7 +446,9 @@ def __init__(self) -> None:
 2. Update `validate` method signature and implementation:
 
 ```python
-def validate(self, graph: Graph, provider: MetricProvider | None = None) -> ValidationReport:
+def validate(
+    self, graph: Graph, provider: MetricProvider | None = None
+) -> ValidationReport:
     """Run validation on a graph.
 
     Args:
@@ -552,9 +561,7 @@ def test_dataset_validator_prevents_suite_execution():
         ctx.assert_that(avg_price).where(name="avg price > 0").is_gt(0)
 
     suite = (
-        VerificationSuiteBuilder("test_suite", db)
-        .add_check(validate_prices)
-        .build()
+        VerificationSuiteBuilder("test_suite", db).add_check(validate_prices).build()
     )
 
     # Act & Assert: Should raise validation error
@@ -576,9 +583,7 @@ def test_dataset_validator_allows_valid_flow():
         ctx.assert_that(avg_price).where(name="avg price > 0").is_gt(0)
 
     suite = (
-        VerificationSuiteBuilder("test_suite", db)
-        .add_check(validate_prices)
-        .build()
+        VerificationSuiteBuilder("test_suite", db).add_check(validate_prices).build()
     )
 
     # Should not raise
@@ -633,11 +638,13 @@ from dqx.orm.repositories import InMemoryMetricDB
 
 db = InMemoryMetricDB()
 
+
 @check(name="test_check", datasets=["prod", "staging"])
 def my_check(mp, ctx):
     # This should trigger an error - "testing" not in ["prod", "staging"]
     metric = mp.average("column", dataset="testing")
     ctx.assert_that(metric).where(name="test").is_gt(0)
+
 
 suite = VerificationSuiteBuilder("test", db).add_check(my_check).build()
 
@@ -680,6 +687,7 @@ import sympy as sp  # In tests
 **Solution**: Add type annotations:
 ```python
 from typing import Optional
+
 provider: Optional[MetricProvider] = None
 ```
 
@@ -687,6 +695,7 @@ provider: Optional[MetricProvider] = None
 **Solution**: Use string literals for type hints:
 ```python
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from dqx.provider import MetricProvider
 

@@ -38,10 +38,12 @@ class ValidationIssue:
     message: str
     node_path: list[str]
 
+
 # Let rules declare their type
 class DuplicateCheckNameRule:
     name = "duplicate_check_names"
     is_error = True  # Always produces errors
+
 
 class EmptyCheckRule:
     name = "empty_checks"
@@ -67,6 +69,7 @@ DQX already uses the visitor pattern extensively (e.g., `DatasetImputationVisito
 ```python
 from dqx.graph.base import NodeVisitor
 
+
 class DuplicateCheckNameVisitor(NodeVisitor):
     """Visitor that detects duplicate check names."""
 
@@ -86,11 +89,13 @@ class DuplicateCheckNameVisitor(NodeVisitor):
         # Process duplicates after traversal
         for name, nodes in self.check_names.items():
             if len(nodes) > 1:
-                self.issues.append(ValidationIssue(
-                    rule="duplicate_check_names",
-                    message=f"Duplicate check name: '{name}' appears {len(nodes)} times",
-                    node_path=["root", f"check:{name}"]
-                ))
+                self.issues.append(
+                    ValidationIssue(
+                        rule="duplicate_check_names",
+                        message=f"Duplicate check name: '{name}' appears {len(nodes)} times",
+                        node_path=["root", f"check:{name}"],
+                    )
+                )
         return self.issues
 ```
 
