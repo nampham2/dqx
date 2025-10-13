@@ -466,28 +466,17 @@ class VerificationSuite:
         for assertion in self._context._graph.assertions():
             # Extract parent hierarchy
             check_node = assertion.parent  # Parent is always a CheckNode
-
-            # Handle the case where assertion.name might be None (shouldn't happen with new API)
-            assertion_name = assertion.name
-            if assertion_name is None:
-                # This shouldn't happen with the new where() API, but handle it gracefully
-                assertion_name = f"Unnamed assertion ({str(assertion.actual)[:50]})"
-
-            # Construct full validation expression
-            if assertion.validator:
-                expression = f"{assertion.actual} {assertion.validator.name}"
-            else:
-                expression = str(assertion.actual)
+            assert assertion.validator is not None
 
             result = AssertionResult(
                 yyyy_mm_dd=key.yyyy_mm_dd,
                 suite=self._name,
                 check=check_node.name,
-                assertion=assertion_name,
+                assertion=assertion.name,
                 severity=assertion.severity,
-                status=assertion._result,  # Direct use of AssertionStatus
+                status=assertion._result,
                 metric=assertion._metric,
-                expression=expression,
+                expression=f"{assertion.actual} {assertion.validator.name}",
                 tags=key.tags,
             )
             results.append(result)
