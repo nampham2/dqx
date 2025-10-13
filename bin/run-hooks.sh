@@ -3,9 +3,18 @@
 # Usage: ./bin/run-hooks.sh [options] [files...]
 #
 # Options:
-#   --all     Run on all files
+#   --all     Run on all files (including src, tests, examples)
 #   --fast    Skip slow hooks (mypy)
-#   --fix     Only run hooks that auto-fix issues
+#   --fix     Only run hooks that auto-fix issues (ruff-format, ruff-check, trailing-whitespace, end-of-file-fixer)
+#
+# Examples:
+#   ./bin/run-hooks.sh                    # Run on staged files
+#   ./bin/run-hooks.sh --all              # Run on all files in project
+#   ./bin/run-hooks.sh --fix              # Run only auto-fixing hooks
+#   ./bin/run-hooks.sh --fast             # Skip mypy for faster checks
+#   ./bin/run-hooks.sh src/dqx/api.py    # Run on specific file(s)
+#
+# Note: This script now includes shellcheck for shell scripts (.sh, .bash files)
 
 set -e  # Exit on error
 
