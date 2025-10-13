@@ -250,7 +250,7 @@ class Evaluator:
                 case Success(value):
                     try:
                         # validator.fn returns True if assertion passes
-                        passed = node.validator.fn(value)  # type: ignore[misc]
+                        passed = node.validator.fn(value)
                         node._result = "OK" if passed else "FAILURE"
                     except Exception as e:
                         raise DQXError(f"Validator execution failed: {str(e)}") from e
