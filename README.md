@@ -86,8 +86,8 @@ context = suite.run({"orders": data_source}, key)
 
 # Inspect results
 for assertion in context._graph.assertions():
-    if assertion._value:
-        print(f"{assertion.name}: {assertion._value}")
+    if assertion._metric:
+        print(f"{assertion.name}: {assertion._metric}")
 ```
 
 ## 📊 Available Metrics
@@ -334,7 +334,7 @@ if suite.is_evaluated:
 
         if result.status == "FAILURE":
             # Extract error details directly from Result object
-            failures = result.value.failure()
+            failures = result.metric.failure()
             for failure in failures:
                 print(f"  Error: {failure.error_message}")
 
@@ -345,7 +345,7 @@ df = pd.DataFrame([{
     "check": r.check,
     "assertion": r.assertion,
     "status": r.status,
-    "value": r.value.unwrap() if r.value.is_ok() else None
+    "value": r.metric.unwrap() if isinstance(r.metric, Success) else None
 } for r in results])
 
 # Or create a DuckDB relation
@@ -362,10 +362,10 @@ relation = conn.from_pandas(df)
 
 The `AssertionResult` dataclass provides:
 - Full context (suite/check/assertion hierarchy)
-- Success/failure status
-- The actual Result object for advanced usage
+- Success/failure status ("OK" or "FAILURE")
+- The actual Result object (metric) for advanced usage
 - Severity levels and tags
-- Direct access to errors via `value.failure()`
+- Direct access to errors via `metric.failure()`
 
 The `is_evaluated` flag indicates whether the suite has been executed, ensuring results are available before collection.
 
@@ -551,7 +551,7 @@ The RootNode provides convenient methods for graph traversal:
 ```python
 # Get all assertions in the graph
 for assertion in graph.assertions():
-    print(f"{assertion.name}: {assertion._value}")
+    print(f"{assertion.name}: {assertion._metric}")
 
 # Get all pending metrics for a dataset
 for metric in graph.pending_metrics("orders"):
