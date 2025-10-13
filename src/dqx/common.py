@@ -3,7 +3,7 @@ from __future__ import annotations
 import datetime
 import datetime as dt
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol, Self, runtime_checkable
 
 import duckdb
@@ -33,6 +33,37 @@ class EvaluationFailure:
     error_message: str  # Overall error message
     expression: str  # The symbolic expression
     symbols: list[SymbolInfo]  # List of symbol information
+
+
+@dataclass
+class AssertionResult:
+    """Result of a single assertion evaluation.
+
+    This dataclass captures the complete state of an assertion after evaluation,
+    including its location in the hierarchy (suite/check/assertion), the actual
+    result value, and any error information if the assertion failed.
+
+    Attributes:
+        yyyy_mm_dd: Date from the ResultKey used during evaluation
+        suite: Name of the verification suite
+        check: Name of the parent check
+        assertion: Name of the assertion (always present, names are mandatory)
+        severity: Priority level (P0, P1, P2, P3)
+        status: Either "SUCCESS" or "FAILURE"
+        value: The actual Result object containing value or errors
+        expression: String representation of the symbolic expression
+        tags: Tags from the ResultKey (e.g., {"env": "prod"})
+    """
+
+    yyyy_mm_dd: datetime.date
+    suite: str
+    check: str
+    assertion: str
+    severity: SeverityLevel
+    status: Literal["SUCCESS", "FAILURE"]
+    value: Result[float, list[EvaluationFailure]]
+    expression: str | None = None
+    tags: Tags = field(default_factory=dict)
 
 
 class DQXError(Exception): ...

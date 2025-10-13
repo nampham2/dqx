@@ -70,32 +70,6 @@ class RootNode(CompositeNode[None, "CheckNode"]):
         self.add_child(check)
         return check
 
-    def exists(self, child: "CheckNode") -> bool:
-        """Check if a specific CheckNode exists as a direct child.
-
-        Tests whether the given CheckNode instance is present in this root's
-        immediate children. This is a shallow check that only looks at direct
-        children, not nested assertions within checks.
-
-        Args:
-            child: The CheckNode instance to search for. Must be an exact
-                object reference match, not just a node with the same name.
-
-        Returns:
-            True if the exact CheckNode instance is a direct child of this
-            root, False otherwise.
-
-        Examples:
-            >>> root = RootNode("suite")
-            >>> check = root.add_check("my_check")
-            >>> assert root.exists(check) == True
-            >>>
-            >>> other_root = RootNode("other_suite")
-            >>> other_check = other_root.add_check("other_check")
-            >>> assert root.exists(other_check) == False
-        """
-        return child in self.children
-
 
 class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
     """Node representing a data quality check.
