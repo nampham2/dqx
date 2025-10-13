@@ -53,6 +53,17 @@ repos:
       # Python specific
       - id: check-docstring-first
 
+  # Shell script validation
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        name: shellcheck - lint shell scripts
+        args: []  # Show all severity levels
+        files: '\.(sh|bash)$'
+        types: [shell]
+        require_serial: false
+
   # Local hooks that use our project's virtual environment
   - repo: local
     hooks:

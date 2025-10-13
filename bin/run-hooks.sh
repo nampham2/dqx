@@ -65,18 +65,21 @@ if [ -n "$HOOK_ID" ]; then
     done
 else
     # Run all hooks
+    set +e  # Temporarily disable exit on error to capture status
     if [ "$RUN_ALL" = true ]; then
         $CMD --all-files
     elif [ $# -eq 0 ]; then
         echo "Checking staged files..."
         $CMD
     else
-        echo "Checking files: $@"
+        echo "Checking files: $*"
         $CMD --files "$@"
     fi
+    EXIT_STATUS=$?
+    set -e  # Re-enable exit on error
 fi
 
-if [ $? -eq 0 ]; then
+if [ "${EXIT_STATUS:-0}" -eq 0 ]; then
     echo -e "${GREEN}✓ All hooks passed!${NC}"
 else
     echo -e "${RED}✗ Some hooks failed. Please fix the issues above.${NC}"
