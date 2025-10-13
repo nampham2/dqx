@@ -26,6 +26,11 @@ Add a `collect_symbols()` method to `VerificationSuite` that returns a list of `
 - Suite name
 - Tags
 
+### Important Notes
+- **No backward compatibility is required** - This is a breaking change and existing code using SymbolInfo will need to be updated
+- Per project policy, explicit permission from Nam is required before implementing ANY backward compatibility
+- All comments in code should describe what the code does, not reference the refactoring
+
 ## Implementation Tasks
 
 ### Task 1: Extend SymbolInfo Dataclass
@@ -52,15 +57,15 @@ class SymbolInfo:
     metric: str  # Human-readable metric name
     dataset: str  # Dataset name
     value: Result[float, str]  # Success(10.5) or Failure("error")
-    yyyy_mm_dd: datetime.date
-    suite: str
-    tags: Tags
+    yyyy_mm_dd: datetime.date  # Date when the metric was evaluated
+    suite: str  # Name of the verification suite
+    tags: Tags  # Additional metadata tags
 ```
 
 **Testing approach**:
 1. Create a test that instantiates SymbolInfo with all fields
 2. Verify all fields are accessible
-3. Test that existing code creating SymbolInfo still works (backward compatibility)
+3. Ensure existing tests are updated to provide all required fields
 
 **Test file**: Create `test_symbol_info_extension.py` in project root:
 ```python
@@ -351,6 +356,8 @@ The `print_failure_details` function needs to handle SymbolInfo objects that may
 
 **Find the function** (around line 20):
 
+Since this is a demo/example file that might use mocked data, we need to handle both old and new SymbolInfo formats. However, this is an exception - the actual library code will require all fields.
+
 **Update to**:
 ```python
 def print_failure_details(failures: list[EvaluationFailure]) -> None:
@@ -366,7 +373,7 @@ def print_failure_details(failures: list[EvaluationFailure]) -> None:
                 status = "✅ Success" if isinstance(symbol.value, Success) else "❌ Failed"
                 print(f"      - {symbol.name}: {symbol.metric} from '{symbol.dataset}' [{status}]")
 
-                # Print new fields if available
+                # Display additional context if present
                 if hasattr(symbol, 'yyyy_mm_dd'):
                     print(f"        Date: {symbol.yyyy_mm_dd}")
                 if hasattr(symbol, 'suite'):
@@ -389,7 +396,7 @@ def print_failure_details(failures: list[EvaluationFailure]) -> None:
 **Add at the end of main() function** (before the final `if __name__ == "__main__"`):
 
 ```python
-    # NEW: Demonstrate symbol collection
+    # Demonstrate symbol collection
     print("\n" + "=" * 60)
     print("SYMBOL COLLECTION DEMO")
     print("=" * 60)
