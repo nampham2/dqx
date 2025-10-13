@@ -107,10 +107,3 @@ def test_improved_error_messages() -> None:
         BaseNode.__init__(node, parent=RootNode("parent"))  # type: ignore
     assert "RootNode must have None as parent" in str(exc_info.value)
     assert "but got RootNode" in str(exc_info.value)
-
-    # Test unnamed node error message
-    with pytest.raises(TypeError) as exc_info:
-        # Create assertion without name to test <unnamed> fallback
-        AssertionNode(parent=None, actual=sp.Symbol("x"))  # type: ignore
-    assert "AssertionNode requires parent of type CheckNode" in str(exc_info.value)
-    assert "but got None" in str(exc_info.value)

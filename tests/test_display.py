@@ -313,7 +313,7 @@ class TestIntegration:
         # Create assertions
         symbol = sp.Symbol("x")
         check1.add_assertion(actual=symbol > 0, name="Positive values")
-        check1.add_assertion(actual=symbol < 100)  # No name
+        check1.add_assertion(actual=symbol < 100, name="Upper bound check")
 
         # Create visitor and traverse
         formatter = SimpleNodeFormatter()
@@ -337,7 +337,7 @@ class TestIntegration:
         assert "Positive values" in str(assert1_tree.label)
 
         assert2_tree = check1_tree.children[1]
-        assert "AssertionNode" in str(assert2_tree.label)  # No label, so class name
+        assert "Upper bound check" in str(assert2_tree.label)  # No label, so class name
 
     @patch("dqx.display.Console")
     def test_full_print_graph_integration(self, mock_console_class: Mock) -> None:

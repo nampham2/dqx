@@ -20,7 +20,7 @@ from dqx.common import (
     SymbolicValidator,
 )
 from dqx.evaluator import Evaluator
-from dqx.graph.nodes import AssertionNode, CheckNode, RootNode
+from dqx.graph.nodes import CheckNode, RootNode
 from dqx.graph.traversal import Graph
 from dqx.orm.repositories import MetricDB
 from dqx.provider import MetricProvider
@@ -229,56 +229,6 @@ class Context:
     @property
     def provider(self) -> MetricProvider:
         return self._provider
-
-    def create_check(
-        self,
-        name: str,
-        tags: list[str] | None = None,
-        datasets: list[str] | None = None,
-    ) -> CheckNode:
-        """
-        Factory method to create a check node.
-
-        Args:
-            name: Name for the check (either user-provided or function name)
-            tags: Optional tags for categorizing the check
-            datasets: Optional list of datasets the check applies to
-
-        Returns:
-            CheckNode that can access context through its root node
-        """
-        # Use the root node's factory method
-        return self._graph.root.add_check(name=name, tags=tags, datasets=datasets)
-
-    def create_assertion(
-        self,
-        actual: sp.Expr,
-        name: str | None = None,
-        severity: SeverityLevel = "P1",
-        validator: SymbolicValidator | None = None,
-    ) -> AssertionNode:
-        """
-        Factory method to create an assertion node.
-
-        Args:
-            actual: Symbolic expression to evaluate
-            name: Optional human-readable description
-            severity: Severity level for failures (P0, P1, P2, P3). Defaults to "P1".
-            validator: Optional validator function
-
-        Returns:
-            AssertionNode that can access context through its root node
-        """
-        # Get the current check node
-        current = self.current_check
-        if not current:
-            raise DQXError(
-                "Cannot create assertion outside of check context. "
-                "Assertions must be created within a @check decorated function."
-            )
-
-        # Use the check node's factory method
-        return current.add_assertion(actual=actual, name=name, severity=severity, validator=validator)
 
     def assert_that(self, expr: sp.Expr) -> AssertionDraft:
         """

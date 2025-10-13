@@ -15,7 +15,7 @@ def test_assertion_node_is_immutable() -> None:
 
     root = RootNode("test_suite")
     check = root.add_check("test_check")
-    node = check.add_assertion(actual=sp.Symbol("x"))
+    node = check.add_assertion(actual=sp.Symbol("x"), name="test assertion")
 
     # These methods should not exist
     assert not hasattr(node, "set_label")

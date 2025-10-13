@@ -101,7 +101,7 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
     def add_assertion(
         self,
         actual: sp.Expr,
-        name: str | None = None,
+        name: str,
         severity: SeverityLevel = "P1",
         validator: SymbolicValidator | None = None,
     ) -> AssertionNode:
@@ -134,7 +134,7 @@ class AssertionNode(BaseNode["CheckNode"]):
         self,
         parent: CheckNode,
         actual: sp.Expr,
-        name: str | None = None,
+        name: str,
         severity: SeverityLevel = "P1",
         validator: SymbolicValidator | None = None,
     ) -> None:
