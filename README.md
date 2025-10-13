@@ -47,37 +47,51 @@ from dqx.extensions.pyarrow_ds import ArrowDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.common import ResultKey
 
+
 # Define your data quality check
 @check(name="Order validation", tags=["critical"])
 def validate_orders(mp, ctx):
     # Check for null values
-    ctx.assert_that(mp.null_count("customer_id")).where(name="No null customer IDs").is_eq(0)
+    ctx.assert_that(mp.null_count("customer_id")).where(
+        name="No null customer IDs"
+    ).is_eq(0)
 
     # Validate price ranges with tolerance
-    ctx.assert_that(mp.minimum("price")).where(name="Minimum price is non-negative").is_geq(0.0, tol=0.01)
-    ctx.assert_that(mp.average("price")).where(name="Average price is reasonable").is_gt(10.0)
+    ctx.assert_that(mp.minimum("price")).where(
+        name="Minimum price is non-negative"
+    ).is_geq(0.0, tol=0.01)
+    ctx.assert_that(mp.average("price")).where(
+        name="Average price is reasonable"
+    ).is_gt(10.0)
 
     # Multiple assertions on the same metric
     ctx.assert_that(mp.average("quantity")).where(
         name="Quantity should be reasonable"
     ).is_gt(0)
-    ctx.assert_that(mp.average("quantity")).where(name="Quantity upper bound").is_leq(100)
+    ctx.assert_that(mp.average("quantity")).where(name="Quantity upper bound").is_leq(
+        100
+    )
 
     # Check data volume
     ctx.assert_that(mp.num_rows()).where(name="Sufficient data volume").is_geq(100)
 
+
 # Create your data
-data = pa.table({
-    "customer_id": [1, 2, 3, 4, 5],
-    "price": [15.99, 23.50, 45.00, 12.75, 89.99],
-    "quantity": [2, 1, 3, 1, 2]
-})
+data = pa.table(
+    {
+        "customer_id": [1, 2, 3, 4, 5],
+        "price": [15.99, 23.50, 45.00, 12.75, 89.99],
+        "quantity": [2, 1, 3, 1, 2],
+    }
+)
 
 # Build and run verification suite
 db = InMemoryMetricDB()
-suite = (VerificationSuiteBuilder("Order Quality Suite", db)
-         .add_check(validate_orders)
-         .build())
+suite = (
+    VerificationSuiteBuilder("Order Quality Suite", db)
+    .add_check(validate_orders)
+    .build()
+)
 
 # Run the checks
 data_source = ArrowDataSource(data)
@@ -129,7 +143,7 @@ yesterday_avg = mp.average("score", key=ctx.key.lag(1))
 @check(
     name="Data completeness check",
     tags=["completeness", "critical"],
-    datasets=["main_table"]  # Optional: specify required datasets
+    datasets=["main_table"],  # Optional: specify required datasets
 )
 def check_completeness(mp, ctx):
     """Ensure key columns have minimal null values."""
@@ -138,9 +152,10 @@ def check_completeness(mp, ctx):
     for column in ["id", "name", "email"]:
         null_percentage = mp.null_count(column) / total_rows
         ctx.assert_that(null_percentage).where(
-            name=f"{column} null percentage",
-            severity="P0"  # Critical severity
-        ).is_leq(0.05)  # Max 5% nulls
+            name=f"{column} null percentage", severity="P0"  # Critical severity
+        ).is_leq(
+            0.05
+        )  # Max 5% nulls
 ```
 
 ### Assertion Methods
@@ -162,7 +177,7 @@ ctx.assert_that(metric).where(name="Value is negative").is_negative()
 # Configure severity and labels
 ctx.assert_that(metric).where(
     name="Critical business rule",
-    severity="P0"  # Severity levels: "P0", "P1", "P2", "P3"
+    severity="P0",  # Severity levels: "P0", "P1", "P2", "P3"
 ).is_geq(0)
 ```
 
@@ -173,25 +188,14 @@ To perform multiple validations on the same metric, create separate assertions:
 ```python
 # Validate a ratio is within acceptable bounds
 ratio = mp.average("price") / mp.average("tax")
-ctx.assert_that(ratio).where(
-    name="Price/tax ratio lower bound"
-).is_geq(0.95)
-ctx.assert_that(ratio).where(
-    name="Price/tax ratio upper bound"
-).is_leq(1.05)
+ctx.assert_that(ratio).where(name="Price/tax ratio lower bound").is_geq(0.95)
+ctx.assert_that(ratio).where(name="Price/tax ratio upper bound").is_leq(1.05)
 
 # Complex validation with multiple conditions
 revenue = mp.sum("revenue")
-ctx.assert_that(revenue).where(
-    name="Revenue is positive",
-    severity="P0"
-).is_positive()
-ctx.assert_that(revenue).where(
-    name="Revenue upper limit"
-).is_lt(1000000)
-ctx.assert_that(revenue).where(
-    name="Revenue lower limit"
-).is_geq(10000)
+ctx.assert_that(revenue).where(name="Revenue is positive", severity="P0").is_positive()
+ctx.assert_that(revenue).where(name="Revenue upper limit").is_lt(1000000)
+ctx.assert_that(revenue).where(name="Revenue lower limit").is_geq(10000)
 
 # Each assertion is evaluated independently, providing:
 # - Independent failure tracking
@@ -219,11 +223,9 @@ suite.run({"dataset_name": ds}, key)
 from dqx.extensions.pyarrow_ds import ArrowBatchDataSource
 
 # Process multiple Parquet files efficiently
-batch_ds = ArrowBatchDataSource.from_parquets([
-    "data/file1.parquet",
-    "data/file2.parquet",
-    "data/file3.parquet"
-])
+batch_ds = ArrowBatchDataSource.from_parquets(
+    ["data/file1.parquet", "data/file2.parquet", "data/file3.parquet"]
+)
 
 # Enable multi-threading for parallel processing
 suite.run({"large_dataset": batch_ds}, key, threading=True)
@@ -236,6 +238,7 @@ Implement the `SqlDataSource` protocol:
 ```python
 from dqx.common import SqlDataSource
 import duckdb
+
 
 class CustomDataSource:
     name = "custom_source"
@@ -267,17 +270,17 @@ def monitor_trends(mp, ctx):
 
     # Day-over-day check
     dod_ratio = current / yesterday
-    ctx.assert_that(dod_ratio).where(
-        name="Daily revenue change lower bound"
-    ).is_geq(0.9)  # No more than 10% drop
-    ctx.assert_that(dod_ratio).where(
-        name="Daily revenue change upper bound"
-    ).is_leq(1.1)  # No more than 10% increase
+    ctx.assert_that(dod_ratio).where(name="Daily revenue change lower bound").is_geq(
+        0.9
+    )  # No more than 10% drop
+    ctx.assert_that(dod_ratio).where(name="Daily revenue change upper bound").is_leq(
+        1.1
+    )  # No more than 10% increase
 
     # Week-over-week trend
-    ctx.assert_that(current / last_week).where(
-        name="Weekly revenue trend"
-    ).is_geq(0.8)  # No more than 20% drop
+    ctx.assert_that(current / last_week).where(name="Weekly revenue trend").is_geq(
+        0.8
+    )  # No more than 20% drop
 ```
 
 ### Cross-dataset Validation
@@ -291,12 +294,12 @@ def cross_validate(mp, ctx):
 
     # Ensure data consistency
     ratio = prod_count / staging_count
-    ctx.assert_that(ratio).where(
-        name="Production/Staging lower bound"
-    ).is_geq(0.95, tol=0.01)
-    ctx.assert_that(ratio).where(
-        name="Production/Staging upper bound"
-    ).is_leq(1.05, tol=0.01)
+    ctx.assert_that(ratio).where(name="Production/Staging lower bound").is_geq(
+        0.95, tol=0.01
+    )
+    ctx.assert_that(ratio).where(name="Production/Staging upper bound").is_leq(
+        1.05, tol=0.01
+    )
 ```
 
 ### Collecting Metrics Without Execution
@@ -340,16 +343,23 @@ if suite.is_evaluated:
 
 # Convert to DataFrame for analysis
 import pandas as pd
-df = pd.DataFrame([{
-    "date": r.yyyy_mm_dd,
-    "check": r.check,
-    "assertion": r.assertion,
-    "status": r.status,
-    "value": r.metric.unwrap() if isinstance(r.metric, Success) else None
-} for r in results])
+
+df = pd.DataFrame(
+    [
+        {
+            "date": r.yyyy_mm_dd,
+            "check": r.check,
+            "assertion": r.assertion,
+            "status": r.status,
+            "value": r.metric.unwrap() if isinstance(r.metric, Success) else None,
+        }
+        for r in results
+    ]
+)
 
 # Or create a DuckDB relation
 import duckdb
+
 conn = duckdb.connect()
 relation = conn.from_pandas(df)
 ```
@@ -410,7 +420,7 @@ suite = VerificationSuite(checks, db, name="Production Suite")
 historical_data = db.get_metrics(
     metric_name="average(revenue)",
     start_date=dt.date.today() - dt.timedelta(days=30),
-    end_date=dt.date.today()
+    end_date=dt.date.today(),
 )
 ```
 
@@ -575,8 +585,12 @@ When you define a check like this:
 ```python
 @check(name="Price validation")
 def validate_prices(mp, ctx):
-    ctx.assert_that(mp.average("price")).where(name="Average price is positive").is_gt(0)
-    ctx.assert_that(mp.maximum("price")).where(name="Maximum price within limit").is_leq(1000)
+    ctx.assert_that(mp.average("price")).where(name="Average price is positive").is_gt(
+        0
+    )
+    ctx.assert_that(mp.maximum("price")).where(
+        name="Maximum price within limit"
+    ).is_leq(1000)
 ```
 
 The framework automatically constructs this graph structure with strongly typed parent relationships:
@@ -648,7 +662,7 @@ uv run ruff check src/ tests/ && uv run ruff format src/ tests/ && uv run mypy s
 
 ### Pre-commit Hooks
 
-This project uses pre-commit hooks to maintain code quality. Hooks run automatically before each commit.
+This project uses pre-commit hooks to maintain code quality across all code, documentation, and configuration files. Hooks run automatically before each commit.
 
 #### Quick Setup
 
@@ -662,10 +676,21 @@ uv run pre-commit install
 
 #### What Gets Checked
 
+**Python Code**:
 - **Code formatting**: Ruff automatically formats Python code
 - **Linting**: Ruff checks for code quality issues
-- **Type checking**: MyPy validates type annotations
+- **Type checking**: MyPy validates type annotations (includes `src/`, `tests/`, and `examples/`)
 - **Debug detection**: Catches forgotten print/breakpoint statements
+
+**Shell Scripts**:
+- **Script validation**: Shellcheck finds bugs and portability issues
+- **Script formatting**: shfmt enforces consistent 2-space indentation
+
+**Documentation**:
+- **Python in markdown**: blacken-docs formats Python code blocks in markdown files
+- **YAML validation**: yamllint checks YAML syntax and style
+
+**General File Quality**:
 - **File quality**: Trailing whitespace, file endings, large files
 - **Security**: Detects accidentally committed private keys
 - **Syntax validation**: Python, YAML, TOML, JSON files
@@ -684,6 +709,11 @@ uv run pre-commit install
 
 # Skip slow hooks like mypy
 ./bin/run-hooks.sh --fast
+
+# Run specific hooks
+uv run pre-commit run shellcheck --all-files  # Check shell scripts
+uv run pre-commit run yamllint --all-files    # Check YAML files
+uv run pre-commit run blacken-docs --all-files # Format Python in docs
 
 # Skip hooks temporarily (not recommended)
 git commit --no-verify -m "emergency fix"
@@ -877,7 +907,7 @@ logger.debug("Metric value: %.4f", compute_expensive_metric())
        debug_info = {
            "metrics": [m.to_dict() for m in metrics],
            "graph": graph.to_json(),
-           "state": analyzer.get_debug_state()
+           "state": analyzer.get_debug_state(),
        }
        logger.debug("Analysis state: %s", json.dumps(debug_info, indent=2))
    ```
