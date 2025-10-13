@@ -75,6 +75,7 @@ Tags = dict[str, Any]
 SeverityLevel = Literal["P0", "P1", "P2", "P3"]
 RecomputeStrategy = Literal["ALWAYS", "MISSING", "NEVER"]
 Parameters = dict[str, Any]
+AssertionStatus = Literal["OK", "FAILURE"]
 
 
 @dataclass(frozen=True)
