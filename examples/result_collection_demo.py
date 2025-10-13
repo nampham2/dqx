@@ -5,7 +5,7 @@ import datetime
 import duckdb
 import pyarrow as pa
 import sympy as sp
-from returns.result import Failure
+from returns.result import Failure, Success
 
 from dqx.api import Context, MetricProvider, VerificationSuiteBuilder, check
 from dqx.common import ResultKey
@@ -41,43 +41,58 @@ def print_results_table(results: list) -> None:
     # Calculate column widths
     check_width = max(len(r.check) for r in results) + 2
     assertion_width = max(len(r.assertion) for r in results) + 2
+    expression_width = 45  # For expression column
 
     # Print header
-    print("\n" + "=" * 100)
-    print(f"{'Check':<{check_width}} | {'Assertion':<{assertion_width}} | {'Sev':<5} | {'Status':<8} | {'Value/Error'}")
-    print("=" * 100)
+    print("\n" + "=" * 140)
+    print(
+        f"{'Check':<{check_width}} | {'Assertion':<{assertion_width}} | {'Sev':<5} | {'Status':<8} | {'Expression':<{expression_width}} | {'Value/Error'}"
+    )
+    print("=" * 140)
 
     # Print rows
     for result in results:
-        status_icon = "✅" if result.status == "SUCCESS" else "❌"
+        status_icon = "✅" if result.status == "OK" else "❌"
         status_text = f"{status_icon} {result.status}"
 
-        if result.status == "SUCCESS":
-            value_text = f"{result.value.unwrap():.2f}"
+        # Show full validation expression
+        expr = result.expression if result.expression else "N/A"
+        if len(expr) > expression_width - 2:
+            expr = expr[: expression_width - 5] + "..."
+
+        # Enhanced value display to distinguish failure types
+        if result.status == "OK":
+            value_text = f"✓ {result.metric.unwrap():.2f}"
         else:
-            failures = result.value.failure()
-            if failures:
-                # Show the first error message
-                value_text = failures[0].error_message
-                # For long messages, show key part
-                if "infinity" in value_text.lower():
-                    value_text = "Result is infinity"
-                elif "complex" in value_text.lower():
-                    value_text = "Result is complex number"
-                elif "timeout" in value_text.lower():
-                    value_text = "Database connection timeout"
-                elif "permission denied" in value_text.lower():
-                    value_text = "Permission denied"
-                elif len(value_text) > 40:
-                    value_text = value_text[:37] + "..."
+            if isinstance(result.metric, Success):
+                # Metric computed but validation failed
+                metric_val = result.metric.unwrap()
+                value_text = f"✗ {metric_val:.2f} (validation failed)"
             else:
-                value_text = "Unknown error"
+                # Metric computation failed
+                failures = result.metric.failure()
+                if failures:
+                    error = failures[0].error_message
+                    if "infinity" in error.lower():
+                        value_text = "∞ (infinity error)"
+                    elif "nan" in error.lower():
+                        value_text = "NaN (not a number)"
+                    elif "complex" in error.lower():
+                        value_text = "ℂ (complex number)"
+                    elif "timeout" in error.lower():
+                        value_text = "⏱ (database timeout)"
+                    elif "permission denied" in error.lower():
+                        value_text = "🔒 (permission denied)"
+                    else:
+                        value_text = f"⚠ {error[:30]}..."
+                else:
+                    value_text = "⚠ Unknown error"
 
         print(
-            f"{result.check:<{check_width}} | {result.assertion:<{assertion_width}} | {result.severity:<5} | {status_text:<8} | {value_text}"
+            f"{result.check:<{check_width}} | {result.assertion:<{assertion_width}} | {result.severity:<5} | {status_text:<8} | {expr:<{expression_width}} | {value_text}"
         )
 
-    print("=" * 100)
+    print("=" * 140)
 
 
 # Define data quality checks including scenarios that trigger metric calculation failures
@@ -121,6 +136,19 @@ def division_operations(mp: MetricProvider, ctx: Context) -> None:
     ctx.assert_that(amount_per_return).where(name="Amount per return (infinity)", severity="P0").is_lt(1000)
 
 
+@check(name="Validation Failures", datasets=["orders"])
+def validation_failures(mp: MetricProvider, ctx: Context) -> None:
+    """Metrics that compute successfully but fail validation."""
+    # Average order is 120.5, but we assert it should be > 150
+    ctx.assert_that(mp.average("amount")).where(name="Average order > 150", severity="P1").is_gt(150)
+
+    # Count is 10, but we assert it should be >= 20
+    ctx.assert_that(mp.num_rows()).where(name="At least 20 orders", severity="P2").is_geq(20)
+
+    # Average is 120.5, but we assert it should be < 100
+    ctx.assert_that(mp.average("amount")).where(name="Average order < 100", severity="P1").is_lt(100)
+
+
 @check(name="Complex Number Operations", datasets=["orders"])
 def complex_operations(mp: MetricProvider, ctx: Context) -> None:
     """Operations that produce complex numbers."""
@@ -151,6 +179,7 @@ def main() -> None:
     suite = (
         VerificationSuiteBuilder("E-commerce Data Quality with Failures", db)
         .add_check(basic_validations)
+        .add_check(validation_failures)
         .add_check(calculation_failures)
         .add_check(division_operations)
         .add_check(complex_operations)
@@ -196,9 +225,9 @@ def main() -> None:
 
     # Summary statistics
     print("\nSummary by Status:")
-    success_count = sum(1 for r in results if r.status == "SUCCESS")
+    success_count = sum(1 for r in results if r.status == "OK")
     failure_count = sum(1 for r in results if r.status == "FAILURE")
-    print(f"✅ SUCCESS: {success_count}")
+    print(f"✅ OK:      {success_count}")
     print(f"❌ FAILURE: {failure_count}")
     print(f"📊 Total:   {len(results)}")
 
@@ -207,7 +236,7 @@ def main() -> None:
     for severity in ["P0", "P1", "P2", "P3"]:
         sev_results = [r for r in results if r.severity == severity]
         if sev_results:
-            passed = sum(1 for r in sev_results if r.status == "SUCCESS")
+            passed = sum(1 for r in sev_results if r.status == "OK")
             failed = sum(1 for r in sev_results if r.status == "FAILURE")
             print(f"  {severity}: {passed} passed, {failed} failed")
 
@@ -216,13 +245,20 @@ def main() -> None:
     if failed_results:
         for r in failed_results:
             print(f"\n  ❌ {r.check} / {r.assertion} [{r.severity}]")
-            failures = r.value.failure()
-            for failure in failures:
-                print(f"     Error: {failure.error_message}")
-                if failure.symbols:
-                    print(f"     Expression: {failure.expression}")
-                    for symbol in failure.symbols:
-                        print(f"       - {symbol.name}: {symbol.value}")
+            print(f"     Expression: {r.expression}")
+            if isinstance(r.metric, Success):
+                # Validation failure
+                print(f"     Metric value: {r.metric.unwrap():.2f}")
+                print("     Validation: Failed (expression evaluated to False)")
+            else:
+                # Metric computation failure
+                failures = r.metric.failure()
+                for failure in failures:
+                    print(f"     Error: {failure.error_message}")
+                    if failure.symbols:
+                        print(f"     Expression: {failure.expression}")
+                        for symbol in failure.symbols:
+                            print(f"       - {symbol.name}: {symbol.value}")
     else:
         print("  No failures!")
 
@@ -246,7 +282,7 @@ def main() -> None:
             "assertion": r.assertion,
             "severity": r.severity,
             "status": r.status,
-            "value": r.value.unwrap() if r.status == "SUCCESS" else None,
+            "value": r.metric.unwrap() if isinstance(r.metric, Success) else None,
         }
         for r in results
     ]

@@ -55,12 +55,12 @@ class TestEvaluatorIntegration:
 
         # Check results
         # Assertion 1: Should succeed with value 100.0
-        assert isinstance(assertion1._value, Success)
-        assert assertion1._value.unwrap() == 100.0
+        assert isinstance(assertion1._metric, Success)
+        assert assertion1._metric.unwrap() == 100.0
 
         # Assertion 2: Should fail due to x3 failure
-        assert isinstance(assertion2._value, Failure)
-        failures = assertion2._value.failure()
+        assert isinstance(assertion2._metric, Failure)
+        failures = assertion2._metric.failure()
         assert len(failures) == 1
         failure = failures[0]
         assert isinstance(failure, EvaluationFailure)
@@ -74,8 +74,8 @@ class TestEvaluatorIntegration:
         assert failed_symbol.value.failure() == "Database connection error"
 
         # Assertion 3: Should succeed with value 50.0
-        assert isinstance(assertion3._value, Success)
-        assert assertion3._value.unwrap() == 50.0
+        assert isinstance(assertion3._metric, Success)
+        assert assertion3._metric.unwrap() == 50.0
 
     @pytest.mark.asyncio
     async def test_nan_handling_in_graph_traversal(self) -> None:
@@ -102,8 +102,8 @@ class TestEvaluatorIntegration:
         await graph.async_dfs(evaluator)
 
         # Check NaN is handled properly
-        assert isinstance(assertion._value, Failure)
-        failures = assertion._value.failure()
+        assert isinstance(assertion._metric, Failure)
+        failures = assertion._metric.failure()
         assert len(failures) == 1
         failure = failures[0]
         assert failure.error_message == "Validating value is NaN"

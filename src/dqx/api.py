@@ -4,7 +4,7 @@ import functools
 import threading
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
-from typing import Any, Literal, Protocol, Self, cast, runtime_checkable
+from typing import Any, Protocol, Self, cast, runtime_checkable
 
 import sympy as sp
 
@@ -20,7 +20,7 @@ from dqx.common import (
     SymbolicValidator,
 )
 from dqx.evaluator import Evaluator
-from dqx.graph.nodes import AssertionNode, CheckNode, RootNode
+from dqx.graph.nodes import CheckNode, RootNode
 from dqx.graph.traversal import Graph
 from dqx.orm.repositories import MetricDB
 from dqx.provider import MetricProvider
@@ -229,56 +229,6 @@ class Context:
     @property
     def provider(self) -> MetricProvider:
         return self._provider
-
-    def create_check(
-        self,
-        name: str,
-        tags: list[str] | None = None,
-        datasets: list[str] | None = None,
-    ) -> CheckNode:
-        """
-        Factory method to create a check node.
-
-        Args:
-            name: Name for the check (either user-provided or function name)
-            tags: Optional tags for categorizing the check
-            datasets: Optional list of datasets the check applies to
-
-        Returns:
-            CheckNode that can access context through its root node
-        """
-        # Use the root node's factory method
-        return self._graph.root.add_check(name=name, tags=tags, datasets=datasets)
-
-    def create_assertion(
-        self,
-        actual: sp.Expr,
-        name: str | None = None,
-        severity: SeverityLevel = "P1",
-        validator: SymbolicValidator | None = None,
-    ) -> AssertionNode:
-        """
-        Factory method to create an assertion node.
-
-        Args:
-            actual: Symbolic expression to evaluate
-            name: Optional human-readable description
-            severity: Severity level for failures (P0, P1, P2, P3). Defaults to "P1".
-            validator: Optional validator function
-
-        Returns:
-            AssertionNode that can access context through its root node
-        """
-        # Get the current check node
-        current = self.current_check
-        if not current:
-            raise DQXError(
-                "Cannot create assertion outside of check context. "
-                "Assertions must be created within a @check decorated function."
-            )
-
-        # Use the check node's factory method
-        return current.add_assertion(actual=actual, name=name, severity=severity, validator=validator)
 
     def assert_that(self, expr: sp.Expr) -> AssertionDraft:
         """
@@ -507,7 +457,6 @@ class VerificationSuite:
             raise DQXError("No ResultKey available. This should not happen after successful run().")
 
         # Import here to avoid circular imports
-        from returns.result import Failure, Success
 
         # Use the stored key
         key = self._key
@@ -517,31 +466,17 @@ class VerificationSuite:
         for assertion in self._context._graph.assertions():
             # Extract parent hierarchy
             check_node = assertion.parent  # Parent is always a CheckNode
-
-            # Use pattern matching for cleaner Result handling
-            status: Literal["SUCCESS", "FAILURE"]
-            match assertion._value:
-                case Success(_):
-                    status = "SUCCESS"
-                case Failure(_):
-                    status = "FAILURE"
-
-            # Create result record
-            # Handle the case where assertion.name might be None (shouldn't happen with new API)
-            assertion_name = assertion.name
-            if assertion_name is None:
-                # This shouldn't happen with the new where() API, but handle it gracefully
-                assertion_name = f"Unnamed assertion ({str(assertion.actual)[:50]})"
+            assert assertion.validator is not None
 
             result = AssertionResult(
                 yyyy_mm_dd=key.yyyy_mm_dd,
                 suite=self._name,
                 check=check_node.name,
-                assertion=assertion_name,
+                assertion=assertion.name,
                 severity=assertion.severity,
-                status=status,
-                value=assertion._value,
-                expression=str(assertion.actual),
+                status=assertion._result,
+                metric=assertion._metric,
+                expression=f"{assertion.actual} {assertion.validator.name}",
                 tags=key.tags,
             )
             results.append(result)
