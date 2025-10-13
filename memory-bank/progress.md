@@ -75,6 +75,7 @@
 2. ✅ Removed listener pattern from AssertBuilder
 3. ✅ Made AssertionNode immutable
 4. ✅ Simplified API surface
+5. ✅ Mandatory assertion naming with two-stage pattern
 
 ### Test Coverage Status
 - **Overall**: 98%+
@@ -130,6 +131,10 @@
 **Decision**: Immutable nodes
 **Rationale**: Prevent state mutations, improve thread safety
 **Result**: More reliable, easier to debug
+
+**Decision**: Mandatory assertion naming
+**Rationale**: Improve debugging by requiring descriptive names for all assertions
+**Result**: Two-stage pattern (AssertionDraft → AssertionReady) ensures every assertion has a clear purpose
 
 ### v0.3.0 - Architecture Refinement
 **Decision**: Move symbol tracking to AssertionNode

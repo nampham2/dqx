@@ -99,7 +99,35 @@ suite = (
 )
 ```
 
-### 5. Strategy Pattern
+### 5. Two-Stage Builder Pattern
+**Used In**: Assertion creation (v0.4.0+)
+**Implementation**: Enforces mandatory properties through type system
+
+```python
+# Stage 1: AssertionDraft (requires name)
+draft = ctx.assert_that(mp.average("price"))
+
+# Stage 2: AssertionReady (all assertion methods available)
+ready = draft.where(name="Average price is positive", severity="P1")
+ready.is_positive()  # Creates AssertionNode
+```
+
+**Benefits**:
+- Compile-time safety for required properties
+- Clear error messages when name is missing
+- Better debugging with descriptive assertion names
+- Prevents unnamed assertions in production
+
+**Pattern Structure**:
+```
+AssertionDraft (incomplete)
+    ↓ .where(name=...) [required transition]
+AssertionReady (complete)
+    ↓ .is_gt(), .is_eq(), etc. [terminal operations]
+AssertionNode (immutable result)
+```
+
+### 6. Strategy Pattern
 **Used In**: Metric specifications and SQL operations
 **Implementation**: Each MetricSpec defines computation strategy
 
@@ -112,7 +140,7 @@ class MetricSpec(Protocol):
     def analyzers(self) -> Sequence[Op]: ...
 ```
 
-### 6. Observer Pattern
+### 7. Observer Pattern
 **Used In**: Symbol state management
 **Implementation**: AssertionNodes observe SymbolNode state changes
 

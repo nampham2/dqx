@@ -18,6 +18,22 @@
    - All properties set at construction time
    - Improved reliability and predictability
 
+4. **Breaking: Mandatory Assertion Naming**
+   - All assertions must now have descriptive names
+   - Two-stage pattern: `AssertionDraft` → `AssertionReady`
+   - Must call `.where(name="...")` before assertion methods
+   - Improves debugging and error clarity
+   - Example:
+     ```python
+     # Old (no longer valid):
+     ctx.assert_that(mp.average("price")).is_positive()
+
+     # New (required):
+     ctx.assert_that(mp.average("price")).where(
+         name="Average price is positive"
+     ).is_positive()
+     ```
+
 ### Active Development Areas
 
 #### 1. **Symbol Table System Refactoring**
