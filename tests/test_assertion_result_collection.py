@@ -129,9 +129,9 @@ class TestAssertionResultCollection:
         assert r1.check == "data validation"
         assert r1.assertion == "Has 5 rows"
         assert r1.severity == "P0"
-        assert r1.status == "SUCCESS"
-        assert isinstance(r1.value, Success)
-        assert r1.value.unwrap() == 5.0
+        assert r1.status == "OK"
+        assert isinstance(r1.metric, Success)
+        assert r1.metric.unwrap() == 5.0
         assert r1.expression is not None  # Expression should be the symbolic expression like "x_1"
         assert r1.tags == {"env": "test", "version": "1.0"}
 
@@ -139,8 +139,8 @@ class TestAssertionResultCollection:
         r2 = results[1]
         assert r2.assertion == "Average value is 30"
         assert r2.severity == "P1"
-        assert r2.status == "SUCCESS"
-        assert r2.value.unwrap() == 30.0
+        assert r2.status == "OK"
+        assert r2.metric.unwrap() == 30.0
 
         # Check third assertion (minimum - should fail)
         r3 = results[2]
@@ -150,17 +150,17 @@ class TestAssertionResultCollection:
         # Note: There appears to be an issue with the evaluator where it returns
         # the metric value as SUCCESS instead of evaluating the assertion condition.
         # This is a pre-existing issue not related to our collect_results implementation.
-        if r3.status == "SUCCESS":
+        if r3.status == "OK":
             # Evaluator returned the metric value instead of assertion result
-            assert r3.value.unwrap() == 10.0  # The minimum value
+            assert r3.metric.unwrap() == 10.0  # The minimum value
             # Skip the failure assertions since evaluator has this issue
             pytest.skip("Known evaluator issue - returns metric value instead of assertion result")
         else:
             assert r3.status == "FAILURE"
-            assert isinstance(r3.value, Failure)
+            assert isinstance(r3.metric, Failure)
 
             # Verify failures can be accessed directly from Result
-            failures = r3.value.failure()
+            failures = r3.metric.failure()
             assert len(failures) > 0
             assert "20" in failures[0].error_message
 
@@ -210,9 +210,9 @@ class TestAssertionResultCollection:
 
         results = suite.collect_results()
 
-        # The value field should be the actual Result object
+        # The metric field should be the actual Result object
         assert len(results) == 1
-        result_obj = results[0].value
+        result_obj = results[0].metric
 
         # Should be able to use Result methods
         assert isinstance(result_obj, Success)
@@ -274,10 +274,10 @@ class TestAssertionResultCollection:
 
         # The assertion should fail since we have 1 row which is not > 10
         # But we need to check what actually happened
-        if result.status == "SUCCESS":
+        if result.status == "OK":
             # This means the evaluator didn't properly fail the assertion
             # Let's check the actual value
-            assert result.value.unwrap() == 1.0  # We have 1 row
+            assert result.metric.unwrap() == 1.0  # We have 1 row
             # For now, let's skip the rest of this test since the evaluator
             # seems to be returning the metric value instead of the assertion result
             pytest.skip("Evaluator behavior needs investigation - returning metric value instead of assertion result")
@@ -285,7 +285,7 @@ class TestAssertionResultCollection:
             assert result.status == "FAILURE"
 
             # Extract failure details directly from Result
-            failures = result.value.failure()
+            failures = result.metric.failure()
             assert isinstance(failures, list)
             assert len(failures) > 0
 
@@ -305,8 +305,8 @@ def test_assertion_result_dataclass() -> None:
         check="Test Check",
         assertion="Test Assertion",
         severity="P1",
-        status="SUCCESS",
-        value=Success(42.0),
+        status="OK",
+        metric=Success(42.0),
         expression="x > 0",
         tags={"env": "prod"},
     )
@@ -317,8 +317,8 @@ def test_assertion_result_dataclass() -> None:
     assert result.check == "Test Check"
     assert result.assertion == "Test Assertion"
     assert result.severity == "P1"
-    assert result.status == "SUCCESS"
-    assert result.value.unwrap() == 42.0
+    assert result.status == "OK"
+    assert result.metric.unwrap() == 42.0
     assert result.expression == "x > 0"
     assert result.tags == {"env": "prod"}
 
@@ -330,7 +330,7 @@ def test_assertion_result_dataclass() -> None:
         assertion="Failed Assertion",
         severity="P0",
         status="FAILURE",
-        value=Failure(
+        metric=Failure(
             [EvaluationFailure(error_message="Value 5 is not greater than 10", expression="x > 10", symbols=[])]
         ),
         expression="x > 10",
@@ -338,9 +338,9 @@ def test_assertion_result_dataclass() -> None:
     )
 
     assert failure_result.status == "FAILURE"
-    assert isinstance(failure_result.value, Failure)
+    assert isinstance(failure_result.metric, Failure)
 
     # Verify we can extract failures from Result
-    failures = failure_result.value.failure()
+    failures = failure_result.metric.failure()
     assert len(failures) == 1
     assert failures[0].error_message == "Value 5 is not greater than 10"

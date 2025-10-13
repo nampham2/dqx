@@ -4,7 +4,7 @@ import functools
 import threading
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
-from typing import Any, Literal, Protocol, Self, cast, runtime_checkable
+from typing import Any, Protocol, Self, cast, runtime_checkable
 
 import sympy as sp
 
@@ -507,7 +507,6 @@ class VerificationSuite:
             raise DQXError("No ResultKey available. This should not happen after successful run().")
 
         # Import here to avoid circular imports
-        from returns.result import Failure, Success
 
         # Use the stored key
         key = self._key
@@ -518,20 +517,17 @@ class VerificationSuite:
             # Extract parent hierarchy
             check_node = assertion.parent  # Parent is always a CheckNode
 
-            # Use pattern matching for cleaner Result handling
-            status: Literal["SUCCESS", "FAILURE"]
-            match assertion._value:
-                case Success(_):
-                    status = "SUCCESS"
-                case Failure(_):
-                    status = "FAILURE"
-
-            # Create result record
             # Handle the case where assertion.name might be None (shouldn't happen with new API)
             assertion_name = assertion.name
             if assertion_name is None:
                 # This shouldn't happen with the new where() API, but handle it gracefully
                 assertion_name = f"Unnamed assertion ({str(assertion.actual)[:50]})"
+
+            # Construct full validation expression
+            if assertion.validator:
+                expression = f"{assertion.actual} {assertion.validator.name}"
+            else:
+                expression = str(assertion.actual)
 
             result = AssertionResult(
                 yyyy_mm_dd=key.yyyy_mm_dd,
@@ -539,9 +535,9 @@ class VerificationSuite:
                 check=check_node.name,
                 assertion=assertion_name,
                 severity=assertion.severity,
-                status=status,
-                value=assertion._value,
-                expression=str(assertion.actual),
+                status=assertion._result,  # Direct use of AssertionStatus
+                metric=assertion._metric,
+                expression=expression,
                 tags=key.tags,
             )
             results.append(result)

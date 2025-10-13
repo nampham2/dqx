@@ -236,20 +236,31 @@ class Evaluator:
     def visit(self, node: BaseNode) -> None:
         """Visit a node in the DQX graph and evaluate assertions.
 
-        Implements the visitor pattern for traversing the DQX computation graph.
-        When visiting an AssertionNode, evaluates its actual expression and stores
-        the result in the node's _value attribute. Other node types are passed
-        through without modification.
-
-        This method is synchronous and is called during graph traversal to compute
-        assertion values that will later be compared against expected values.
-
-        Args:
-            node: The graph node to visit. If it's an AssertionNode, its actual
-                  expression will be evaluated.
+        For AssertionNodes:
+        1. Evaluates the metric expression
+        2. Applies the validator function if metric succeeds
+        3. Stores both metric result and validation status
         """
         if isinstance(node, AssertionNode):
-            node._value = self.evaluate(node.actual)
+            # Evaluate the metric
+            node._metric = self.evaluate(node.actual)
+
+            # Apply validator to determine pass/fail
+            match node._metric:
+                case Success(value):
+                    if node.validator and node.validator.fn:
+                        try:
+                            # validator.fn returns True if assertion passes
+                            passed = node.validator.fn(value)
+                            node._result = "OK" if passed else "FAILURE"
+                        except Exception as e:
+                            raise DQXError(f"Validator execution failed: {str(e)}") from e
+                    else:
+                        # No validator means no validation - just checking if metric computes
+                        node._result = "OK"
+                case Failure(_):
+                    # If metric computation failed, assertion fails
+                    node._result = "FAILURE"
 
     async def visit_async(self, node: BaseNode) -> None:
         """Asynchronously visit a node in the DQX graph.

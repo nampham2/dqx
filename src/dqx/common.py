@@ -49,9 +49,9 @@ class AssertionResult:
         check: Name of the parent check
         assertion: Name of the assertion (always present, names are mandatory)
         severity: Priority level (P0, P1, P2, P3)
-        status: Either "SUCCESS" or "FAILURE"
-        value: The actual Result object containing value or errors
-        expression: String representation of the symbolic expression
+        status: Validation result ("OK" or "FAILURE")
+        metric: The metric computation result (Success with value or Failure with errors)
+        expression: Full validation expression (e.g., "average(price) > 0")
         tags: Tags from the ResultKey (e.g., {"env": "prod"})
     """
 
@@ -60,8 +60,8 @@ class AssertionResult:
     check: str
     assertion: str
     severity: SeverityLevel
-    status: Literal["SUCCESS", "FAILURE"]
-    value: Result[float, list[EvaluationFailure]]
+    status: AssertionStatus  # Uses the type we defined in Task 1
+    metric: Result[float, list[EvaluationFailure]]  # The metric computation result
     expression: str | None = None
     tags: Tags = field(default_factory=dict)
 
