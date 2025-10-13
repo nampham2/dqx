@@ -111,7 +111,6 @@ When asked to do something, just do it - including obvious follow-up actions nee
 - YOU MUST commit frequently throughout the development process, even if your high-level tasks are not yet done. Commit your journal entries.
 - NEVER SKIP, EVADE OR DISABLE A PRE-COMMIT HOOK. If there are problems with pre-commit hooks, fix and commit again.
 - NEVER use `git add -A` unless you've just done a `git status` - Don't add random test files to the repo.
-- YOU MUST USE commitizen tool (`cz` command) to generate commit. Please read README.md for more information about using `cz`.
 
 ## Testing
 
@@ -178,6 +177,8 @@ YOU MUST follow this debugging framework for ANY technical issue:
   - The project is managed with uv
   - Use `uv run` to run commands (python, pytest, ruff, mypy ...) in the virtual environment
   - The shell is zsh and not bash. Please generate proper bash scripts.
+  - YOU MUST NOT USE interactive shell commands.
+
 
 ## Code Style and best practices
   - Generated code should strictly follow best practices.
