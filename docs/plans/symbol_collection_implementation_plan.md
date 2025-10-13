@@ -135,7 +135,7 @@ symbol_info = SymbolInfo(
 symbol_info = SymbolInfo(
     name=str(sym),
     metric=str(sm.metric_spec),
-    dataset=sm.dataset or "",
+    dataset=sm.dataset,
     value=metric_result,
     yyyy_mm_dd=self.key.yyyy_mm_dd,
     suite=self.suite_name,
@@ -287,7 +287,7 @@ def collect_symbols(self) -> list[SymbolInfo]:
         symbol_info = SymbolInfo(
             name=str(symbolic_metric.symbol),
             metric=str(symbolic_metric.metric_spec),
-            dataset=symbolic_metric.dataset or "",
+            dataset=symbolic_metric.dataset,
             value=value,
             yyyy_mm_dd=self._key.yyyy_mm_dd,
             suite=self._name,
