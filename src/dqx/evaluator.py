@@ -155,10 +155,6 @@ class Evaluator:
             Failure containing a list of EvaluationFailure objects if any
             symbols fail to evaluate or if the result is NaN/infinity.
         """
-        # Convert to sympy expression if needed (handles boolean values)
-        if not isinstance(expr, sp.Basic):
-            expr = sp.sympify(expr)
-
         # Gather symbol values and information
         symbol_values, symbol_infos = self._gather(expr)
 

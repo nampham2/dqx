@@ -171,10 +171,6 @@ class DecoratedCheck(Protocol):
     def __call__(self, mp: MetricProvider, ctx: "Context") -> None: ...
 
 
-# Graph node state types
-GraphState = Literal["PENDING", "SUCCESS", "FAILED"]
-
-
 class Context:
     """
     Execution context for data quality checks containing the dependency graph and assertion utilities.
