@@ -225,7 +225,7 @@ Validator = Callable[[Any], bool]
 @dataclass
 class SymbolicValidator:
     name: str
-    fn: Validator | None = None
+    fn: Validator
 
 
 RetrievalFn = Callable[[ResultKey], Result[float, str]]
