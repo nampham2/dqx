@@ -206,11 +206,12 @@ class First(State):
         return self._value
 
     def serialize(self) -> bytes:
-        return msgpack.packb(self._value)
+        return msgpack.packb((self._value, self._is_identity))
 
     @classmethod
     def deserialize(cls, data: bytes) -> First:
-        return cls(value=msgpack.unpackb(data))
+        value, identity = msgpack.unpackb(data)
+        return cls(value=value, identity=identity)
 
     def merge(self, other: First) -> First:
         if self._is_identity:
