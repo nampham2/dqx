@@ -2,6 +2,7 @@
 
 import sympy as sp
 
+from dqx.common import SymbolicValidator
 from dqx.display import NodeFormatter
 from dqx.graph.base import BaseNode
 from dqx.graph.nodes import RootNode
@@ -39,25 +40,47 @@ def create_sample_graph() -> Graph:
 
     # Create order assertions using check's factory method
     order_count = sp.Symbol("order_count")
-    order_check.add_assertion(actual=order_count > 0, name="Orders exist")
+    order_check.add_assertion(
+        actual=order_count > 0, name="Orders exist", validator=SymbolicValidator("> 0", lambda x: x > 0)
+    )
 
     avg_order_value = sp.Symbol("avg_order_value")
-    order_check.add_assertion(actual=avg_order_value > 10, name="Average order value > $10")
-    order_check.add_assertion(actual=avg_order_value < 1000, name="Average order value < $1000")
+    order_check.add_assertion(
+        actual=avg_order_value > 10,
+        name="Average order value > $10",
+        validator=SymbolicValidator("> 10", lambda x: x > 10),
+    )
+    order_check.add_assertion(
+        actual=avg_order_value < 1000,
+        name="Average order value < $1000",
+        validator=SymbolicValidator("< 1000", lambda x: x < 1000),
+    )
 
     # Create customer assertions
     customer_count = sp.Symbol("customer_count")
-    customer_check.add_assertion(actual=customer_count > 0, name="Customers exist")
+    customer_check.add_assertion(
+        actual=customer_count > 0, name="Customers exist", validator=SymbolicValidator("> 0", lambda x: x > 0)
+    )
 
     email_nulls = sp.Symbol("email_nulls")
-    customer_check.add_assertion(actual=email_nulls == 0, name="No null emails")
+    customer_check.add_assertion(
+        actual=email_nulls == 0, name="No null emails", validator=SymbolicValidator("== 0", lambda x: x == 0)
+    )
 
     # Create revenue assertions
     daily_revenue = sp.Symbol("daily_revenue")
-    revenue_check.add_assertion(actual=daily_revenue > 10000, name="Daily revenue > $10k")
+    revenue_check.add_assertion(
+        actual=daily_revenue > 10000,
+        name="Daily revenue > $10k",
+        validator=SymbolicValidator("> 10000", lambda x: x > 10000),
+    )
 
     dod_change = sp.Symbol("dod_change")
-    revenue_check.add_assertion(actual=dod_change < 0.5, name="Day-over-day change < 50%")
+    revenue_check.add_assertion(
+        actual=dod_change < 0.5,
+        name="Day-over-day change < 50%",
+        validator=SymbolicValidator("< 0.5", lambda x: x < 0.5),
+    )
 
     return Graph(root)
 
