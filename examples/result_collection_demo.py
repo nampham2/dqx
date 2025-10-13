@@ -41,21 +41,29 @@ def print_results_table(results: list) -> None:
     # Calculate column widths
     check_width = max(len(r.check) for r in results) + 2
     assertion_width = max(len(r.assertion) for r in results) + 2
+    expression_width = 40  # For expression column
 
     # Print header
-    print("\n" + "=" * 100)
-    print(f"{'Check':<{check_width}} | {'Assertion':<{assertion_width}} | {'Sev':<5} | {'Status':<8} | {'Value/Error'}")
-    print("=" * 100)
+    print("\n" + "=" * 120)
+    print(
+        f"{'Check':<{check_width}} | {'Assertion':<{assertion_width}} | {'Sev':<5} | {'Status':<8} | {'Expression':<{expression_width}} | {'Value/Error'}"
+    )
+    print("=" * 120)
 
     # Print rows
     for result in results:
-        status_icon = "✅" if result.status == "SUCCESS" else "❌"
+        status_icon = "✅" if result.status == "OK" else "❌"
         status_text = f"{status_icon} {result.status}"
 
-        if result.status == "SUCCESS":
-            value_text = f"{result.value.unwrap():.2f}"
+        # Truncate expression if too long
+        expr = result.expression if result.expression else "N/A"
+        if len(expr) > expression_width - 2:
+            expr = expr[: expression_width - 5] + "..."
+
+        if result.status == "OK":
+            value_text = f"{result.metric.unwrap():.2f}"
         else:
-            failures = result.value.failure()
+            failures = result.metric.failure()
             if failures:
                 # Show the first error message
                 value_text = failures[0].error_message
@@ -74,10 +82,10 @@ def print_results_table(results: list) -> None:
                 value_text = "Unknown error"
 
         print(
-            f"{result.check:<{check_width}} | {result.assertion:<{assertion_width}} | {result.severity:<5} | {status_text:<8} | {value_text}"
+            f"{result.check:<{check_width}} | {result.assertion:<{assertion_width}} | {result.severity:<5} | {status_text:<8} | {expr:<{expression_width}} | {value_text}"
         )
 
-    print("=" * 100)
+    print("=" * 120)
 
 
 # Define data quality checks including scenarios that trigger metric calculation failures
@@ -196,9 +204,9 @@ def main() -> None:
 
     # Summary statistics
     print("\nSummary by Status:")
-    success_count = sum(1 for r in results if r.status == "SUCCESS")
+    success_count = sum(1 for r in results if r.status == "OK")
     failure_count = sum(1 for r in results if r.status == "FAILURE")
-    print(f"✅ SUCCESS: {success_count}")
+    print(f"✅ OK:      {success_count}")
     print(f"❌ FAILURE: {failure_count}")
     print(f"📊 Total:   {len(results)}")
 
@@ -207,7 +215,7 @@ def main() -> None:
     for severity in ["P0", "P1", "P2", "P3"]:
         sev_results = [r for r in results if r.severity == severity]
         if sev_results:
-            passed = sum(1 for r in sev_results if r.status == "SUCCESS")
+            passed = sum(1 for r in sev_results if r.status == "OK")
             failed = sum(1 for r in sev_results if r.status == "FAILURE")
             print(f"  {severity}: {passed} passed, {failed} failed")
 
@@ -216,7 +224,8 @@ def main() -> None:
     if failed_results:
         for r in failed_results:
             print(f"\n  ❌ {r.check} / {r.assertion} [{r.severity}]")
-            failures = r.value.failure()
+            print(f"     Expression: {r.expression}")
+            failures = r.metric.failure()
             for failure in failures:
                 print(f"     Error: {failure.error_message}")
                 if failure.symbols:
@@ -246,7 +255,7 @@ def main() -> None:
             "assertion": r.assertion,
             "severity": r.severity,
             "status": r.status,
-            "value": r.value.unwrap() if r.status == "SUCCESS" else None,
+            "value": r.metric.unwrap() if r.status == "OK" else None,
         }
         for r in results
     ]
