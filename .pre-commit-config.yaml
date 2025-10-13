@@ -74,6 +74,30 @@ repos:
         files: '\.(sh|bash)$'
         types: [shell]
 
+  # Python code formatting in documentation
+  - repo: https://github.com/asottile/blacken-docs
+    rev: 1.16.0
+    hooks:
+      - id: blacken-docs
+        name: blacken-docs - format Python in docs
+        additional_dependencies: [black==24.2.0]
+        args: ['--line-length=88']  # Match Black's default
+        files: '\.(md|rst|tex)$'
+        types: [text]
+
+  # YAML validation and linting
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.35.1
+    hooks:
+      - id: yamllint
+        name: yamllint - lint YAML files
+        args: [
+          '--config-data',
+          '{extends: default, rules: {line-length: {max: 120}, document-start: disable, truthy: disable, comments: {min-spaces-from-content: 1}}}'  # yamllint disable-line rule:line-length
+        ]
+        files: '\.(yaml|yml)$'
+        types: [yaml]
+
   # Local hooks that use our project's virtual environment
   - repo: local
     hooks:
