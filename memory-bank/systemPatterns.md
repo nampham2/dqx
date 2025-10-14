@@ -86,17 +86,15 @@ class GraphTraverser(NodeVisitor):
 ```
 
 ### 4. Direct Construction Pattern
-**Used In**: Verification suite construction (simplified in v0.5.0+)
+**Used In**: Verification suite construction (v0.5.0+)
 **Implementation**: Direct instantiation with all parameters
 
 ```python
-# Direct instantiation - no builder pattern needed
-suite = VerificationSuite(
-    [check1, check2, check3], db, "Suite Name", tags=["production", "critical"]
-)
+# Direct instantiation - the only way to create suites
+suite = VerificationSuite([check1, check2, check3], db, "Suite Name")
 ```
 
-**History**: The VerificationSuiteBuilder was removed in v0.5.0 as it added unnecessary complexity without significant benefits. Direct construction provides a cleaner, more maintainable API.
+**History**: The VerificationSuiteBuilder was removed in v0.5.0 as it added unnecessary complexity without significant benefits. Direct construction is now the only way to create verification suites, providing a cleaner, more maintainable API. The suite no longer accepts tags parameter - tags are now associated with individual checks.
 
 ### 5. Two-Stage Builder Pattern
 **Used In**: Assertion creation (v0.4.0+)

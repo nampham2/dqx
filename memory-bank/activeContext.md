@@ -2,7 +2,22 @@
 
 ## Current Work Focus
 
-### Recent Major Changes (v0.4.0)
+### Recent Major Changes (v0.5.0)
+1. **Removed VerificationSuiteBuilder**
+   - Direct instantiation is now the only way to create suites
+   - Simplified API without losing functionality
+   - Tags parameter removed from suite level (now only on checks)
+   - Example:
+     ```python
+     # Old (removed):
+     builder = VerificationSuiteBuilder().with_checks([check1, check2])
+     suite = builder.build(db, "Suite Name")
+
+     # Current (v0.5.0):
+     suite = VerificationSuite([check1, check2], db, "Suite Name")
+     ```
+
+### Previous Major Changes (v0.4.0)
 1. **Breaking: Removed Assertion Chaining**
    - Assertions now return None instead of AssertBuilder
    - Each assertion is completely independent
@@ -36,19 +51,25 @@
 
 ### Active Development Areas
 
-#### 1. **Symbol Table System Refactoring**
+#### 1. **API Simplification Initiative**
+- Successfully removed VerificationSuiteBuilder in v0.5.0
+- Direct instantiation provides cleaner interface
+- Continuing to identify and remove unnecessary abstractions
+- Focus on developer experience and API clarity
+
+#### 2. **Symbol Table System Refactoring**
 - Recently eliminated redundancy in SymbolEntry
 - Now uses @property decorators for computed fields
 - Single source of truth: SymbolicMetric.dependencies
 - Maintained backward compatibility
 
-#### 2. **Graph Architecture Improvements**
+#### 3. **Graph Architecture Improvements**
 - Moved symbol tracking from CheckNode to AssertionNode
 - CheckNode now focuses purely on aggregating assertion results
 - Enhanced observer pattern for symbol state changes
 - Better separation of concerns
 
-#### 3. **Test Coverage Initiative**
+#### 4. **Test Coverage Initiative**
 - Achieved 100% coverage for:
   - graph.py module
   - display.py module

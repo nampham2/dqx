@@ -333,13 +333,14 @@
 
 ## Summary
 
-DQX has successfully established itself as a high-performance data quality framework with a solid foundation. The recent v0.4.0 release simplified the API significantly, making it more approachable while maintaining power. The project is well-positioned for growth with clear technical direction and strong fundamentals.
+DQX has successfully established itself as a high-performance data quality framework with a solid foundation. The v0.4.0 release simplified the API significantly with mandatory assertion naming and removal of chaining. The recent v0.5.0 release continued this simplification by removing the VerificationSuiteBuilder, making the API even more approachable while maintaining power. The project is well-positioned for growth with clear technical direction and strong fundamentals.
 
 Key achievements:
 - Production-ready core functionality
 - Excellent test coverage
 - Strong performance characteristics
 - Clear architectural patterns
+- Successful API simplification (v0.4.0 and v0.5.0)
 
 Key challenges:
 - Streaming support implementation
