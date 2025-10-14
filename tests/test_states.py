@@ -395,3 +395,42 @@ def test_equality_with_different_types() -> None:
     assert sketch != "not a state"
     assert sketch != 42
     assert sketch != avg
+
+
+def test_duplicate_count_state() -> None:
+    # Test basic functionality
+    state = states.DuplicateCount(value=42.0)
+    assert state.value == 42.0
+
+    # Test identity raises error with descriptive message
+    with pytest.raises(states.DQXError, match="DuplicateCount state does not support identity"):
+        states.DuplicateCount.identity()
+
+    # Test serialization
+    serialized = state.serialize()
+    deserialized = states.DuplicateCount.deserialize(serialized)
+    assert deserialized.value == 42.0
+    assert state == deserialized
+
+    # Test copy
+    copied = copy(state)
+    assert copied.value == 42.0
+    assert copied == state
+
+    # Test merge raises error with descriptive message
+    state1 = states.DuplicateCount(value=10.0)
+    state2 = states.DuplicateCount(value=20.0)
+
+    with pytest.raises(states.DQXError, match="DuplicateCount state cannot be merged"):
+        state1.merge(state2)
+
+
+def test_duplicate_count_state_equality() -> None:
+    state1 = states.DuplicateCount(value=42.0)
+    state2 = states.DuplicateCount(value=42.0)
+    state3 = states.DuplicateCount(value=43.0)
+
+    assert state1 == state2
+    assert state1 != state3
+    assert state1 != "not a state"
+    assert state1 != 42

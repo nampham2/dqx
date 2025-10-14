@@ -328,3 +328,50 @@ class CardinalitySketch(SketchState):
 
     def __copy__(self) -> CardinalitySketch:
         return CardinalitySketch(sketch=copy(self._sketch))
+
+
+class DuplicateCount(State):
+    """Non-mergeable state for duplicate count metrics.
+
+    Duplicate counts cannot be merged across partitions because the same
+    value might appear in multiple partitions, leading to incorrect counts.
+
+    This state does not support identity or merge operations.
+    """
+
+    def __init__(self, value: float) -> None:
+        self._value = float(value)
+
+    @classmethod
+    def identity(cls) -> DuplicateCount:
+        raise DQXError(
+            "DuplicateCount state does not support identity. "
+            "Duplicate counts must be computed on the entire dataset in a single pass "
+            "because counts from different partitions cannot be accurately merged."
+        )
+
+    @property
+    def value(self) -> float:
+        return self._value
+
+    def serialize(self) -> bytes:
+        return msgpack.packb(self._value)
+
+    @classmethod
+    def deserialize(cls, data: bytes) -> DuplicateCount:
+        return cls(value=msgpack.unpackb(data))
+
+    def merge(self, other: DuplicateCount) -> DuplicateCount:
+        raise DQXError(
+            "DuplicateCount state cannot be merged across partitions. "
+            "Example: partition1=[A,A,B] and partition2=[B,C,C] would give incorrect results if merged. "
+            "The metric must be computed on the entire dataset in a single pass."
+        )
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, DuplicateCount):
+            return False
+        return self.serialize() == other.serialize()
+
+    def __copy__(self) -> DuplicateCount:
+        return DuplicateCount(value=self._value)

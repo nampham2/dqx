@@ -16,6 +16,7 @@ MetricType = Literal[
     "NullCount",
     "NegativeCount",
     "ApproxCardinality",
+    "DuplicateCount",
 ]
 
 
@@ -421,6 +422,49 @@ class ApproxCardinality:
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, ApproxCardinality):
+            return False
+        return self.name == other.name and self.parameters == other.parameters
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class DuplicateCount:
+    metric_type: MetricType = "DuplicateCount"
+
+    def __init__(self, columns: list[str]) -> None:
+        if not columns:
+            raise ValueError("At least one column must be specified")
+        # Sort columns for consistent behavior
+        self._columns = sorted(columns)
+        self._analyzers = (ops.DuplicateCount(self._columns),)
+
+    @property
+    def name(self) -> str:
+        columns_str = ",".join(self._columns)
+        return f"duplicate_count({columns_str})"
+
+    @property
+    def parameters(self) -> Parameters:
+        return {"columns": self._columns}
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return self._analyzers
+
+    def state(self) -> states.DuplicateCount:
+        return states.DuplicateCount(value=self._analyzers[0].value())
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.DuplicateCount.deserialize(state)
+
+    def __hash__(self) -> int:
+        # Convert the columns list to a tuple for hashing
+        return hash((self.name, tuple(self._columns)))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, DuplicateCount):
             return False
         return self.name == other.name and self.parameters == other.parameters
 

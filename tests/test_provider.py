@@ -400,6 +400,38 @@ class TestMetricProvider:
             mock_metric.assert_called_once_with(mock_spec, ANY, None)
             assert result == sp.Symbol("x_1")
 
+    @patch("dqx.provider.specs.DuplicateCount")
+    def test_duplicate_count(self, mock_duplicate_count: Mock, provider: MetricProvider) -> None:
+        """Test duplicate_count() method."""
+        mock_spec = Mock()
+        mock_duplicate_count.return_value = mock_spec
+        columns = ["col1", "col2"]
+
+        with patch.object(provider, "metric") as mock_metric:
+            mock_metric.return_value = sp.Symbol("x_1")
+
+            result = provider.duplicate_count(columns)
+
+            mock_duplicate_count.assert_called_once_with(columns)
+            mock_metric.assert_called_once_with(mock_spec, ANY, None)
+            assert result == sp.Symbol("x_1")
+
+    def test_duplicate_count_integration(self, provider: MetricProvider) -> None:
+        """Test duplicate_count() method integration."""
+        columns = ["user_id", "session_id"]
+
+        symbol = provider.duplicate_count(columns)
+
+        assert isinstance(symbol, sp.Symbol)
+
+        # Check that the symbol was registered
+        registered_metric = provider.get_symbol(symbol)
+        assert registered_metric.name == "duplicate_count(session_id,user_id)"  # Should be sorted
+        assert isinstance(registered_metric.key_provider, ResultKeyProvider)
+        assert registered_metric.dataset is None
+        assert isinstance(registered_metric.metric_spec, specs.DuplicateCount)
+        assert registered_metric.metric_spec.parameters == {"columns": ["session_id", "user_id"]}
+
 
 class TestExtendedMetricProvider:
     """Test the ExtendedMetricProvider class."""

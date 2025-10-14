@@ -1,7 +1,7 @@
 import inspect
 from unittest.mock import Mock, patch
 
-from dqx import specs, states, ops
+from dqx import ops, specs, states
 
 
 class TestMetricSpec:
@@ -692,6 +692,7 @@ class TestBuildRegistry:
             "NullCount",
             "ApproxCardinality",
             "Variance",
+            "DuplicateCount",
         }
         assert set(result.keys()) == expected_types
 
@@ -789,6 +790,7 @@ class TestRegistry:
             "NullCount",
             "ApproxCardinality",
             "Variance",
+            "DuplicateCount",
         }
         assert set(specs.registry.keys()) == expected_types
 
