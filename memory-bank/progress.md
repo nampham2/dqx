@@ -7,19 +7,22 @@
    - Dependency resolution and execution planning
    - Automatic metric deduplication
    - Clear parent-child relationships with type safety
+   - Defensive graph property access (new)
    - 100% test coverage for graph.py
 
 2. **Declarative API**
    - Intuitive check decorator system
-   - Fluent assertion interface (now without chaining)
+   - Fluent assertion interface with mandatory naming
    - Direct suite instantiation (builder pattern removed in v0.5.0)
    - Comprehensive error messages
+   - Integrated validation in build_graph()
 
 3. **Metric Computation**
    - Basic statistics: avg, sum, min, max, variance, first
-   - Data quality: null_count, approx_cardinality
+   - Data quality: null_count, approx_cardinality, duplicate_count
    - Negative value counting
    - Time-based comparisons with lag()
+   - Extension methods for day-over-day calculations
 
 4. **SQL Generation**
    - Dynamic SQL with dialect support
@@ -45,6 +48,12 @@
    - Pre-commit hooks configured
    - Type checking with mypy
 
+8. **API Improvements (Latest)**
+   - Defensive graph property with _graph_built flag
+   - Renamed collect() to build_graph() for clarity
+   - Removed validate() method - validation integrated into build_graph()
+   - Clear error messages for improper graph access
+
 ## What's Being Built
 
 ### In Active Development 🚧
@@ -66,9 +75,16 @@
 
 ## Current Status
 
-### Version: 0.5.0
-**Released**: Current
-**Type**: API simplification
+### Version: 0.5.0+
+**Released**: October 2025
+**Type**: API refinement and defensive programming
+
+### Latest Changes (October 14, 2025)
+1. ✅ Implemented defensive graph property access
+2. ✅ Renamed collect() to build_graph()
+3. ✅ Removed validate() method - validation now automatic
+4. ✅ Updated all tests and documentation
+5. ✅ Added _graph_built flag for state tracking
 
 ### Changes in v0.5.0
 1. ✅ Removed VerificationSuiteBuilder class
@@ -97,6 +113,7 @@
 - ✅ Detailed design document
 - ✅ API documentation
 - ✅ Migration examples
+- ✅ Updated for latest graph improvements
 - 🚧 Video tutorials (planned)
 
 ## Known Issues
@@ -121,10 +138,24 @@
 1. ✅ **RESOLVED**: Removed legacy .sql property
 2. ✅ **RESOLVED**: Separated display logic from graph
 3. ✅ **RESOLVED**: Optimized analyzer deduplication
-4. 🚧 **ACTIVE**: Improving error message clarity
-5. 📋 **PLANNED**: Query plan optimization
+4. ✅ **RESOLVED**: Improved graph access patterns
+5. 🚧 **ACTIVE**: Improving error message clarity
+6. 📋 **PLANNED**: Query plan optimization
 
 ## Evolution of Project Decisions
+
+### v0.5.0+ - Defensive Programming
+**Decision**: Add defensive graph property access
+**Rationale**: Prevent access to unbuilt graphs, guide users to proper usage
+**Result**: Clearer API contract, better error messages
+
+**Decision**: Rename collect() to build_graph()
+**Rationale**: Better describes what the method does
+**Result**: More intuitive API
+
+**Decision**: Remove validate() method
+**Rationale**: Validation should happen automatically, not as separate step
+**Result**: Simpler workflow, impossible to skip validation
 
 ### v0.5.0 - Further Simplification
 **Decision**: Remove VerificationSuiteBuilder
@@ -224,6 +255,7 @@
 2. **Graph architecture**: Efficient and clear
 3. **Statistical sketches**: Memory efficiency achieved
 4. **Breaking changes**: Sometimes necessary for progress
+5. **Defensive programming**: Prevents misuse, guides users
 
 ### What Didn't Work
 1. **Assertion chaining**: Confused users about evaluation
@@ -231,12 +263,14 @@
 3. **Mutable nodes**: Led to subtle bugs
 4. **Complex error messages**: Need simplification
 5. **VerificationSuiteBuilder**: Unnecessary abstraction layer
+6. **Separate validate() method**: Extra step users could forget
 
 ### Key Insights
 1. **Simplicity wins**: Users prefer clear over clever
 2. **Performance matters**: Sub-second response is critical
 3. **Type safety helps**: Catches bugs early
 4. **Documentation crucial**: Good docs reduce support burden
+5. **Defensive design**: Prevent misuse through API design
 
 ## Future Experiments
 
@@ -268,6 +302,7 @@
 2. Graph-based visualization
 3. Time-travel comparisons
 4. Statistical sketching
+5. Clear API with good error messages
 
 ### Feature Requests
 1. Real-time streaming support
@@ -292,15 +327,16 @@
 - 100% test coverage on core modules
 - Sub-second performance on TB datasets
 - Zero data loss incidents
-- Successful breaking change migration
+- Successful breaking change migrations (v0.4.0, v0.5.0)
+- Clean API evolution with defensive patterns
 
 ## Next Actions
 
 ### Immediate (This Week)
-1. Monitor v0.5.0 adoption and issues
-2. ✅ Updated all examples for builder removal
-3. ✅ Updated documentation for direct instantiation
-4. Address any critical bugs from the simplification
+1. Monitor latest graph improvements adoption
+2. Address any issues from defensive programming changes
+3. Continue improving error messages
+4. Document new patterns in examples
 
 ### Short Term (This Month)
 1. Begin streaming prototype
@@ -321,9 +357,11 @@
 - Active development pace
 - Clear architectural vision
 - Strong performance metrics
+- Clean API evolution
+- Good defensive programming patterns
 
 ### Yellow Flags 🟡
-- Documentation needs updates
+- Documentation needs continuous updates
 - Some technical debt remains
 - Limited community contributions
 - UI development not started
@@ -333,14 +371,22 @@
 
 ## Summary
 
-DQX has successfully established itself as a high-performance data quality framework with a solid foundation. The v0.4.0 release simplified the API significantly with mandatory assertion naming and removal of chaining. The recent v0.5.0 release continued this simplification by removing the VerificationSuiteBuilder, making the API even more approachable while maintaining power. The project is well-positioned for growth with clear technical direction and strong fundamentals.
+DQX has successfully established itself as a high-performance data quality framework with a solid foundation. The recent improvements to the VerificationSuite API demonstrate the project's commitment to usability and defensive programming:
+
+- **Defensive graph access**: Prevents misuse with clear error messages
+- **Renamed methods**: build_graph() is more intuitive than collect()
+- **Integrated validation**: No separate validate() step to forget
+- **Clean API evolution**: Each version improves on the last
+
+The project continues to evolve based on user feedback and technical insights, with a focus on maintaining simplicity while adding powerful features.
 
 Key achievements:
 - Production-ready core functionality
 - Excellent test coverage
 - Strong performance characteristics
 - Clear architectural patterns
-- Successful API simplification (v0.4.0 and v0.5.0)
+- Successful API simplifications (v0.4.0, v0.5.0, and latest)
+- Defensive programming patterns
 
 Key challenges:
 - Streaming support implementation
@@ -348,4 +394,4 @@ Key challenges:
 - Community growth
 - Enterprise features
 
-The project continues to evolve based on user feedback and technical insights, with a focus on maintaining simplicity while adding powerful features.
+The project is well-positioned for growth with clear technical direction and strong fundamentals. The recent defensive programming improvements show maturity in API design and user experience considerations.
