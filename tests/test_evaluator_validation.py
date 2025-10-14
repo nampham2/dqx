@@ -262,7 +262,7 @@ class TestValidationExpressions:
         suite._context.provider._symbol_index = {}
 
         # Run collection phase
-        suite.collect(suite._context, ResultKey(yyyy_mm_dd=datetime.date.today(), tags={}))
+        suite.build_graph(suite._context, ResultKey(yyyy_mm_dd=datetime.date.today(), tags={}))
 
         # Get the assertion node
         assertions = list(suite._context._graph.assertions())

@@ -55,7 +55,7 @@ def test_assertion_methods_return_none() -> None:
     # Set up suite with the check
     suite = VerificationSuite([test_check], db, "test")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.collect(context, key=key)
+    suite.build_graph(context, key=key)
 
 
 def test_no_assertion_chaining() -> None:
@@ -75,7 +75,7 @@ def test_no_assertion_chaining() -> None:
     # Set up suite and run check
     suite = VerificationSuite([test_check], db, "test")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.collect(context, key=key)
+    suite.build_graph(context, key=key)
 
 
 def test_multiple_assertions_on_same_metric() -> None:
@@ -102,7 +102,7 @@ def test_multiple_assertions_on_same_metric() -> None:
 
     suite = VerificationSuite([test_check], db, "test")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.collect(context, key=key)
+    suite.build_graph(context, key=key)
 
 
 def test_simple_check_uses_function_name() -> None:
@@ -142,7 +142,7 @@ def test_simple_check_works_in_suite() -> None:
     # Collect checks (this is where it would fail with NameError)
     context = Context("test", db)
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.collect(context, key)
+    suite.build_graph(context, key)
 
     # Verify the check was registered correctly
     checks = list(context._graph.root.children)
@@ -194,7 +194,7 @@ def test_check_decorator_with_name_works() -> None:
     # Verify it can be collected
     context = Context("test", db)
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.collect(context, key)
+    suite.build_graph(context, key)
 
     # Verify the check was registered with the correct name
     checks = list(context._graph.root.children)
@@ -275,7 +275,7 @@ def test_assertion_workflow_end_to_end() -> None:
 
     suite = VerificationSuite([test_check], db, "test")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.collect(context, key=key)
+    suite.build_graph(context, key=key)
 
 
 def test_cannot_use_assertion_methods_on_draft() -> None:
@@ -323,7 +323,7 @@ def test_assertion_ready_always_has_name() -> None:
 
     suite = VerificationSuite([test_check], db, "test")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.collect(context, key=key)
+    suite.build_graph(context, key=key)
 
 
 def test_where_validates_name() -> None:

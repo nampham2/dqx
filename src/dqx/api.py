@@ -342,7 +342,7 @@ class VerificationSuite:
             >>> print(f"Graph has {len(list(graph.checks()))} checks")
         """
         if not self._graph_built:
-            raise DQXError("Graph not built yet. Call collect() or run() first to build the dependency graph.")
+            raise DQXError("Graph not built yet. Call build_graph() or run() first to build the dependency graph.")
         return self._context._graph
 
     @property
@@ -374,25 +374,35 @@ class VerificationSuite:
         # Run validation on the graph using the same provider that was used to register symbols
         return self._validator.validate(temp_context._graph, self.provider)
 
-    def collect(self, context: Context, key: ResultKey) -> None:
+    def build_graph(self, context: Context, key: ResultKey) -> None:
         """
-        Collect all checks and build the dependency graph without executing analysis.
+        Build the dependency graph by executing all checks without running analysis.
+
+        This method:
+        1. Executes all check functions to populate the graph with assertions
+        2. Validates the graph structure for errors or warnings
+        3. Raises DQXError if validation fails
+        4. Sets the _graph_built flag to True
 
         Args:
-            key: The result key defining the time period and tags for analysis
-
-        Returns:
-            Context containing the collected checks and dependency graph
+            context: The execution context containing the graph
+            key: The result key defining the time period and tags
 
         Raises:
-            DQXError: If check collection fails or duplicate checks are found
+            DQXError: If validation fails or duplicate checks are found
+
+        Example:
+            >>> suite = VerificationSuite(checks, db, "My Suite")
+            >>> key = ResultKey(date.today(), {"env": "prod"})
+            >>> suite.build_graph(suite._context, key)
         """
         # Execute all checks to collect assertions
         for check in self._checks:
             check(self.provider, context)
 
-        # Run validation
-        report = self._validator.validate(context._graph, context.provider)
+        # Create validator locally instead of using instance attribute
+        validator = SuiteValidator()
+        report = validator.validate(context._graph, context.provider)
 
         # Only raise on errors, log warnings
         if report.has_errors():
@@ -402,22 +412,6 @@ class VerificationSuite:
 
         # Mark graph as built
         self._graph_built = True
-
-    def build_graph(self, context: Context, key: ResultKey) -> None:
-        """
-        Build the dependency graph (alias for collect).
-
-        This method is a simple alias for collect() to provide a more
-        descriptive name for the graph building operation.
-
-        Args:
-            context: The context to use for building the graph
-            key: The result key defining the time period and tags
-
-        Raises:
-            DQXError: If graph building fails
-        """
-        self.collect(context, key)
 
     def run(self, datasources: dict[str, SqlDataSource], key: ResultKey, threading: bool = False) -> None:
         """
@@ -448,8 +442,8 @@ class VerificationSuite:
         self._key = key
 
         # Build the dependency graph
-        logger.info("Collecting checks and building dependency graph...")
-        self.collect(self._context, key)
+        logger.info("Building dependency graph...")
+        self.build_graph(self._context, key)
 
         # 1. Impute datasets using visitor pattern
         logger.info("Imputing datasets...")

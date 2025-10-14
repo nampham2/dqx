@@ -10,8 +10,8 @@ from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
 
 
-def test_suite_validation_on_collect_success() -> None:
-    """Test that validation runs during collect with valid suite."""
+def test_suite_validation_on_build_graph_success() -> None:
+    """Test that validation runs during build_graph with valid suite."""
     db = InMemoryMetricDB()
 
     @check(name="Valid Check 1")
@@ -25,10 +25,10 @@ def test_suite_validation_on_collect_success() -> None:
     suite = VerificationSuite([check1, check2], db, "Valid Suite")
 
     # Should not raise any errors
-    suite.collect(suite._context, ResultKey(date(2024, 1, 1), {"test": "true"}))
+    suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {"test": "true"}))
 
 
-def test_suite_validation_on_collect_failure() -> None:
+def test_suite_validation_on_build_graph_failure() -> None:
     """Test that validation fails with duplicate check names."""
     db = InMemoryMetricDB()
 
@@ -44,7 +44,7 @@ def test_suite_validation_on_collect_failure() -> None:
 
     # Should raise DQXError with validation message
     with pytest.raises(DQXError) as exc_info:
-        suite.collect(suite._context, ResultKey(date(2024, 1, 1), {"test": "true"}))
+        suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {"test": "true"}))
 
     assert "validation failed" in str(exc_info.value).lower()
     assert "Duplicate check name" in str(exc_info.value)
@@ -62,7 +62,7 @@ def test_suite_validation_warnings_logged() -> None:
 
     # Should not raise error even with warnings
     # The warning will be logged to stderr but won't cause failure
-    suite.collect(suite._context, ResultKey(date(2024, 1, 1), {"test": "true"}))
+    suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {"test": "true"}))
 
     # If we got here without exception, the test passed
     # The warning was logged but didn't cause failure

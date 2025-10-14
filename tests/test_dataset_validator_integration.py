@@ -105,8 +105,8 @@ def test_verification_suite_no_validation_without_datasets() -> None:
     assert not report.has_errors()
 
 
-def test_verification_suite_collect_validates_datasets() -> None:
-    """Test that collect method also validates datasets."""
+def test_verification_suite_build_graph_validates_datasets() -> None:
+    """Test that build_graph method also validates datasets."""
     db = InMemoryMetricDB()
 
     @check(name="Price Check", datasets=["production"])
@@ -117,9 +117,9 @@ def test_verification_suite_collect_validates_datasets() -> None:
 
     suite = VerificationSuite([price_check], db, "Test Suite")
 
-    # Collect should fail validation
+    # Build graph should fail validation
     with pytest.raises(DQXError) as exc_info:
-        suite.collect(suite._context, ResultKey(date(2024, 1, 1), {}))
+        suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {}))
 
     assert "testing" in str(exc_info.value)
 
