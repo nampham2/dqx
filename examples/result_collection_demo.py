@@ -7,7 +7,7 @@ import pyarrow as pa
 import sympy as sp
 from returns.result import Failure, Success
 
-from dqx.api import Context, MetricProvider, VerificationSuiteBuilder, check
+from dqx.api import Context, MetricProvider, VerificationSuite, check
 from dqx.common import ResultKey
 from dqx.extensions.pyarrow_ds import ArrowDataSource
 from dqx.orm.repositories import InMemoryMetricDB
@@ -176,15 +176,17 @@ def main() -> None:
     """Run the demo."""
     # Setup
     db = InMemoryMetricDB()
-    suite = (
-        VerificationSuiteBuilder("E-commerce Data Quality with Failures", db)
-        .add_check(basic_validations)
-        .add_check(validation_failures)
-        .add_check(calculation_failures)
-        .add_check(division_operations)
-        .add_check(complex_operations)
-        .add_check(database_failures)
-        .build()
+    suite = VerificationSuite(
+        [
+            basic_validations,
+            validation_failures,
+            calculation_failures,
+            division_operations,
+            complex_operations,
+            database_failures,
+        ],
+        db,
+        "E-commerce Data Quality with Failures",
     )
 
     # Mock some metrics to fail with database errors

@@ -35,7 +35,7 @@ graph TB
     subgraph "User Interface Layer"
         API[Verification API]
         Check[Check Decorator]
-        Builder[Suite Builder]
+        Suite[VerificationSuite]
     end
 
     subgraph "Orchestration Layer"
@@ -63,7 +63,7 @@ graph TB
 
     API --> Suite
     Check --> Context
-    Builder --> Suite
+    API --> Suite
 
     Suite --> Graph
     Suite --> Provider
@@ -150,12 +150,10 @@ The API layer provides the user-facing interface with several key components:
 ```mermaid
 graph TB
     Suite[VerificationSuite]
-    Builder[VerificationBuilder]
     Context[Context]
     Assert[SymbolicAssert]
     States[GraphStates]
 
-    Builder --> Suite
     Suite --> Context
     Context --> Assert
     Context --> States
@@ -713,16 +711,13 @@ class GraphTraverser(NodeVisitor):
         pass
 ```
 
-### 3. Builder Pattern
-Used for constructing verification suites:
+### 3. Direct Instantiation Pattern
+Used for constructing verification suites with direct instantiation:
 ```python
-suite = (
-    VerificationSuiteBuilder("Suite Name", db)
-    .add_check(check1)
-    .add_checks([check2, check3])
-    .build()
-)
+suite = VerificationSuite([check1, check2, check3], db, "Suite Name")
 ```
+
+This approach is simpler than the builder pattern as it directly creates the suite with all necessary parameters.
 
 ### 4. Strategy Pattern
 Metric specifications act as strategies for computing different metrics:
@@ -1129,13 +1124,11 @@ def validate_orders(mp: MetricProvider, ctx: Context) -> None:
 ### 2. Suite Building API
 
 ```python
-# Builder pattern for suite construction
-suite = (
-    VerificationSuiteBuilder("Production Suite", db)
-    .add_check(validate_orders)
-    .add_check(validate_customers)
-    .add_checks([check_inventory, check_shipping])
-    .build()
+# Direct instantiation of verification suite
+suite = VerificationSuite(
+    [validate_orders, validate_customers, check_inventory, check_shipping],
+    db,
+    "Production Suite",
 )
 
 # Run verification
@@ -1301,13 +1294,11 @@ While the current implementation treats all severities equally for failure propa
 3. **Suite-Level Policies**
    ```python
    # Hypothetical future API
-   suite = (
-       VerificationSuiteBuilder("Production Suite", db)
-       .with_failure_policy(
-           fail_on=["P0", "P1"],  # Only fail suite on P0/P1
-           warn_on=["P2", "P3"],  # Generate warnings for P2/P3
-       )
-       .build()
+   suite = VerificationSuite(
+       [], db, "Production Suite"  # checks would be added here
+   ).with_failure_policy(
+       fail_on=["P0", "P1"],  # Only fail suite on P0/P1
+       warn_on=["P2", "P3"],  # Generate warnings for P2/P3
    )
    ```
 
@@ -1320,7 +1311,7 @@ While the current implementation treats all severities equally for failure propa
 ### Example 1: E-commerce Data Quality
 
 ```python
-from dqx.api import VerificationSuiteBuilder, check
+from dqx.api import VerificationSuite, check
 from dqx.extensions.pyarrow_ds import ArrowDataSource
 from dqx.orm.repositories import MetricDB
 from dqx.common import ResultKey
@@ -1385,12 +1376,10 @@ def monitor_revenue_trends(mp, ctx):
 # Create and run the suite
 db = MetricDB("postgresql://user:pass@localhost/metrics")
 
-suite = (
-    VerificationSuiteBuilder("E-commerce Quality Suite", db)
-    .add_check(check_order_integrity)
-    .add_check(check_customer_data)
-    .add_check(monitor_revenue_trends)
-    .build()
+suite = VerificationSuite(
+    [check_order_integrity, check_customer_data, monitor_revenue_trends],
+    db,
+    "E-commerce Quality Suite",
 )
 
 # Load data

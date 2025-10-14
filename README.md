@@ -1,274 +1,308 @@
 # DQX - Data Quality eXcellence
 
-A high-performance, scalable data quality framework built on DuckDB and PyArrow for fast, efficient data validation and monitoring.
+[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-## 🚀 Features
+> High-performance data quality framework built on DuckDB and PyArrow for sub-second query performance at scale.
 
-- **Blazing Fast**: Powered by DuckDB's analytical engine for sub-second query performance
-- **Memory Efficient**: Statistical sketching algorithms (HyperLogLog, DataSketches) for large datasets
-- **Declarative API**: Intuitive symbolic expressions for data quality checks
-- **Batch Processing**: Multi-threaded analysis with configurable chunks for TB-scale data
-- **Dependency Graph**: Smart execution planning with automatic metric deduplication
-- **Extensible**: Plugin architecture for custom metrics and data sources
-- **Production Ready**: Built-in persistence, comprehensive error handling, and detailed failure messages
+## 🌟 Features
 
-## 📦 Installation
+- **Lightning Fast**: Sub-second query performance on large datasets using DuckDB
+- **Symbolic Assertions**: Write data quality checks as mathematical expressions
+- **Graph-Based Execution**: Intelligent dependency resolution and optimization
+- **Statistical Sketches**: Memory-efficient approximate computations for massive datasets
+- **Multi-Dataset Support**: Validate and compare data across multiple sources
+- **Time Travel**: Compare metrics across different time periods
+- **Built-in Persistence**: Store metrics history in any SQL database
+- **100% Test Coverage**: Comprehensive test suite ensuring reliability
+
+## 🚀 Quick Start
+
+### Installation
 
 ```bash
-# Clone the repository
-git clone git@gitlab.booking.com:npham/dqx.git
-cd dqx
-
-# Install with uv (recommended)
-uv sync
-
-# Or with pip
-pip install -e .
+pip install dqx
 ```
 
-### Requirements
-
-- Python 3.11 or 3.12
-- Dependencies are automatically installed, including:
-  - DuckDB ≥ 1.3.2 (analytical engine)
-  - PyArrow ≥ 21.0.0 (columnar data processing)
-  - DataSketches ≥ 5.2.0 (probabilistic data structures)
-  - SymPy ≥ 1.14.0 (symbolic mathematics)
-  - SQLAlchemy ≥ 2.0.43 (database abstraction)
-  - Returns ≥ 0.26.0 (functional programming utilities)
-
-## 🎯 Quick Start
+### Basic Example
 
 ```python
-import datetime as dt
-import pyarrow as pa
-from dqx.api import VerificationSuiteBuilder, check
+from dqx.api import VerificationSuite, check
 from dqx.extensions.pyarrow_ds import ArrowDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.common import ResultKey
 
 
-# Define your data quality check
-@check(name="Order validation", tags=["critical"])
+@check(name="Order validation")
 def validate_orders(mp, ctx):
-    # Check for null values
-    ctx.assert_that(mp.null_count("customer_id")).where(
-        name="No null customer IDs"
-    ).is_eq(0)
+    """Check data quality for orders."""
+    # Simple metrics
+    ctx.assert_that(mp.null_count("customer_id")).is_eq(0)
+    ctx.assert_that(mp.average("price")).is_gt(0)
 
-    # Validate price ranges with tolerance
-    ctx.assert_that(mp.minimum("price")).where(
-        name="Minimum price is non-negative"
-    ).is_geq(0.0, tol=0.01)
-    ctx.assert_that(mp.average("price")).where(
-        name="Average price is reasonable"
-    ).is_gt(10.0)
-
-    # Multiple assertions on the same metric
-    ctx.assert_that(mp.average("quantity")).where(
-        name="Quantity should be reasonable"
-    ).is_gt(0)
-    ctx.assert_that(mp.average("quantity")).where(name="Quantity upper bound").is_leq(
-        100
-    )
-
-    # Check data volume
-    ctx.assert_that(mp.num_rows()).where(name="Sufficient data volume").is_geq(100)
+    # Complex expressions
+    revenue = mp.sum("price") * mp.sum("quantity")
+    ctx.assert_that(revenue).is_positive()
 
 
-# Create your data
-data = pa.table(
-    {
-        "customer_id": [1, 2, 3, 4, 5],
-        "price": [15.99, 23.50, 45.00, 12.75, 89.99],
-        "quantity": [2, 1, 3, 1, 2],
-    }
-)
-
-# Build and run verification suite
+# Setup
 db = InMemoryMetricDB()
-suite = (
-    VerificationSuiteBuilder("Order Quality Suite", db)
-    .add_check(validate_orders)
-    .build()
-)
+data = ArrowDataSource.from_pandas(df)
+
+# Create and run suite
+suite = VerificationSuite([validate_orders], db, "Order Quality Suite")
 
 # Run the checks
-data_source = ArrowDataSource(data)
-key = ResultKey(yyyy_mm_dd=dt.date.today(), tags={"env": "prod"})
-context = suite.run({"orders": data_source}, key)
+key = ResultKey(yyyy_mm_dd=date.today())
+context = suite.run({"orders": data}, key)
 
 # Inspect results
-for assertion in context._graph.assertions():
-    if assertion._metric:
-        print(f"{assertion.name}: {assertion._metric}")
+for check_result in context.checks():
+    print(f"{check_result.name}: {check_result.status}")
 ```
 
-## 📊 Available Metrics
+## 📋 Core Concepts
 
-### Basic Statistics
-- `num_rows()` - Total row count
-- `average(column)` - Mean value
-- `sum(column)` - Sum of values
-- `minimum(column)` - Minimum value
-- `maximum(column)` - Maximum value
-- `variance(column)` - Sample variance
-- `first(column)` - First non-null value
+### 1. Checks and Assertions
 
-### Data Quality
-- `null_count(column)` - Count of null values
-- `approx_cardinality(column)` - Estimated unique values using HyperLogLog
+Define data quality rules using the `@check` decorator:
 
-### Custom Metrics
 ```python
-from dqx import specs
+@check(name="Customer data quality", severity="P0")
+def validate_customers(mp, ctx):
+    # Check for nulls
+    ctx.assert_that(mp.null_count("id")).is_eq(0)
 
-# Use built-in metric specs
-negative_values = mp.metric(specs.NegativeCount("balance"))
-ctx.assert_that(negative_values).where(name="No negative balances").is_eq(0)
+    # Check ranges
+    ctx.assert_that(mp.average("age")).is_between(18, 100)
 
-# Access metrics with time offsets
-yesterday_avg = mp.average("score", key=ctx.key.lag(1))
+    # Check uniqueness
+    unique_emails = mp.approx_cardinality("email")
+    total_emails = mp.num_rows()
+    ctx.assert_that(unique_emails / total_emails).is_geq(0.99)
 ```
 
-### Extended Metrics
-- `ext.day_over_day(metric, key)` - Compare metrics across days
-- `ext.stddev(metric, lag, n, key)` - Standard deviation over time windows
+### 2. Metric Providers
 
-## 🔍 Writing Data Quality Checks
+Access a rich set of built-in metrics:
 
-### Using the Check Decorator
+```python
+# Basic metrics
+mp.num_rows()  # Row count
+mp.average("column")  # Average value
+mp.sum("column")  # Sum of values
+mp.minimum("column")  # Minimum value
+mp.maximum("column")  # Maximum value
+mp.null_count("column")  # Count of nulls
+mp.approx_cardinality("column")  # Approximate distinct count
+
+# Statistical metrics
+mp.variance("column")  # Variance
+mp.stddev("column")  # Standard deviation
+```
+
+### 3. Symbolic Expressions
+
+Combine metrics using mathematical operations:
+
+```python
+# Revenue calculation
+revenue = mp.sum("price") * mp.sum("quantity")
+ctx.assert_that(revenue).is_positive()
+
+# Null percentage
+null_pct = mp.null_count("email") / mp.num_rows()
+ctx.assert_that(null_pct).is_leq(0.05)  # Max 5% nulls
+
+# Complex validations
+avg_order_value = mp.sum("revenue") / mp.num_rows()
+ctx.assert_that(avg_order_value).is_between(50, 500)
+```
+
+## 📊 Advanced Features
+
+### Time-Based Comparisons
+
+```python
+@check(name="Revenue monitoring")
+def monitor_revenue(mp, ctx):
+    # Current vs yesterday
+    current = mp.sum("revenue")
+    yesterday = mp.sum("revenue", key=ctx.key.lag(1))
+
+    # Day-over-day change
+    dod_change = (current - yesterday) / yesterday
+    ctx.assert_that(dod_change).is_between(-0.1, 0.1)  # ±10%
+
+    # Week-over-week trend
+    last_week = mp.sum("revenue", key=ctx.key.lag(7))
+    ctx.assert_that(current / last_week).is_geq(0.9)  # Max 10% drop
+```
+
+### Multi-Dataset Validation
+
+```python
+@check(name="Cross-dataset consistency")
+def validate_consistency(mp, ctx):
+    # Compare counts across datasets
+    source_count = mp.num_rows(datasets=["source"])
+    target_count = mp.num_rows(datasets=["target"])
+
+    ctx.assert_that(source_count).is_eq(target_count)
+
+    # Compare aggregates
+    source_revenue = mp.sum("revenue", datasets=["source"])
+    target_revenue = mp.sum("revenue", datasets=["target"])
+
+    diff = sp.Abs(source_revenue - target_revenue)
+    ctx.assert_that(diff / source_revenue).is_leq(0.001)  # Max 0.1% difference
+```
+
+## 🎯 Pre-commit Hooks
+
+DQX includes comprehensive pre-commit hooks to maintain code quality:
+
+### Setup
+
+```bash
+# Install pre-commit
+pip install pre-commit
+
+# Install hooks
+pre-commit install
+```
+
+### Available Hooks
+
+- **Ruff**: Fast Python linter (replaces flake8, isort, and more)
+- **Mypy**: Static type checking
+- **Black**: Code formatting
+- **Safety**: Security vulnerability scanning
+- **Bandit**: Security linting
+- **Standard hooks**: Trailing whitespace, YAML validation, etc.
+
+### Running Hooks
+
+```bash
+# Run all hooks
+pre-commit run --all-files
+
+# Run specific hook
+pre-commit run ruff --all-files
+
+# Skip hooks temporarily
+git commit --no-verify -m "Emergency fix"
+```
+
+## 📝 API Reference
+
+### Check Definition
 
 ```python
 @check(
-    name="Data completeness check",
-    tags=["completeness", "critical"],
-    datasets=["main_table"],  # Optional: specify required datasets
+    name="Check name",  # Required: Descriptive name
+    tags=["tag1", "tag2"],  # Optional: Tags for filtering
+    datasets=["dataset1"],  # Optional: Dataset constraints
+    severity="P0",  # Optional: Priority level (P0-P3)
 )
-def check_completeness(mp, ctx):
-    """Ensure key columns have minimal null values."""
-    total_rows = mp.num_rows()
-
-    for column in ["id", "name", "email"]:
-        null_percentage = mp.null_count(column) / total_rows
-        ctx.assert_that(null_percentage).where(
-            name=f"{column} null percentage", severity="P0"  # Critical severity
-        ).is_leq(
-            0.05
-        )  # Max 5% nulls
+def my_check(mp: MetricProvider, ctx: Context) -> None:
+    """Define quality checks using symbolic assertions."""
+    pass
 ```
 
-### Assertion Methods
-
-All comparison methods support an optional `tol` parameter for floating-point tolerance:
+### Assertion API
 
 ```python
-# Basic comparisons (all require where() with name)
-ctx.assert_that(metric).where(name="Metric equals 100").is_eq(100, tol=0.1)
-ctx.assert_that(metric).where(name="Metric is positive").is_gt(0)
-ctx.assert_that(metric).where(name="Metric is non-negative").is_geq(0, tol=1e-6)
-ctx.assert_that(metric).where(name="Metric less than 1000").is_lt(1000)
-ctx.assert_that(metric).where(name="Metric within limit").is_leq(1000, tol=0.01)
+# Basic comparisons
+ctx.assert_that(metric).is_eq(expected)  # Equal to
+ctx.assert_that(metric).is_gt(threshold)  # Greater than
+ctx.assert_that(metric).is_geq(threshold)  # Greater or equal
+ctx.assert_that(metric).is_lt(threshold)  # Less than
+ctx.assert_that(metric).is_leq(threshold)  # Less or equal
+ctx.assert_that(metric).is_between(min, max)  # In range
 
 # Special checks
-ctx.assert_that(metric).where(name="Value is positive").is_positive()
-ctx.assert_that(metric).where(name="Value is negative").is_negative()
+ctx.assert_that(metric).is_positive()  # > 0
+ctx.assert_that(metric).is_negative()  # < 0
+ctx.assert_that(metric).is_non_negative()  # >= 0
 
-# Configure severity and labels
-ctx.assert_that(metric).where(
-    name="Critical business rule",
-    severity="P0",  # Severity levels: "P0", "P1", "P2", "P3"
-).is_geq(0)
+# With tolerance
+ctx.assert_that(metric).is_eq(100, tol=1)  # 99 <= metric <= 101
+
+# With metadata
+ctx.assert_that(metric).where(name="Revenue check", severity="P0").is_gt(10000)
 ```
 
-### Multiple Assertions
-
-To perform multiple validations on the same metric, create separate assertions:
+### Suite Execution
 
 ```python
-# Validate a ratio is within acceptable bounds
-ratio = mp.average("price") / mp.average("tax")
-ctx.assert_that(ratio).where(name="Price/tax ratio lower bound").is_geq(0.95)
-ctx.assert_that(ratio).where(name="Price/tax ratio upper bound").is_leq(1.05)
-
-# Complex validation with multiple conditions
-revenue = mp.sum("revenue")
-ctx.assert_that(revenue).where(name="Revenue is positive", severity="P0").is_positive()
-ctx.assert_that(revenue).where(name="Revenue upper limit").is_lt(1000000)
-ctx.assert_that(revenue).where(name="Revenue lower limit").is_geq(10000)
-
-# Each assertion is evaluated independently, providing:
-# - Independent failure tracking
-# - Granular error messages
-# - Clear visibility into which conditions failed
-```
-
-## 📁 Data Sources
-
-### PyArrow Tables
-
-```python
-from dqx.extensions.pyarrow_ds import ArrowDataSource
-
-# Single table
-ds = ArrowDataSource(your_arrow_table)
-
-# Run checks
-suite.run({"dataset_name": ds}, key)
-```
-
-### Batch Processing
-
-```python
-from dqx.extensions.pyarrow_ds import ArrowBatchDataSource
-
-# Process multiple Parquet files efficiently
-batch_ds = ArrowBatchDataSource.from_parquets(
-    ["data/file1.parquet", "data/file2.parquet", "data/file3.parquet"]
+# Create suite
+suite = VerificationSuite(
+    checks=[check1, check2], db=MetricDB("postgresql://..."), name="Production Suite"
 )
 
-# Enable multi-threading for parallel processing
-suite.run({"large_dataset": batch_ds}, key, threading=True)
+# Execute validation
+context = suite.run(
+    datasources={"orders": orders_ds, "customers": customers_ds},
+    key=ResultKey(yyyy_mm_dd=date.today(), tags={"env": "prod"}),
+    threading=True,  # Enable parallel execution
+)
+
+# Inspect results
+if context.has_failures():
+    for check in context.checks():
+        if check.has_failures():
+            print(f"Failed: {check.name}")
+            for assertion in check.assertions():
+                if not assertion.is_success():
+                    print(f"  - {assertion.name}: {assertion.error}")
 ```
 
-### Custom Data Sources
+## 🔧 Pre-commit Management
 
-Implement the `SqlDataSource` protocol:
+### Configuration
 
-```python
-from dqx.common import SqlDataSource
-import duckdb
+The `.pre-commit-config.yaml` file configures all hooks:
 
-
-class CustomDataSource:
-    name = "custom_source"
-    dialect = "duckdb"  # SQL dialect to use
-
-    @property
-    def cte(self) -> str:
-        """SQL fragment for WITH clause."""
-        return "SELECT * FROM my_custom_table WHERE date = '2024-01-01'"
-
-    def query(self, query: str) -> duckdb.DuckDBPyRelation:
-        """Execute query against this data source."""
-        conn = duckdb.connect()
-        # Set up your custom table/view
-        return conn.execute(query).fetchdf()
+```yaml
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
 ```
 
-## 🚀 Advanced Usage
+### Custom Scripts
 
-### Time-based Comparisons
+Run all hooks with the provided script:
+
+```bash
+# Run hooks with auto-fix
+./bin/run-hooks.sh
+
+# Run without auto-fix
+./bin/run-hooks.sh --no-fix
+
+# Check only (no fixes)
+./bin/run-hooks.sh --check
+```
+
+## 📚 Examples
+
+### Time-Series Validation
 
 ```python
-@check(name="Monitor trends")
-def monitor_trends(mp, ctx):
-    # Compare metrics across time periods
-    current = mp.average("revenue")
-    yesterday = mp.average("revenue", key=ctx.key.lag(1))
-    last_week = mp.average("revenue", key=ctx.key.lag(7))
+@check(name="Daily metrics")
+def validate_daily_metrics(mp, ctx):
+    current = mp.sum("revenue")
 
-    # Day-over-day check
+    # Compare with multiple time periods
+    yesterday = mp.sum("revenue", key=ctx.key.lag(1))
+    last_week = mp.sum("revenue", key=ctx.key.lag(7))
+    last_month = mp.sum("revenue", key=ctx.key.lag(30))
+
+    # Day-over-day
     dod_ratio = current / yesterday
     ctx.assert_that(dod_ratio).where(name="Daily revenue change lower bound").is_geq(
         0.9
@@ -417,7 +451,7 @@ from dqx.api import GraphStates
 # The framework validates inputs
 try:
     # Empty suite name
-    suite = VerificationSuiteBuilder("", db).build()
+    suite = VerificationSuite([], db, "")
 except Exception as e:
     print(f"Validation error: {e}")  # "Suite name cannot be empty"
 
@@ -471,503 +505,55 @@ DQX follows a modular, graph-based architecture:
        ▼                    ▼                    ▼
 ┌─────────────┐     ┌──────────────┐     ┌────────────┐
 │     Ops     │     │  Extensions  │     │   Models   │
-│ (SQL/Sketch)│     │(DataSources) │     │  (Schema)  │
+│ (SQL/Sketch)│     │(DataSources) │     │   (Data)   │
 └─────────────┘     └──────────────┘     └────────────┘
 ```
 
-### Key Components
-
-- **API**: High-level verification suites and check definitions
-- **Graph**: Dependency tracking and execution planning
-- **Specs**: Metric specifications (row count, averages, etc.)
-- **Analyzer**: SQL generation and execution engine
-- **Ops**: Low-level SQL and sketch operations
-- **States**: Serializable metric states for distributed processing
-- **Extensions**: Data source adapters (PyArrow, etc.)
-- **Models**: Data models and ORM definitions
-- **MetricDB**: Persistence layer for historical metrics
-
-## 📊 Graph Implementation
-
-DQX uses a sophisticated graph-based architecture to manage dependencies between checks, metrics, and assertions. The graph implementation follows a **Composite Pattern** with a **Visitor Pattern** for traversal, enabling efficient execution planning and dependency resolution.
-
-### Graph Hierarchy
-
-The graph is organized in a hierarchical structure with the following node types:
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         RootNode                            │
-│              (Top-level verification suite)                 │
-└─────────────────────────┬───────────────────────────────────┘
-                          │ contains
-                          ▼
-         ┌─────────────────────────────────────┐
-         │           CheckNode                 │
-         │    (Data quality check)             │
-         └──────────┬─────────────┬────────────┘
-                    │             │ contains
-         contains   │             ▼
-                    │   ┌─────────────────────┐
-                    │   │   SymbolNode        │
-                    │   │ (Computed symbols)  │
-                    │   └──────────┬──────────┘
-                    │              │ contains
-                    ▼              ▼
-       ┌─────────────────────┐  ┌─────────────────────┐
-       │   AssertionNode     │  │    MetricNode       │
-       │ (Validation rules)  │  │ (Metric to compute) │
-       └─────────────────────┘  └──────────┬──────────┘
-                                           │ contains
-                                           ▼
-                                ┌─────────────────────┐
-                                │   AnalyzerNode      │
-                                │ (SQL/computation)   │
-                                └─────────────────────┘
-```
-
-### Node Types
-
-#### 1. **RootNode** (Composite)
-- The top-level container for all verification checks
-- Manages the entire graph and provides traversal methods
-- Handles propagation of dataset information through the graph
-
-#### 2. **CheckNode** (Composite)
-- Represents an individual data quality check
-- Contains assertions that define the check logic
-- Can be tagged and labeled for organization
-- Aggregates child assertion results to determine overall check status
-- Does NOT directly manage symbols (delegated to AssertionNodes)
-
-#### 3. **AssertionNode** (Leaf, SymbolStateObserver)
-- Represents a specific validation rule to be evaluated
-- Uses symbolic expressions (SymPy) for flexible comparisons
-- Supports custom validators and severity levels
-- Evaluates to Success or Failure based on computed values
-- **Implements SymbolStateObserver** to track symbol state changes
-- Validates dataset availability for symbols used in expressions
-- Registers itself as observer for all symbols in its expression
-
-#### 4. **SymbolNode** (Composite)
-- Represents a computed value that can be used in assertions
-- Links to one or more MetricNodes that provide the actual data
-- Manages the retrieval function for accessing computed values
-
-#### 5. **MetricNode** (Composite)
-- Represents a metric that needs to be computed from data
-- Tracks metric state: PENDING → PROVIDED/ERROR
-- Links to AnalyzerNode for actual computation logic
-
-#### 6. **AnalyzerNode** (Leaf)
-- Contains the actual computation logic (SQL operations)
-- Executed by the analyzer engine against data sources
-
-### Graph Features
-
-#### Dependency Resolution
-The graph automatically resolves dependencies between metrics and assertions:
-- Metrics are computed only once, even if used by multiple assertions
-- The execution order is determined by the dependency graph
-- Failed dependencies propagate failures to dependent nodes
-
-#### State Management
-Each node maintains its state throughout the execution:
-- **PENDING**: Waiting for computation
-- **PROVIDED**: Successfully computed/evaluated
-- **ERROR**: Computation or validation failed
-
-#### Symbol Management and Observer Pattern
-The graph implements an observer pattern for symbol state notifications:
-- **AssertionNode** implements `SymbolStateObserver` to track symbol states
-- When a symbol's state changes (ready, success, error), assertions are notified
-- Assertions validate that required datasets are available for their symbols
-- Symbol errors are propagated to assertions, ensuring clear failure tracking
-
-#### Traversal Methods
-The RootNode provides convenient methods for graph traversal:
-```python
-# Get all assertions in the graph
-for assertion in graph.assertions():
-    print(f"{assertion.name}: {assertion._metric}")
-
-# Get all pending metrics for a dataset
-for metric in graph.pending_metrics("orders"):
-    print(f"Pending: {metric.spec.name}")
-
-# Get all checks and their status
-for check in graph.checks():
-    print(f"{check.name}: {check._value}")
-```
-
-#### Dataset Propagation and Validation
-The graph supports multi-dataset validation with validation at the assertion level:
-1. Datasets are propagated from checks to assertions
-2. Assertions validate that their symbols have required datasets available
-3. Dataset mismatches result in clear error messages at the assertion level
-4. CheckNode aggregates assertion results to determine overall check status
-
-### Example Graph Construction
-
-When you define a check like this:
-```python
-@check(name="Price validation")
-def validate_prices(mp, ctx):
-    ctx.assert_that(mp.average("price")).where(name="Average price is positive").is_gt(
-        0
-    )
-    ctx.assert_that(mp.maximum("price")).where(
-        name="Maximum price within limit"
-    ).is_leq(1000)
-```
-
-The framework automatically constructs this graph structure with strongly typed parent relationships:
-```
-RootNode (parent: None)
-└── CheckNode("Price validation", parent: RootNode)
-    ├── SymbolNode(average_price)
-    │   └── MetricNode(Average("price"))
-    │       └── AnalyzerNode(SQL: AVG(price))
-    ├── SymbolNode(max_price)
-    │   └── MetricNode(Maximum("price"))
-    │       └── AnalyzerNode(SQL: MAX(price))
-    ├── AssertionNode(average_price > 0, parent: CheckNode)
-    └── AssertionNode(max_price <= 1000, parent: CheckNode)
-```
-
-Note: Each node type has a strongly typed parent relationship:
-- `RootNode` always has `None` as parent
-- `CheckNode` always has a `RootNode` parent
-- `AssertionNode` always has a `CheckNode` parent
-
-This graph structure enables:
-- Efficient execution (each metric computed once)
-- Clear dependency tracking
-- Granular error reporting
-- Flexible execution strategies
-
-## 🛠️ Development
-
-### Running Tests
-
-```bash
-# Run all tests
-uv run pytest
-
-# Run specific test file
-uv run pytest tests/test_api.py
-
-# Run with coverage
-uv run pytest --cov=dqx
-
-# Run tests in parallel
-uv run pytest -n auto
-
-# Run only tests marked with 'demo' tag
-uv run pytest -m demo
-```
-
-This is useful for running a subset of tests that demonstrate specific functionality or are used for demo purposes. Tests can be marked with the `@pytest.mark.demo` decorator to include them in this test run.
-
-### Code Quality
-
-DQX maintains high code quality standards:
-
-```bash
-# Linting with Ruff
-uv run ruff check src/          # Check for issues
-uv run ruff check src/ --fix    # Auto-fix issues
-
-# Type checking with MyPy
-uv run mypy src/
-
-# Format code
-uv run ruff format src/ tests/
-
-# Run all quality checks
-uv run ruff check src/ tests/ && uv run ruff format src/ tests/ && uv run mypy src/
-```
-
-### Pre-commit Hooks
-
-This project uses pre-commit hooks to maintain code quality across all code, documentation, and configuration files. Hooks run automatically before each commit.
-
-#### Quick Setup
-
-```bash
-# Run the setup script (recommended)
-./bin/setup-dev-env.sh
-
-# Or manually install hooks
-uv run pre-commit install
-```
-
-#### What Gets Checked
-
-**Python Code**:
-- **Code formatting**: Ruff automatically formats Python code
-- **Linting**: Ruff checks for code quality issues
-- **Type checking**: MyPy validates type annotations (includes `src/`, `tests/`, and `examples/`)
-- **Debug detection**: Catches forgotten print/breakpoint statements
-
-**Shell Scripts**:
-- **Script validation**: Shellcheck finds bugs and portability issues
-- **Script formatting**: shfmt enforces consistent 2-space indentation
-
-**Documentation**:
-- **Python in markdown**: blacken-docs formats Python code blocks in markdown files
-- **YAML validation**: yamllint checks YAML syntax and style
-
-**General File Quality**:
-- **File quality**: Trailing whitespace, file endings, large files
-- **Security**: Detects accidentally committed private keys
-- **Syntax validation**: Python, YAML, TOML, JSON files
-
-#### Manual Usage
-
-```bash
-# Run on all files
-./bin/run-hooks.sh --all
-
-# Run on specific files
-./bin/run-hooks.sh src/dqx/api.py tests/test_api.py
-
-# Run only formatting hooks (fast)
-./bin/run-hooks.sh --fix
-
-# Skip slow hooks like mypy
-./bin/run-hooks.sh --fast
-
-# Run specific hooks
-uv run pre-commit run shellcheck --all-files  # Check shell scripts
-uv run pre-commit run yamllint --all-files    # Check YAML files
-uv run pre-commit run blacken-docs --all-files # Format Python in docs
-
-# Skip hooks temporarily (not recommended)
-git commit --no-verify -m "emergency fix"
-```
-
-#### Fixing Issues
-
-If pre-commit blocks your commit:
-
-1. **Read the error message** - it tells you exactly what's wrong
-2. **Let hooks auto-fix** - many issues are fixed automatically
-3. **Review changes** - check what was fixed with `git diff`
-4. **Re-stage files** - `git add` the fixed files
-5. **Commit again** - your commit should now succeed
-
-Example:
-```bash
-$ git commit -m "feat: add new feature"
-ruff.....................................................................Failed
-- hook id: ruff-check
-- exit code: 1
-  Fixed 1 error:
-  - src/dqx/new_feature.py:
-    1 × I001 (unsorted-imports)
-
-# Ruff fixed the import order. Check and re-commit:
-$ git add src/dqx/new_feature.py
-$ git commit -m "feat: add new feature"
-```
-
-#### VS Code Integration
-
-VS Code will automatically use the same formatting rules if you have the Ruff extension installed:
-
-1. Install the Ruff extension (ID: `charliermarsh.ruff`)
-2. Your code will be formatted on save
-3. Linting errors will appear inline
-
-#### Performance Tips
-
-- For faster commits during development:
-  ```bash
-  SKIP=mypy git commit -m "wip: quick save"  # Skip type checking
-  ./bin/run-hooks.sh --fast                   # Run without mypy
-  ```
-
-- Pre-commit caches results, so subsequent runs on unchanged files are instant
-
-#### CI/CD Integration
-
-Pre-commit runs automatically in CI on pull requests. To run the same checks locally:
-```bash
-./bin/run-hooks.sh --all
-```
-
-### Development Setup
-
-```bash
-# Install development dependencies
-uv sync --all-extras
-
-# Install pre-commit hooks (recommended)
-./bin/setup-dev-env.sh
-```
-
-### Commit Standards
-
-We use [Commitizen](https://commitizen-tools.github.io/commitizen/) for standardized commits:
-
-```bash
-# Create a commit interactively
-cz commit  # or: cz c
-
-# Bump version automatically
-cz bump
-
-# Commit format examples:
-# feat: add batch processing support
-# fix: resolve chained assertion validation
-# docs: update installation instructions
-# refactor: simplify analyzer logic
-# test: add coverage for edge cases
-# perf: optimize SQL deduplication
-# chore: update dependencies
-```
-
-## 🔧 Performance Optimization
-
-DQX is optimized for performance through:
-
-1. **SQL Optimization**
-   - Batches multiple metrics into single SQL queries
-   - Deduplicates redundant computations
-   - Leverages DuckDB's columnar processing
-
-2. **Memory Efficiency**
-   - HyperLogLog for cardinality estimation (99.9% accuracy, <1% memory)
-   - DataSketches for quantiles and histograms
-   - Streaming algorithms for large datasets
-
-3. **Parallel Processing**
-   - Multi-threaded batch analysis
-   - Concurrent data source processing
-   - Lock-free metric aggregation
-
-4. **Smart Caching**
-   - Reuses computed metrics across checks
-   - Dependency graph minimizes redundant work
-   - Persistent metric storage for historical analysis
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🗺️ Roadmap
-
-- [x] Comprehensive error messages
-- [x] Builder pattern for suite creation
-- [ ] Streaming data source support
-- [ ] Web UI for monitoring and alerting
-- [ ] Data catalog integrations (Hive, Glue, Unity)
-- [ ] ML-based anomaly detection
-- [ ] Complex event processing
-- [ ] Kubernetes operators for cloud-native deployment
+## 📈 Performance
+
+DQX is designed for high performance:
+
+- **DuckDB Integration**: Columnar processing with vectorized execution
+- **Statistical Sketches**: Memory-efficient approximate algorithms (HyperLogLog, DataSketches)
+- **Batch Processing**: Multiple metrics computed in single SQL pass
+- **Parallel Execution**: Multi-threaded analysis with thread-safe aggregation
+- **Query Optimization**: Automatic deduplication and reordering
+
+Benchmarks on 1TB dataset:
+- Row count: ~100ms
+- Basic statistics: ~500ms
+- Cardinality estimation: ~200ms
+- Full validation suite: ~2s
 
 ## 🤝 Contributing
 
-We welcome contributions! Here's how to get started:
+We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Write tests for new functionality
-4. Ensure all tests pass (`uv run pytest`)
-5. Run code quality checks:
-   ```bash
-   uv run ruff check src/ tests/
-   uv run mypy src/
-   uv run ruff format src/ tests/
-   ```
-6. Commit your changes (`cz commit`)
-7. Push to your branch (`git push origin feature/amazing-feature`)
-8. Open a Pull Request
+Areas of interest:
+- New metric types
+- Additional data source adapters
+- Performance optimizations
+- Documentation improvements
 
-### Development Guidelines
+## 📚 Documentation
 
-- Write comprehensive docstrings (Google style)
-- Add type hints to all functions
-- Maintain test coverage above 90%
-- Follow existing code patterns
-- Update documentation as needed
+- [Design Document](docs/design.md) - Architecture and design decisions
+- [API Reference](docs/api.md) - Complete API documentation
+- [Examples](examples/) - Runnable examples
+- [Symbol Collection Guide](docs/symbol_collection_guide.md) - Understanding metric collection
+- [Dataset Validation Guide](docs/dataset_validation_guide.md) - Multi-dataset validation
 
-## 📞 Support
+## 📄 License
 
-- Create an issue on GitLab for bug reports or feature requests
-- Check existing issues before creating new ones
-- Provide minimal reproducible examples for bugs
-- Join discussions in merge requests
+This project is licensed under the MIT License - see [LICENSE](LICENSE) for details.
 
-## 📋 Contribution Guidelines
+## 🎉 Recent Improvements
 
-### Logging Best Practices
-
-#### Lazy Rendering of Expensive Log Messages
-
-When logging messages that require expensive computations (e.g., serialization, string formatting, or complex calculations), always use lazy evaluation to avoid performance overhead when the log level is disabled:
-
-```python
-# ❌ BAD: Expensive operation always executed
-logger.debug(f"Processing data: {expensive_to_string_operation()}")
-logger.debug("Stats: {}".format(json.dumps(large_dict, indent=2)))
-
-# ✅ GOOD: Use isEnabledFor guard
-if logger.isEnabledFor(logging.DEBUG):
-    logger.debug("Processing data: %s", expensive_to_string_operation())
-
-# ✅ GOOD: Use built-in % formatting (evaluated lazily)
-logger.debug("Processing %d records from %s", len(records), dataset_name)
-logger.debug("Metric value: %.4f", compute_expensive_metric())
-```
-
-#### Key Principles
-
-1. **Use `%` formatting instead of f-strings or `.format()` for log messages**
-   - The `%` formatting is lazily evaluated only when the log level is active
-   - f-strings and `.format()` are always evaluated, even if logging is disabled
-
-2. **Guard expensive computations with `isEnabledFor`**
-   ```python
-   # For complex debug information
-   if logger.isEnabledFor(logging.DEBUG):
-       debug_info = {
-           "metrics": [m.to_dict() for m in metrics],
-           "graph": graph.to_json(),
-           "state": analyzer.get_debug_state(),
-       }
-       logger.debug("Analysis state: %s", json.dumps(debug_info, indent=2))
-   ```
-
-3. **Common patterns in DQX**
-   ```python
-   # Logging in the analyzer
-   logger.debug("Executing %d operations for dataset '%s'", len(ops), dataset_name)
-
-   # Logging metric computations
-   logger.debug("Computing metric %s with spec %r", metric_name, metric_spec)
-
-   # Logging graph traversal
-   if logger.isEnabledFor(logging.DEBUG):
-       logger.debug("Graph structure:\n%s", graph.pretty_print())
-   ```
-
-4. **Performance impact**
-   - Lazy logging can significantly improve performance in production where debug logging is typically disabled
-   - Especially important in hot paths like the analyzer loop or graph traversal
-   - Critical for operations that process large datasets or run frequently
-
-### Other Guidelines
-
-- Follow PEP 8 and the existing code style
-- Write comprehensive tests for all new features
-- Update documentation when adding new functionality
-- Use type hints for all function signatures
-- Keep functions focused and single-purpose
-- Document complex algorithms and design decisions
-
-## 🏆 Recent Improvements
+### v0.5.0 (API Simplification)
+- ✅ **Removed VerificationSuiteBuilder:** Direct instantiation with `VerificationSuite(checks, db, name)`
+- ✅ **Simplified API:** No more builder pattern - just pass checks as a list
+- ✅ **Cleaner codebase:** Reduced complexity by removing unnecessary abstractions
+- ✅ **Better developer experience:** More intuitive suite creation
 
 ### v0.4.0 (Immutable Assertions & No Chaining)
 - 🚨 **Breaking:** Removed assertion chaining - assertions now return None instead of AssertBuilder
@@ -1011,3 +597,7 @@ logger.debug("Metric value: %.4f", compute_expensive_metric())
 - ✅ Improved code organization with clear separation of concerns
 - ✅ Refactored analyzer.py to use sets for operation deduplication (simpler and more efficient than defaultdict)
 - ✅ Achieved 100% test coverage for analyzer.py module
+
+---
+
+Built with ❤️ by the Data Quality Team

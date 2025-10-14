@@ -4,7 +4,7 @@ import functools
 import threading
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
-from typing import Any, Protocol, Self, cast, runtime_checkable
+from typing import Any, Protocol, cast, runtime_checkable
 
 import sympy as sp
 
@@ -534,42 +534,6 @@ class VerificationSuite:
 
         # Sort by symbol name before returning
         return sorted(symbols, key=lambda s: s.name)
-
-
-class VerificationSuiteBuilder:
-    """
-    Builder pattern for creating VerificationSuite instances with fluent configuration.
-
-    Example:
-        >>> builder = VerificationSuiteBuilder("My Suite", db)
-        >>> suite = builder.add_check(check1).add_checks([check2, check3]).build()
-    """
-
-    def __init__(self, name: str, db: MetricDB) -> None:
-        """
-        Initialize the builder.
-
-        Args:
-            name: Name for the verification suite
-            db: Database for metrics storage
-        """
-        self._name = name
-        self._db = db
-        self._checks: list[CheckProducer | DecoratedCheck] = []
-
-    def add_check(self, check: CheckProducer | DecoratedCheck) -> Self:
-        """Add a single check to the suite."""
-        self._checks.append(check)
-        return self
-
-    def add_checks(self, checks: Sequence[CheckProducer | DecoratedCheck]) -> Self:
-        """Add multiple checks to the suite."""
-        self._checks.extend(checks)
-        return self
-
-    def build(self) -> VerificationSuite:
-        """Build and return the configured VerificationSuite."""
-        return VerificationSuite(self._checks, self._db, self._name)
 
 
 def _create_check(

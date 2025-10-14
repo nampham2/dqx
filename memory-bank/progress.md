@@ -12,7 +12,7 @@
 2. **Declarative API**
    - Intuitive check decorator system
    - Fluent assertion interface (now without chaining)
-   - Builder pattern for suite construction
+   - Direct suite instantiation (builder pattern removed in v0.5.0)
    - Comprehensive error messages
 
 3. **Metric Computation**
@@ -66,9 +66,16 @@
 
 ## Current Status
 
-### Version: 0.4.0
-**Released**: Recent
-**Type**: Major breaking changes
+### Version: 0.5.0
+**Released**: Current
+**Type**: API simplification
+
+### Changes in v0.5.0
+1. ✅ Removed VerificationSuiteBuilder class
+2. ✅ Direct instantiation of VerificationSuite
+3. ✅ Simplified API without losing functionality
+4. ✅ Updated all examples and tests
+5. ✅ Maintained backward compatibility for direct instantiation
 
 ### Breaking Changes in v0.4.0
 1. ✅ Removed assertion chaining
@@ -118,6 +125,11 @@
 5. 📋 **PLANNED**: Query plan optimization
 
 ## Evolution of Project Decisions
+
+### v0.5.0 - Further Simplification
+**Decision**: Remove VerificationSuiteBuilder
+**Rationale**: The builder pattern added unnecessary complexity without providing significant benefits over direct instantiation
+**Result**: Cleaner, more straightforward API that's easier to understand and maintain
 
 ### v0.4.0 - Simplification Phase
 **Decision**: Remove assertion chaining
@@ -218,6 +230,7 @@
 2. **Listener pattern**: Over-engineered solution
 3. **Mutable nodes**: Led to subtle bugs
 4. **Complex error messages**: Need simplification
+5. **VerificationSuiteBuilder**: Unnecessary abstraction layer
 
 ### Key Insights
 1. **Simplicity wins**: Users prefer clear over clever
@@ -284,10 +297,10 @@
 ## Next Actions
 
 ### Immediate (This Week)
-1. Monitor v0.4.0 adoption and issues
-2. Update all examples for new API
-3. Create migration guide
-4. Address any critical bugs
+1. Monitor v0.5.0 adoption and issues
+2. ✅ Updated all examples for builder removal
+3. ✅ Updated documentation for direct instantiation
+4. Address any critical bugs from the simplification
 
 ### Short Term (This Month)
 1. Begin streaming prototype

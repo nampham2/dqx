@@ -6,7 +6,7 @@ import pyarrow as pa
 import pytest
 from returns.result import Failure, Success
 
-from dqx.api import Context, MetricProvider, VerificationSuite, VerificationSuiteBuilder, check
+from dqx.api import Context, MetricProvider, VerificationSuite, check
 from dqx.common import AssertionResult, DQXError, EvaluationFailure, ResultKey
 from dqx.extensions.pyarrow_ds import ArrowDataSource
 from dqx.orm.repositories import InMemoryMetricDB
@@ -106,7 +106,7 @@ class TestAssertionResultCollection:
 
         # Build and run suite
         db = InMemoryMetricDB()
-        suite = VerificationSuiteBuilder("Test Suite", db).add_check(validate_data).build()
+        suite = VerificationSuite([validate_data], db, "Test Suite")
 
         key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 15), tags={"env": "test", "version": "1.0"})
 
