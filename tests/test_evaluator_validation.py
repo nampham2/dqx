@@ -259,13 +259,13 @@ class TestValidationExpressions:
         datasource.cte = "SELECT * FROM test"
 
         # Mock the provider and evaluator behavior
-        suite._context.provider._symbol_index = {}
+        suite.provider._symbol_index = {}
 
         # Run collection phase
         suite.build_graph(suite._context, ResultKey(yyyy_mm_dd=datetime.date.today(), tags={}))
 
         # Get the assertion node
-        assertions = list(suite._context._graph.assertions())
+        assertions = list(suite.graph.assertions())
         assert len(assertions) == 1
 
         assertion = assertions[0]

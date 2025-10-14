@@ -70,10 +70,9 @@ def test_verification_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Tab
 
     # Run for today
     suite = VerificationSuite(checks, db, name="Simple test suite")
-    ctx = suite._context
 
     suite.run({"ds1": ds1, "ds2": ds2}, key)
-    ctx._graph.print_tree()
+    suite.graph.print_tree()
 
     print_assertion_results(suite.collect_results())
     print_symbols(suite.collect_symbols())
