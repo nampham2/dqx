@@ -4,7 +4,7 @@ import pytest
 import sympy as sp
 
 from dqx.api import Context, MetricProvider, VerificationSuite, check
-from dqx.common import ResultKey
+from dqx.common import DQXError, ResultKey
 from dqx.orm.repositories import InMemoryMetricDB
 
 
@@ -55,7 +55,7 @@ def test_assertion_methods_return_none() -> None:
     # Set up suite with the check
     suite = VerificationSuite([test_check], db, "test")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.collect(context, key=key)
+    suite.build_graph(context, key=key)
 
 
 def test_no_assertion_chaining() -> None:
@@ -75,7 +75,7 @@ def test_no_assertion_chaining() -> None:
     # Set up suite and run check
     suite = VerificationSuite([test_check], db, "test")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.collect(context, key=key)
+    suite.build_graph(context, key=key)
 
 
 def test_multiple_assertions_on_same_metric() -> None:
@@ -102,7 +102,7 @@ def test_multiple_assertions_on_same_metric() -> None:
 
     suite = VerificationSuite([test_check], db, "test")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.collect(context, key=key)
+    suite.build_graph(context, key=key)
 
 
 def test_simple_check_uses_function_name() -> None:
@@ -142,7 +142,7 @@ def test_simple_check_works_in_suite() -> None:
     # Collect checks (this is where it would fail with NameError)
     context = Context("test", db)
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.collect(context, key)
+    suite.build_graph(context, key)
 
     # Verify the check was registered correctly
     checks = list(context._graph.root.children)
@@ -194,7 +194,7 @@ def test_check_decorator_with_name_works() -> None:
     # Verify it can be collected
     context = Context("test", db)
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.collect(context, key)
+    suite.build_graph(context, key)
 
     # Verify the check was registered with the correct name
     checks = list(context._graph.root.children)
@@ -275,7 +275,7 @@ def test_assertion_workflow_end_to_end() -> None:
 
     suite = VerificationSuite([test_check], db, "test")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.collect(context, key=key)
+    suite.build_graph(context, key=key)
 
 
 def test_cannot_use_assertion_methods_on_draft() -> None:
@@ -323,7 +323,7 @@ def test_assertion_ready_always_has_name() -> None:
 
     suite = VerificationSuite([test_check], db, "test")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.collect(context, key=key)
+    suite.build_graph(context, key=key)
 
 
 def test_where_validates_name() -> None:
@@ -388,3 +388,56 @@ def test_assertion_severity_is_mandatory_with_p1_default() -> None:
     for assertion in assertions:
         assert assertion.severity is not None
         assert assertion.severity in ["P0", "P1", "P2", "P3"]
+
+
+def test_verification_suite_graph_property() -> None:
+    """Test that VerificationSuite exposes graph property with proper error handling."""
+
+    # Create a simple check for testing
+    @check(name="Simple Check")
+    def simple_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+
+    db = InMemoryMetricDB()
+    suite = VerificationSuite([simple_check], db, "Test Suite")
+
+    # Should raise error before build_graph is called
+    with pytest.raises(DQXError, match="Graph not built yet"):
+        _ = suite.graph
+
+    # After building graph, should work
+    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+    suite.build_graph(suite._context, key)  # type: ignore[attr-defined]  # Use suite's context
+
+    # Should return a Graph instance
+    from dqx.graph.traversal import Graph
+
+    assert isinstance(suite.graph, Graph)
+
+    # Should have the suite name as root
+    assert suite.graph.root.name == "Test Suite"
+
+
+def test_verification_suite_build_graph_method() -> None:
+    """Test that build_graph method works (renamed from collect)."""
+
+    # Create a simple check for testing
+    @check(name="Simple Check")
+    def simple_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+
+    db = InMemoryMetricDB()
+    suite = VerificationSuite([simple_check], db, "Test Suite")
+    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+
+    # Should have build_graph method
+    assert hasattr(suite, "build_graph")
+
+    # Should not have collect method anymore
+    assert not hasattr(suite, "collect")
+
+    # build_graph should work
+    suite.build_graph(suite._context, key)  # type: ignore[attr-defined]
+
+    # Graph should be populated
+    assert len(suite.graph.root.children) > 0

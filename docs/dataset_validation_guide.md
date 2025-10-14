@@ -89,10 +89,7 @@ def price_check(mp, ctx):
 
 ## When Validation Occurs
 
-Dataset validation happens at two points:
-
-1. **Explicit Validation**: When you call `suite.validate()`
-2. **During Collection**: When `suite.collect()` or `suite.run()` is called
+Dataset validation happens automatically when `suite.build_graph()` or `suite.run()` is called.
 
 If validation fails, a `DQXError` is raised with details about the validation issues.
 
@@ -101,7 +98,7 @@ If validation fails, a `DQXError` is raised with details about the validation is
 1. **Be Explicit**: Always specify datasets on your checks when working with multiple data sources
 2. **Match Datasets**: Ensure symbols use datasets that are declared by their parent checks
 3. **Single Dataset Simplification**: When a check works with only one dataset, you can omit the dataset parameter on symbols (it will be imputed)
-4. **Validate Early**: Use `suite.validate()` during development to catch configuration errors early
+4. **Build Early**: Use `suite.build_graph()` during development to catch configuration errors early
 
 ## Integration with Dataset Imputation
 
@@ -123,15 +120,17 @@ The validator provides clear error messages to help diagnose issues:
 
 ### DatasetValidator
 
-The `DatasetValidator` is automatically included when running validation:
+The `DatasetValidator` is automatically included when building the graph:
 
 ```python
 # The validator is used internally by VerificationSuite
 suite = VerificationSuite(checks, db, "My Suite")
-report = suite.validate()  # DatasetValidator runs here
 
-if report.has_errors():
-    print(report)  # Shows dataset validation errors
+# Validation happens automatically during build_graph
+try:
+    suite.build_graph(suite._context, key)
+except DQXError as e:
+    print(e)  # Shows dataset validation errors
 ```
 
 ### SuiteValidator
@@ -158,7 +157,7 @@ report = validator.validate(graph, provider)
 
 ### Debugging Tips
 
-1. Use `suite.validate()` to check configuration before running
+1. Use `suite.build_graph()` to check configuration before running the full suite
 2. Look at the node path in error messages to locate the problem
 3. Check that datasets are spelled correctly (they're case-sensitive)
 4. Ensure parent checks have datasets defined when child symbols use specific datasets
