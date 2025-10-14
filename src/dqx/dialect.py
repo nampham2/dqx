@@ -80,7 +80,7 @@ This allows the same DQX code to work across different databases.
 
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable, Type
+from typing import Protocol, Type, runtime_checkable
 
 from dqx import ops
 from dqx.common import DQXError
@@ -233,6 +233,15 @@ class DuckDBDialect:
 
             case ops.NegativeCount(column=col):
                 return f"CAST(COUNT_IF({col} < 0.0) AS DOUBLE) AS '{op.sql_col}'"
+
+            case ops.DuplicateCount(columns=cols):
+                # For duplicate count: COUNT(*) - COUNT(DISTINCT (col1, col2, ...))
+                # Columns are already sorted in the op
+                if len(cols) == 1:
+                    distinct_expr = cols[0]
+                else:
+                    distinct_expr = f"({', '.join(cols)})"
+                return f"CAST(COUNT(*) - COUNT(DISTINCT {distinct_expr}) AS DOUBLE) AS '{op.sql_col}'"
 
             case _:
                 raise ValueError(f"Unsupported SqlOp type: {type(op).__name__}")

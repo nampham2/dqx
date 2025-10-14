@@ -428,3 +428,69 @@ def test_hash_different_columns() -> None:
     assert hash(ops.NullCount("col1")) != hash(ops.NullCount("col2"))
     assert hash(ops.NegativeCount("col1")) != hash(ops.NegativeCount("col2"))
     assert hash(ops.ApproxCardinality("col1")) != hash(ops.ApproxCardinality("col2"))
+
+
+def test_duplicate_count() -> None:
+    op = ops.DuplicateCount(["column1", "column2"])
+    assert isinstance(op, Op)
+    assert isinstance(op, SqlOp)
+    assert not isinstance(op, SketchOp)
+    # Columns should be sorted
+    assert op.name == "duplicate_count(column1,column2)"
+
+    # Test empty columns raises error
+    with pytest.raises(ValueError, match="DuplicateCount requires at least one column"):
+        ops.DuplicateCount([])
+
+    # Test value assignment
+    with pytest.raises(DQXError, match="DuplicateCount op has not been collected yet!"):
+        op.value()
+
+    op.assign(42.0)
+    assert op.value() == pytest.approx(42.0)
+
+    # Test clear functionality
+    op.clear()
+    with pytest.raises(DQXError):
+        op.value()
+
+
+def test_duplicate_count_equality() -> None:
+    op1 = ops.DuplicateCount(["col1", "col2"])
+    op2 = ops.DuplicateCount(["col1", "col2"])
+    op3 = ops.DuplicateCount(["col1"])
+    op4 = ops.DuplicateCount(["col2", "col1"])  # Different order
+
+    assert op1 == op2
+    assert op1 != op3
+    assert op1 == op4  # Should be equal after sorting
+    assert op1 != "not an op"
+    assert op1 != 42
+
+
+def test_duplicate_count_hashing() -> None:
+    op1 = ops.DuplicateCount(["col1", "col2"])
+    op2 = ops.DuplicateCount(["col1", "col2"])
+    op3 = ops.DuplicateCount(["col1"])
+    op4 = ops.DuplicateCount(["col2", "col1"])  # Different order
+
+    assert hash(op1) == hash(op2)
+    assert hash(op1) != hash(op3)
+    assert hash(op1) == hash(op4)  # Should have same hash after sorting
+
+    # Test deduplication in sets
+    assert {op1, op2, op4} == {op1}
+
+
+def test_duplicate_count_string_repr() -> None:
+    op = ops.DuplicateCount(["col3", "col1", "col2"])
+    # Should be sorted alphabetically
+    assert str(op) == "duplicate_count(col1,col2,col3)"
+    assert repr(op) == "duplicate_count(col1,col2,col3)"
+
+
+def test_duplicate_count_sql_properties() -> None:
+    op = ops.DuplicateCount(["test_col"])
+    assert op.prefix is not None
+    assert len(op.prefix) > 0
+    assert op.sql_col == f"{op.prefix}_{op.name}"

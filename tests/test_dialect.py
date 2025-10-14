@@ -12,9 +12,9 @@ from dqx import specs
 from dqx.analyzer import Analyzer, analyze_sql_ops
 from dqx.common import DQXError, ResultKey
 from dqx.dialect import (
+    _DIALECT_REGISTRY,
     Dialect,
     DuckDBDialect,
-    _DIALECT_REGISTRY,
     build_cte_query,
     get_dialect,
     register_dialect,
@@ -218,6 +218,85 @@ class TestDuckDBDialect:
         sql = dialect.translate_sql_op(op)
         assert "CAST(COUNT_IF(profit < 0.0) AS DOUBLE)" in sql
         assert f"AS '{op.sql_col}'" in sql
+
+    def test_translate_duplicate_count(self) -> None:
+        """Test translation of DuplicateCount op."""
+        from dqx import ops
+        from dqx.dialect import DuckDBDialect
+
+        dialect = DuckDBDialect()
+
+        # Test single column
+        op1 = ops.DuplicateCount(["user_id"])
+        sql1 = dialect.translate_sql_op(op1)
+        assert sql1 == f"CAST(COUNT(*) - COUNT(DISTINCT user_id) AS DOUBLE) AS '{op1.sql_col}'"
+
+        # Test multiple columns
+        op2 = ops.DuplicateCount(["user_id", "product_id", "date"])
+        sql2 = dialect.translate_sql_op(op2)
+        # Columns should be sorted: date, product_id, user_id
+        assert sql2 == f"CAST(COUNT(*) - COUNT(DISTINCT (date, product_id, user_id)) AS DOUBLE) AS '{op2.sql_col}'"
+
+    def test_translate_duplicate_count_with_duckdb_execution(self) -> None:
+        """Test that the generated SQL actually works in DuckDB."""
+        import duckdb
+
+        from dqx import ops
+        from dqx.dialect import DuckDBDialect
+
+        dialect = DuckDBDialect()
+
+        # Create test data
+        conn = duckdb.connect(":memory:")
+        conn.execute("""
+            CREATE TABLE test_data AS
+            SELECT * FROM (VALUES
+                (1, 'A', 100),
+                (1, 'A', 100),  -- Duplicate
+                (2, 'B', 200),
+                (2, 'B', 300),  -- Same user_id and name, different amount
+                (3, 'C', 400)
+            ) AS t(user_id, name, amount)
+        """)
+
+        # Test single column
+        op1 = ops.DuplicateCount(["user_id"])
+        sql1 = dialect.translate_sql_op(op1)
+
+        # Execute the generated SQL
+        row1 = conn.execute(f"SELECT {sql1} FROM test_data").fetchone()
+        assert row1 is not None
+        result1 = row1[0]
+        assert result1 == 2.0  # 5 rows - 3 unique user_ids = 2 duplicates
+
+        # Test multiple columns
+        op2 = ops.DuplicateCount(["user_id", "name"])
+        sql2 = dialect.translate_sql_op(op2)
+
+        row2 = conn.execute(f"SELECT {sql2} FROM test_data").fetchone()
+        assert row2 is not None
+        result2 = row2[0]
+        assert result2 == 2.0  # 5 rows - 3 unique (user_id, name) pairs = 2 duplicates
+
+        # Test all columns
+        op3 = ops.DuplicateCount(["user_id", "name", "amount"])
+        sql3 = dialect.translate_sql_op(op3)
+
+        row3 = conn.execute(f"SELECT {sql3} FROM test_data").fetchone()
+        assert row3 is not None
+        result3 = row3[0]
+        assert result3 == 1.0  # 5 rows - 4 unique combinations = 1 duplicate
+
+        # Test column order doesn't affect result
+        op4 = ops.DuplicateCount(["name", "user_id"])  # Different order
+        sql4 = dialect.translate_sql_op(op4)
+
+        row4 = conn.execute(f"SELECT {sql4} FROM test_data").fetchone()
+        assert row4 is not None
+        result4 = row4[0]
+        assert result4 == 2.0  # Same result as op2
+
+        conn.close()
 
     def test_translate_unsupported_op(self) -> None:
         """Test translation of unsupported op."""

@@ -411,3 +411,41 @@ class ApproxCardinality(OpValueMixin[states.CardinalitySketch], SketchOp[states.
 
     def __str__(self) -> str:
         return self.__repr__()
+
+
+class DuplicateCount(OpValueMixin[float], SqlOp[float]):
+    __match_args__ = ("columns",)
+
+    def __init__(self, columns: list[str]) -> None:
+        OpValueMixin.__init__(self)
+        if not columns:
+            raise ValueError("DuplicateCount requires at least one column")
+        # Sort columns to ensure consistent behavior regardless of input order
+        self.columns = sorted(columns)
+        self._prefix = random_prefix()
+
+    @property
+    def name(self) -> str:
+        return f"duplicate_count({','.join(self.columns)})"
+
+    @property
+    def prefix(self) -> str:
+        return self._prefix
+
+    @property
+    def sql_col(self) -> str:
+        return f"{self.prefix}_{self.name}"
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, DuplicateCount):
+            return NotImplemented
+        return self.columns == other.columns
+
+    def __hash__(self) -> int:
+        return hash((self.name, tuple(self.columns)))
+
+    def __repr__(self) -> str:
+        return self.name
+
+    def __str__(self) -> str:
+        return self.__repr__()
