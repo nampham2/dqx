@@ -2,7 +2,27 @@
 
 ## Current Work Focus
 
-### Recent Major Changes (v0.5.0)
+### Recent Major Changes (v0.6.0)
+1. **Graph Property and collect() to build_graph() Rename**
+   - Added defensive `graph` property to VerificationSuite
+   - Property raises DQXError if accessed before graph is built
+   - Renamed `collect()` method to `build_graph()` for clarity
+   - Updated all internal references from `_context._graph` to `self.graph`
+   - Maintained `validate()` method for pre-flight checks
+   - Example:
+     ```python
+     # Old (removed):
+     suite.collect(context, key)
+
+     # New (v0.6.0):
+     suite.build_graph(context, key)
+
+     # Accessing graph:
+     suite.run(datasources, key)
+     graph = suite.graph  # Now safe to access
+     ```
+
+### Previous Major Changes (v0.5.0)
 1. **Removed VerificationSuiteBuilder**
    - Direct instantiation is now the only way to create suites
    - Simplified API without losing functionality
@@ -13,7 +33,7 @@
      builder = VerificationSuiteBuilder().with_checks([check1, check2])
      suite = builder.build(db, "Suite Name")
 
-     # Current (v0.5.0):
+     # Current:
      suite = VerificationSuite([check1, check2], db, "Suite Name")
      ```
 
@@ -53,7 +73,8 @@
 
 #### 1. **API Simplification Initiative**
 - Successfully removed VerificationSuiteBuilder in v0.5.0
-- Direct instantiation provides cleaner interface
+- Renamed collect() to build_graph() in v0.6.0 for clarity
+- Added defensive graph property with state tracking
 - Continuing to identify and remove unnecessary abstractions
 - Focus on developer experience and API clarity
 
@@ -64,6 +85,9 @@
 - Maintained backward compatibility
 
 #### 3. **Graph Architecture Improvements**
+- Graph property now provides controlled access with clear error messages
+- Explicit state tracking with `_graph_built` flag
+- Better encapsulation - internal graph access through property
 - Moved symbol tracking from CheckNode to AssertionNode
 - CheckNode now focuses purely on aggregating assertion results
 - Enhanced observer pattern for symbol state changes
@@ -100,13 +124,18 @@
 - Automated code quality enforcement
 - Includes mypy type checking in pre-commit
 
+### 5. **API Method Naming**
+- `collect()` renamed to `build_graph()` to better describe its purpose
+- Clear distinction between graph building and result collection
+- Consistent naming across the codebase
+
 ## Important Patterns and Preferences
 
 ### Code Organization
 1. **Protocol-Based Design**: Use Protocol classes for interfaces
 2. **Composite Pattern**: For graph node hierarchy
 3. **Visitor Pattern**: For graph traversal
-4. **Builder Pattern**: For suite construction
+4. **Builder Pattern**: For suite construction (removed in v0.5.0)
 5. **Single Responsibility**: Each class has one clear purpose
 
 ### Naming Conventions
@@ -147,8 +176,8 @@
 
 ### Immediate (This Week)
 1. Continue maintaining high test coverage
-2. Review and update documentation for v0.4.0 changes
-3. Ensure all examples work with new non-chaining API
+2. Review and update documentation for v0.6.0 changes
+3. Ensure all examples work with new build_graph() method
 4. Monitor for any issues with breaking changes
 
 ### Short Term (This Month)
@@ -185,6 +214,11 @@
 - Protocols clarify interfaces
 - Type hints improve IDE support
 
+### 5. **Defensive Programming**
+- Graph property with state checking prevents misuse
+- Clear error messages guide users
+- Explicit is better than implicit
+
 ## Active Experiments
 
 ### 1. **Performance Benchmarking**
@@ -193,7 +227,7 @@
 - Optimizing batch size for throughput
 
 ### 2. **API Ergonomics**
-- Gathering feedback on v0.4.0 changes
+- Gathering feedback on v0.6.0 changes
 - Considering severity-aware execution
 - Exploring natural language assertions
 
