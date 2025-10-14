@@ -453,7 +453,7 @@ class VerificationSuite:
 
         # 1. Impute datasets using visitor pattern
         logger.info("Imputing datasets...")
-        self._context._graph.impute_datasets(list(datasources.keys()), self._context.provider)
+        self.graph.impute_datasets(list(datasources.keys()), self._context.provider)
 
         # 2. Analyze by datasources
         for ds in datasources.keys():
@@ -465,7 +465,7 @@ class VerificationSuite:
 
         # 3. Evaluate assertions
         evaluator = Evaluator(self.provider, key, self._name)
-        self._context._graph.bfs(evaluator)
+        self.graph.bfs(evaluator)
 
         # Mark suite as evaluated only after successful completion
         self.is_evaluated = True
@@ -511,7 +511,7 @@ class VerificationSuite:
         results = []
 
         # Use the graph's built-in method to get all assertions
-        for assertion in self._context._graph.assertions():
+        for assertion in self.graph.assertions():
             # Extract parent hierarchy
             check_node = assertion.parent  # Parent is always a CheckNode
 
