@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from dqx.api import Context, VerificationSuiteBuilder, check
+from dqx.api import Context, VerificationSuite, check
 from dqx.common import DQXError, ResultKey
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
@@ -22,7 +22,7 @@ def test_suite_validation_on_collect_success() -> None:
     def check2(mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(mp.average("price")).where(name="Price check").is_positive()
 
-    suite = VerificationSuiteBuilder("Valid Suite", db).add_check(check1).add_check(check2).build()
+    suite = VerificationSuite([check1, check2], db, "Valid Suite")
 
     # Should not raise any errors
     suite.collect(suite._context, ResultKey(date(2024, 1, 1), {"test": "true"}))
@@ -40,7 +40,7 @@ def test_suite_validation_on_collect_failure() -> None:
     def check2(mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(mp.average("price")).where(name="Test").is_positive()
 
-    suite = VerificationSuiteBuilder("Invalid Suite", db).add_check(check1).add_check(check2).build()
+    suite = VerificationSuite([check1, check2], db, "Invalid Suite")
 
     # Should raise DQXError with validation message
     with pytest.raises(DQXError) as exc_info:
@@ -58,7 +58,7 @@ def test_suite_validation_warnings_logged() -> None:
     def empty_check(mp: MetricProvider, ctx: Context) -> None:
         pass  # No assertions!
 
-    suite = VerificationSuiteBuilder("Test Suite", db).add_check(empty_check).build()
+    suite = VerificationSuite([empty_check], db, "Test Suite")
 
     # Should not raise error even with warnings
     # The warning will be logged to stderr but won't cause failure
@@ -76,7 +76,7 @@ def test_explicit_validate_method() -> None:
     def empty_check(mp: MetricProvider, ctx: Context) -> None:
         pass  # No assertions!
 
-    suite = VerificationSuiteBuilder("Test Suite", db).add_check(empty_check).build()
+    suite = VerificationSuite([empty_check], db, "Test Suite")
 
     # Call validate explicitly
     report = suite.validate()

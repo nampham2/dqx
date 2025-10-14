@@ -85,19 +85,18 @@ class GraphTraverser(NodeVisitor):
                 child.accept(self)
 ```
 
-### 4. Builder Pattern
-**Used In**: Verification suite construction
-**Implementation**: Fluent interface for complex object creation
+### 4. Direct Construction Pattern
+**Used In**: Verification suite construction (simplified in v0.5.0+)
+**Implementation**: Direct instantiation with all parameters
 
 ```python
-suite = (
-    VerificationSuiteBuilder("Suite Name", db)
-    .add_check(check1)
-    .add_checks([check2, check3])
-    .with_tags(["production", "critical"])
-    .build()
+# Direct instantiation - no builder pattern needed
+suite = VerificationSuite(
+    [check1, check2, check3], db, "Suite Name", tags=["production", "critical"]
 )
 ```
+
+**History**: The VerificationSuiteBuilder was removed in v0.5.0 as it added unnecessary complexity without significant benefits. Direct construction provides a cleaner, more maintainable API.
 
 ### 5. Two-Stage Builder Pattern
 **Used In**: Assertion creation (v0.4.0+)

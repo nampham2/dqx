@@ -295,9 +295,10 @@ from airflow.decorators import task
 
 @task
 def run_dqx_validation():
-    from dqx.api import VerificationSuiteBuilder
+    from dqx.api import VerificationSuite, check
 
-    suite = VerificationSuiteBuilder("Airflow Suite", db).build()
+    # Define your checks here
+    suite = VerificationSuite([check1, check2], db, "Airflow Suite")
     return suite.run(datasources, key)
 ```
 

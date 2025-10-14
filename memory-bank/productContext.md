@@ -80,7 +80,7 @@ def validate_orders(mp, ctx):
 
 
 # Run validation
-suite = VerificationSuiteBuilder("Quick Check", db).add_check(validate_orders).build()
+suite = VerificationSuite([validate_orders], db, "Quick Check")
 suite.run({"orders": data}, key)
 ```
 
