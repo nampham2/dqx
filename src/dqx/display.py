@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
-from typing import Protocol, TYPE_CHECKING
-from rich.tree import Tree
+from typing import TYPE_CHECKING, Protocol
+
+from returns.result import Result
 from rich.console import Console
+from rich.tree import Tree
 
 if TYPE_CHECKING:
+    from dqx.common import AssertionResult, EvaluationFailure, SymbolInfo
     from dqx.graph.base import BaseNode
     from dqx.graph.traversal import Graph
+
+# Type aliases for clarity
+if TYPE_CHECKING:
+    MetricValue = Result[float, list[EvaluationFailure]]
+    SymbolValue = Result[float, str]
 
 
 class NodeFormatter(Protocol):
@@ -121,3 +129,141 @@ def print_graph(graph: Graph, formatter: NodeFormatter | None = None) -> None:
     if visitor.tree is not None:
         console = Console()
         console.print(visitor.tree)
+
+
+def print_assertion_results(results: list[AssertionResult]) -> None:
+    """
+    Display assertion results in a formatted table.
+
+    Shows all fields from AssertionResult objects in a table with columns:
+    Date, Suite, Check, Assertion, Expression, Severity, Status, Value/Error, Tags
+
+    Args:
+        results: List of AssertionResult objects from collect_results()
+
+    Example:
+        >>> suite = VerificationSuite(checks, db, "My Suite")
+        >>> suite.run(datasources, key)
+        >>> results = suite.collect_results()
+        >>> print_assertion_results(results)
+    """
+    from returns.result import Failure, Success
+    from rich.table import Table
+
+    # Create table with title
+    table = Table(title="Assertion Results", show_lines=True)
+
+    # Add columns in specified order
+    table.add_column("Date", style="cyan", no_wrap=True)
+    table.add_column("Suite", style="blue")
+    table.add_column("Check", style="yellow")
+    table.add_column("Assertion")
+    table.add_column("Expression", style="dim")
+    table.add_column("Severity", style="magenta")
+    table.add_column("Status", style="bold")
+    table.add_column("Value/Error")
+    table.add_column("Tags", style="dim")
+
+    # Define severity colors
+    severity_colors = {"P0": "red", "P1": "yellow", "P2": "blue", "P3": "dim"}
+
+    # Add rows
+    for result in results:
+        # Format status with color
+        status_style = "green bold" if result.status == "OK" else "red bold"
+        status_display = f"[{status_style}]{result.status}[/{status_style}]"
+
+        # Format severity with color
+        severity_color = severity_colors.get(result.severity, "white")
+        severity_display = f"[{severity_color}]{result.severity}[/{severity_color}]"
+
+        # Extract value/error using pattern matching with colors
+        match result.metric:
+            case Success(value):
+                value_display = f"[green]{value}[/green]"
+            case Failure(failures):
+                error_text = "; ".join(f.error_message for f in failures)
+                value_display = f"[red]{error_text}[/red]"
+
+        # Format tags as key=value pairs
+        tags_display = ", ".join(f"{k}={v}" for k, v in result.tags.items())
+        if not tags_display:
+            tags_display = "-"
+
+        # Add row
+        table.add_row(
+            result.yyyy_mm_dd.isoformat(),
+            result.suite,
+            result.check,
+            result.assertion,
+            result.expression or "-",
+            severity_display,
+            status_display,
+            value_display,
+            tags_display,
+        )
+
+    # Print table
+    console = Console()
+    console.print(table)
+
+
+def print_symbols(symbols: list[SymbolInfo]) -> None:
+    """
+    Display symbol values in a formatted table.
+
+    Shows all fields from SymbolInfo objects in a table with columns:
+    Date, Suite, Symbol, Metric, Dataset, Value/Error, Tags
+
+    Args:
+        symbols: List of SymbolInfo objects from collect_symbols()
+
+    Example:
+        >>> suite = VerificationSuite(checks, db, "My Suite")
+        >>> suite.run(datasources, key)
+        >>> symbols = suite.collect_symbols()
+        >>> print_symbols(symbols)
+    """
+    from returns.result import Failure, Success
+    from rich.table import Table
+
+    # Create table with title
+    table = Table(title="Symbol Values", show_lines=True)
+
+    # Add columns in specified order
+    table.add_column("Date", style="cyan", no_wrap=True)
+    table.add_column("Suite", style="blue")
+    table.add_column("Symbol", style="yellow", no_wrap=True)
+    table.add_column("Metric")
+    table.add_column("Dataset", style="magenta")
+    table.add_column("Value/Error")
+    table.add_column("Tags", style="dim")
+
+    # Add rows
+    for symbol in symbols:
+        # Extract value/error using pattern matching with colors
+        match symbol.value:
+            case Success(value):
+                value_display = f"[green]{value}[/green]"
+            case Failure(error):
+                value_display = f"[red]{error}[/red]"
+
+        # Format tags as key=value pairs
+        tags_display = ", ".join(f"{k}={v}" for k, v in symbol.tags.items())
+        if not tags_display:
+            tags_display = "-"
+
+        # Add row
+        table.add_row(
+            symbol.yyyy_mm_dd.isoformat(),
+            symbol.suite,
+            symbol.name,
+            symbol.metric,
+            symbol.dataset or "-",
+            value_display,
+            tags_display,
+        )
+
+    # Print table
+    console = Console()
+    console.print(table)

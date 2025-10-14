@@ -379,6 +379,34 @@ The `AssertionResult` dataclass provides:
 
 The `is_evaluated` flag indicates whether the suite has been executed, ensuring results are available before collection.
 
+## Viewing Results
+
+After running a verification suite, you can display the results in formatted tables:
+
+```python
+# Run verification
+suite = VerificationSuite(checks, db, "Daily Quality Checks")
+suite.run({"orders": datasource}, key)
+
+# Display assertion results in a table
+from dqx.display import print_assertion_results, print_symbols
+
+results = suite.collect_results()
+print_assertion_results(results)
+
+# Display computed symbol values in a table
+symbols = suite.collect_symbols()
+print_symbols(symbols)
+```
+
+The tables show all relevant information including dates, suites, checks,
+assertion names, statuses, computed values, and any error messages.
+The output is color-coded for better readability:
+- Green: Successful values and OK status
+- Red: Failures and error messages
+- Yellow: High priority items and identifiers
+- Blue/Cyan: Organizational information
+
 ### Error Handling and Validation
 
 DQX provides comprehensive validation and clear error messages:
