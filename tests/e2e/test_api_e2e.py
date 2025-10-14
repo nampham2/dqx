@@ -73,3 +73,8 @@ def test_verification_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Tab
 
     suite.run({"ds1": ds1, "ds2": ds2}, key)
     ctx._graph.print_tree()
+
+    from rich.console import Console
+
+    Console().print(suite.collect_results())
+    Console().print(suite.collect_symbols())
