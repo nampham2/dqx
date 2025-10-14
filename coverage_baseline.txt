@@ -1,0 +1,40 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.11.13, pytest-8.4.2, pluggy-1.6.0 -- /Users/npham/git-tree/dqx/.venv/bin/python3
+cachedir: .pytest_cache
+Using --randomly-seed=568001405
+rootdir: /Users/npham/git-tree/dqx
+configfile: pyproject.toml
+plugins: asyncio-1.2.0, returns-0.26.0, randomly-4.0.1, Faker-37.11.0, cov-7.0.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 20 items
+
+tests/test_api.py::test_assertion_node_is_immutable PASSED               [  5%]
+tests/test_api.py::test_simple_check_uses_function_name PASSED           [ 10%]
+tests/test_api.py::test_assertion_workflow_end_to_end PASSED             [ 15%]
+tests/test_api.py::test_check_decorator_without_parentheses_not_allowed PASSED [ 20%]
+tests/test_api.py::test_assertion_draft_creation PASSED                  [ 25%]
+tests/test_api.py::test_assertion_ready_always_has_name PASSED           [ 30%]
+tests/test_api.py::test_assertion_ready_has_all_methods PASSED           [ 35%]
+tests/test_api.py::test_no_assertion_chaining PASSED                     [ 40%]
+tests/test_api.py::test_check_decorator_requires_name PASSED             [ 45%]
+tests/test_api.py::test_parametrized_check_with_empty_parens PASSED      [ 50%]
+tests/test_api.py::test_simple_check_works_in_suite PASSED               [ 55%]
+tests/test_api.py::test_cannot_use_assertion_methods_on_draft PASSED     [ 60%]
+tests/test_api.py::test_context_assert_that_returns_draft PASSED         [ 65%]
+tests/test_api.py::test_check_decorator_with_name_works PASSED           [ 70%]
+tests/test_api.py::test_where_validates_name PASSED                      [ 75%]
+tests/test_api.py::test_assertion_methods_return_none PASSED             [ 80%]
+tests/test_api.py::test_multiple_assertions_on_same_metric PASSED        [ 85%]
+tests/test_api.py::test_parametrized_check_uses_provided_name PASSED     [ 90%]
+tests/test_api.py::test_assertion_severity_is_mandatory_with_p1_default PASSED [ 95%]
+tests/test_api.py::test_where_requires_name_parameter PASSED             [100%]
+
+================================ tests coverage ================================
+______________ coverage: platform darwin, python 3.11.13-final-0 _______________
+
+Name             Stmts   Miss  Cover   Missing
+----------------------------------------------
+src/dqx/api.py     184     58    68%   112-113, 137-138, 148, 152, 228, 266-269, 303, 305, 340-347, 371, 373, 391-424, 453-484, 510-536
+----------------------------------------------
+TOTAL              184     58    68%
+============================== 20 passed in 0.94s ==============================

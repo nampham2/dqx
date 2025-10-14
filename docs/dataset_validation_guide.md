@@ -92,7 +92,7 @@ def price_check(mp, ctx):
 Dataset validation happens at two points:
 
 1. **Explicit Validation**: When you call `suite.validate()`
-2. **During Collection**: When `suite.collect()` or `suite.run()` is called
+2. **During Collection**: When `suite.build_graph()` or `suite.run()` is called
 
 If validation fails, a `DQXError` is raised with details about the validation issues.
 

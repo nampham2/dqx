@@ -326,14 +326,14 @@ class VerificationSuite:
         Access the dependency graph for the verification suite.
 
         This property provides read-only access to the internal Graph instance
-        after the graph has been built via collect() or run().
+        after the graph has been built via build_graph() or run().
 
         Returns:
             Graph: The dependency graph containing checks and assertions
 
         Raises:
             DQXError: If accessed before the graph has been built
-                     (i.e., before collect() or run() has been called)
+                     (i.e., before build_graph() or run() has been called)
 
         Example:
             >>> suite = VerificationSuite(checks, db, "My Suite")

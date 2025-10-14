@@ -401,9 +401,6 @@ def test_verification_suite_graph_property() -> None:
     db = InMemoryMetricDB()
     suite = VerificationSuite([simple_check], db, "Test Suite")
 
-    # Graph should be accessible
-    assert hasattr(suite, "graph")
-
     # Should raise error before build_graph is called
     with pytest.raises(DQXError, match="Graph not built yet"):
         _ = suite.graph
