@@ -26,7 +26,7 @@ from dqx.graph.traversal import Graph
 from dqx.orm.repositories import MetricDB
 from dqx.provider import MetricProvider
 from dqx.specs import MetricSpec
-from dqx.validator import SuiteValidator, ValidationReport
+from dqx.validator import SuiteValidator
 
 CheckProducer = Callable[[MetricProvider, "Context"], None]
 CheckCreator = Callable[[CheckProducer], CheckProducer]
@@ -310,9 +310,6 @@ class VerificationSuite:
         # Create a context
         self._context = Context(suite=self._name, db=db)
 
-        # Create validator instance
-        self._validator = SuiteValidator()
-
         # State tracking for result collection
         self.is_evaluated = False  # Track if assertions have been evaluated
         self._key: ResultKey | None = None  # Store the key used during run()
@@ -356,23 +353,6 @@ class VerificationSuite:
             MetricProvider instance used by the verification suite
         """
         return self._context.provider
-
-    def validate(self) -> ValidationReport:
-        """
-        Explicitly validate the suite configuration.
-
-        Returns:
-            ValidationReport containing any issues found
-        """
-        # Create temporary context to collect checks
-        temp_context = Context(suite=self._name, db=self.provider._db)
-
-        # Execute all checks to build graph
-        for check_fn in self._checks:
-            check_fn(self.provider, temp_context)
-
-        # Run validation on the graph using the same provider that was used to register symbols
-        return self._validator.validate(temp_context._graph, self.provider)
 
     def build_graph(self, context: Context, key: ResultKey) -> None:
         """

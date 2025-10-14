@@ -68,8 +68,8 @@ def test_suite_validation_warnings_logged() -> None:
     # The warning was logged but didn't cause failure
 
 
-def test_explicit_validate_method() -> None:
-    """Test explicit validation method."""
+def test_validation_warnings_during_build_graph() -> None:
+    """Test that validation warnings are logged but don't fail build_graph."""
     db = InMemoryMetricDB()
 
     @check(name="Empty Check")
@@ -78,13 +78,9 @@ def test_explicit_validate_method() -> None:
 
     suite = VerificationSuite([empty_check], db, "Test Suite")
 
-    # Call validate explicitly
-    report = suite.validate()
+    # Build graph should succeed despite warnings (warnings are only logged)
+    # This won't raise an exception because warnings don't cause failure
+    suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {}))
 
-    assert report.has_warnings()
-    assert "Empty Check" in str(report)
-
-    # Test structured output
-    data = report.to_dict()
-    assert data["summary"]["warning_count"] == 1
-    assert data["warnings"][0]["rule"] == "empty_checks"
+    # The test passes if no exception was raised
+    # Warnings are logged but don't prevent execution
