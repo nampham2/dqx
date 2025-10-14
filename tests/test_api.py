@@ -4,7 +4,7 @@ import pytest
 import sympy as sp
 
 from dqx.api import Context, MetricProvider, VerificationSuite, check
-from dqx.common import ResultKey
+from dqx.common import DQXError, ResultKey
 from dqx.orm.repositories import InMemoryMetricDB
 
 
@@ -388,3 +388,34 @@ def test_assertion_severity_is_mandatory_with_p1_default() -> None:
     for assertion in assertions:
         assert assertion.severity is not None
         assert assertion.severity in ["P0", "P1", "P2", "P3"]
+
+
+def test_verification_suite_graph_property() -> None:
+    """Test that VerificationSuite exposes graph property with proper error handling."""
+
+    # Create a simple check for testing
+    @check(name="Simple Check")
+    def simple_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+
+    db = InMemoryMetricDB()
+    suite = VerificationSuite([simple_check], db, "Test Suite")
+
+    # Graph should be accessible
+    assert hasattr(suite, "graph")
+
+    # Should raise error before build_graph is called
+    with pytest.raises(DQXError, match="Graph not built yet"):
+        _ = suite.graph
+
+    # After building graph, should work
+    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+    suite.build_graph(suite._context, key)  # type: ignore[attr-defined]  # Use suite's context
+
+    # Should return a Graph instance
+    from dqx.graph.traversal import Graph
+
+    assert isinstance(suite.graph, Graph)
+
+    # Should have the suite name as root
+    assert suite.graph.root.name == "Test Suite"
