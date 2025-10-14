@@ -317,6 +317,34 @@ class VerificationSuite:
         self.is_evaluated = False  # Track if assertions have been evaluated
         self._key: ResultKey | None = None  # Store the key used during run()
 
+        # Graph state tracking
+        self._graph_built = False  # Track if graph has been built
+
+    @property
+    def graph(self) -> Graph:
+        """
+        Access the dependency graph for the verification suite.
+
+        This property provides read-only access to the internal Graph instance
+        after the graph has been built via collect() or run().
+
+        Returns:
+            Graph: The dependency graph containing checks and assertions
+
+        Raises:
+            DQXError: If accessed before the graph has been built
+                     (i.e., before collect() or run() has been called)
+
+        Example:
+            >>> suite = VerificationSuite(checks, db, "My Suite")
+            >>> suite.run(datasources, key)
+            >>> graph = suite.graph  # Now accessible
+            >>> print(f"Graph has {len(list(graph.checks()))} checks")
+        """
+        if not self._graph_built:
+            raise DQXError("Graph not built yet. Call collect() or run() first to build the dependency graph.")
+        return self._context._graph
+
     @property
     def provider(self) -> MetricProvider:
         """
@@ -371,6 +399,25 @@ class VerificationSuite:
             raise DQXError(f"Suite validation failed:\n{report}")
         elif report.has_warnings():
             logger.warning(f"Suite validation warnings:\n{report}")
+
+        # Mark graph as built
+        self._graph_built = True
+
+    def build_graph(self, context: Context, key: ResultKey) -> None:
+        """
+        Build the dependency graph (alias for collect).
+
+        This method is a simple alias for collect() to provide a more
+        descriptive name for the graph building operation.
+
+        Args:
+            context: The context to use for building the graph
+            key: The result key defining the time period and tags
+
+        Raises:
+            DQXError: If graph building fails
+        """
+        self.collect(context, key)
 
     def run(self, datasources: dict[str, SqlDataSource], key: ResultKey, threading: bool = False) -> None:
         """
