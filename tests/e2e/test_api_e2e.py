@@ -6,6 +6,7 @@ import sympy as sp
 from dqx import specs
 from dqx.api import VerificationSuite, check
 from dqx.common import Context, ResultKey
+from dqx.display import print_assertion_results, print_symbols
 from dqx.extensions.pyarrow_ds import ArrowDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
@@ -74,7 +75,5 @@ def test_verification_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Tab
     suite.run({"ds1": ds1, "ds2": ds2}, key)
     ctx._graph.print_tree()
 
-    from rich.console import Console
-
-    Console().print(suite.collect_results())
-    Console().print(suite.collect_symbols())
+    print_assertion_results(suite.collect_results())
+    print_symbols(suite.collect_symbols())
