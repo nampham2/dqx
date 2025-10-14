@@ -419,3 +419,28 @@ def test_verification_suite_graph_property() -> None:
 
     # Should have the suite name as root
     assert suite.graph.root.name == "Test Suite"
+
+
+def test_verification_suite_build_graph_method() -> None:
+    """Test that build_graph method works (renamed from collect)."""
+
+    # Create a simple check for testing
+    @check(name="Simple Check")
+    def simple_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+
+    db = InMemoryMetricDB()
+    suite = VerificationSuite([simple_check], db, "Test Suite")
+    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+
+    # Should have build_graph method
+    assert hasattr(suite, "build_graph")
+
+    # Should not have collect method anymore
+    assert not hasattr(suite, "collect")
+
+    # build_graph should work
+    suite.build_graph(suite._context, key)  # type: ignore[attr-defined]
+
+    # Graph should be populated
+    assert len(suite.graph.root.children) > 0
