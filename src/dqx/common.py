@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime
 import datetime as dt
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol, Self, runtime_checkable
 
@@ -197,44 +197,6 @@ class SqlDataSource(Protocol):
         ...
 
 
-@runtime_checkable
-class BatchSqlDataSource(Protocol):
-    """
-    Protocol for batch SQL data sources that provide data in multiple batches.
-
-    This protocol extends the concept of SqlDataSource to handle scenarios where
-    data processing needs to be done in batches (e.g., for memory efficiency,
-    parallel processing, or when dealing with partitioned datasets).
-
-    The protocol defines a consistent interface for iterating over batches of
-    SqlDataSource objects, enabling efficient processing of large datasets.
-    """
-
-    def batches(self) -> Iterable[SqlDataSource]:
-        """
-        Return an iterable of SqlDataSource instances representing data batches.
-
-        Each batch should be a complete SqlDataSource that can be independently
-        processed. This method enables batch-wise processing for memory efficiency
-        and parallel execution.
-
-        Returns:
-            Iterable[SqlDataSource]: An iterable of SqlDataSource instances,
-                                   where each instance represents a batch of data
-
-        Example:
-            >>> batch_source = MyBatchSqlDataSource()
-            >>> for batch in batch_source.batches():
-            ...     result = analyzer.analyze_single(batch, metrics, key)
-
-        Note:
-            - Each batch should be self-contained and independently queryable
-            - The iteration order should be deterministic when possible
-            - Batches should not overlap in terms of data coverage
-        """
-        ...
-
-
 Validator = Callable[[Any], bool]
 
 
@@ -269,32 +231,26 @@ class Analyzer(Protocol):
     Protocol for data analysis engines that process SQL data sources.
 
     This protocol defines the minimal interface for analyzers that can process
-    both individual SqlDataSource instances and BatchSqlDataSource collections,
-    generating analysis reports based on specified metrics.
-
-    The protocol supports both synchronous and asynchronous (threaded) processing
-    modes for optimal performance with different data source types.
+    individual SqlDataSource instances, generating analysis reports based on
+    specified metrics.
     """
 
     def analyze(
         self,
-        ds: SqlDataSource | BatchSqlDataSource,
+        ds: SqlDataSource,
         metrics: Sequence[MetricSpec],
         key: ResultKey,
-        threading: bool = False,
     ) -> AnalysisReport:
         """
         Analyze a data source using the specified metrics.
 
-        This is the main entry point for analysis operations. It handles both
-        single data sources and batch data sources, automatically choosing the
-        appropriate processing strategy.
+        This is the main entry point for analysis operations. It processes
+        a single data source and generates an analysis report.
 
         Args:
-            ds: The data source to analyze (single or batch)
+            ds: The data source to analyze
             metrics: Sequence of metric specifications to compute
             key: Result key for organizing and retrieving analysis results
-            threading: Whether to use multi-threaded processing for batch sources
 
         Returns:
             AnalysisReport: Report containing computed metrics and their values
