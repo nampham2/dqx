@@ -5,7 +5,6 @@ import logging
 import textwrap
 from collections import UserDict
 from collections.abc import Sequence
-from threading import Lock
 from typing import TypeVar
 
 import duckdb
@@ -64,6 +63,47 @@ class AnalysisReport(UserDict[MetricKey, models.Metric]):
     def show(self) -> None:
         # TODO(npham): Add more visualization options
         Console().print({v.spec.name: v.value for v in self.values()})
+
+    def persist(self, db: MetricDB, overwrite: bool = True) -> None:
+        """Persist the analysis report to the metric database.
+
+        NOTE: This method is NOT thread-safe. If thread safety is required,
+        it must be implemented by the caller.
+
+        Args:
+            db: MetricDB instance for persistence
+            overwrite: If True, overwrite existing metrics. If False, merge with existing.
+        """
+        if len(self) == 0:  # Changed from self._report
+            logger.warning("Try to save an EMPTY analysis report!")
+            return
+
+        if overwrite:
+            logger.info("Overwriting analysis report ...")
+            db.persist(self.values())
+        else:
+            logger.info("Merging analysis report ...")
+            self._merge_persist(db)
+
+    def _merge_persist(self, db: MetricDB) -> None:
+        """Merge with existing metrics in the database before persisting.
+
+        NOTE: This method is NOT thread-safe.
+
+        Args:
+            db: MetricDB instance for persistence
+        """
+        db_report = AnalysisReport()
+
+        for key, metric in self.items():  # Changed from self._report.items()
+            # Find the metric in DB
+            db_metric = db.get(metric.key, metric.spec)
+            if db_metric is not None:
+                db_report[key] = db_metric.unwrap()
+
+        # Merge and persist
+        merged_report = self.merge(db_report)
+        db.persist(merged_report.values())
 
 
 def analyze_sketch_ops(ds: T, ops: Sequence[SketchOp], batch_size: int = 100_000) -> None:
@@ -148,14 +188,11 @@ class Analyzer:
     The Analyzer class is responsible for analyzing data from SqlDataSource
     using specified metrics and generating an AnalysisReport.
 
-    The class is thread-safe and can be used in a multi-threaded environment.
+    Note: This class is NOT thread-safe. Thread safety must be handled by callers if needed.
     """
 
     def __init__(self) -> None:
         self._report: AnalysisReport = AnalysisReport()
-
-        # Mutex for updating the report
-        self._mutex = Lock()
 
     @property
     def report(self) -> AnalysisReport:
@@ -198,38 +235,8 @@ class Analyzer:
 
         # Build the analysis report and merge with the current one
         report = AnalysisReport(data={(metric, key): models.Metric.build(metric, key) for metric in metrics})
-
-        with self._mutex:
-            self._report = self._report.merge(report)
-
+        self._report = self._report.merge(report)  # No mutex needed
         return self._report
 
     def _setup_duckdb(self) -> None:
         duckdb.execute("SET enable_progress_bar = false")
-
-    def _merge_persist(self, db: MetricDB) -> None:
-        db_report: AnalysisReport = AnalysisReport()
-
-        for _, metric in self._report.items():
-            # Find the metric in DB
-            db_metric = db.get(metric.key, metric.spec)
-            if db_metric is not None:
-                db_report[_] = db_metric.unwrap()
-
-        with self._mutex:
-            report = self._report.merge(db_report)
-
-        db.persist(report.values())
-
-    def persist(self, db: MetricDB, overwrite: bool = True) -> None:
-        # TODO(npham): Move persist to the analysis report
-        if len(self._report) == 0:
-            logger.warning("Try to save an EMPTY analysis report!")
-            return
-
-        if overwrite:
-            logger.info("Overwriting analysis report ...")
-            db.persist(self._report.values())
-        else:
-            logger.info("Merging analysis report ...")
-            self._merge_persist(db)

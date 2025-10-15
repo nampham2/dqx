@@ -425,7 +425,7 @@ class TestPersistence:
 
         # Use caplog fixture would be better, but for now use patch
         with patch("dqx.analyzer.logger.warning") as mock_warning:
-            analyzer.persist(db)
+            analyzer.report.persist(db)
             mock_warning.assert_called_once_with("Try to save an EMPTY analysis report!")
 
     def test_persist_overwrite(self, result_key: ResultKey) -> None:
@@ -440,7 +440,7 @@ class TestPersistence:
 
         # Persist to database
         db = InMemoryMetricDB()
-        analyzer.persist(db, overwrite=True)
+        analyzer.report.persist(db, overwrite=True)
 
         # Verify metric was saved
         saved_metrics = db.search(MetricTable.metric_id != None)  # noqa: E711
@@ -463,7 +463,7 @@ class TestPersistence:
         db.persist([metric2])
 
         # Persist with merge
-        analyzer.persist(db, overwrite=False)
+        analyzer.report.persist(db, overwrite=False)
 
         # Verify metric exists and has been properly handled
         # Search for metrics with the same spec and key

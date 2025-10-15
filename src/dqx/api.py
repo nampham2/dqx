@@ -434,7 +434,7 @@ class VerificationSuite:
             metrics = self._context.pending_metrics(ds)
             # TODO: Check the metrics and logging
             analyzer.analyze(datasources[ds], metrics, key)
-            analyzer.persist(self.provider._db)
+            analyzer.report.persist(self.provider._db)
 
         # 3. Evaluate assertions
         evaluator = Evaluator(self.provider, key, self._name)
