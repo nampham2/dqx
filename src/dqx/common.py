@@ -198,31 +198,13 @@ class SqlDataSource(Protocol):
 
 
 Validator = Callable[[Any], bool]
+RetrievalFn = Callable[[ResultKey], Result[float, str]]
 
 
 @dataclass
 class SymbolicValidator:
     name: str
     fn: Validator
-
-
-RetrievalFn = Callable[[ResultKey], Result[float, str]]
-
-
-@runtime_checkable
-class ExtendedMetricProvider(Protocol):
-    def day_over_day(
-        self, metric: MetricSpec, key: ResultKeyProvider = ResultKeyProvider(), datasets: list[str] | None = None
-    ) -> sp.Symbol: ...
-
-    def stddev(
-        self,
-        metric: MetricSpec,
-        lag: int,
-        n: int,
-        key: ResultKeyProvider = ResultKeyProvider(),
-        dataset: str | None = None,
-    ) -> sp.Symbol: ...
 
 
 @runtime_checkable
