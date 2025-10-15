@@ -132,6 +132,16 @@ class AssertionReady:
         validator = SymbolicValidator(f"= {other}", lambda x: functions.is_eq(x, other, tol))
         self._create_assertion_node(validator)
 
+    def is_between(self, lower: float, upper: float, tol: float = functions.EPSILON) -> None:
+        """Assert that the expression is between two values (inclusive)."""
+        if lower > upper:
+            raise ValueError(
+                f"Invalid range: lower bound ({lower}) must be less than or equal to upper bound ({upper})"
+            )
+
+        validator = SymbolicValidator(f"in [{lower}, {upper}]", lambda x: functions.is_between(x, lower, upper, tol))
+        self._create_assertion_node(validator)
+
     def is_negative(self, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is negative."""
         validator = SymbolicValidator("< 0", lambda x: functions.is_negative(x, tol))
