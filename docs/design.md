@@ -21,7 +21,7 @@ DQX is a high-performance data quality framework built on DuckDB and PyArrow, de
 
 ### Key Design Goals
 - **Performance**: Sub-second query performance on large datasets
-- **Scalability**: Handle TB-scale data through batch processing and statistical sketching
+- **Scalability**: Efficient single-pass analysis with DuckDB's query engine and statistical sketching
 - **Declarative API**: Intuitive symbolic expressions for data quality checks
 - **Extensibility**: Plugin architecture for custom metrics and data sources
 - **Production-Ready**: Built-in persistence, error handling, and monitoring
@@ -680,15 +680,14 @@ Potential improvements to the symbolic metric system:
 
 ### 6. Analyzer System (`analyzer.py`)
 
-The analyzer executes SQL operations and manages batch processing:
+The analyzer executes SQL operations efficiently:
 
 ```mermaid
 graph TD
-    A[Analyzer] --> B[Batch Processing]
-    A --> S[SQL Generation]
+    A[Analyzer] --> S[SQL Generation]
     A --> D[DuckDB Execution]
-    B --> T[Threading Pool]
     S --> O[Operation Deduplication]
+    A --> M[Metric Merging]
 ```
 
 ## Design Patterns
@@ -1135,7 +1134,6 @@ suite = VerificationSuite(
 context = suite.run(
     datasources={"orders": order_ds, "customers": customer_ds},
     key=ResultKey(yyyy_mm_dd=date.today(), tags={"env": "prod"}),
-    threading=True,
 )
 ```
 
@@ -1271,7 +1269,7 @@ graph BT
 3. **Use Severity for Alerting**
    - Configure monitoring to page on-call for P0 failures
    - Send email alerts for P1 failures
-   - Log P2/P3 failures for batch review
+   - Log P2/P3 failures for review
 
 4. **Progressive Severity Escalation**
    - Start new assertions at P2/P3 during development
@@ -1391,7 +1389,6 @@ revenue_ds = ArrowDataSource.from_parquet("data/daily_revenue.parquet")
 result = suite.run(
     datasources={"orders": orders_ds, "customers": customers_ds, "revenue": revenue_ds},
     key=ResultKey(yyyy_mm_dd=dt.date.today(), tags={"env": "prod"}),
-    threading=True,
 )
 
 # Inspect results
@@ -1427,18 +1424,11 @@ def validate_data_migration(mp, ctx):
     )  # Max $0.01 difference
 ```
 
-### Example 3: Batch Processing Large Datasets
+### Example 3: Large Dataset Validation with Statistical Methods
 
 ```python
-from dqx.extensions.pyarrow_ds import ArrowBatchDataSource
-
-# Process multiple large Parquet files
-batch_ds = ArrowBatchDataSource.from_parquets(
-    [
-        "s3://bucket/data/2024-01-*.parquet",  # Glob pattern
-        "s3://bucket/data/2024-02-*.parquet",
-    ]
-)
+# Process large dataset efficiently
+large_ds = ArrowDataSource.from_parquet("s3://bucket/data/large_dataset.parquet")
 
 
 @check(name="Large dataset validation")
@@ -1458,8 +1448,8 @@ def validate_large_dataset(mp, ctx):
     ctx.assert_that(mp.minimum("amount")).is_geq(avg_transaction - 3 * std_dev)
 
 
-# Run with multi-threading for performance
-suite.run({"transactions": batch_ds}, key, threading=True)
+# Run validation
+suite.run({"transactions": large_ds}, key)
 ```
 
 ### Example 4: Custom Metric Implementation
@@ -1520,10 +1510,10 @@ def check_response_times(mp, ctx):
 - **Streaming Algorithms**: Process data in chunks for large datasets
 - **Lazy Evaluation**: Metrics computed only when needed
 
-### 3. Parallel Execution
-- **Multi-threading**: Concurrent processing of data chunks
-- **Independent Datasets**: Parallel analysis across datasets
-- **Lock-free Aggregation**: Thread-safe metric combination
+### 3. Efficient Execution
+- **Single-pass Analysis**: Compute multiple metrics in one query
+- **Query Optimization**: DuckDB's vectorized execution
+- **Thread-safe Aggregation**: Safe metric combination for concurrent usage
 
 ### 4. Caching Strategy
 - **Metric Reuse**: Computed metrics shared across checks
@@ -1709,7 +1699,7 @@ DQX represents a modern approach to data quality management, combining high-perf
 
 The framework's design emphasizes:
 - **Developer Experience**: Clean, declarative API with fluent assertions
-- **Performance**: Optimized SQL generation and parallel execution
+- **Performance**: Optimized SQL generation and efficient execution
 - **Extensibility**: Clear extension points for custom metrics and data sources
 - **Production Readiness**: Comprehensive error handling and persistence
 

@@ -2,7 +2,6 @@
 
 import datetime as dt
 from collections.abc import Iterator
-from concurrent.futures import Future
 from typing import Any, cast
 from unittest.mock import Mock, patch
 
@@ -13,7 +12,7 @@ import pytest
 
 from dqx import models, specs
 from dqx.analyzer import AnalysisReport, Analyzer, analyze_sketch_ops, analyze_sql_ops
-from dqx.common import DQXError, ResultKey, SqlDataSource
+from dqx.common import DQXError, ResultKey
 from dqx.extensions.pyarrow_ds import ArrowDataSource
 from dqx.ops import SketchOp, SqlOp
 from dqx.orm.repositories import InMemoryMetricDB
@@ -67,18 +66,6 @@ class FakeSqlDataSource:
         mock_relation.fetchnumpy.return_value = self._data
         mock_relation.fetch_arrow_reader.return_value = FakeRelation(self._data).fetch_arrow_reader(100000)
         return mock_relation
-
-
-class FakeBatchSqlDataSource:
-    """A test implementation of BatchSqlDataSource protocol."""
-
-    def __init__(self, name: str = "batch_ds", batches_data: list[SqlDataSource] | None = None):
-        self.name = name
-        self._batches_data = batches_data or []
-
-    def batches(self) -> Iterator[SqlDataSource]:
-        """Return an iterator of SqlDataSource instances."""
-        return iter(self._batches_data)
 
 
 class FakeSketchState(SketchState):
@@ -179,7 +166,7 @@ class TestAnalyzer:
         analyzer = Analyzer()
 
         # Analyze the data
-        report = analyzer.analyze_single(arrow_data_source, test_metrics, result_key)
+        report = analyzer.analyze(arrow_data_source, test_metrics, result_key)
 
         # Check results
         assert len(report) == len(test_metrics)
@@ -195,11 +182,11 @@ class TestAnalyzer:
         analyzer = Analyzer()
 
         # First analysis
-        report1 = analyzer.analyze_single(arrow_data_source, test_metrics, result_key)
+        report1 = analyzer.analyze(arrow_data_source, test_metrics, result_key)
         assert report1[(test_metrics[0], result_key)].value == pytest.approx(10)
 
         # Second analysis should accumulate
-        report2 = analyzer.analyze_single(arrow_data_source, test_metrics, result_key)
+        report2 = analyzer.analyze(arrow_data_source, test_metrics, result_key)
         assert report2[(test_metrics[0], result_key)].value == pytest.approx(20)
 
     def test_analyzer_multiple_keys(
@@ -209,12 +196,12 @@ class TestAnalyzer:
         analyzer = Analyzer()
 
         # Analyze with first key
-        report1 = analyzer.analyze_single(arrow_data_source, test_metrics, result_key)
+        report1 = analyzer.analyze(arrow_data_source, test_metrics, result_key)
         assert len(report1) == len(test_metrics)
 
         # Analyze with different key (previous day)
         prev_key = result_key.lag(1)
-        report2 = analyzer.analyze_single(arrow_data_source, test_metrics, prev_key)
+        report2 = analyzer.analyze(arrow_data_source, test_metrics, prev_key)
         assert len(report2) == 2 * len(test_metrics)  # Both days
 
         # Check that both keys have their data
@@ -226,7 +213,7 @@ class TestAnalyzer:
         analyzer = Analyzer()
 
         with pytest.raises(DQXError, match="No metrics provided"):
-            analyzer.analyze_single(arrow_data_source, [], result_key)
+            analyzer.analyze(arrow_data_source, [], result_key)
 
     def test_analyzer_protocol_implementation(self) -> None:
         """Test that Analyzer implements the protocol."""
@@ -416,90 +403,6 @@ class TestAnalysisReport:
 
 class TestBatchAnalysis:
     """Test batch data source analysis."""
-
-    def test_analyze_batch_sequential(self, test_metrics: list[specs.MetricSpec], result_key: ResultKey) -> None:
-        """Test analyzing batch data source sequentially."""
-        # Use real ArrowDataSource for batches with expected columns
-        data1 = pa.Table.from_pydict({"int_col": [1, 2, 3], "null_col": [1, None, 3], "neg_col": [-1, 0, 1]})
-        data2 = pa.Table.from_pydict({"int_col": [4, 5, 6], "null_col": [None, 5, 6], "neg_col": [-2, -1, 0]})
-        data3 = pa.Table.from_pydict({"int_col": [7, 8, 9], "null_col": [7, None, None], "neg_col": [1, 2, 3]})
-
-        batch1 = ArrowDataSource(data1)
-        batch2 = ArrowDataSource(data2)
-        batch3 = ArrowDataSource(data3)
-
-        batch_ds = FakeBatchSqlDataSource(batches_data=[batch1, batch2, batch3])
-
-        analyzer = Analyzer()
-
-        # Mock analyze_single to track calls
-        call_count = 0
-        original_analyze_single = analyzer.analyze_single
-
-        def track_calls(*args: Any, **kwargs: Any) -> AnalysisReport:
-            nonlocal call_count
-            call_count += 1
-            return original_analyze_single(*args, **kwargs)
-
-        analyzer.analyze_single = track_calls  # type: ignore[assignment]
-
-        # Analyze batches
-        result = analyzer.analyze(batch_ds, test_metrics, result_key, threading=False)
-
-        # Verify all batches were processed
-        assert call_count == 3
-        assert result == analyzer.report
-
-    def test_analyze_batch_threaded(self, test_metrics: list[specs.MetricSpec], result_key: ResultKey) -> None:
-        """Test analyzing batch data source with threading."""
-        # Create simple test data to avoid complex threading issues
-        data1 = pa.Table.from_pydict({"int_col": [1, 2, 3], "null_col": [1, None, 3], "neg_col": [-1, 0, 1]})
-        data2 = pa.Table.from_pydict({"int_col": [4, 5, 6], "null_col": [None, 5, 6], "neg_col": [-2, -1, 0]})
-
-        batch1 = ArrowDataSource(data1)
-        batch2 = ArrowDataSource(data2)
-
-        # Create batch data source
-        batch_ds = FakeBatchSqlDataSource(batches_data=[batch1, batch2])
-
-        analyzer = Analyzer()
-
-        # Use simpler metrics to avoid DuckDB threading issues
-        simple_metrics = [specs.NumRows()]
-
-        # Mock the threading to avoid actual DuckDB threading issues
-        with patch("dqx.analyzer.ThreadPoolExecutor") as mock_executor:
-            # Make the executor run tasks sequentially to avoid DuckDB threading
-            def mock_submit(fn: Any, *args: Any, **kwargs: Any) -> Mock:
-                future = Mock()
-                future.result.return_value = fn(*args, **kwargs)
-                return future
-
-            mock_context = Mock()
-            mock_context.submit = mock_submit
-            mock_context.__enter__ = Mock(return_value=mock_context)
-            mock_context.__exit__ = Mock(return_value=None)
-            mock_executor.return_value = mock_context
-
-            # Analyze with threading
-            result = analyzer.analyze(batch_ds, simple_metrics, result_key, threading=True)
-
-            # Verify results
-            assert len(result) == 1  # One metric
-            assert result[(simple_metrics[0], result_key)].value == 6.0  # 3 + 3 rows
-
-    def test_analyze_unsupported_data_source(self, test_metrics: list[specs.MetricSpec], result_key: ResultKey) -> None:
-        """Test analyzing with unsupported data source type."""
-        analyzer = Analyzer()
-
-        # Create an unsupported data source
-        class UnsupportedDS:
-            name = "unsupported"
-
-        unsupported_ds = UnsupportedDS()
-
-        with pytest.raises(DQXError, match="Unsupported data source"):
-            analyzer.analyze(unsupported_ds, test_metrics, result_key)  # type: ignore[arg-type]
 
     def test_analyze_sql_data_source_directly(
         self, arrow_data_source: ArrowDataSource, test_metrics: list[specs.MetricSpec], result_key: ResultKey
@@ -732,40 +635,5 @@ class TestDuckDBSetup:
         analyzer = Analyzer()
 
         with patch.object(analyzer, "_setup_duckdb") as mock_setup:
-            analyzer.analyze_single(arrow_data_source, test_metrics, result_key)
+            analyzer.analyze(arrow_data_source, test_metrics, result_key)
             mock_setup.assert_called_once()
-
-
-class TestThreadingDetails:
-    """Test threading implementation details."""
-
-    def test_thread_pool_configuration(
-        self, arrow_data_source: ArrowDataSource, test_metrics: list[specs.MetricSpec], result_key: ResultKey
-    ) -> None:
-        """Test ThreadPoolExecutor configuration."""
-        # Create batch data source
-        batch_ds = FakeBatchSqlDataSource(batches_data=[arrow_data_source])
-
-        analyzer = Analyzer()
-
-        # Mock ThreadPoolExecutor and multiprocessing
-        mock_future = Mock(spec=Future)
-        mock_future.result.return_value = None
-
-        mock_executor = Mock()
-        mock_executor.submit.return_value = mock_future
-        mock_executor.__enter__ = lambda self: self
-        mock_executor.__exit__ = lambda self, *args: None
-
-        with patch("dqx.analyzer.ThreadPoolExecutor", return_value=mock_executor) as mock_tpe:
-            with patch("dqx.analyzer.multiprocessing.cpu_count", return_value=4):
-                analyzer.analyze(batch_ds, test_metrics, result_key, threading=True)
-
-                # Verify ThreadPoolExecutor was created with correct workers
-                mock_tpe.assert_called_once_with(max_workers=4)
-
-                # Verify submit was called
-                assert mock_executor.submit.call_count == 1
-
-                # Verify result was retrieved
-                mock_future.result.assert_called_once()

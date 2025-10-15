@@ -21,7 +21,9 @@ Also read the memory bank, code base, and documentations. Use sequential thinkin
 Ask me clarification questions if needed.
 
 ## Step 3. Gather what to implement.
-Great. I need your help to write out a comprehensive implementation plan.
+Check the codebase to see if there are tasks that have been implemented,
+and if there are implementation summary docs.
+Read all these first. Then ask me what tasks to implement.
 
 ```xml
 <ask_followup_question>
