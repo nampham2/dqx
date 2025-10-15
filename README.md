@@ -246,7 +246,6 @@ suite = VerificationSuite(
 context = suite.run(
     datasources={"orders": orders_ds, "customers": customers_ds},
     key=ResultKey(yyyy_mm_dd=date.today(), tags={"env": "prod"}),
-    threading=True,  # Enable parallel execution
 )
 
 # Inspect results

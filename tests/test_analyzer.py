@@ -12,7 +12,7 @@ import pytest
 
 from dqx import models, specs
 from dqx.analyzer import AnalysisReport, Analyzer, analyze_sketch_ops, analyze_sql_ops
-from dqx.common import DQXError, ResultKey, SqlDataSource
+from dqx.common import DQXError, ResultKey
 from dqx.extensions.pyarrow_ds import ArrowDataSource
 from dqx.ops import SketchOp, SqlOp
 from dqx.orm.repositories import InMemoryMetricDB
@@ -413,24 +413,6 @@ class TestBatchAnalysis:
 
         with pytest.raises(DQXError, match="Unsupported data source"):
             analyzer.analyze(unsupported_ds, test_metrics, result_key)  # type: ignore[arg-type]
-
-    def test_analyze_rejects_batch_datasource(
-        self, test_metrics: list[specs.MetricSpec], result_key: ResultKey
-    ) -> None:
-        """Test that analyzer properly rejects batch data sources."""
-        analyzer = Analyzer()
-
-        # Create a mock that would have implemented BatchSqlDataSource
-        class MockBatchDS:
-            name = "mock_batch"
-
-            def batches(self) -> Iterator[SqlDataSource]:
-                return iter([])
-
-        batch_ds = MockBatchDS()
-
-        with pytest.raises(DQXError, match="Unsupported data source"):
-            analyzer.analyze(batch_ds, test_metrics, result_key)  # type: ignore[arg-type]
 
     def test_analyze_sql_data_source_directly(
         self, arrow_data_source: ArrowDataSource, test_metrics: list[specs.MetricSpec], result_key: ResultKey

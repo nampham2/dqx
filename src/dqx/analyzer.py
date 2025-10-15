@@ -119,7 +119,8 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp]) -> None:
 
     # Require datasource to have a dialect
     if not hasattr(ds, "dialect"):
-        raise DQXError(f"Data source {ds.name} must have a dialect to analyze SQL ops")
+        ds_name = getattr(ds, "name", str(type(ds).__name__))
+        raise DQXError(f"Data source {ds_name} must have a dialect to analyze SQL ops")
 
     # Get the dialect instance from the registry
     dialect_instance = get_dialect(ds.dialect)
@@ -181,6 +182,10 @@ class Analyzer:
         Returns:
             AnalysisReport containing computed metrics
         """
+        # Check if ds implements SqlDataSource protocol
+        if not (hasattr(ds, "name") and hasattr(ds, "cte") and hasattr(ds, "query")):
+            raise DQXError(f"Unsupported data source type: {type(ds).__name__}")
+
         return self.analyze_single(ds, metrics, key)
 
     def _setup_duckdb(self) -> None:
