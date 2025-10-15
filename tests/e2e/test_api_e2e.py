@@ -19,6 +19,9 @@ def simple_checks(mp: MetricProvider, ctx: Context) -> None:
     ctx.assert_that(mp.average("price")).where(name="Average price check").is_geq(10.0)
     ctx.assert_that(mp.ext.day_over_day(specs.Average("tax"))).where(name="Tax day-over-day check").is_geq(0.5)
     ctx.assert_that(mp.duplicate_count(["name"], dataset="ds1")).where(name="No duplicates on name").is_eq(0)
+    ctx.assert_that(mp.minimum("quantity", dataset="ds1")).where(name="Quantity minimum is between 1 and 5").is_between(
+        1, 5.0
+    )
 
 
 @check(name="Delivered null percentage", datasets=["ds1"])
