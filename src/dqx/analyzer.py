@@ -5,7 +5,6 @@ import logging
 import textwrap
 from collections import UserDict
 from collections.abc import Sequence
-from threading import Lock
 from typing import TypeVar
 
 import duckdb
@@ -189,14 +188,11 @@ class Analyzer:
     The Analyzer class is responsible for analyzing data from SqlDataSource
     using specified metrics and generating an AnalysisReport.
 
-    The class is thread-safe and can be used in a multi-threaded environment.
+    Note: This class is NOT thread-safe. Thread safety must be handled by callers if needed.
     """
 
     def __init__(self) -> None:
         self._report: AnalysisReport = AnalysisReport()
-
-        # Mutex for updating the report
-        self._mutex = Lock()
 
     @property
     def report(self) -> AnalysisReport:
@@ -239,38 +235,8 @@ class Analyzer:
 
         # Build the analysis report and merge with the current one
         report = AnalysisReport(data={(metric, key): models.Metric.build(metric, key) for metric in metrics})
-
-        with self._mutex:
-            self._report = self._report.merge(report)
-
+        self._report = self._report.merge(report)  # No mutex needed
         return self._report
 
     def _setup_duckdb(self) -> None:
         duckdb.execute("SET enable_progress_bar = false")
-
-    def _merge_persist(self, db: MetricDB) -> None:
-        db_report: AnalysisReport = AnalysisReport()
-
-        for _, metric in self._report.items():
-            # Find the metric in DB
-            db_metric = db.get(metric.key, metric.spec)
-            if db_metric is not None:
-                db_report[_] = db_metric.unwrap()
-
-        with self._mutex:
-            report = self._report.merge(db_report)
-
-        db.persist(report.values())
-
-    def persist(self, db: MetricDB, overwrite: bool = True) -> None:
-        # TODO(npham): Move persist to the analysis report
-        if len(self._report) == 0:
-            logger.warning("Try to save an EMPTY analysis report!")
-            return
-
-        if overwrite:
-            logger.info("Overwriting analysis report ...")
-            db.persist(self._report.values())
-        else:
-            logger.info("Merging analysis report ...")
-            self._merge_persist(db)

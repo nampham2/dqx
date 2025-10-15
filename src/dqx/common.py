@@ -247,16 +247,6 @@ class Analyzer(Protocol):
         """
         ...
 
-    def persist(self, db: Any, overwrite: bool = True) -> None:
-        """
-        Persist the analysis results to the database.
-
-        Args:
-            db: The database instance to persist results to
-            overwrite: Whether to overwrite existing results or merge them
-        """
-        ...
-
 
 @runtime_checkable
 class Context(Protocol):
