@@ -51,7 +51,7 @@ uv run mypy src/
 #### PyArrow
 - **Purpose**: Columnar memory format and data processing
 - **Why**: Efficient data interchange, Parquet support, zero-copy reads
-- **Usage**: Data source implementation, batch processing
+- **Usage**: Data source implementation, efficient data processing
 
 #### SymPy
 - **Purpose**: Symbolic mathematics library
@@ -232,7 +232,7 @@ cProfile.run("suite.run(datasources, key)")
 ```
 
 ### Optimization Techniques
-1. **SQL Query Batching**: Combine multiple metrics
+1. **SQL Query Optimization**: Combine multiple metrics in single query
 2. **Set-Based Deduplication**: Efficient operation tracking
 3. **Lazy Evaluation**: Compute only when needed
 4. **Statistical Sketches**: Trade accuracy for memory
@@ -351,9 +351,9 @@ for metric in context._graph.metrics():
 - Review connection string
 
 #### 2. Memory Errors
-- Reduce batch size
-- Enable streaming mode
+- Optimize query structure
 - Use statistical sketches
+- Review data distribution
 
 #### 3. Slow Performance
 - Check SQL query plans

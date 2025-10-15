@@ -5,7 +5,7 @@
 ### The Problem Space
 Modern data pipelines face critical challenges in ensuring data quality at scale:
 
-1. **Scale Challenge**: Traditional data validation tools struggle with TB-scale datasets
+1. **Scale Challenge**: Traditional data validation tools struggle with large-scale datasets
 2. **Performance Bottleneck**: Full dataset scans are prohibitively expensive
 3. **Complex Dependencies**: Data quality checks often have interdependent metrics
 4. **Limited Expressiveness**: Existing tools lack flexible mathematical assertions
@@ -30,7 +30,7 @@ DQX bridges this gap by providing both performance AND accuracy through innovati
 ### 2. **Statistical Sketching**
 - HyperLogLog for cardinality (99.9% accuracy, <1% memory)
 - DataSketches for quantiles and distributions
-- Enables TB-scale processing with MB-scale memory
+- Enables large-scale processing with MB-scale memory
 
 ### 3. **Symbolic Expression System**
 - Natural mathematical syntax for assertions

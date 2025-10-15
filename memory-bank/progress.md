@@ -77,9 +77,16 @@
 
 ### Version: 0.5.0+
 **Released**: October 2025
-**Type**: API refinement and defensive programming
+**Type**: API refinement and simplification
 
-### Latest Changes (October 14, 2025)
+### Latest Changes (October 15, 2025)
+1. ✅ Removed all batch processing support for simpler architecture
+2. ✅ Removed `BatchSqlDataSource` and `ArrowBatchDataSource`
+3. ✅ Simplified analyzer to single-pass processing only
+4. ✅ Removed threading infrastructure for batch operations
+5. ✅ All 571 tests passing after removal
+
+### Previous Changes (October 14, 2025)
 1. ✅ Implemented defensive graph property access
 2. ✅ Renamed collect() to build_graph()
 3. ✅ Removed validate() method - validation now automatic
@@ -144,7 +151,11 @@
 
 ## Evolution of Project Decisions
 
-### v0.5.0+ - Defensive Programming
+### v0.5.0+ - Architecture Simplification
+**Decision**: Remove all batch processing support
+**Rationale**: Simplify the analyzer for first release, DuckDB provides sufficient performance for single-pass processing
+**Result**: Cleaner, more maintainable codebase without threading complexity
+
 **Decision**: Add defensive graph property access
 **Rationale**: Prevent access to unbuilt graphs, guide users to proper usage
 **Result**: Clearer API contract, better error messages
@@ -231,7 +242,7 @@
 ## Metrics and Milestones
 
 ### Performance Benchmarks
-- ✅ 1TB dataset processing < 1 minute
+- ✅ Large dataset processing with efficient single-pass
 - ✅ Memory usage < 1GB for billion rows
 - ✅ Sub-second query performance
 - 🎯 Real-time streaming < 100ms latency
@@ -258,12 +269,13 @@
 5. **Defensive programming**: Prevents misuse, guides users
 
 ### What Didn't Work
-1. **Assertion chaining**: Confused users about evaluation
-2. **Listener pattern**: Over-engineered solution
-3. **Mutable nodes**: Led to subtle bugs
-4. **Complex error messages**: Need simplification
-5. **VerificationSuiteBuilder**: Unnecessary abstraction layer
-6. **Separate validate() method**: Extra step users could forget
+1. **Batch processing**: Added unnecessary complexity for v1
+2. **Assertion chaining**: Confused users about evaluation
+3. **Listener pattern**: Over-engineered solution
+4. **Mutable nodes**: Led to subtle bugs
+5. **Complex error messages**: Need simplification
+6. **VerificationSuiteBuilder**: Unnecessary abstraction layer
+7. **Separate validate() method**: Extra step users could forget
 
 ### Key Insights
 1. **Simplicity wins**: Users prefer clear over clever
@@ -387,6 +399,7 @@ Key achievements:
 - Clear architectural patterns
 - Successful API simplifications (v0.4.0, v0.5.0, and latest)
 - Defensive programming patterns
+- Simplified single-pass architecture
 
 Key challenges:
 - Streaming support implementation

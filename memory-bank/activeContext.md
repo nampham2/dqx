@@ -1,34 +1,41 @@
 # Active Context
 
 ## Current Focus
-The project is in a stable state with the VerificationSuite graph improvements fully implemented. The e2e test file shows the API is working smoothly with direct instantiation pattern and the graph property access patterns.
+The project has successfully removed all batch processing support to simplify the analyzer for the first release. The system now focuses on efficient single-pass processing using DuckDB's query engine, which provides sufficient performance for most use cases while maintaining a cleaner, more maintainable architecture.
 
-## Recently Completed Work (October 14, 2025)
+## Recently Completed Work (October 15, 2025)
+
+### Batch Support Removal
+Completed comprehensive removal of batch processing infrastructure:
+- Removed `BatchSqlDataSource` protocol from `common.py`
+- Removed `ArrowBatchDataSource` class from `pyarrow_ds.py`
+- Removed batch processing methods from analyzer (`_analyze_batches`, `_analyze_batches_threaded`)
+- Simplified `analyze()` method to directly call `analyze_single()`
+- Removed all threading infrastructure for batch processing
+- Updated documentation to remove batch processing references
+- All 571 tests passing after removal
+
+### Key Decisions in Batch Removal
+- **Retained `merge()` functionality**: Still useful for combining analysis reports from different time periods
+- **Kept internal batching in `analyze_sketch_ops`**: The `batch_size` parameter is for memory-efficient Arrow processing, not related to removed batch feature
+- **Simplified error messages**: Clear messages when unsupported data sources are used
+
+## Previous Work (October 14, 2025)
 
 ### Graph Property Implementation
-Implemented defensive graph property with explicit tracking:
 - Added `_graph_built` flag to track when graph has been constructed
 - Graph property raises `DQXError` if accessed before `build_graph()` or `run()`
 - Property provides read-only access to the internal `Graph` instance
-- Clear error message guides users to call `build_graph()` or `run()` first
 
 ### Renamed collect() to build_graph()
-- Renamed `collect()` method to `build_graph()` for better clarity
+- Renamed for better clarity of purpose
+- Method sets `_graph_built = True` after successful validation
 - Updated all internal references and test files
-- Method now sets `_graph_built = True` after successful validation
-- Maintains backward compatibility with existing functionality
 
 ### Removed validate() Method
-- Removed standalone `validate()` method from VerificationSuite
 - Validation now happens automatically during `build_graph()`
-- Updated all tests to use `build_graph()` instead of `validate()`
-- Updated documentation to reflect this change
+- Simplified workflow - impossible to skip validation
 - Errors raise `DQXError`, warnings are logged but don't fail
-
-### Documentation Updates
-- Updated `dataset_validation_guide.md` to remove `validate()` references
-- Updated best practices to recommend `build_graph()` for early validation
-- Clarified that validation happens automatically during graph building
 
 ## Current API Usage Patterns (from e2e test)
 
@@ -55,11 +62,16 @@ suite.graph.print_tree()  # Safe access after run()
 
 ## Key Technical Decisions
 
+### Simplified Architecture
+- Single-pass processing model
+- No threading complexity for batch operations
+- DuckDB handles performance optimization internally
+- Cleaner, more maintainable codebase
+
 ### Graph Access Pattern
 - Graph is only accessible after it's been built
 - Prevents access to incomplete or invalid graph states
 - Clear error messages guide proper usage
-- E2e test demonstrates correct usage pattern
 
 ### Validation Integration
 - Validation is no longer a separate step
@@ -67,14 +79,15 @@ suite.graph.print_tree()  # Safe access after run()
 - Simplifies the API and ensures validation always occurs
 
 ### API Simplification History
+- v0.5.0+: Batch support removal
 - v0.5.0: Removed VerificationSuiteBuilder
 - v0.4.0: Removed assertion chaining, made assertions require names
-- Current: Defensive graph access, integrated validation
+- Current: Defensive graph access, integrated validation, no batch processing
 
 ## Next Steps
-- Monitor for any issues with the new implementation
-- Consider additional graph visualization features
-- Potential improvements to error messages and debugging tools
+- Monitor adoption of simplified analyzer
+- Continue improving error messages and debugging tools
+- Focus on single-source performance optimizations
 - Explore streaming data support (planned for Q1 2025)
 
 ## Important Patterns and Preferences
@@ -105,10 +118,13 @@ mp.ext.day_over_day(specs.Average("tax"))
 ```
 
 ## Current State
-All tests passing, documentation updated, and implementation complete. The VerificationSuite now has a cleaner API with:
+All tests passing, documentation updated, and implementation complete. The DQX analyzer now has:
+- Simplified single-pass processing
+- No batch processing complexity
+- Clear, maintainable architecture
 - Defensive graph property access
 - Renamed `build_graph()` method (from `collect()`)
 - Integrated validation (no separate `validate()`)
 - Direct instantiation (no builder pattern)
 - Mandatory assertion names
-- Clear separation of concerns
+- Focus on DuckDB's efficient query engine for performance

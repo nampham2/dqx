@@ -286,10 +286,10 @@ Assertion Evaluation
 
 ## Performance Optimization Patterns
 
-### 1. Batch Processing
+### 1. Single-Pass Processing
 - Combine multiple metrics in single SQL query
-- Process data in configurable chunks
-- Multi-threaded execution for independent datasets
+- Efficient execution through DuckDB's query engine
+- Operation deduplication for performance
 
 ### 2. Lazy Evaluation
 - Metrics computed only when needed
@@ -303,7 +303,7 @@ Assertion Evaluation
 
 ### 4. Memory Management
 - Statistical sketches for large datasets
-- Streaming processing for batch operations
+- Efficient single-pass processing
 - Minimal object allocation in hot paths
 
 ## Error Handling Patterns
