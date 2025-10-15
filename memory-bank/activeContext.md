@@ -5,6 +5,20 @@ The project has successfully removed all batch processing support to simplify th
 
 ## Recently Completed Work (October 15, 2025)
 
+### Analyzer Persist Refactoring (Phase 4-5)
+Successfully completed the refactoring of persist functionality:
+- **Removed `persist()` and `_merge_persist()` methods from Analyzer class**
+- **Removed mutex (Lock) from Analyzer** - thread safety is no longer provided
+- **Updated Analyzer Protocol** in `common.py` to remove persist method requirement
+- **Updated Analyzer docstring** to explicitly state it is NOT thread-safe
+- All tests passing with 99% coverage maintained
+
+### Key Architectural Changes
+- **Persist methods now live in AnalysisReport** where they naturally belong
+- **Thread safety removed by design** - callers must handle if needed
+- **Cleaner separation of concerns** - AnalysisReport owns its persistence logic
+- **API usage updated**: `analyzer.report.persist()` instead of `analyzer.persist()`
+
 ### Batch Support Removal
 Completed comprehensive removal of batch processing infrastructure:
 - Removed `BatchSqlDataSource` protocol from `common.py`
