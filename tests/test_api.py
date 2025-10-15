@@ -236,6 +236,7 @@ def test_assertion_ready_has_all_methods() -> None:
     assert hasattr(ready, "is_eq")
     assert hasattr(ready, "is_positive")
     assert hasattr(ready, "is_negative")
+    assert hasattr(ready, "is_between")  # ADD THIS LINE
 
     # Should NOT have where method
     assert not hasattr(ready, "where")
@@ -441,3 +442,42 @@ def test_verification_suite_build_graph_method() -> None:
 
     # Graph should be populated
     assert len(suite.graph.root.children) > 0
+
+
+def test_is_between_assertion_workflow() -> None:
+    """Test is_between assertion in complete workflow."""
+    db = InMemoryMetricDB()
+    context = Context("test", db)
+
+    @check(name="Range Check")
+    def range_check(mp: MetricProvider, ctx: Context) -> None:
+        # Test normal range
+        ctx.assert_that(sp.Symbol("x")).where(name="X is between 10 and 20").is_between(10.0, 20.0)
+
+        # Test with same bounds
+        ctx.assert_that(sp.Symbol("y")).where(name="Y equals 5").is_between(5.0, 5.0)
+
+        # Verify assertions were created
+        assert ctx.current_check is not None
+        assert len(ctx.current_check.children) == 2
+        assert ctx.current_check.children[0].name == "X is between 10 and 20"
+        assert ctx.current_check.children[1].name == "Y equals 5"
+
+    suite = VerificationSuite([range_check], db, "test")
+    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+    suite.build_graph(context, key=key)
+
+
+def test_is_between_invalid_bounds() -> None:
+    """Test is_between with invalid bounds raises ValueError."""
+    db = InMemoryMetricDB()
+    context = Context("test", db)
+
+    @check(name="Invalid Range Check")
+    def invalid_check(mp: MetricProvider, ctx: Context) -> None:
+        # This should raise ValueError
+        with pytest.raises(ValueError, match="Invalid range: lower bound .* must be less than or equal to upper bound"):
+            ctx.assert_that(sp.Symbol("x")).where(name="Invalid range").is_between(20.0, 10.0)
+
+    # Execute the check to verify the error is raised
+    invalid_check(context.provider, context)

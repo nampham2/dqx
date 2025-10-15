@@ -5,6 +5,21 @@ The project has successfully removed all batch processing support to simplify th
 
 ## Recently Completed Work (October 15, 2025)
 
+### is_between Assertion Implementation
+Successfully implemented the `is_between` assertion functionality:
+- **Added `is_between` function in functions.py** with floating-point tolerance support
+- **Integrated into AssertionReady API** with proper validation for bounds
+- **Comprehensive test coverage** including edge cases and invalid bounds
+- **Created demo example** showing practical usage patterns
+- Supports both range checks (e.g., 10 ≤ x ≤ 20) and exact value checks (e.g., x = 5.0)
+
+### Key Features of is_between
+- **Inclusive bounds**: Both lower and upper bounds are inclusive
+- **Floating-point tolerance**: Applied to both bounds for numerical stability
+- **Clear validation**: Raises ValueError if lower > upper
+- **Descriptive representation**: Shows as "in [lower, upper]" in assertions
+- **Full API integration**: Works seamlessly with the assertion workflow
+
 ### Analyzer Persist Refactoring (Phase 4-5)
 Successfully completed the refactoring of persist functionality:
 - **Removed `persist()` and `_merge_persist()` methods from Analyzer class**

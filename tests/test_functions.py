@@ -1,4 +1,5 @@
 import functools
+
 import pytest
 
 from dqx import functions
@@ -79,3 +80,43 @@ def test_is_negative() -> None:
     assert functions.is_negative(-functions.EPSILON * 0.5) is False
     assert functions.is_negative(0.0) is False
     assert functions.is_negative(1.0) is False
+
+
+def test_is_between() -> None:
+    """Test is_between function with various inputs."""
+    # Basic integer tests
+    assert functions.is_between(5, 1, 10) is True
+    assert functions.is_between(0, 1, 10) is False
+    assert functions.is_between(11, 1, 10) is False
+
+    # Boundary tests (inclusive)
+    assert functions.is_between(1, 1, 10) is True
+    assert functions.is_between(10, 1, 10) is True
+
+    # Floating point tests
+    assert functions.is_between(5.5, 5.0, 6.0) is True
+    assert functions.is_between(4.9, 5.0, 6.0) is False
+
+    # Tolerance tests
+    epsilon = 1e-9
+    assert functions.is_between(5.0 - epsilon / 2, 5.0, 10.0, tol=epsilon) is True
+    assert functions.is_between(5.0 - epsilon * 2, 5.0, 10.0, tol=epsilon) is False
+    assert functions.is_between(10.0 + epsilon / 2, 5.0, 10.0, tol=epsilon) is True
+    assert functions.is_between(10.0 + epsilon * 2, 5.0, 10.0, tol=epsilon) is False
+
+    # Equal bounds
+    assert functions.is_between(5, 5, 5) is True
+    assert functions.is_between(4, 5, 5) is False
+    assert functions.is_between(6, 5, 5) is False
+
+    # Negative numbers
+    assert functions.is_between(-5, -10, -1) is True
+    assert functions.is_between(-11, -10, -1) is False
+    assert functions.is_between(0, -10, -1) is False
+
+    # Mixed positive/negative
+    assert functions.is_between(0, -5, 5) is True
+    assert functions.is_between(-3, -5, 5) is True
+    assert functions.is_between(3, -5, 5) is True
+    assert functions.is_between(-6, -5, 5) is False
+    assert functions.is_between(6, -5, 5) is False

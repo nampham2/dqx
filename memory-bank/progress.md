@@ -85,6 +85,9 @@
 3. ✅ Simplified analyzer to single-pass processing only
 4. ✅ Removed threading infrastructure for batch operations
 5. ✅ All 571 tests passing after removal
+6. ✅ Implemented `is_between` function for range assertions
+7. ✅ Added `is_between` method to AssertionReady API
+8. ✅ Complete test coverage for is_between functionality
 
 ### Previous Changes (October 14, 2025)
 1. ✅ Implemented defensive graph property access
