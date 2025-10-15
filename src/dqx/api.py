@@ -393,14 +393,13 @@ class VerificationSuite:
         # Mark graph as built
         self._graph_built = True
 
-    def run(self, datasources: dict[str, SqlDataSource], key: ResultKey, threading: bool = False) -> None:
+    def run(self, datasources: dict[str, SqlDataSource], key: ResultKey) -> None:
         """
         Execute the verification suite against the provided data sources.
 
         Args:
             datasources: Dictionary mapping dataset names to data sources
             key: Result key defining the time period and tags
-            threading: Whether to use threading for analysis
 
         Returns:
             Context containing the execution results
@@ -434,7 +433,7 @@ class VerificationSuite:
             analyzer = Analyzer()
             metrics = self._context.pending_metrics(ds)
             # TODO: Check the metrics and logging
-            analyzer.analyze(datasources[ds], metrics, key, threading=threading)
+            analyzer.analyze(datasources[ds], metrics, key)
             analyzer.persist(self.provider._db)
 
         # 3. Evaluate assertions

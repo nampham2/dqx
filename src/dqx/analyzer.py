@@ -149,9 +149,8 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp]) -> None:
 
 class Analyzer:
     """
-    The Analyzer class is responsible for analyzing data from DuckDataSource or DuckBatchDataSource
-    using specified metrics and generating an AnalysisReport. It supports both single data source
-    analysis and batch data source analysis.
+    The Analyzer class is responsible for analyzing data from SqlDataSource
+    using specified metrics and generating an AnalysisReport.
 
     The class is thread-safe and can be used in a multi-threaded environment.
     """
@@ -168,22 +167,21 @@ class Analyzer:
 
     def analyze(
         self,
-        ds: SqlDataSource,  # | BatchSqlDataSource,
+        ds: SqlDataSource,
         metrics: Sequence[MetricSpec],
         key: ResultKey,
-        threading: bool = False,
     ) -> AnalysisReport:
-        # NOTE: BatchSqlDataSource handling temporarily commented for Phase 1 commit
-        # if isinstance(ds, BatchSqlDataSource):
-        #     if threading:
-        #         return self._analyze_batches_threaded(ds, metrics, key)
-        #     else:
-        #         return self._analyze_batches(ds, metrics, key)
+        """Analyze a data source using specified metrics.
 
-        if isinstance(ds, SqlDataSource):
-            return self.analyze_single(ds, metrics, key)
+        Args:
+            ds: The SQL data source to analyze
+            metrics: Sequence of metrics to compute
+            key: Result key for the analysis
 
-        raise DQXError(f"Unsupported data source: {ds.name}")
+        Returns:
+            AnalysisReport containing computed metrics
+        """
+        return self.analyze_single(ds, metrics, key)
 
     def _setup_duckdb(self) -> None:
         duckdb.execute("SET enable_progress_bar = false")
@@ -215,31 +213,6 @@ class Analyzer:
             self._report = self._report.merge(report)
 
         return self._report
-
-    # NOTE: Batch processing methods temporarily commented for Phase 1 commit
-    # def _analyze_batches(self, ds: BatchSqlDataSource, metrics: Sequence[MetricSpec], key: ResultKey) -> AnalysisReport:
-    #     batch_id: int = 0
-    #     for batch_ds in ds.batches():
-    #         logger.info(f"Analyzing batch #{batch_id} ...")
-    #         self.analyze_single(batch_ds, metrics, key)
-    #         batch_id += 1
-    #     return self._report
-
-    # def _analyze_batches_threaded(
-    #     self, ds: BatchSqlDataSource, metrics: Sequence[MetricSpec], key: ResultKey, max_workers: int | None = None
-    # ) -> AnalysisReport:
-    #     max_workers = max_workers or multiprocessing.cpu_count()
-    #     logger.info(f"Analyzing batches with {max_workers} threads...")
-    #     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-    #         futures = []
-    #         for batch_ds in ds.batches():
-    #             future = executor.submit(self.analyze_single, batch_ds, metrics, key)
-    #             futures.append(future)
-
-    #     for future in futures:
-    #         future.result()
-
-    #     return self._report
 
     def _merge_persist(self, db: MetricDB) -> None:
         db_report: AnalysisReport = AnalysisReport()

@@ -31,6 +31,7 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 Plan requirement:
   - The last step of the plan is to run pre-commit, pytest and fix problems with them.
   - Only git commit the changes if all tests are passed and no problems with pre-commit. DO NOT commit in if some tests are expected to fail.
+  - The tasks should be grouped into groups of 3-5 tasks. The engineer will implement the tasks in batch. It's bests that the batches have good separation and can be commited separately.
 
 Please write out this plan, in full detail, into docs/plans/ with the version gathered in Step 1.
 </detailed_sequence_of_steps>

@@ -22,7 +22,16 @@ Ask me clarification questions if you have any.
 
 NOTE: Please do not write the plan to a file in this step yet.
 
-## Step 3. Write the feedback plan.
+## Step 3. Feedback iteration
+Aks me if the feedback is correct.
+
+```xml
+<ask_followup_question>
+<question>How is the feedback?</question>
+</ask_followup_question>
+```
+
+## Step 4. Write the feedback plan.
 Finally, confirm with the user the location of the review file.
 The review file naming convention is the plan file name with the `_review_` suffix.
 If the review already exists, please ask user if it is ok to overwrite.
