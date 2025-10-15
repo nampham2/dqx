@@ -265,30 +265,6 @@ class Analyzer(Protocol):
         """
         ...
 
-    def analyze_single(self, ds: SqlDataSource, metrics: Sequence[MetricSpec], key: ResultKey) -> AnalysisReport:
-        """
-        Analyze a single SQL data source.
-
-        This method processes a single SqlDataSource instance, computing all
-        specified metrics and returning the results in an analysis report.
-
-        Args:
-            ds: The single SQL data source to analyze
-            metrics: Sequence of metric specifications to compute
-            key: Result key for organizing the analysis results
-
-        Returns:
-            AnalysisReport: Report containing the computed metrics
-
-        Raises:
-            DQXError: If no metrics are provided or analysis fails
-
-        Note:
-            This method is typically called internally by `analyze()` for
-            single data sources or for each batch in batch processing.
-        """
-        ...
-
     def persist(self, db: Any, overwrite: bool = True) -> None:
         """
         Persist the analysis results to the database.

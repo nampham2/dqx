@@ -89,7 +89,7 @@ class TestDuplicateCountIntegration:
 
         # Analyze with the spec
         key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-        report = analyzer.analyze_single(data_source, [dc_spec], key)
+        report = analyzer.analyze(data_source, [dc_spec], key)
 
         # Get the metric from the report
         metric = report[(dc_spec, key)]

@@ -166,7 +166,7 @@ class TestAnalyzer:
         analyzer = Analyzer()
 
         # Analyze the data
-        report = analyzer.analyze_single(arrow_data_source, test_metrics, result_key)
+        report = analyzer.analyze(arrow_data_source, test_metrics, result_key)
 
         # Check results
         assert len(report) == len(test_metrics)
@@ -182,11 +182,11 @@ class TestAnalyzer:
         analyzer = Analyzer()
 
         # First analysis
-        report1 = analyzer.analyze_single(arrow_data_source, test_metrics, result_key)
+        report1 = analyzer.analyze(arrow_data_source, test_metrics, result_key)
         assert report1[(test_metrics[0], result_key)].value == pytest.approx(10)
 
         # Second analysis should accumulate
-        report2 = analyzer.analyze_single(arrow_data_source, test_metrics, result_key)
+        report2 = analyzer.analyze(arrow_data_source, test_metrics, result_key)
         assert report2[(test_metrics[0], result_key)].value == pytest.approx(20)
 
     def test_analyzer_multiple_keys(
@@ -196,12 +196,12 @@ class TestAnalyzer:
         analyzer = Analyzer()
 
         # Analyze with first key
-        report1 = analyzer.analyze_single(arrow_data_source, test_metrics, result_key)
+        report1 = analyzer.analyze(arrow_data_source, test_metrics, result_key)
         assert len(report1) == len(test_metrics)
 
         # Analyze with different key (previous day)
         prev_key = result_key.lag(1)
-        report2 = analyzer.analyze_single(arrow_data_source, test_metrics, prev_key)
+        report2 = analyzer.analyze(arrow_data_source, test_metrics, prev_key)
         assert len(report2) == 2 * len(test_metrics)  # Both days
 
         # Check that both keys have their data
@@ -213,7 +213,7 @@ class TestAnalyzer:
         analyzer = Analyzer()
 
         with pytest.raises(DQXError, match="No metrics provided"):
-            analyzer.analyze_single(arrow_data_source, [], result_key)
+            analyzer.analyze(arrow_data_source, [], result_key)
 
     def test_analyzer_protocol_implementation(self) -> None:
         """Test that Analyzer implements the protocol."""
@@ -403,16 +403,6 @@ class TestAnalysisReport:
 
 class TestBatchAnalysis:
     """Test batch data source analysis."""
-
-    def test_analyze_unsupported_data_source(self, test_metrics: list[specs.MetricSpec], result_key: ResultKey) -> None:
-        """Test analyzing with unsupported data source type."""
-        analyzer = Analyzer()
-
-        # Create an unsupported data source (not implementing SqlDataSource protocol)
-        unsupported_ds = {"name": "dict_ds"}  # A plain dict
-
-        with pytest.raises(DQXError, match="Unsupported data source"):
-            analyzer.analyze(unsupported_ds, test_metrics, result_key)  # type: ignore[arg-type]
 
     def test_analyze_sql_data_source_directly(
         self, arrow_data_source: ArrowDataSource, test_metrics: list[specs.MetricSpec], result_key: ResultKey
@@ -645,5 +635,5 @@ class TestDuckDBSetup:
         analyzer = Analyzer()
 
         with patch.object(analyzer, "_setup_duckdb") as mock_setup:
-            analyzer.analyze_single(arrow_data_source, test_metrics, result_key)
+            analyzer.analyze(arrow_data_source, test_metrics, result_key)
             mock_setup.assert_called_once()

@@ -611,21 +611,6 @@ class TestAnalyzerDialectIntegration:
             _DIALECT_REGISTRY.clear()
             _DIALECT_REGISTRY.update(original_registry)
 
-    def test_datasource_without_dialect_raises_error(self) -> None:
-        """Test that analyzer raises error for data sources without dialect."""
-        # Create mock data source without dialect attribute
-        ds_legacy = Mock()
-        del ds_legacy.dialect  # Ensure no dialect attribute
-        ds_legacy.cte = "SELECT * FROM legacy_table"
-        ds_legacy.name = "legacy_ds"
-
-        # Create ops
-        ops: list[SqlOp] = [NumRows(), Average("value")]
-
-        # Should raise error when trying to analyze without dialect
-        with pytest.raises(DQXError, match="Data source legacy_ds must have a dialect to analyze SQL ops"):
-            analyze_sql_ops(ds_legacy, ops)
-
 
 # =============================================================================
 # Query Formatting Tests

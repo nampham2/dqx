@@ -117,11 +117,6 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp]) -> None:
     # Constructing the query
     logger.info(f"Analyzing SqlOps: {distinct_ops}")
 
-    # Require datasource to have a dialect
-    if not hasattr(ds, "dialect"):
-        ds_name = getattr(ds, "name", str(type(ds).__name__))
-        raise DQXError(f"Data source {ds_name} must have a dialect to analyze SQL ops")
-
     # Get the dialect instance from the registry
     dialect_instance = get_dialect(ds.dialect)
 
@@ -182,16 +177,6 @@ class Analyzer:
         Returns:
             AnalysisReport containing computed metrics
         """
-        # Check if ds implements SqlDataSource protocol
-        if not (hasattr(ds, "name") and hasattr(ds, "cte") and hasattr(ds, "query")):
-            raise DQXError(f"Unsupported data source type: {type(ds).__name__}")
-
-        return self.analyze_single(ds, metrics, key)
-
-    def _setup_duckdb(self) -> None:
-        duckdb.execute("SET enable_progress_bar = false")
-
-    def analyze_single(self, ds: SqlDataSource, metrics: Sequence[MetricSpec], key: ResultKey) -> AnalysisReport:
         logger.info(f"Analyzing report with key {key}...")
         self._setup_duckdb()
 
@@ -218,6 +203,9 @@ class Analyzer:
             self._report = self._report.merge(report)
 
         return self._report
+
+    def _setup_duckdb(self) -> None:
+        duckdb.execute("SET enable_progress_bar = false")
 
     def _merge_persist(self, db: MetricDB) -> None:
         db_report: AnalysisReport = AnalysisReport()
