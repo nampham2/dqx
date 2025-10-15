@@ -192,6 +192,7 @@ class Analyzer:
     """
 
     def __init__(self) -> None:
+        # TODO(npham): Remove _report and make the analyzer stateless.
         self._report: AnalysisReport = AnalysisReport()
 
     @property
