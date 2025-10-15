@@ -62,7 +62,7 @@ class BatchSqlDataSource(Protocol):
 1. Find the `Analyzer` Protocol (around line ~260)
 2. Update the `analyze()` method signature:
    - Change `ds: SqlDataSource | BatchSqlDataSource` to `ds: SqlDataSource`
-   - Remove the `threading: bool = False` parameter (silently ignore if passed)
+   - Remove the `threading: bool = False` parameter completely
 3. Update the docstring to remove references to batch processing and threading
 
 **What to change**:
@@ -144,10 +144,9 @@ Also remove `BatchSqlDataSource` from the imports from `dqx.common`
 **File**: `src/dqx/analyzer.py`
 
 **Changes**:
-1. Update the `analyze()` method signature to remove `threading` parameter
+1. Update the `analyze()` method signature to remove `threading` parameter completely
 2. Remove all the conditional logic for batch processing
 3. Make it simply call `analyze_single()` directly
-4. Silently ignore `threading` parameter if provided (for compatibility)
 
 **What to change**:
 ```python
@@ -156,7 +155,6 @@ def analyze(
     ds: SqlDataSource,
     metrics: Sequence[MetricSpec],
     key: ResultKey,
-    **kwargs,  # Captures and ignores any extra parameters like threading
 ) -> AnalysisReport:
     return self.analyze_single(ds, metrics, key)
 ```
@@ -331,13 +329,7 @@ uv run pytest -v
    grep -r "BatchSqlDataSource\|ArrowBatchDataSource\|_analyze_batches" src/ tests/ docs/
    ```
 
-2. **Verify threading parameter is handled**:
-   ```python
-   # This should work without error (threading param ignored)
-   analyzer.analyze(ds, metrics, key, threading=True)
-   ```
-
-3. **Check the simplified API**:
+2. **Check the simplified API**:
    - Analyzer only accepts SqlDataSource
    - No threading parameter in method signature
    - No batch processing methods
@@ -365,9 +357,6 @@ ds = ArrowDataSource(data)
 analyzer = Analyzer()
 result = analyzer.analyze(ds, metrics, key)  # No threading parameter
 
-# This should also work (threading ignored)
-result = analyzer.analyze(ds, metrics, key, threading=True)
-
 # This should NOT work (and shouldn't exist)
 # from dqx.extensions.pyarrow_ds import ArrowBatchDataSource  # Should fail
 ```
@@ -388,7 +377,7 @@ If issues arise at any phase:
 - [ ] Documentation updated
 - [ ] Pre-commit hooks pass
 - [ ] API is simplified and cleaner
-- [ ] Threading parameter is silently ignored for compatibility
+- [ ] Threading parameter is completely removed from API
 
 ## Notes for the Developer
 
@@ -398,4 +387,4 @@ If issues arise at any phase:
 - **Be Thorough**: Use grep to find all references before declaring a phase complete
 - **Thread Safety**: Remember that `_mutex` stays for thread-safe merge operations
 
-Remember: The goal is to simplify the codebase while maintaining all existing single-source functionality. The threading parameter is silently ignored for compatibility, and thread safety is maintained for the merge operation.
+Remember: The goal is to simplify the codebase while maintaining all existing single-source functionality. The threading parameter is completely removed, and thread safety is maintained for the merge operation.
