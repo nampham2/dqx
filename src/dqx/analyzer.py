@@ -65,6 +65,47 @@ class AnalysisReport(UserDict[MetricKey, models.Metric]):
         # TODO(npham): Add more visualization options
         Console().print({v.spec.name: v.value for v in self.values()})
 
+    def persist(self, db: MetricDB, overwrite: bool = True) -> None:
+        """Persist the analysis report to the metric database.
+
+        NOTE: This method is NOT thread-safe. If thread safety is required,
+        it must be implemented by the caller.
+
+        Args:
+            db: MetricDB instance for persistence
+            overwrite: If True, overwrite existing metrics. If False, merge with existing.
+        """
+        if len(self) == 0:  # Changed from self._report
+            logger.warning("Try to save an EMPTY analysis report!")
+            return
+
+        if overwrite:
+            logger.info("Overwriting analysis report ...")
+            db.persist(self.values())
+        else:
+            logger.info("Merging analysis report ...")
+            self._merge_persist(db)
+
+    def _merge_persist(self, db: MetricDB) -> None:
+        """Merge with existing metrics in the database before persisting.
+
+        NOTE: This method is NOT thread-safe.
+
+        Args:
+            db: MetricDB instance for persistence
+        """
+        db_report = AnalysisReport()
+
+        for key, metric in self.items():  # Changed from self._report.items()
+            # Find the metric in DB
+            db_metric = db.get(metric.key, metric.spec)
+            if db_metric is not None:
+                db_report[key] = db_metric.unwrap()
+
+        # Merge and persist
+        merged_report = self.merge(db_report)
+        db.persist(merged_report.values())
+
 
 def analyze_sketch_ops(ds: T, ops: Sequence[SketchOp], batch_size: int = 100_000) -> None:
     if len(ops) == 0:
