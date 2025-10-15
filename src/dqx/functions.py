@@ -133,3 +133,19 @@ def is_negative(a: float, tol: float = EPSILON) -> bool:
     """
 
     return a < -tol
+
+
+def is_between(a: float, lower: float, upper: float, tol: float = EPSILON) -> bool:
+    """
+    Check if a value is between two bounds (inclusive).
+
+    Args:
+        a: The value to check.
+        lower: The lower bound.
+        upper: The upper bound.
+        tol: Tolerance for floating-point comparisons (applies to both bounds).
+
+    Returns:
+        bool: True if lower ≤ a ≤ upper (within tolerance), False otherwise.
+    """
+    return is_geq(a, lower, tol) and is_leq(a, upper, tol)
