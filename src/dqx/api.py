@@ -443,6 +443,7 @@ class VerificationSuite:
             analyzer = Analyzer()
             metrics = self._context.pending_metrics(ds)
             # TODO: Check the metrics and logging
+            # TODO: Analyze datasources with key that HONORS the lag
             analyzer.analyze(datasources[ds], metrics, key)
             analyzer.report.persist(self.provider._db)
 
@@ -522,7 +523,8 @@ class VerificationSuite:
         along with metadata. Symbols are sorted by name for consistent ordering.
 
         Returns:
-            List of SymbolInfo instances, sorted by symbol name (x_1, x_2, etc.).
+            List of SymbolInfo instances, sorted by symbol name in natural numeric
+            order (x_1, x_2, ..., x_10, x_11, etc. rather than lexicographic).
             Each contains the symbol name, metric description, dataset,
             computed value, and context information (date, suite, tags).
 
@@ -562,8 +564,9 @@ class VerificationSuite:
             )
             symbols.append(symbol_info)
 
-        # Sort by symbol name before returning
-        return sorted(symbols, key=lambda s: s.name)
+        # Sort by symbol numeric suffix for natural ordering (x_1, x_2, ..., x_10)
+        # instead of lexicographic ordering (x_1, x_10, x_2)
+        return sorted(symbols, key=lambda s: int(s.name.split("_")[1]))
 
 
 def _create_check(
