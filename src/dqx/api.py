@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import threading
+from collections import defaultdict
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
 from typing import Any, Protocol, cast, runtime_checkable
@@ -438,7 +439,6 @@ class VerificationSuite:
             symbolic_metrics = self._context.pending_metrics(ds_name)
 
             # Group metrics by their effective date
-            from collections import defaultdict
 
             metrics_by_date: dict[ResultKey, list[MetricSpec]] = defaultdict(list)
             for sym_metric in symbolic_metrics:
@@ -556,8 +556,11 @@ class VerificationSuite:
 
         # Iterate through all registered symbols
         for symbolic_metric in self._context.provider.symbolic_metrics:
+            # Calculate the effective key for this symbol
+            effective_key = symbolic_metric.key_provider.create(self._key)
+
             # Evaluate the symbol to get its value
-            value = symbolic_metric.fn(self._key)
+            value = symbolic_metric.fn(effective_key)
 
             # Create SymbolInfo with all fields
             symbol_info = SymbolInfo(
@@ -565,9 +568,9 @@ class VerificationSuite:
                 metric=str(symbolic_metric.metric_spec),
                 dataset=symbolic_metric.dataset,
                 value=value,
-                yyyy_mm_dd=self._key.yyyy_mm_dd,
+                yyyy_mm_dd=effective_key.yyyy_mm_dd,  # Use effective date!
                 suite=self._name,
-                tags=self._key.tags,
+                tags=effective_key.tags,
             )
             symbols.append(symbol_info)
 

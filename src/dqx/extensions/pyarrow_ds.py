@@ -8,6 +8,23 @@ ArrowDataSource: For PyArrow Tables or RecordBatches
 The adapter uses DuckDB as the SQL query engine, leveraging its efficient Arrow integration
 to execute SQL queries directly on Arrow data without copying.
 
+Note: For time-series analysis, data sources can use the nominal_date parameter
+to filter data appropriately. The current implementation ignores this parameter,
+but custom data sources can leverage it:
+
+Example:
+    class DateFilteredArrowSource(ArrowDataSource):
+        def __init__(self, table: pa.Table, date_column: str):
+            super().__init__(table)
+            self.date_column = date_column
+
+        def cte(self, nominal_date: date) -> str:
+            # Filter data for specific date in the CTE
+            return f'''
+                SELECT * FROM {self._table_name}
+                WHERE DATE({self.date_column}) = '{nominal_date.isoformat()}'
+            '''
+
 Example:
     >>> import pyarrow as pa
     >>> from dqx.extensions.pyarrow_ds import ArrowDataSource
