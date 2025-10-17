@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-from typing import Any, Generic, Literal, Protocol, TypeVar, runtime_checkable
+from typing import Any, Generic, Protocol, TypeVar, runtime_checkable
 
-from dqx import states
 from dqx.common import DQXError
-from dqx.states import CardinalitySketch, SketchState
 from dqx.utils import random_prefix
 
-OpsType = Literal["sql", "sketch"]
-
-T = TypeVar("T", bound=float | SketchState)
+T = TypeVar("T", bound=float)
 
 
 @runtime_checkable
@@ -33,17 +29,6 @@ class SqlOp(Op[T], Protocol):
 
     @property
     def sql_col(self) -> str: ...
-
-
-@runtime_checkable
-class SketchOp(Op[T], Protocol):
-    """This is the umbrella class for Sketch Ops.
-    This is a single column operation."""
-
-    @property
-    def sketch_column(self) -> str: ...
-
-    def create(self) -> SketchState: ...
 
 
 class OpValueMixin(Generic[T]):
@@ -361,45 +346,6 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, NegativeCount):
-            return NotImplemented
-        return self.column == other.column
-
-    def __hash__(self) -> int:
-        return hash((self.name, self.column))
-
-    def __repr__(self) -> str:
-        return self.name
-
-    def __str__(self) -> str:
-        return self.__repr__()
-
-
-class ApproxCardinality(OpValueMixin[states.CardinalitySketch], SketchOp[states.CardinalitySketch]):
-    __match_args__ = ("column",)
-
-    def __init__(self, column: str) -> None:
-        OpValueMixin.__init__(self)
-        self.column = column
-        self._prefix = random_prefix()
-
-    @property
-    def name(self) -> str:
-        return f"approx_cardinality({self.column})"
-
-    @property
-    def sketch_column(self) -> str:
-        return self.column
-
-    @property
-    def prefix(self) -> str:
-        return self._prefix
-
-    # TODO(npham): Remove or rename this method.
-    def create(self) -> CardinalitySketch:
-        return CardinalitySketch.identity()
-
-    def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, ApproxCardinality):
             return NotImplemented
         return self.column == other.column
 

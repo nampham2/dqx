@@ -45,11 +45,6 @@ def rate_of_change(mp: MetricProvider, ctx: Context) -> None:
     ctx.assert_that(rate).where(name="Maximum tax rate change is less than 20%").is_leq(0.2)
 
 
-@check(name="Sketch Check", datasets=["ds1"])
-def sketch_check(mp: MetricProvider, ctx: Context) -> None:
-    ctx.assert_that(mp.approx_cardinality("address")).where(name="Address cardinality >= 100").is_geq(100)
-
-
 @check(name="Cross Dataset Check", datasets=["ds1", "ds2"])
 def cross_dataset_check(mp: MetricProvider, ctx: Context) -> None:
     tax_avg_1 = mp.average("tax", dataset="ds1")
@@ -66,7 +61,7 @@ def test_e2e_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> No
     ds2 = ArrowDataSource(commerce_data_c2)
 
     key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={})
-    checks = [simple_checks, manual_day_over_day, rate_of_change, null_percentage, sketch_check, cross_dataset_check]
+    checks = [simple_checks, manual_day_over_day, rate_of_change, null_percentage, cross_dataset_check]
 
     # Run once for yesterday
     suite = VerificationSuite(checks, db, name="Simple test suite")

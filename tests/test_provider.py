@@ -384,22 +384,6 @@ class TestMetricProvider:
             mock_metric.assert_called_once_with(mock_spec, ANY, None)
             assert result == sp.Symbol("x_1")
 
-    @patch("dqx.provider.specs.ApproxCardinality")
-    def test_approx_cardinality(self, mock_approx_cardinality: Mock, provider: MetricProvider) -> None:
-        """Test approx_cardinality() method."""
-        mock_spec = Mock()
-        mock_approx_cardinality.return_value = mock_spec
-        column = "test_column"
-
-        with patch.object(provider, "metric") as mock_metric:
-            mock_metric.return_value = sp.Symbol("x_1")
-
-            result = provider.approx_cardinality(column)
-
-            mock_approx_cardinality.assert_called_once_with(column)
-            mock_metric.assert_called_once_with(mock_spec, ANY, None)
-            assert result == sp.Symbol("x_1")
-
     @patch("dqx.provider.specs.DuplicateCount")
     def test_duplicate_count(self, mock_duplicate_count: Mock, provider: MetricProvider) -> None:
         """Test duplicate_count() method."""

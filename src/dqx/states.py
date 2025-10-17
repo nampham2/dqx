@@ -5,8 +5,6 @@ from copy import copy
 from typing import Any, Protocol, Self, runtime_checkable
 
 import msgpack
-import pyarrow as pa
-from datasketches import cpc_sketch, cpc_union
 
 from dqx.common import DQXError
 
@@ -29,11 +27,6 @@ class State(Protocol):
     def __copy__(self) -> Self: ...
 
     def __eq__(self, other: Any) -> bool: ...
-
-
-@runtime_checkable
-class SketchState(State, Protocol):
-    def fit(self, batch: pa.RecordBatch) -> None: ...
 
 
 class SimpleAdditiveState(State):
@@ -289,45 +282,6 @@ class Maximum(State):
 
     def __copy__(self) -> Maximum:
         return Maximum(value=self._value)
-
-
-class CardinalitySketch(SketchState):
-    def __init__(self, sketch: cpc_sketch) -> None:
-        self._sketch = sketch
-
-    @property
-    def value(self) -> float:
-        return self._sketch.get_estimate()
-
-    @classmethod
-    def identity(cls) -> CardinalitySketch:
-        return CardinalitySketch(cpc_sketch())
-
-    def serialize(self) -> bytes:
-        return self._sketch.serialize()
-
-    @classmethod
-    def deserialize(cls, state: bytes) -> CardinalitySketch:
-        sketch = cpc_sketch.deserialize(state)
-        return cls(sketch=sketch)
-
-    def fit(self, batch: pa.RecordBatch) -> None:
-        for item in batch:
-            self._sketch.update(item.as_py())
-
-    def merge(self, other: CardinalitySketch) -> CardinalitySketch:
-        union = cpc_union(self._sketch.lg_k)
-        union.update(self._sketch)
-        union.update(other._sketch)
-        return CardinalitySketch(sketch=union.get_result())
-
-    def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, CardinalitySketch):
-            return False
-        return self.serialize() == other.serialize()
-
-    def __copy__(self) -> CardinalitySketch:
-        return CardinalitySketch(sketch=copy(self._sketch))
 
 
 class DuplicateCount(State):

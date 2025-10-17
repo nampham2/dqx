@@ -1,15 +1,14 @@
 import pytest
 
-from dqx import ops, states
+from dqx import ops
 from dqx.common import DQXError
-from dqx.ops import Op, SketchOp, SqlOp
+from dqx.ops import Op, SqlOp
 
 
 def test_num_rows() -> None:
     op = ops.NumRows()
     assert isinstance(op, Op)
     assert isinstance(op, SqlOp)
-    assert not isinstance(op, SketchOp)
     assert op.name == "num_rows()"
 
     op1 = ops.NumRows()
@@ -60,20 +59,6 @@ def test_null_count() -> None:
     assert op.name == "null_count(column)"
 
 
-def test_approx_cardinality() -> None:
-    op = ops.ApproxCardinality("column")
-    assert isinstance(op, Op)
-    assert op.name == "approx_cardinality(column)"
-    assert set([op, op]) == {op}
-
-
-def test_approx_cardinality_not_equal() -> None:
-    approx_cardinality_op1 = ops.ApproxCardinality("column1")
-    approx_cardinality_op2 = ops.ApproxCardinality("column2")
-    assert approx_cardinality_op1 != approx_cardinality_op2
-    assert approx_cardinality_op1 != 1
-
-
 def test_equality() -> None:
     num_rows_op1 = ops.NumRows()
     num_rows_op2 = ops.NumRows()
@@ -91,8 +76,6 @@ def test_equality() -> None:
     null_count_op2 = ops.NullCount("column")
     negative_count_op1 = ops.NegativeCount("column")
     negative_count_op2 = ops.NegativeCount("column")
-    approx_cardinality_op1 = ops.ApproxCardinality("column")
-    approx_cardinality_op2 = ops.ApproxCardinality("column")
 
     assert num_rows_op1 == num_rows_op2
     assert average_op1 == average_op2
@@ -102,7 +85,6 @@ def test_equality() -> None:
     assert first_op1 == first_op2
     assert null_count_op1 == null_count_op2
     assert negative_count_op1 == negative_count_op2
-    assert approx_cardinality_op1 == approx_cardinality_op2
 
 
 def test_dedup_ops() -> None:
@@ -123,7 +105,6 @@ def test_hashing() -> None:
     first_op = ops.First("column")
     null_count_op = ops.NullCount("column")
     negative_count_op = ops.NegativeCount("column")
-    approx_cardinality = ops.ApproxCardinality("column")
 
     assert hash(num_rows_op) == hash(ops.NumRows())
     assert hash(average_op) == hash(ops.Average("column"))
@@ -133,7 +114,6 @@ def test_hashing() -> None:
     assert hash(first_op) == hash(ops.First("column"))
     assert hash(null_count_op) == hash(ops.NullCount("column"))
     assert hash(negative_count_op) == hash(ops.NegativeCount("column"))
-    assert hash(approx_cardinality) == hash(ops.ApproxCardinality("column"))
 
 
 def test_average_not_equal() -> None:
@@ -284,12 +264,6 @@ def test_negative_count_string_repr() -> None:
     assert repr(op) == "negative_count(test_col)"
 
 
-def test_approx_cardinality_string_repr() -> None:
-    op = ops.ApproxCardinality("test_col")
-    assert str(op) == "approx_cardinality(test_col)"
-    assert repr(op) == "approx_cardinality(test_col)"
-
-
 # Test clear functionality
 def test_clear_functionality() -> None:
     op = ops.NumRows()
@@ -333,22 +307,6 @@ def test_clear_functionality_all_ops() -> None:
         op.clear()
         with pytest.raises(DQXError):
             op.value()
-
-
-# Test sketch operations
-def test_approx_cardinality_sketch_ops() -> None:
-    op = ops.ApproxCardinality("test_col")
-    assert isinstance(op, SketchOp)
-    assert op.sketch_column == "test_col"
-
-    # Test create method
-    sketch = op.create()
-    assert isinstance(sketch, states.CardinalitySketch)
-
-    # Test with sketch state
-    sketch_state = states.CardinalitySketch.identity()
-    op.assign(sketch_state)
-    assert op.value() == sketch_state
 
 
 # Test edge cases for equality comparisons
@@ -413,7 +371,6 @@ def test_inequality_different_columns() -> None:
     assert ops.First("col1") != ops.First("col2")
     assert ops.NullCount("col1") != ops.NullCount("col2")
     assert ops.NegativeCount("col1") != ops.NegativeCount("col2")
-    assert ops.ApproxCardinality("col1") != ops.ApproxCardinality("col2")
 
 
 # Test hash consistency for ops with different columns
@@ -427,14 +384,12 @@ def test_hash_different_columns() -> None:
     assert hash(ops.First("col1")) != hash(ops.First("col2"))
     assert hash(ops.NullCount("col1")) != hash(ops.NullCount("col2"))
     assert hash(ops.NegativeCount("col1")) != hash(ops.NegativeCount("col2"))
-    assert hash(ops.ApproxCardinality("col1")) != hash(ops.ApproxCardinality("col2"))
 
 
 def test_duplicate_count() -> None:
     op = ops.DuplicateCount(["column1", "column2"])
     assert isinstance(op, Op)
     assert isinstance(op, SqlOp)
-    assert not isinstance(op, SketchOp)
     # Columns should be sorted
     assert op.name == "duplicate_count(column1,column2)"
 

@@ -3,7 +3,6 @@
 import pytest
 
 from dqx.specs import (
-    ApproxCardinality,
     Average,
     First,
     Maximum,
@@ -64,11 +63,6 @@ class TestMetricSpecStrMethods:
         metric = NegativeCount("balance")
         assert str(metric) == "non_negative(balance)"
 
-    def test_approx_cardinality_str(self) -> None:
-        """Test ApproxCardinality.__str__ returns the name with column."""
-        metric = ApproxCardinality("customer_id")
-        assert str(metric) == "approx_cardinality(customer_id)"
-
     @pytest.mark.parametrize(
         "metric_class,column,expected",
         [
@@ -81,7 +75,6 @@ class TestMetricSpecStrMethods:
             (Sum, "col6", "sum(col6)"),
             (NullCount, "col7", "null_count(col7)"),
             (NegativeCount, "col8", "non_negative(col8)"),
-            (ApproxCardinality, "col9", "approx_cardinality(col9)"),
         ],
     )
     def test_all_metrics_str(self, metric_class: type, column: str | None, expected: str) -> None:

@@ -3,7 +3,7 @@
 import datetime
 import datetime as dt
 from collections.abc import Iterator
-from typing import Any, cast
+from typing import cast
 from unittest.mock import Mock, patch
 
 import duckdb
@@ -12,13 +12,13 @@ import pyarrow as pa
 import pytest
 
 from dqx import models, specs
-from dqx.analyzer import AnalysisReport, Analyzer, analyze_sketch_ops, analyze_sql_ops
+from dqx.analyzer import AnalysisReport, Analyzer, analyze_sql_ops
 from dqx.common import DQXError, ResultKey
 from dqx.extensions.pyarrow_ds import ArrowDataSource
-from dqx.ops import SketchOp, SqlOp
+from dqx.ops import SqlOp
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.orm.repositories import Metric as MetricTable
-from dqx.states import Average, SimpleAdditiveState, SketchState
+from dqx.states import Average, SimpleAdditiveState
 
 
 class FakeRelation:
@@ -73,52 +73,6 @@ class FakeSqlDataSource:
         return mock_relation
 
 
-class FakeSketchState(SketchState):
-    """A simple sketch state implementation for testing."""
-
-    def __init__(self) -> None:
-        self._values: list[Any] = []
-
-    @property
-    def value(self) -> float:
-        """Get the sketch value (e.g., count of unique values)."""
-        return float(len(set(self._values)))
-
-    @classmethod
-    def identity(cls) -> "FakeSketchState":
-        """Return identity state."""
-        return cls()
-
-    def serialize(self) -> bytes:
-        """Serialize the state."""
-        return b""
-
-    @classmethod
-    def deserialize(cls, state: bytes) -> "FakeSketchState":
-        """Deserialize the state."""
-        return cls()
-
-    def merge(self, other: "FakeSketchState") -> "FakeSketchState":
-        """Merge with another state."""
-        new_state = FakeSketchState()
-        new_state._values = self._values + other._values
-        return new_state
-
-    def __copy__(self) -> "FakeSketchState":
-        """Copy the state."""
-        new_state = FakeSketchState()
-        new_state._values = self._values.copy()
-        return new_state
-
-    def __eq__(self, other: Any) -> bool:
-        """Check equality."""
-        return isinstance(other, FakeSketchState) and self._values == other._values
-
-    def fit(self, batch: pa.Array) -> None:
-        """Fit the sketch with data."""
-        self._values.extend(batch.to_pylist())
-
-
 @pytest.fixture
 def sample_data() -> pa.Table:
     """Create a sample PyArrow table for testing."""
@@ -151,7 +105,6 @@ def test_metrics() -> list[specs.MetricSpec]:
         specs.Sum("int_col"),
         specs.NullCount("null_col"),
         specs.NegativeCount("neg_col"),
-        specs.ApproxCardinality("int_col"),
     ]
 
 
@@ -486,33 +439,6 @@ class TestPersistence:
 
 class TestAnalyzeFunctions:
     """Test standalone analyze functions."""
-
-    def test_analyze_sketch_ops_empty(self) -> None:
-        """Test analyze_sketch_ops with empty ops list."""
-        # Use a real ArrowDataSource
-        data = pa.Table.from_pydict({"col": [1, 2, 3]})
-        ds = ArrowDataSource(data)
-        nominal_date = datetime.date(2024, 1, 1)
-        analyze_sketch_ops(ds, [], batch_size=100_000, nominal_date=nominal_date)
-        # Should return without errors
-
-    def test_analyze_sketch_ops(self) -> None:
-        """Test analyze_sketch_ops with actual ops."""
-        # Use ArrowDataSource with test data
-        data = pa.Table.from_pydict({"test_col": [1, 2, 3, 2, 1]})
-        ds = ArrowDataSource(data)
-        nominal_date = datetime.date(2024, 1, 1)
-
-        # Use real sketch op
-        op1 = cast(SketchOp, specs.ApproxCardinality("test_col").analyzers[0])
-        op2 = cast(SketchOp, specs.ApproxCardinality("test_col").analyzers[0])
-
-        # Analyze
-        analyze_sketch_ops(ds, [op1, op2], batch_size=100_000, nominal_date=nominal_date)
-
-        # Verify both ops got values assigned
-        assert op1.value().value > 0  # Should have detected unique values
-        assert op2.value().value > 0
 
     def test_analyze_sql_ops_empty(self) -> None:
         """Test analyze_sql_ops with empty ops list."""
