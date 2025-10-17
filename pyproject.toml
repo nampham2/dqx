@@ -23,6 +23,7 @@ build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
+    "commitizen>=3.29.0",
     "faker>=37.5.3",
     "mypy>=1.17.1",
     "pre-commit>=4.3.0",
@@ -46,14 +47,6 @@ convention = "google"
     "S101",    # asserts allowed in tests...
     "PLR2004", # Magic numbers allowed in tests
 ]
-
-[tool.commitizen]
-name = "cz_conventional_commits"
-tag_format = "$version"
-version_scheme = "pep440"
-version_provider = "pep621"
-major_version_zero = true
-update_changelog_on_bump = true
 
 [tool.mypy]
 plugins = ["returns.contrib.mypy.returns_plugin"]

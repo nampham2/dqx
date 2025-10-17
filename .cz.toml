@@ -1,0 +1,104 @@
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "0.3.0"
+tag_format = "v$version"
+version_scheme = "pep440"
+version_provider = "pep621"
+major_version_zero = true
+version_files = [
+    "pyproject.toml:version",
+    "src/dqx/__init__.py:__version__"
+]
+update_changelog_on_bump = true
+
+[tool.commitizen.customize]
+message_template = "{{change_type}}{% if scope %}({{scope}}){% endif %}: {{message}}{% if is_breaking_change %}\n\nBREAKING CHANGE: {{breaking_change}}{% endif %}{% if body %}\n\n{{body}}{% endif %}{% if footer %}\n\n{{footer}}{% endif %}"
+example = "feat(analyzer): add query optimization for large datasets"
+schema = """
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+"""
+schema_pattern = "^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\\([a-z]+\\))?: .{1,72}(\\n\\n.*)?$"
+bump_pattern = "^(feat|fix|perf|refactor)"
+bump_map = {"BREAKING CHANGE" = "MAJOR", "feat" = "MINOR", "fix" = "PATCH", "perf" = "PATCH", "refactor" = "PATCH"}
+change_type_order = ["BREAKING CHANGE", "feat", "fix", "refactor", "perf", "docs", "style", "test", "build", "ci", "chore", "revert"]
+info_path = "cz_conventional_commits_info.txt"
+info = """
+This is commitizen conventional commits plugin.
+"""
+
+[[tool.commitizen.customize.questions]]
+type = "list"
+name = "change_type"
+message = "Select the type of change you are committing"
+choices = [
+    {value = "feat", name = "feat: A new feature"},
+    {value = "fix", name = "fix: A bug fix"},
+    {value = "docs", name = "docs: Documentation only changes"},
+    {value = "style", name = "style: Changes that do not affect the meaning of the code (formatting, etc)"},
+    {value = "refactor", name = "refactor: A code change that neither fixes a bug nor adds a feature"},
+    {value = "perf", name = "perf: A code change that improves performance"},
+    {value = "test", name = "test: Adding missing tests or correcting existing tests"},
+    {value = "build", name = "build: Changes that affect the build system or external dependencies"},
+    {value = "ci", name = "ci: Changes to CI configuration files and scripts"},
+    {value = "chore", name = "chore: Other changes that don't modify src or test files"},
+    {value = "revert", name = "revert: Reverts a previous commit"}
+]
+
+[[tool.commitizen.customize.questions]]
+type = "list"
+name = "scope"
+message = "What is the scope of this change? (press enter to skip)"
+choices = [
+    {value = "", name = "empty"},
+    {value = "analyzer", name = "analyzer: SQL analysis engine"},
+    {value = "api", name = "api: User-facing API"},
+    {value = "graph", name = "graph: Graph implementation and visitors"},
+    {value = "evaluator", name = "evaluator: Assertion evaluation"},
+    {value = "provider", name = "provider: Metric provider"},
+    {value = "specs", name = "specs: Metric specifications"},
+    {value = "validator", name = "validator: Suite validation"},
+    {value = "display", name = "display: Result visualization"},
+    {value = "orm", name = "orm: Database persistence"},
+    {value = "extensions", name = "extensions: Data source extensions"},
+    {value = "common", name = "common: Shared types and protocols"},
+    {value = "dialect", name = "dialect: SQL dialect implementations"},
+    {value = "functions", name = "functions: Mathematical functions"},
+    {value = "models", name = "models: Data models"},
+    {value = "ops", name = "ops: Metric operations"},
+    {value = "states", name = "states: State management"},
+    {value = "utils", name = "utils: Utility functions"}
+]
+
+[[tool.commitizen.customize.questions]]
+type = "input"
+name = "message"
+message = "Write a short, imperative tense description of the change (max 72 chars):\n"
+
+[[tool.commitizen.customize.questions]]
+type = "list"
+name = "is_breaking_change"
+message = "Is this a breaking change?"
+choices = [
+    {value = false, name = "No"},
+    {value = true, name = "Yes"}
+]
+
+[[tool.commitizen.customize.questions]]
+type = "input"
+name = "breaking_change"
+message = "Describe the breaking change:\n"
+when = "is_breaking_change"
+
+[[tool.commitizen.customize.questions]]
+type = "input"
+name = "body"
+message = "Provide a longer description of the change: (press enter to skip)\n"
+
+[[tool.commitizen.customize.questions]]
+type = "input"
+name = "footer"
+message = "List any issues closed by this change (e.g., 'Closes #123'): (press enter to skip)\n"

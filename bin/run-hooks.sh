@@ -6,12 +6,14 @@
 #   --all     Run on all files (including src, tests, examples)
 #   --fast    Skip slow hooks (mypy)
 #   --fix     Only run hooks that auto-fix issues (ruff-format, ruff-check, trailing-whitespace, end-of-file-fixer)
+#   --check-commit  Check if the last commit message follows conventional format
 #
 # Examples:
 #   ./bin/run-hooks.sh                    # Run on staged files
 #   ./bin/run-hooks.sh --all              # Run on all files in project
 #   ./bin/run-hooks.sh --fix              # Run only auto-fixing hooks
 #   ./bin/run-hooks.sh --fast             # Skip mypy for faster checks
+#   ./bin/run-hooks.sh --check-commit     # Check last commit message
 #   ./bin/run-hooks.sh src/dqx/api.py    # Run on specific file(s)
 #
 # Note: This script now includes shellcheck for shell scripts (.sh, .bash files)
@@ -42,6 +44,17 @@ while [[ $# -gt 0 ]]; do
   --fix)
     HOOK_ID="ruff-format,ruff-check,trailing-whitespace,end-of-file-fixer"
     shift
+    ;;
+  --check-commit)
+    echo "🔍 Checking last commit message..."
+    if uv run cz check --rev-range HEAD~1..HEAD; then
+      echo -e "${GREEN}✓ Last commit message follows conventional format!${NC}"
+    else
+      echo -e "${RED}✗ Last commit message does NOT follow conventional format!${NC}"
+      echo -e "${YELLOW}Tip: Use 'uv run cz commit' to create a proper commit message${NC}"
+      exit 1
+    fi
+    exit 0
     ;;
   *)
     break

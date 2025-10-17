@@ -349,6 +349,86 @@ pytest tests/test_api.py -v
 pytest --cov=dqx --cov-report=html
 ```
 
+### Conventional Commits
+
+This project uses [conventional commits](https://www.conventionalcommits.org/) for all commit messages. This enables:
+- Automated changelog generation
+- Semantic versioning
+- Clear commit history
+
+#### Commit Format
+```
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
+```
+
+#### Types
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes (formatting, etc.)
+- `refactor`: Code refactoring
+- `perf`: Performance improvements
+- `test`: Test additions or fixes
+- `build`: Build system changes
+- `ci`: CI/CD changes
+- `chore`: Other changes
+
+#### Examples
+```bash
+# Simple commit
+git commit -m "feat(analyzer): add query optimization for large datasets"
+
+# Breaking change
+git commit -m "feat(api)!: change assertion interface to require where() clause"
+
+# With body
+git commit -m "fix(evaluator): handle division by zero in percentage calculations
+
+This fixes the issue where percentage calculations would fail when the
+denominator is zero. Now returns NaN instead of raising an exception.
+
+Closes #123"
+```
+
+#### Interactive Commit Helper
+```bash
+# Use commitizen for interactive commit creation
+uv run cz commit
+
+# Check if your last commit follows the convention
+./bin/run-hooks.sh --check-commit
+```
+
+### Pre-commit Hooks
+
+This project uses pre-commit hooks to maintain code quality. Hooks run automatically on `git commit` and check:
+
+- **Code formatting** (ruff)
+- **Type checking** (mypy)
+- **Commit message format** (commitizen)
+- **File quality** (trailing whitespace, file endings)
+- **Security** (no private keys)
+- **Syntax validation** (Python, YAML, JSON)
+
+If a commit is blocked:
+1. Read the error message
+2. Fix the issues (many are auto-fixed)
+3. Re-stage changed files: `git add -u`
+4. Commit again
+
+For emergencies only:
+```bash
+# Skip all hooks (not recommended)
+git commit --no-verify -m "emergency fix"
+
+# Skip specific hook
+SKIP=mypy git commit -m "wip: debugging"
+```
+
 ### Contribute
 
 1. Fork the repository
@@ -356,7 +436,8 @@ pytest --cov=dqx --cov-report=html
 3. Write tests first (TDD)
 4. Make your changes
 5. Run `./bin/run-hooks.sh`
-6. Submit a pull request
+6. Commit with conventional format
+7. Submit a pull request
 
 **We need**: Better error messages, more data sources, faster algorithms.
 

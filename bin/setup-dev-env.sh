@@ -53,6 +53,10 @@ uv sync
 echo "Installing pre-commit hooks..."
 uv run pre-commit install
 
+# Install commit-msg hook for conventional commits
+echo "Installing commit-msg hook for conventional commit validation..."
+uv run pre-commit install --hook-type commit-msg
+
 # Install pre-commit for CI
 echo "Setting up pre-commit for CI..."
 uv run pre-commit install --install-hooks
