@@ -14,6 +14,7 @@ dependencies = [
     "returns>=0.26.0",
     "rich>=14.1.0",
     "sqlalchemy>=2.0.43",
+    "sqlparse>=0.5.0",
     "sympy>=1.14.0",
 ]
 
@@ -54,7 +55,7 @@ python_version = "3.11"
 disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
-module = ["msgpack.*", "datasketches.*", "pyarrow.*", "sympy.*"]
+module = ["msgpack.*", "datasketches.*", "pyarrow.*", "sympy.*", "sqlparse.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
