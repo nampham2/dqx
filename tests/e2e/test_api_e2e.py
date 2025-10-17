@@ -60,7 +60,7 @@ def cross_dataset_check(mp: MetricProvider, ctx: Context) -> None:
     )
 
 
-def test_verification_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> None:
+def test_e2e_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> None:
     db = InMemoryMetricDB()
     ds1 = ArrowDataSource(commerce_data_c1)
     ds2 = ArrowDataSource(commerce_data_c2)
