@@ -6,6 +6,7 @@ dist/
 wheels/
 *.egg-info
 .tmp/
+.clinerules/
 
 # Virtual environments
 .venv
