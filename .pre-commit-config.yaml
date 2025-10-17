@@ -99,17 +99,18 @@ repos:
         files: '\.(yaml|yml)$'
         types: [yaml]
 
-  # Commitizen - Conventional commit validation
-  - repo: https://github.com/commitizen-tools/commitizen
-    rev: v3.29.0
-    hooks:
-      - id: commitizen
-        stages: [commit-msg]
-        name: Check commit message follows conventional format
-
   # Local hooks that use our project's virtual environment
   - repo: local
     hooks:
+      # Commitizen - Conventional commit validation
+      - id: commitizen-check
+        name: Check commit message follows conventional format
+        entry: ./bin/check-commit-msg.sh
+        language: system
+        stages: [commit-msg]
+        pass_filenames: false
+        always_run: true
+
       # Ruff - Format first (modifies files)
       - id: ruff-format
         name: ruff format
