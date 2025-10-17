@@ -1,6 +1,6 @@
 # DQX
 
-Validate billions of rows in seconds. Write quality checks as mathematical expressions. Get instant feedback.
+Write quality checks as mathematical expressions. Validate data efficiently. Get instant feedback.
 
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -240,7 +240,7 @@ context.checks()  # List of check results
 
 ## How It Works
 
-DQX compiles your checks into a dependency graph, generates optimized SQL, and executes everything in a single pass on your own database. Results flow back through the graph to evaluate assertions. You get comprehensive validation without writing SQL or managing complex pipelines.
+DQX compiles your checks into a dependency graph, generates optimized SQL, and executes everything in a single pass. Results flow back through the graph to evaluate assertions. You get comprehensive validation without writing SQL or managing complex pipelines.
 
 ```
 Your Checks → Dependency Graph → Optimized SQL → DuckDB → Results
@@ -377,4 +377,4 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ---
 
-DQX makes data validation fast, expressive, and reliable. Stop writing SQL. Start validating data.
+DQX makes data validation expressive and reliable. Stop writing SQL. Start validating data.
