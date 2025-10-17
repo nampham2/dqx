@@ -20,7 +20,7 @@ Determine which tasks have been implemented and require review. If tasks are gro
 </ask_followup_question>
 
 ## Step 4: Review the Work
-Look for implementation summaries in the docs folder using git commands. Review the implementation thoroughly. Use sequential thinking tools as needed. Present your analysis in 200-300 word sections, confirming understanding after each section.
+Look for implementation summaries in the docs folder using git tools. Review the implementation thoroughly. Use sequential thinking tools as needed. Present your analysis in 200-300 word sections, confirming understanding after each section.
 
 ## Step 5: Write Implementation Feedback (Optional)
 Ask whether implementation feedback should be documented. Determine the appropriate filename (same folder as related docs). Write constructive feedback if requested.

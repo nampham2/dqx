@@ -36,3 +36,4 @@ Check the current git branch:
 
 - Check out the branch with the branch name obtained in *Step 3.1*
 - Check in in the plan written in *Step 1* and commit with a conventional commit format.
+- You SHOULD NEVER implement these tasks, an engineer will do it properly.
