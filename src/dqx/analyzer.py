@@ -10,6 +10,7 @@ from typing import TypeVar
 
 import duckdb
 import numpy as np
+import sqlparse
 from rich.console import Console
 
 from dqx import models
@@ -164,6 +165,17 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp], nominal_date: datetime.date) ->
     # Generate SQL expressions using the dialect
     expressions = [dialect_instance.translate_sql_op(op) for op in distinct_ops]
     sql = dialect_instance.build_cte_query(ds.cte(nominal_date), expressions)
+
+    # Format SQL for consistent output
+    sql = sqlparse.format(
+        sql,
+        reindent=True,
+        keyword_case="upper",
+        identifier_case="lower",
+        indent_width=2,
+        wrap_after=120,
+        comma_first=False,
+    )
 
     # Execute the query
     logger.debug(f"SQL Query:\n{sql}")

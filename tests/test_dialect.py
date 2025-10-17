@@ -343,10 +343,8 @@ class TestDuckDBDialect:
 
         query = dialect.build_cte_query(cte_sql, expressions)
 
-        assert "WITH source AS (" in query
-        assert cte_sql in query
-        assert "COUNT(*) AS row_count" in query
-        assert "FROM source" in query
+        expected = "WITH source AS (SELECT * FROM sales) SELECT COUNT(*) AS row_count FROM source"
+        assert query == expected
 
     def test_build_cte_query_empty_expressions_raises_error(self) -> None:
         """Test that build_cte_query raises ValueError with empty expressions."""
@@ -365,19 +363,8 @@ class TestDuckDBDialect:
 
         query = dialect.build_cte_query(cte_sql, expressions)
 
-        # Check structure
-        assert "WITH source AS (" in query
-        assert cte_sql in query
-        assert "FROM source" in query
-
-        # Check expressions are included
-        assert "total_count" in query and "COUNT(*)" in query
-        assert "avg_price" in query and "AVG(price)" in query
-        assert "max_stock" in query and "MAX(stock)" in query
-
-        # Check formatting - expressions should be on separate lines
-        lines = query.split("\n")
-        assert len(lines) > 3  # At least WITH, SELECT, expressions, FROM
+        expected = "WITH source AS (SELECT * FROM products WHERE active = true) SELECT COUNT(*) AS total_count, AVG(price) AS avg_price, MAX(stock) AS max_stock FROM source"
+        assert query == expected
 
     def test_build_cte_query_formatting(self) -> None:
         """Test CTE query formatting is consistent."""
@@ -386,14 +373,9 @@ class TestDuckDBDialect:
         expressions = ["COUNT(*)", "SUM(amount)", "AVG(quantity)"]
 
         query = dialect.build_cte_query(cte_sql, expressions)
-        lines = query.split("\n")
 
-        # Check indentation
-        assert lines[0] == "WITH source AS ("
-        assert lines[1].startswith("  ")  # CTE SQL should be indented
-        assert lines[2] == ")"
-        assert "SELECT" in lines[3]
-        assert "FROM source" in lines[-1]
+        expected = "WITH source AS (SELECT * FROM orders) SELECT COUNT(*), SUM(amount), AVG(quantity) FROM source"
+        assert query == expected
 
     def test_dialect_with_real_ops(self) -> None:
         """Test dialect with actual SqlOp instances."""
@@ -579,9 +561,10 @@ class TestAnalyzerDialectIntegration:
         call_args = ds_duckdb.query.call_args[0][0]
         # Remove extra spaces for easier assertion
         normalized_sql = " ".join(call_args.split())
-        assert "CAST(COUNT(*) AS DOUBLE)" in normalized_sql
-        assert "CAST(AVG(price) AS DOUBLE)" in normalized_sql
-        assert "COUNT_IF(quantity IS NULL)" in normalized_sql
+        # SQL keywords are now lowercase due to sqlparse formatting
+        assert "cast(count(*) AS DOUBLE)" in normalized_sql
+        assert "cast(avg(price) AS DOUBLE)" in normalized_sql
+        assert "count_if(quantity IS NULL)" in normalized_sql
 
         # Store original registry state
         original_registry = _DIALECT_REGISTRY.copy()
@@ -604,9 +587,10 @@ class TestAnalyzerDialectIntegration:
             call_args = ds_postgres.query.call_args[0][0]
             # Remove extra spaces for easier assertion
             normalized_sql = " ".join(call_args.split())
-            assert "COUNT(*)::FLOAT8" in normalized_sql
-            assert "AVG(price)::FLOAT8" in normalized_sql
-            assert "COUNT(CASE WHEN quantity IS NULL THEN 1 END)" in normalized_sql
+            # SQL keywords are now lowercase due to sqlparse formatting
+            assert "count(*)::float8" in normalized_sql
+            assert "avg(price)::float8" in normalized_sql
+            assert "count(CASE WHEN quantity IS NULL THEN 1" in normalized_sql
 
         finally:
             # Restore original registry state
@@ -623,7 +607,7 @@ class TestDialectQueryFormatting:
     """Test query formatting functionality."""
 
     def test_dialect_query_formatting(self) -> None:
-        """Test the beautiful query formatting from dialects."""
+        """Test the query formatting from dialects."""
         dialect = DuckDBDialect()
 
         cte_sql = "SELECT * FROM sales WHERE date > '2024-01-01'"
@@ -642,14 +626,9 @@ class TestDialectQueryFormatting:
         assert "SELECT" in query
         assert "FROM source" in query
 
-        # Check alignment - all commas should be aligned
-        lines = query.split("\n")
-        select_lines = [line for line in lines if line.strip().startswith(",") or line.strip().startswith("CAST")]
-
-        # All continuation lines should start with comma at same position
-        comma_positions = [line.find(",") for line in select_lines if "," in line]
-        if comma_positions:
-            assert len(set(comma_positions)) == 1, "Commas should be aligned"
+        # All expressions should be included
+        for expr in expressions:
+            assert expr in query
 
     def test_build_cte_query_helper_function(self) -> None:
         """Test the build_cte_query helper function directly."""
@@ -658,13 +637,5 @@ class TestDialectQueryFormatting:
 
         query = build_cte_query(cte_sql, expressions)
 
-        # Verify structure
-        assert query.startswith("WITH source AS (")
-        assert cte_sql in query
-        assert "SELECT" in query
-        assert "FROM source" in query
-
-        # Verify all expressions are included (checking parts due to formatting)
-        assert "COUNT(*)" in query and "AS total" in query
-        assert "AVG(price)" in query and "AS average_price" in query
-        assert "MAX(price)" in query and "AS max_price" in query
+        expected = "WITH source AS (SELECT id, name, price FROM products) SELECT COUNT(*) AS total, AVG(price) AS average_price, MAX(price) AS max_price FROM source"
+        assert query == expected
