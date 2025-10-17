@@ -2,12 +2,9 @@
 
 import datetime
 import datetime as dt
-from collections.abc import Iterator
 from typing import cast
 from unittest.mock import Mock, patch
 
-import duckdb
-import numpy as np
 import pyarrow as pa
 import pytest
 
@@ -19,58 +16,6 @@ from dqx.ops import SqlOp
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.orm.repositories import Metric as MetricTable
 from dqx.states import Average, SimpleAdditiveState
-
-
-class FakeRelation:
-    """A test implementation of a query result relation."""
-
-    def __init__(self, data: dict[str, np.ndarray]):
-        self._data = data
-
-    def fetchnumpy(self) -> dict[str, np.ndarray]:
-        """Return the data as numpy arrays."""
-        return self._data
-
-    def fetch_arrow_reader(self, batch_size: int) -> Iterator[pa.RecordBatch]:
-        """Return an iterator of Arrow record batches for sketch ops."""
-        if not self._data:
-            return
-
-        # Convert numpy arrays to Arrow arrays and yield as record batches
-        total_size = len(next(iter(self._data.values()))) if self._data else 0
-        for i in range(0, total_size, batch_size):
-            batch_data = {}
-            for col, arr in self._data.items():
-                batch_data[col] = pa.array(arr[i : i + batch_size])
-            yield pa.RecordBatch.from_pydict(batch_data)
-
-
-class FakeSqlDataSource:
-    """A test implementation of SqlDataSource protocol."""
-
-    def __init__(
-        self,
-        name: str = "test_ds",
-        cte_value: str = "SELECT * FROM test",
-        dialect: str = "duckdb",
-        data: dict[str, np.ndarray] | None = None,
-    ):
-        self.name = name
-        self._cte_value = cte_value
-        self.dialect = dialect
-        self._data = data or {}
-
-    def cte(self, nominal_date: datetime.date) -> str:
-        """Return CTE string."""
-        return self._cte_value
-
-    def query(self, query: str, nominal_date: datetime.date) -> duckdb.DuckDBPyRelation:
-        """Return a mock DuckDB relation."""
-        # Create a mock that returns our FakeRelation
-        mock_relation = Mock(spec=duckdb.DuckDBPyRelation)
-        mock_relation.fetchnumpy.return_value = self._data
-        mock_relation.fetch_arrow_reader.return_value = FakeRelation(self._data).fetch_arrow_reader(100000)
-        return mock_relation
 
 
 @pytest.fixture
