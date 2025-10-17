@@ -29,6 +29,8 @@ Example:
 
 from __future__ import annotations
 
+import datetime
+
 import duckdb
 import pyarrow as pa
 
@@ -82,46 +84,26 @@ class DuckRelationDataSource:
         self._relation = relation
         self._table_name = random_prefix(k=6)
 
-    @property
-    def cte(self) -> str:
-        """Return a Common Table Expression (CTE) SQL fragment.
+    def cte(self, nominal_date: datetime.date) -> str:
+        """Get the CTE for this data source.
 
-        This property provides the SQL needed to reference this data source
-        in a WITH clause. The DQX analyzer uses this when constructing queries
-        to analyze the data.
+        Args:
+            nominal_date: The date for filtering (currently ignored)
 
         Returns:
-            SQL SELECT statement that references the internal table name.
-
-        Example:
-            >>> ds = DuckRelationDataSource(relation)
-            >>> print(ds.cte)
-            'SELECT * FROM _abc123'
+            The CTE SQL string
         """
         return f"SELECT * FROM {self._table_name}"
 
-    def query(self, query: str) -> duckdb.DuckDBPyRelation:
-        """Execute a SQL query against the wrapped DuckDB relation.
-
-        This method allows the DQX analyzer to run SQL queries against the
-        data source. The query should reference the data using the internal
-        table name available via the cte property.
+    def query(self, query: str, nominal_date: datetime.date) -> duckdb.DuckDBPyRelation:
+        """Execute a query against the DuckDB relation.
 
         Args:
-            query: SQL query string to execute. The query should reference
-                  the data source using the table name from self._table_name.
+            query: The SQL query to execute
+            nominal_date: The date for filtering (currently ignored)
 
         Returns:
-            DuckDBPyRelation containing the query results.
-
-        Example:
-            >>> ds = DuckRelationDataSource(relation)
-            >>> result = ds.query(f"SELECT COUNT(*) FROM {ds._table_name}")
-            >>> count = result.fetchone()[0]
-
-        Note:
-            The query parameter typically comes from the DQX analyzer and
-            already includes proper references to the internal table name.
+            Query results as a DuckDB relation
         """
         return self._relation.query(self._table_name, query)
 

@@ -1,5 +1,6 @@
 """Tests for the analyzer module with proper isolation and minimal mocking."""
 
+import datetime
 import datetime as dt
 from collections.abc import Iterator
 from typing import Any, cast
@@ -50,16 +51,20 @@ class FakeSqlDataSource:
     def __init__(
         self,
         name: str = "test_ds",
-        cte: str = "SELECT * FROM test",
+        cte_value: str = "SELECT * FROM test",
         dialect: str = "duckdb",
         data: dict[str, np.ndarray] | None = None,
     ):
         self.name = name
-        self.cte = cte
+        self._cte_value = cte_value
         self.dialect = dialect
         self._data = data or {}
 
-    def query(self, query: str) -> duckdb.DuckDBPyRelation:
+    def cte(self, nominal_date: datetime.date) -> str:
+        """Return CTE string."""
+        return self._cte_value
+
+    def query(self, query: str, nominal_date: datetime.date) -> duckdb.DuckDBPyRelation:
         """Return a mock DuckDB relation."""
         # Create a mock that returns our FakeRelation
         mock_relation = Mock(spec=duckdb.DuckDBPyRelation)
@@ -487,7 +492,8 @@ class TestAnalyzeFunctions:
         # Use a real ArrowDataSource
         data = pa.Table.from_pydict({"col": [1, 2, 3]})
         ds = ArrowDataSource(data)
-        analyze_sketch_ops(ds, [])
+        nominal_date = datetime.date(2024, 1, 1)
+        analyze_sketch_ops(ds, [], batch_size=100_000, nominal_date=nominal_date)
         # Should return without errors
 
     def test_analyze_sketch_ops(self) -> None:
@@ -495,13 +501,14 @@ class TestAnalyzeFunctions:
         # Use ArrowDataSource with test data
         data = pa.Table.from_pydict({"test_col": [1, 2, 3, 2, 1]})
         ds = ArrowDataSource(data)
+        nominal_date = datetime.date(2024, 1, 1)
 
         # Use real sketch op
         op1 = cast(SketchOp, specs.ApproxCardinality("test_col").analyzers[0])
         op2 = cast(SketchOp, specs.ApproxCardinality("test_col").analyzers[0])
 
         # Analyze
-        analyze_sketch_ops(ds, [op1, op2])
+        analyze_sketch_ops(ds, [op1, op2], batch_size=100_000, nominal_date=nominal_date)
 
         # Verify both ops got values assigned
         assert op1.value().value > 0  # Should have detected unique values
@@ -511,7 +518,8 @@ class TestAnalyzeFunctions:
         """Test analyze_sql_ops with empty ops list."""
         data = pa.Table.from_pydict({"col": [1, 2, 3]})
         ds = ArrowDataSource(data)
-        analyze_sql_ops(ds, [])
+        nominal_date = datetime.date(2024, 1, 1)
+        analyze_sql_ops(ds, [], nominal_date)
         # Should return without errors
 
     def test_analyze_sql_ops_missing_dialect(self) -> None:
@@ -519,27 +527,30 @@ class TestAnalyzeFunctions:
         # Create data source without dialect
         mock_ds = Mock()
         mock_ds.name = "no_dialect"
-        mock_ds.cte = "SELECT 1"
+        mock_ds.dialect = "no_dialect"
+        mock_ds.cte = Mock(return_value="SELECT 1")
+        nominal_date = datetime.date(2024, 1, 1)
 
         # Use real SQL op
         op = cast(SqlOp, specs.NumRows().analyzers[0])
 
         # The error is about dialect not found in registry, not about missing dialect
         with pytest.raises(DQXError, match="not found in registry"):
-            analyze_sql_ops(mock_ds, [op])
+            analyze_sql_ops(mock_ds, [op], nominal_date)
 
     def test_analyze_sql_ops(self) -> None:
         """Test analyze_sql_ops with actual ops."""
         # Use ArrowDataSource
         data = pa.Table.from_pydict({"test_col": [42.0]})
         ds = ArrowDataSource(data)
+        nominal_date = datetime.date(2024, 1, 1)
 
         # Use real SQL ops
         op1 = cast(SqlOp, specs.NumRows().analyzers[0])
         op2 = cast(SqlOp, specs.Average("test_col").analyzers[1])  # Note: Average has NumRows at [0], Average at [1]
 
         # Analyze
-        analyze_sql_ops(ds, [op1, op2])
+        analyze_sql_ops(ds, [op1, op2], nominal_date)
 
         # Verify ops got values
         assert op1.value() == 1.0  # 1 row
@@ -550,6 +561,7 @@ class TestAnalyzeFunctions:
         # Create test data
         data = pa.Table.from_pydict({"value": [1, 2, 3, 4, 5]})
         ds = ArrowDataSource(data)
+        nominal_date = datetime.date(2024, 1, 1)
 
         # Create duplicate ops
         sum1 = cast(SqlOp, specs.Sum("value").analyzers[0])
@@ -560,7 +572,7 @@ class TestAnalyzeFunctions:
         ops = [sum1, sum2, avg1, avg2, sum1]  # sum1 appears 3 times total
 
         # Analyze
-        analyze_sql_ops(ds, ops)
+        analyze_sql_ops(ds, ops, nominal_date)
 
         # All duplicate ops should have the same value assigned
         assert sum1.value() == 15.0  # 1+2+3+4+5
@@ -572,6 +584,7 @@ class TestAnalyzeFunctions:
         """Test that deduplication preserves order of first occurrence."""
         data = pa.Table.from_pydict({"a": [1, 2, 3], "b": [4, 5, 6]})
         ds = ArrowDataSource(data)
+        nominal_date = datetime.date(2024, 1, 1)
 
         # Create ops in specific order
         max_a = cast(SqlOp, specs.Maximum("a").analyzers[0])
@@ -583,7 +596,7 @@ class TestAnalyzeFunctions:
         ops = [max_a, sum_b, avg_a, max_a, min_b, sum_b, avg_a]
 
         # Analyze the ops
-        analyze_sql_ops(ds, ops)
+        analyze_sql_ops(ds, ops, nominal_date)
 
         # Verify all ops got values assigned
         assert max_a.value() == 3.0
@@ -595,6 +608,7 @@ class TestAnalyzeFunctions:
         """Test deduplication with ops on different columns."""
         data = pa.Table.from_pydict({"price": [10.0, 20.0, 30.0], "quantity": [1, 2, 3], "tax": [1.0, 2.0, 3.0]})
         ds = ArrowDataSource(data)
+        nominal_date = datetime.date(2024, 1, 1)
 
         # Create ops on different columns with some duplicates
         sum_price1 = cast(SqlOp, specs.Sum("price").analyzers[0])
@@ -606,7 +620,7 @@ class TestAnalyzeFunctions:
 
         ops = [sum_price1, avg_qty1, sum_price2, max_tax, avg_qty2, min_price]
 
-        analyze_sql_ops(ds, ops)
+        analyze_sql_ops(ds, ops, nominal_date)
 
         # Verify all ops got values
         assert sum_price1.value() == 60.0  # Sum of price

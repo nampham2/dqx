@@ -154,45 +154,38 @@ class SqlDataSource(Protocol):
 
     Attributes:
         name: A unique identifier for this data source instance
-        dialect: The SQL dialect name used for query generation (e.g., 'duckdb', 'postgresql')
+        dialect: The SQL dialect name used for query generation
     """
 
     name: str
     dialect: str
 
-    @property
-    def cte(self) -> str:
+    def cte(self, nominal_date: datetime.date) -> str:
         """
-        Return a Common Table Expression (CTE) SQL fragment for this data source.
+        Get the Common Table Expression (CTE) for this data source.
 
-        This should return valid SQL that can be used in a WITH clause,
-        typically selecting from the underlying data source.
+        Args:
+            nominal_date: The date for which the CTE should filter data.
+                         Implementations may ignore this parameter if date
+                         filtering is not needed.
 
         Returns:
-            str: SQL CTE fragment (without the 'AS' keyword or parentheses)
-
-        Example:
-            "SELECT * FROM my_table WHERE date = '2023-01-01'"
+            The CTE SQL string
         """
         ...
 
-    def query(self, query: str) -> duckdb.DuckDBPyRelation:
+    def query(self, query: str, nominal_date: datetime.date) -> duckdb.DuckDBPyRelation:
         """
-        Execute a SQL query against this data source.
+        Execute a query against this data source.
 
         Args:
-            query: SQL query string to execute. The query should reference
-                  the data source using the CTE format.
+            query: The SQL query to execute
+            nominal_date: The date for which data should be filtered.
+                         Implementations may ignore this parameter if date
+                         filtering is not needed.
 
         Returns:
-            DuckDBPyRelation: Query result that can be further processed
-
-        Raises:
-            DQXError: If the query fails or the data source is unavailable
-
-        Example:
-            >>> result = datasource.query("SELECT COUNT(*) FROM source")
-            >>> count = result.fetchone()[0]
+            Query results as a DuckDB relation
         """
         ...
 

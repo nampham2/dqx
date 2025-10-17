@@ -1,3 +1,5 @@
+import datetime
+
 import duckdb
 import pyarrow as pa
 
@@ -20,11 +22,12 @@ def test_duck_relation_datasource_init(commerce_data_c1: pa.Table) -> None:
 
 
 def test_duck_relation_datasource_cte(commerce_data_c1: pa.Table) -> None:
-    """Test DuckRelationDataSource cte property."""
+    """Test DuckRelationDataSource cte method."""
     relation = duckdb.arrow(commerce_data_c1)
     ds = DuckRelationDataSource(relation)
 
-    cte = ds.cte
+    nominal_date = datetime.date(2024, 1, 1)
+    cte = ds.cte(nominal_date)
     assert cte.startswith("SELECT * FROM ")
     assert ds._table_name in cte
 
@@ -35,8 +38,9 @@ def test_duck_relation_datasource_query(commerce_data_c1: pa.Table) -> None:
     ds = DuckRelationDataSource(relation)
 
     # Test a simple query
+    nominal_date = datetime.date(2024, 1, 1)
     query = f"SELECT COUNT(*) as count FROM {ds._table_name}"
-    result = ds.query(query)
+    result = ds.query(query, nominal_date)
 
     assert isinstance(result, duckdb.DuckDBPyRelation)
     # Fetch the result to verify it works

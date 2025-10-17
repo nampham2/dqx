@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import threading
+from collections import defaultdict
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
 from typing import Any, Protocol, cast, runtime_checkable
@@ -24,7 +25,7 @@ from dqx.evaluator import Evaluator
 from dqx.graph.nodes import CheckNode, RootNode
 from dqx.graph.traversal import Graph
 from dqx.orm.repositories import MetricDB
-from dqx.provider import MetricProvider
+from dqx.provider import MetricProvider, SymbolicMetric
 from dqx.specs import MetricSpec
 from dqx.validator import SuiteValidator
 
@@ -260,23 +261,17 @@ class Context:
         """
         return AssertionDraft(actual=expr, context=self)
 
-    def pending_metrics(self, dataset: str | None = None) -> Sequence[MetricSpec]:
+    def pending_metrics(self, dataset: str | None = None) -> Sequence[SymbolicMetric]:
         """
         Get pending metrics for the specified dataset or all datasets if none specified.
 
-        Args:
-            dataset: Optional dataset name. If None, returns metrics for all datasets.
-
-        Returns:
-            Sequence of pending metric specifications
-
-        TODO: Read the database to filter out metrics based on TTL
+        Returns SymbolicMetric objects that contain both the metric specification
+        and the key provider with lag information.
         """
-        # Get metrics from symbol table
         all_metrics = self.provider.symbolic_metrics
         if dataset:
-            return [metric.metric_spec for metric in all_metrics if metric.dataset == dataset]
-        return [metric.metric_spec for metric in all_metrics]
+            return [metric for metric in all_metrics if metric.dataset == dataset]
+        return all_metrics
 
 
 class VerificationSuite:
@@ -439,12 +434,23 @@ class VerificationSuite:
         self.graph.impute_datasets(list(datasources.keys()), self._context.provider)
 
         # 2. Analyze by datasources
-        for ds in datasources.keys():
+        for ds_name in datasources.keys():
+            # Get all symbolic metrics for this dataset
+            symbolic_metrics = self._context.pending_metrics(ds_name)
+
+            # Group metrics by their effective date
+            metrics_by_date: dict[ResultKey, list[MetricSpec]] = defaultdict(list)
+            for sym_metric in symbolic_metrics:
+                effective_key = sym_metric.key_provider.create(key)
+                metrics_by_date[effective_key].append(sym_metric.metric_spec)
+
+            # Analyze each date group separately
             analyzer = Analyzer()
-            metrics = self._context.pending_metrics(ds)
-            # TODO: Check the metrics and logging
-            # TODO: Analyze datasources with key that HONORS the lag
-            analyzer.analyze(datasources[ds], metrics, key)
+            for effective_key, metrics in metrics_by_date.items():
+                logger.info(f"Analyzing {ds_name}: {len(metrics)} metrics for {effective_key.yyyy_mm_dd}")
+                analyzer.analyze(datasources[ds_name], metrics, effective_key)
+
+            # Persist the combined report
             analyzer.report.persist(self.provider._db)
 
         # 3. Evaluate assertions
@@ -549,8 +555,11 @@ class VerificationSuite:
 
         # Iterate through all registered symbols
         for symbolic_metric in self._context.provider.symbolic_metrics:
+            # Calculate the effective key for this symbol
+            effective_key = symbolic_metric.key_provider.create(self._key)
+
             # Evaluate the symbol to get its value
-            value = symbolic_metric.fn(self._key)
+            value = symbolic_metric.fn(effective_key)
 
             # Create SymbolInfo with all fields
             symbol_info = SymbolInfo(
@@ -558,9 +567,9 @@ class VerificationSuite:
                 metric=str(symbolic_metric.metric_spec),
                 dataset=symbolic_metric.dataset,
                 value=value,
-                yyyy_mm_dd=self._key.yyyy_mm_dd,
+                yyyy_mm_dd=effective_key.yyyy_mm_dd,  # Use effective date!
                 suite=self._name,
-                tags=self._key.tags,
+                tags=effective_key.tags,
             )
             symbols.append(symbol_info)
 

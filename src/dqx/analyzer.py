@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import itertools
 import logging
 import textwrap
@@ -106,7 +107,7 @@ class AnalysisReport(UserDict[MetricKey, models.Metric]):
         db.persist(merged_report.values())
 
 
-def analyze_sketch_ops(ds: T, ops: Sequence[SketchOp], batch_size: int = 100_000) -> None:
+def analyze_sketch_ops(ds: T, ops: Sequence[SketchOp], batch_size: int, nominal_date: datetime.date) -> None:
     if len(ops) == 0:
         return
 
@@ -121,13 +122,13 @@ def analyze_sketch_ops(ds: T, ops: Sequence[SketchOp], batch_size: int = 100_000
     # Constructing the query
     logger.info(f"Analyzing SketchOps: {distinct_ops}")
     query = textwrap.dedent(f"""\
-        WITH source AS ( {ds.cte})
+        WITH source AS ( {ds.cte(nominal_date)})
         SELECT {", ".join(op.sketch_column for op in distinct_ops)} FROM source
         """)
 
     # Fetch the only the required columns into memory by batch
     sketches = {op: op.create() for op in ops}
-    batches = ds.query(query).fetch_arrow_reader(
+    batches = ds.query(query, nominal_date).fetch_arrow_reader(
         batch_size=batch_size,
     )
 
@@ -142,7 +143,7 @@ def analyze_sketch_ops(ds: T, ops: Sequence[SketchOp], batch_size: int = 100_000
         op.assign(sketches[op])
 
 
-def analyze_sql_ops(ds: T, ops: Sequence[SqlOp]) -> None:
+def analyze_sql_ops(ds: T, ops: Sequence[SqlOp], nominal_date: datetime.date) -> None:
     if len(ops) == 0:
         return
 
@@ -162,11 +163,11 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp]) -> None:
 
     # Generate SQL expressions using the dialect
     expressions = [dialect_instance.translate_sql_op(op) for op in distinct_ops]
-    sql = dialect_instance.build_cte_query(ds.cte, expressions)
+    sql = dialect_instance.build_cte_query(ds.cte(nominal_date), expressions)
 
     # Execute the query
     logger.debug(f"SQL Query:\n{sql}")
-    result: dict[str, np.ndarray] = ds.query(sql).fetchnumpy()
+    result: dict[str, np.ndarray] = ds.query(sql, nominal_date).fetchnumpy()
 
     # Assign the collected values to the ops
     # Create a mapping from all ops to their sql_col (duplicates will map to same col)
@@ -226,17 +227,17 @@ class Analyzer:
         if len(all_ops) == 0:
             return AnalysisReport()
 
-        # Analyze sql ops
+        # Analyze sql ops - pass the date from key
         sql_ops = [op for op in all_ops if isinstance(op, SqlOp)]
-        analyze_sql_ops(ds, sql_ops)
+        analyze_sql_ops(ds, sql_ops, key.yyyy_mm_dd)
 
-        # Analyze sketch ops
+        # Analyze sketch ops - pass the date from key
         sketch_ops = [op for op in all_ops if isinstance(op, SketchOp)]
-        analyze_sketch_ops(ds, sketch_ops)
+        analyze_sketch_ops(ds, sketch_ops, batch_size=100_000, nominal_date=key.yyyy_mm_dd)
 
         # Build the analysis report and merge with the current one
         report = AnalysisReport(data={(metric, key): models.Metric.build(metric, key) for metric in metrics})
-        self._report = self._report.merge(report)  # No mutex needed
+        self._report = self._report.merge(report)
         return self._report
 
     def _setup_duckdb(self) -> None:

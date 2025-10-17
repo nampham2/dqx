@@ -556,7 +556,7 @@ class TestAnalyzerDialectIntegration:
         # Create mock data source with DuckDB dialect
         ds_duckdb = Mock()
         ds_duckdb.dialect = "duckdb"
-        ds_duckdb.cte = "SELECT * FROM orders"
+        ds_duckdb.cte = Mock(return_value="SELECT * FROM orders")
 
         # Mock the query result - column names from dialect don't have quotes in result keys
         mock_result = {}
@@ -572,7 +572,8 @@ class TestAnalyzerDialectIntegration:
         ds_duckdb.query.return_value.fetchnumpy.return_value = mock_result
 
         # Run analysis
-        analyze_sql_ops(ds_duckdb, ops)
+        nominal_date = datetime.date(2024, 1, 1)
+        analyze_sql_ops(ds_duckdb, ops, nominal_date)
 
         # Verify SQL was generated with DuckDB dialect
         call_args = ds_duckdb.query.call_args[0][0]
@@ -592,11 +593,12 @@ class TestAnalyzerDialectIntegration:
             # Create mock data source with PostgreSQL dialect
             ds_postgres = Mock()
             ds_postgres.dialect = "postgresql"
-            ds_postgres.cte = "SELECT * FROM orders"
+            ds_postgres.cte = Mock(return_value="SELECT * FROM orders")
             ds_postgres.query.return_value.fetchnumpy.return_value = mock_result
 
             # Run analysis with PostgreSQL dialect - using same ops to keep same prefixes
-            analyze_sql_ops(ds_postgres, ops)
+            nominal_date = datetime.date(2024, 1, 1)
+            analyze_sql_ops(ds_postgres, ops, nominal_date)
 
             # Verify SQL was generated with PostgreSQL dialect
             call_args = ds_postgres.query.call_args[0][0]

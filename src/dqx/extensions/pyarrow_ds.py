@@ -8,6 +8,23 @@ ArrowDataSource: For PyArrow Tables or RecordBatches
 The adapter uses DuckDB as the SQL query engine, leveraging its efficient Arrow integration
 to execute SQL queries directly on Arrow data without copying.
 
+Note: For time-series analysis, data sources can use the nominal_date parameter
+to filter data appropriately. The current implementation ignores this parameter,
+but custom data sources can leverage it:
+
+Example:
+    class DateFilteredArrowSource(ArrowDataSource):
+        def __init__(self, table: pa.Table, date_column: str):
+            super().__init__(table)
+            self.date_column = date_column
+
+        def cte(self, nominal_date: date) -> str:
+            # Filter data for specific date in the CTE
+            return f'''
+                SELECT * FROM {self._table_name}
+                WHERE DATE({self.date_column}) = '{nominal_date.isoformat()}'
+            '''
+
 Example:
     >>> import pyarrow as pa
     >>> from dqx.extensions.pyarrow_ds import ArrowDataSource
@@ -25,6 +42,8 @@ Example:
 """
 
 from __future__ import annotations
+
+import datetime
 
 import duckdb
 import pyarrow as pa
@@ -82,46 +101,26 @@ class ArrowDataSource:
         self._table = table
         self._table_name = random_prefix(k=6)
 
-    @property
-    def cte(self) -> str:
-        """Return a Common Table Expression (CTE) SQL fragment.
+    def cte(self, nominal_date: datetime.date) -> str:
+        """Get the CTE for this data source.
 
-        This property provides the SQL needed to reference this data source
-        in a WITH clause. The DQX analyzer uses this when constructing queries
-        to analyze the data.
+        Args:
+            nominal_date: The date for filtering (currently ignored)
 
         Returns:
-            SQL SELECT statement that references the internal table name.
-
-        Example:
-            >>> ds = ArrowDataSource(table)
-            >>> print(ds.cte)
-            'SELECT * FROM _xyz789'
+            The CTE SQL string
         """
         return f"SELECT * FROM {self._table_name}"
 
-    def query(self, query: str) -> duckdb.DuckDBPyRelation:
-        """Execute a SQL query against the wrapped Arrow data.
-
-        This method uses DuckDB's Arrow integration to run SQL queries directly
-        on the Arrow data. The query should reference the data using the internal
-        table name available via the cte property.
+    def query(self, query: str, nominal_date: datetime.date) -> duckdb.DuckDBPyRelation:
+        """Execute a query against the Arrow data.
 
         Args:
-            query: SQL query string to execute. The query should reference
-                  the data source using the table name from self._table_name.
+            query: The SQL query to execute
+            nominal_date: The date for filtering (currently ignored)
 
         Returns:
-            DuckDBPyRelation containing the query results.
-
-        Example:
-            >>> ds = ArrowDataSource(table)
-            >>> result = ds.query(f"SELECT COUNT(*) FROM {ds._table_name}")
-            >>> count = result.fetchone()[0]
-
-        Note:
-            DuckDB creates a zero-copy view of the Arrow data when possible,
-            making this operation very efficient.
+            Query results as a DuckDB relation
         """
         return duckdb.arrow(self._table).query(
             self._table_name,
