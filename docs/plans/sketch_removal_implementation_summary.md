@@ -1,67 +1,63 @@
 # Sketch Removal Implementation Summary
 
-## Date: 2025-10-17
-
 ## Overview
-Successfully removed all sketch-related functionality from the DQX codebase as outlined in the plan.
+Successfully removed all sketch-based approximate cardinality estimation functionality from the DQX codebase.
 
-## Changes Made
+## Completed Tasks
 
-### Task Group 1: Remove Sketch Tests
-- ✅ Removed CardinalitySketch tests from `tests/test_states.py`
-- ✅ Removed ApproxCardinality tests from `tests/test_ops.py`
-- ✅ Removed ApproxCardinality tests from `tests/test_specs.py`
-- ✅ Removed approx_cardinality tests from `tests/test_provider.py` and `tests/test_analyzer.py`
-- ✅ Removed sketch_check from `tests/e2e/test_api_e2e.py`
+### 1. Removed Test Files
+- Deleted `tests/test_sketches.py` completely
+- Removed sketch-related tests from:
+  - `tests/test_states.py` (CardinalitySketch tests)
+  - `tests/test_specs.py` (ApproxCardinality tests)
+  - `tests/test_ops.py` (ApproxCardinality operation tests)
+  - `tests/test_provider.py` (approx_cardinality method tests)
+  - `tests/test_analyzer.py` (analyze_sketch_ops tests)
+  - `tests/e2e/test_api_e2e.py` (end-to-end sketch tests)
 
-### Task Group 2: Remove Analyzer Support
-- ✅ Removed `analyze_sketch_ops` function from `src/dqx/analyzer.py`
-- ✅ Removed SketchOp import and sketch-related analysis logic
-- ✅ Updated analyzer to only process SQL operations
+### 2. Removed Core Implementation
+- Removed from `src/dqx/states.py`:
+  - `SketchState` protocol
+  - `CardinalitySketch` class
+- Removed from `src/dqx/specs.py`:
+  - `ApproxCardinality` spec class
+  - References from `REGISTRY`
+- Removed from `src/dqx/ops.py`:
+  - `ApproxCardinality` operation class
+- Updated type constraints to remove `SketchOp` references
 
-### Task Group 3: Remove Public API Components
-- ✅ Removed `approx_cardinality` method from `src/dqx/provider.py`
+### 3. Removed API Support
+- Removed from `src/dqx/provider.py`:
+  - `approx_cardinality()` method from `MetricProvider`
+- Removed from `src/dqx/analyzer.py`:
+  - `analyze_sketch_ops()` function
+  - All sketch-related logic
 
-### Task Group 4: Remove Core Operations
-- ✅ Removed `ApproxCardinality` class from `src/dqx/ops.py`
-- ✅ Removed `SketchOp` protocol
-- ✅ Updated `OpsType` literal to only include "sql"
-- ✅ Updated `T` TypeVar to only bound to `float`
+### 4. Updated Dependencies
+- Removed `datasketches` from `pyproject.toml`
+- Updated `uv.lock` accordingly
 
-### Task Group 5: Remove State Components and Dependencies
-- ✅ Removed `ApproxCardinality` spec from `src/dqx/specs.py`
-- ✅ Updated `MetricType` literal to exclude "ApproxCardinality"
-- ✅ Removed `CardinalitySketch` class from `src/dqx/states.py`
-- ✅ Removed `SketchState` protocol
-- ✅ Removed datasketches imports
-- ✅ Removed datasketches dependency from `pyproject.toml`
-- ✅ Updated mypy overrides to exclude datasketches
-
-### Task Group 6: Final Validation
-- ✅ All tests pass (628 tests)
-- ✅ Mypy type checking passes (no issues in 27 source files)
-- ✅ Ruff linting passes (all checks passed)
-
-## Impact
-- The codebase is now simpler without sketch-based cardinality estimation
-- Removed external dependency on datasketches library
-- All approximate cardinality functionality has been removed
-- The system now only supports SQL-based operations
-
-## Files Modified
-1. `tests/test_states.py`
-2. `tests/test_ops.py`
-3. `tests/test_specs.py`
-4. `tests/test_specs_str.py`
-5. `tests/test_provider.py`
-6. `tests/test_analyzer.py`
-7. `tests/e2e/test_api_e2e.py`
-8. `src/dqx/analyzer.py`
-9. `src/dqx/provider.py`
-10. `src/dqx/ops.py`
-11. `src/dqx/specs.py`
-12. `src/dqx/states.py`
-13. `pyproject.toml`
+### 5. Updated Documentation
+- Removed from `docs/design.md`:
+  - Approx. Cardinality row from metrics table
+- Updated `docs/dqguard-to-dqx-comparison.md`:
+  - Removed "Statistical sketching for memory efficiency" from architecture
+  - Changed duplicate detection example to use `duplicate_count` instead
+  - Updated architecture description to "Columnar engine" only
 
 ## Verification
-All automated tests pass, type checking is clean, and linting shows no issues. The sketch removal has been completed successfully without breaking any existing functionality.
+- All tests pass (628 passing)
+- No mypy errors
+- No ruff linting issues
+- Documentation is consistent
+
+## Breaking Changes
+This is a breaking change that removes the `approx_cardinality` method from the public API. Users who were using this functionality will need to either:
+1. Use exact `count` for small datasets
+2. Implement their own approximate counting solution
+3. Use the `duplicate_count` functionality for duplicate detection use cases
+
+## Git History
+The implementation was done in the following commits:
+1. Initial sketch removal implementation
+2. Documentation updates to remove sketch references
