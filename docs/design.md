@@ -101,7 +101,6 @@ DQX uses SQL as its computation backend instead of distributed frameworks like S
 | Maximum | `maximum` | Maximum value |
 | Variance | `variance` | Statistical variance |
 | Null Count | `null_count` | Count of null values |
-| Approx. Cardinality | `approx_cardinality` | Approximate distinct count |
 | Duplicate Count | `duplicate_count` | Count of duplicate rows |
 
 ### Assertion Methods

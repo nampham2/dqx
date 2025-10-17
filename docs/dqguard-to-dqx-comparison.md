@@ -86,7 +86,6 @@ ctx.assert_that(error_rate).where(name="Revenue calculation accuracy").is_lt(0.0
 - DuckDB columnar engine
 - Single-pass optimization
 - Efficient query execution
-- Statistical sketching for memory efficiency
 
 ### 4. Developer Experience
 
@@ -126,7 +125,7 @@ suite.run(datasources, key)
 | **Validators** | 12 patterns | Unlimited expressions |
 | **Engine** | Spark clusters | DuckDB |
 | **Processing Model** | Multiple passes | Single pass |
-| **Architecture** | Distributed | Columnar + sketches |
+| **Architecture** | Distributed | Columnar engine |
 | **IDE Support** | JSON schemas | Full Python tooling |
 | **Testing** | Manual validation | Standard unit tests |
 | **Debugging** | Log analysis | Interactive debugging |
@@ -198,9 +197,8 @@ ctx.assert_that(z_score).where(name="Within 2 SD").is_lt(2)
 
 **DQX**:
 ```python
-# Built-in duplicate detection (coming in v0.6)
-# Current approach:
-duplicate_count = mp.count("transaction_id") - mp.approx_cardinality("transaction_id")
+# Built-in duplicate detection
+duplicate_count = mp.duplicate_count("transaction_id")
 ctx.assert_that(duplicate_count).where(name="No duplicates").is_zero()
 ```
 
