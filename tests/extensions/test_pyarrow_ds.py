@@ -1,3 +1,5 @@
+import datetime
+
 import duckdb
 import pyarrow as pa
 
@@ -21,10 +23,11 @@ def test_arrow_datasource_init(commerce_data_c1: pa.Table) -> None:
 
 
 def test_arrow_datasource_cte(commerce_data_c1: pa.Table) -> None:
-    """Test ArrowDataSource cte property."""
+    """Test ArrowDataSource cte method."""
     ds = ArrowDataSource(commerce_data_c1)
 
-    cte = ds.cte
+    nominal_date = datetime.date(2024, 1, 1)
+    cte = ds.cte(nominal_date)
     assert cte == f"SELECT * FROM {ds._table_name}"
 
 
@@ -33,8 +36,9 @@ def test_arrow_datasource_query(commerce_data_c1: pa.Table) -> None:
     ds = ArrowDataSource(commerce_data_c1)
 
     # Test a simple query
+    nominal_date = datetime.date(2024, 1, 1)
     query = f"SELECT COUNT(*) as count FROM {ds._table_name}"
-    result = ds.query(query)
+    result = ds.query(query, nominal_date)
 
     assert isinstance(result, duckdb.DuckDBPyRelation)
     # Fetch the result to verify it works
@@ -43,7 +47,7 @@ def test_arrow_datasource_query(commerce_data_c1: pa.Table) -> None:
 
     # Test a more complex query
     query2 = f"SELECT name, price FROM {ds._table_name} WHERE price > 5000 LIMIT 5"
-    result2 = ds.query(query2)
+    result2 = ds.query(query2, nominal_date)
     rows = result2.fetchall()
     assert len(rows) <= 5
     for row in rows:
@@ -59,7 +63,8 @@ def test_arrow_datasource_with_record_batch(commerce_data_c1: pa.Table) -> None:
     assert ds.name == "pyarrow"
 
     # Test query works with RecordBatch
+    nominal_date = datetime.date(2024, 1, 1)
     query = f"SELECT COUNT(*) as count FROM {ds._table_name}"
-    result = ds.query(query)
+    result = ds.query(query, nominal_date)
     count_result = result.fetchall()
     assert count_result[0][0] == len(batch)

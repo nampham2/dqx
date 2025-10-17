@@ -256,7 +256,7 @@ class TestValidationExpressions:
         # Create mock data source
         datasource = Mock()
         datasource.name = "test_data"
-        datasource.cte = "SELECT * FROM test"
+        datasource.cte = Mock(return_value="SELECT * FROM test")
 
         # Mock the provider and evaluator behavior
         suite.provider._symbol_index = {}
