@@ -439,7 +439,6 @@ class VerificationSuite:
             symbolic_metrics = self._context.pending_metrics(ds_name)
 
             # Group metrics by their effective date
-
             metrics_by_date: dict[ResultKey, list[MetricSpec]] = defaultdict(list)
             for sym_metric in symbolic_metrics:
                 effective_key = sym_metric.key_provider.create(key)

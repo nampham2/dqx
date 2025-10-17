@@ -237,7 +237,7 @@ class Analyzer:
 
         # Build the analysis report and merge with the current one
         report = AnalysisReport(data={(metric, key): models.Metric.build(metric, key) for metric in metrics})
-        self._report = self._report.merge(report)  # No mutex needed
+        self._report = self._report.merge(report)
         return self._report
 
     def _setup_duckdb(self) -> None:
