@@ -96,6 +96,20 @@ def test_base_validator_get_issues():
 
 **Verification:** Run `uv run pytest tests/test_display.py tests/graph/test_base.py tests/test_validator.py tests/test_specs.py -v` and check coverage.
 
+**Commit:** After verification passes:
+```bash
+git add tests/test_display.py tests/graph/test_base.py tests/test_validator.py tests/test_specs.py
+git commit -m "test: add coverage for simple gaps - Group 1
+
+- Add test for SimpleNodeFormatter with node_name() method
+- Add test for BaseNode.is_leaf() NotImplementedError
+- Add test for ValidationReport.__str__() with no issues
+- Add test for BaseValidator.get_issues()
+- Add test for specs.py line 468
+- Coverage improved from 98% to ~99%
+- Addresses lines: display.py:51, graph/base.py:112, validator.py:85,121, specs.py:468"
+```
+
 ### Group 2: Async Method Coverage
 
 **Files to modify:**
@@ -179,6 +193,17 @@ async def test_composite_validation_visitor_async():
 
 **Verification:** Run `uv run pytest tests/graph/test_traversal.py tests/graph/test_visitor.py tests/test_validator.py -v -k async` and check coverage.
 
+**Commit:** After verification passes:
+```bash
+git add tests/graph/test_traversal.py tests/graph/test_visitor.py tests/test_validator.py
+git commit -m "test: add async method coverage - Group 2
+
+- Add test for Graph.async_bfs() method
+- Add tests for visitor async methods (DatasetImputationVisitor, NodeCollector)
+- Add test for CompositeValidationVisitor.visit_async()
+- Addresses lines: graph/traversal.py:150-157, graph/visitors.py:168,231, validator.py:328"
+```
+
 ### Group 3: Error Path Coverage - Analyzer
 
 **Files to modify:**
@@ -203,6 +228,16 @@ def test_analysis_report_persist_empty(caplog):
 ```
 
 **Verification:** Run `uv run pytest tests/test_analyzer.py -v -k empty` and check coverage.
+
+**Commit:** After verification passes:
+```bash
+git add tests/test_analyzer.py
+git commit -m "test: add analyzer error path coverage - Group 3
+
+- Add test for AnalysisReport.persist() with empty report
+- Verifies warning log message for empty report
+- Addresses line: analyzer.py:228"
+```
 
 ### Group 4: Error Path Coverage - API
 
@@ -350,6 +385,17 @@ def test_verification_suite_collect_without_key():
 
 **Verification:** Run `uv run pytest tests/test_api.py -v` and check coverage.
 
+**Commit:** After verification passes:
+```bash
+git add tests/test_api.py
+git commit -m "test: add API error path coverage - Group 4
+
+- Add tests for AssertionDraft validation errors (empty/long names)
+- Add test for AssertionReady without context
+- Add tests for VerificationSuite error conditions
+- Addresses lines: api.py:148-149,159,163,308,310,423,495,549,552"
+```
+
 ### Group 5: Error Path Coverage - Evaluator
 
 **Files to modify:**
@@ -462,6 +508,17 @@ def test_evaluator_general_exception():
 
 **Verification:** Run `uv run pytest tests/test_evaluator.py -v` and check coverage.
 
+**Commit:** After verification passes:
+```bash
+git add tests/test_evaluator.py
+git commit -m "test: add evaluator error path coverage - Group 5
+
+- Add tests for missing symbols in _gather()
+- Add test for complex number evaluation
+- Add test for general exception handling
+- Addresses lines: evaluator.py:115,120,222,232-234"
+```
+
 ### Group 6: Error Path Coverage - Graph Components
 
 **Files to modify:**
@@ -515,6 +572,16 @@ def test_dataset_imputation_visitor_assertion_no_provider():
 ```
 
 **Verification:** Run `uv run pytest tests/graph/test_traversal.py tests/graph/test_visitor.py -v` and check coverage.
+
+**Commit:** After verification passes:
+```bash
+git add tests/graph/test_traversal.py tests/graph/test_visitor.py
+git commit -m "test: add graph components error path coverage - Group 6
+
+- Add test for dataset imputation errors
+- Add test for assertion node visit without provider
+- Addresses lines: graph/traversal.py:354, graph/visitors.py:102"
+```
 
 ### Group 7: Error Path Coverage - Validator
 
@@ -605,6 +672,17 @@ def test_composite_validation_visitor_reset():
 
 **Verification:** Run `uv run pytest tests/test_validator.py -v` and check coverage.
 
+**Commit:** After verification passes:
+```bash
+git add tests/test_validator.py
+git commit -m "test: add validator error path coverage - Group 7
+
+- Add test for DuplicateCheckNameValidator finalize method
+- Add test for CompositeValidationVisitor error/warning separation
+- Add test for CompositeValidationVisitor reset method
+- Addresses lines: validator.py:129,162-163,332-334"
+```
+
 ### Final Verification
 
 **Task: Run all tests and verify 100% coverage**
@@ -619,6 +697,17 @@ bin/run-hooks.sh
 uv run pytest --cov=dqx.analyzer --cov-report=term-missing tests/test_analyzer.py
 uv run pytest --cov=dqx.api --cov-report=term-missing tests/test_api.py
 # ... etc for other modules
+```
+
+**Final Commit:** After achieving 100% coverage:
+```bash
+git add .
+git commit -m "test: achieve 100% test coverage
+
+- Completed all 7 groups of test additions
+- Coverage improved from 98% (2173/2211) to 100% (2211/2211)
+- All 38 missing lines now covered
+- All tests pass with pre-commit hooks"
 ```
 
 ## Notes
