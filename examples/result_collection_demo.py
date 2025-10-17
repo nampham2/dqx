@@ -167,8 +167,8 @@ def database_failures(mp: MetricProvider, ctx: Context) -> None:
     """Simulate database connection failures."""
     # We'll mock these to fail after the suite is built
     ctx.assert_that(mp.sum("amount")).where(name="Revenue total (DB timeout)", severity="P0").is_positive()
-    ctx.assert_that(mp.approx_cardinality("customer_id")).where(
-        name="Customer count (permission denied)", severity="P1"
+    ctx.assert_that(mp.null_count("customer_id")).where(
+        name="Customer null count (permission denied)", severity="P1"
     ).is_positive()
 
 
@@ -200,7 +200,7 @@ def main() -> None:
         if metric.metric_spec.name == "sum(amount)" and "Database Failures" in str(metric):
             provider._symbol_index[symbol].fn = lambda k: Failure("Database connection timeout after 30s")
         # Mock permission denied for customer count
-        elif metric.metric_spec.name == "approx_cardinality(customer_id)" and "Database Failures" in str(metric):
+        elif metric.metric_spec.name == "null_count(customer_id)" and "Database Failures" in str(metric):
             provider._symbol_index[symbol].fn = lambda k: Failure(
                 "Permission denied: user lacks SELECT privilege on table 'orders'"
             )

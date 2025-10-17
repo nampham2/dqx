@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Generic, Literal, Protocol, TypeVar, runtime_checkable
+from typing import Any, Generic, Protocol, TypeVar, runtime_checkable
 
 from dqx.common import DQXError
 from dqx.utils import random_prefix
-
-OpsType = Literal["sql"]
 
 T = TypeVar("T", bound=float)
 

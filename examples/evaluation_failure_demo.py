@@ -116,7 +116,7 @@ def demo_complex_expression() -> None:
     returns_count = provider.num_rows(dataset="returns")
     provider._symbol_index[returns_count].fn = lambda k: Success(100.0)
 
-    customer_count = provider.approx_cardinality("customer_id", dataset="customers")
+    customer_count = provider.num_rows(dataset="customers")
     provider._symbol_index[customer_count].fn = lambda k: Failure("Permission denied on table 'customers'")
 
     evaluator = Evaluator(provider, key, "Test Suite")
