@@ -1,72 +1,72 @@
 # DQX Project Brief
 
-## Project Identity
-**Name**: DQX (Data Quality eXcellence)
-**Type**: High-performance data quality framework
-**Repository**: git@gitlab.com:booking-com/personal/nam.pham/dqx.git
-**License**: MIT
+## Project Name
+DQX - Data Quality eXcellence
+
+## Version
+0.2.0
 
 ## Core Purpose
-DQX is a production-ready data quality framework designed to provide fast, scalable data validation and monitoring capabilities for large datasets. It combines the analytical power of DuckDB with the efficiency of PyArrow to deliver sub-second query performance on large-scale data.
+DQX is a data quality validation framework that enables developers to write quality checks as mathematical expressions in Python, validate data efficiently using SQL backends, and get instant feedback on data integrity issues.
 
 ## Key Requirements
 
 ### Functional Requirements
-1. **Data Validation**: Declarative API for defining data quality checks
-2. **Metric Computation**: Support for statistical metrics (avg, sum, min, max, variance, cardinality)
-3. **Assertion Framework**: Flexible assertion system with mathematical expressions
-4. **Efficient Processing**: Handle large datasets through optimized single-pass processing
-5. **Cross-Dataset Validation**: Compare metrics across multiple data sources
-6. **Time-Series Support**: Track metrics over time with historical comparisons
-7. **Persistence**: Store computed metrics for historical analysis
+1. **Native Python API**: Define data quality checks as Python functions, not configuration files
+2. **Symbolic Mathematics**: Express complex business rules using SymPy symbolic expressions
+3. **SQL Backend**: Execute validation queries directly on data warehouses via DuckDB
+4. **Extensible Architecture**: Support custom metrics, validators, and data sources via protocols
+5. **Cross-Time Analysis**: Compare metrics across different time periods (lag functionality)
+6. **Cross-Dataset Validation**: Combine metrics from multiple data sources in single expressions
+7. **Severity Levels**: P0-P3 severity classification for prioritizing issues
+8. **Result Persistence**: Store metrics and results in configurable databases
 
 ### Non-Functional Requirements
-1. **Performance**: Sub-second query performance on large datasets
-2. **Scalability**: Handle large-scale data through statistical sketching
-3. **Memory Efficiency**: Use HyperLogLog and DataSketches for approximate computations
-4. **Extensibility**: Plugin architecture for custom metrics and data sources
-5. **Production Ready**: Comprehensive error handling and monitoring
-6. **Developer Experience**: Intuitive, fluent API design
-
-## Target Users
-- Data Engineers building data quality pipelines
-- Analytics teams needing data validation
-- Platform teams requiring scalable data monitoring
-- Organizations with large-scale data processing needs
-
-## Success Criteria
-1. Process billion-row datasets in seconds
-2. Memory usage <1% of dataset size for cardinality estimation
-3. 100% test coverage for core modules
-4. Clear, actionable error messages
-5. Seamless integration with existing data pipelines
-
-## Constraints
-- Python 3.11 or 3.12 required
-- Depends on DuckDB for SQL execution
-- Uses SymPy for symbolic mathematics
-- Requires PyArrow for columnar data processing
+1. **Performance**: Single-pass SQL execution for multiple metrics
+2. **Type Safety**: Full type hints and mypy validation
+3. **Code Quality**: 100% test coverage, pre-commit hooks, linting
+4. **Documentation**: Clear examples and API documentation
+5. **Simplicity**: KISS/YAGNI principles - start simple, evolve thoughtfully
 
 ## Project Scope
+
 ### In Scope
-- Data quality validation framework
-- Metric computation and storage
-- Efficient single-pass data processing
-- SQL-based computation engine
-- Graph-based dependency management
-- Statistical approximation algorithms
+- Data quality validation for structured data (tables, dataframes)
+- SQL-based computation on DuckDB, BigQuery, PyArrow
+- Metric computation (sum, average, count, cardinality, etc.)
+- Assertion validation (equals, greater than, between, etc.)
+- Result collection and persistence
+- Graph-based dependency resolution
 
-### Out of Scope
-- Data transformation/ETL capabilities
-- Data catalog management
-- Workflow orchestration
-- Real-time alerting system (planned for future)
-- Web UI (planned for future)
+### Out of Scope (Removed)
+- Batch processing support (removed to simplify architecture)
+- Distributed computing via Spark
+- Real-time streaming validation
+- Unstructured data validation
 
-## Key Deliverables
-1. Core validation framework with graph-based architecture
-2. Comprehensive metric library
-3. Multiple data source adapters (PyArrow, DuckDB)
-4. Persistence layer for historical metrics
-5. Documentation and examples
-6. Pre-configured development environment
+## Target Users
+- Data Engineers validating data pipelines
+- Data Scientists ensuring data quality for ML
+- Analytics Engineers monitoring data warehouse health
+- QA Engineers testing data transformations
+
+## Success Criteria
+1. Developers can define complex validation rules in pure Python
+2. Validation runs efficiently on large datasets via SQL pushdown
+3. Clear, actionable error messages guide remediation
+4. Extensible without modifying core framework
+5. Minimal operational overhead (no clusters required)
+
+## Core Design Decisions
+1. **Code over Configuration**: Python functions instead of YAML/JSON
+2. **SQL over Spark**: Direct database execution without cluster overhead
+3. **Symbolic Expressions**: Mathematical formulas for business rules
+4. **Graph Architecture**: Dependency resolution for optimal execution
+5. **Protocol-Based Extensions**: Clean interfaces for customization
+
+## Constraints
+- Python 3.11+ required
+- Must maintain backward compatibility within major versions
+- All changes must maintain 100% test coverage
+- Must follow project coding standards (PEP 8, type hints)
+- Development managed via uv package manager

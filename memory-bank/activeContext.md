@@ -1,159 +1,169 @@
-# Active Context
+# DQX Active Context
 
 ## Current Focus
-The project has successfully removed all batch processing support to simplify the analyzer for the first release. The system now focuses on efficient single-pass processing using DuckDB's query engine, which provides sufficient performance for most use cases while maintaining a cleaner, more maintainable architecture.
+As of October 2025, DQX is at version 0.2.0 preparing for its first public release. The focus has been on simplifying the architecture and ensuring a solid foundation.
 
-## Recently Completed Work (October 15, 2025)
+## Recent Changes
 
-### is_between Assertion Implementation
-Successfully implemented the `is_between` assertion functionality:
-- **Added `is_between` function in functions.py** with floating-point tolerance support
-- **Integrated into AssertionReady API** with proper validation for bounds
-- **Comprehensive test coverage** including edge cases and invalid bounds
-- **Created demo example** showing practical usage patterns
-- Supports both range checks (e.g., 10 ≤ x ≤ 20) and exact value checks (e.g., x = 5.0)
+### Removed Features (Simplification)
+1. **Batch Processing Support** (October 2025)
+   - Removed `BatchSqlDataSource` protocol
+   - Removed `ArrowBatchDataSource` implementation
+   - Removed threading infrastructure
+   - Simplified to single-pass execution only
+   - Rationale: Reduce complexity for initial release
 
-### Key Features of is_between
-- **Inclusive bounds**: Both lower and upper bounds are inclusive
-- **Floating-point tolerance**: Applied to both bounds for numerical stability
-- **Clear validation**: Raises ValueError if lower > upper
-- **Descriptive representation**: Shows as "in [lower, upper]" in assertions
-- **Full API integration**: Works seamlessly with the assertion workflow
+### Added Features
+1. **is_between Assertion** (October 2025)
+   - Added `is_between(lower, upper, tol)` function
+   - Inclusive bounds with tolerance
+   - Validates range before creation
+   - Can check exact values with equal bounds
 
-### Analyzer Persist Refactoring (Phase 4-5)
-Successfully completed the refactoring of persist functionality:
-- **Removed `persist()` and `_merge_persist()` methods from Analyzer class**
-- **Removed mutex (Lock) from Analyzer** - thread safety is no longer provided
-- **Updated Analyzer Protocol** in `common.py` to remove persist method requirement
-- **Updated Analyzer docstring** to explicitly state it is NOT thread-safe
-- All tests passing with 99% coverage maintained
+2. **Enhanced Display Functions** (2024)
+   - `print_assertion_results()` for formatted output
+   - `print_symbols()` for symbol value display
+   - Rich terminal formatting support
 
-### Key Architectural Changes
-- **Persist methods now live in AnalysisReport** where they naturally belong
-- **Thread safety removed by design** - callers must handle if needed
-- **Cleaner separation of concerns** - AnalysisReport owns its persistence logic
-- **API usage updated**: `analyzer.report.persist()` instead of `analyzer.persist()`
+## Active Decisions
 
-### Batch Support Removal
-Completed comprehensive removal of batch processing infrastructure:
-- Removed `BatchSqlDataSource` protocol from `common.py`
-- Removed `ArrowBatchDataSource` class from `pyarrow_ds.py`
-- Removed batch processing methods from analyzer (`_analyze_batches`, `_analyze_batches_threaded`)
-- Simplified `analyze()` method to directly call `analyze_single()`
-- Removed all threading infrastructure for batch processing
-- Updated documentation to remove batch processing references
-- All 571 tests passing after removal
+### API Design Choices
+- **Two-stage assertion building**: `assert_that()` → `where()` → assertion
+  - Enforces meaningful names for all assertions
+  - Prevents unnamed assertions in reports
+  - Better error messages and debugging
 
-### Key Decisions in Batch Removal
-- **Retained `merge()` functionality**: Still useful for combining analysis reports from different time periods
-- **Kept internal batching in `analyze_sketch_ops`**: The `batch_size` parameter is for memory-efficient Arrow processing, not related to removed batch feature
-- **Simplified error messages**: Clear messages when unsupported data sources are used
+### Graph Architecture
+- **Visitor pattern** for extensibility
+- **Node hierarchy**: Root → Check → Assertion → Symbol
+- **Dataset imputation**: Automatic inference of dataset associations
 
-## Previous Work (October 14, 2025)
-
-### Graph Property Implementation
-- Added `_graph_built` flag to track when graph has been constructed
-- Graph property raises `DQXError` if accessed before `build_graph()` or `run()`
-- Property provides read-only access to the internal `Graph` instance
-
-### Renamed collect() to build_graph()
-- Renamed for better clarity of purpose
-- Method sets `_graph_built = True` after successful validation
-- Updated all internal references and test files
-
-### Removed validate() Method
-- Validation now happens automatically during `build_graph()`
-- Simplified workflow - impossible to skip validation
-- Errors raise `DQXError`, warnings are logged but don't fail
-
-## Current API Usage Patterns (from e2e test)
-
-### Check Decorator Pattern
-```python
-@check(name="Simple Checks", datasets=["ds1"])
-def simple_checks(mp: MetricProvider, ctx: Context) -> None:
-    ctx.assert_that(mp.null_count("delivered")).where(
-        name="Delivered null count is less than 100"
-    ).is_leq(100)
-```
-
-### Direct Suite Instantiation
-```python
-suite = VerificationSuite(checks, db, name="Simple test suite")
-suite.run({"ds1": ds1, "ds2": ds2}, key)
-suite.graph.print_tree()  # Safe access after run()
-```
-
-### Result Collection Methods
-- `suite.collect_results()` - Collect assertion results
-- `suite.collect_symbols()` - Collect symbol information
-- Both methods work after graph is built
-
-## Key Technical Decisions
-
-### Simplified Architecture
-- Single-pass processing model
-- No threading complexity for batch operations
-- DuckDB handles performance optimization internally
-- Cleaner, more maintainable codebase
-
-### Graph Access Pattern
-- Graph is only accessible after it's been built
-- Prevents access to incomplete or invalid graph states
-- Clear error messages guide proper usage
-
-### Validation Integration
-- Validation is no longer a separate step
-- Happens automatically during graph building
-- Simplifies the API and ensures validation always occurs
-
-### API Simplification History
-- v0.5.0+: Batch support removal
-- v0.5.0: Removed VerificationSuiteBuilder
-- v0.4.0: Removed assertion chaining, made assertions require names
-- Current: Defensive graph access, integrated validation, no batch processing
+### Error Handling
+- **Returns library** for functional error handling
+- **Result types** instead of exceptions for expected failures
+- **Detailed failure context** in assertion results
 
 ## Next Steps
-- Monitor adoption of simplified analyzer
-- Continue improving error messages and debugging tools
-- Focus on single-source performance optimizations
-- Explore streaming data support (planned for Q1 2025)
 
-## Important Patterns and Preferences
+### Immediate Tasks
+1. **Documentation Enhancement**
+   - More real-world examples
+   - Tutorial series
+   - API reference completion
 
-### Assertion Naming
-All assertions must have descriptive names using the two-stage pattern:
+2. **Performance Optimization**
+   - Query plan analysis
+   - Caching strategy for repeated metrics
+   - Connection pooling for databases
+
+3. **Dialect Support**
+   - PostgreSQL dialect implementation
+   - Snowflake dialect consideration
+   - MySQL/MariaDB evaluation
+
+### Future Considerations
+1. **Streaming Support**
+   - Real-time validation capabilities
+   - Incremental metric updates
+   - Event-driven checks
+
+2. **Advanced Metrics**
+   - Statistical metrics (percentiles, correlation)
+   - Machine learning metrics (drift detection)
+   - Custom aggregation functions
+
+3. **Integration Features**
+   - dbt integration package
+   - Airflow operators
+   - Prefect tasks
+
+## Important Patterns
+
+### Check Writing Best Practices
 ```python
-ctx.assert_that(metric).where(name="Description").is_gt(0)
+@check(name="Meaningful name", severity="P1")
+def validate_data(mp: MetricProvider, ctx: Context) -> None:
+    # Group related assertions
+    price = mp.average("price")
+
+    # Use descriptive names
+    ctx.assert_that(price).where(name="Average price is reasonable").is_between(
+        10, 1000
+    )
 ```
 
-### Cross-Dataset Validation
-Supported through dataset parameter:
+### Metric Reuse Pattern
 ```python
-mp.average("tax", dataset="ds1")
-mp.average("tax", dataset="ds2")
+# Define once, use multiple times
+total = mp.sum("amount")
+yesterday_total = mp.sum("amount", key=ctx.key.lag(1))
+
+# Use in multiple assertions
+ctx.assert_that(total).where(name="Has sales").is_positive()
+ctx.assert_that((total - yesterday_total) / yesterday_total).where(
+    name="Growth rate reasonable"
+).is_between(-0.5, 0.5)
 ```
 
-### Time-Series Comparisons
-Using key.lag() for historical comparisons:
+### Error Investigation Pattern
 ```python
-mp.average("tax", key=ctx.key.lag(1))
+# Collect all results for analysis
+results = suite.collect_results()
+failures = [r for r in results if r.status == "FAILURE"]
+
+# Examine failure details
+for failure in failures:
+    error = failure.metric.failure()
+    print(f"{failure.check}/{failure.assertion}: {error}")
 ```
 
-### Extension Methods
-Custom metrics available through mp.ext:
-```python
-mp.ext.day_over_day(specs.Average("tax"))
-```
+## Development Workflow
 
-## Current State
-All tests passing, documentation updated, and implementation complete. The DQX analyzer now has:
-- Simplified single-pass processing
-- No batch processing complexity
-- Clear, maintainable architecture
-- Defensive graph property access
-- Renamed `build_graph()` method (from `collect()`)
-- Integrated validation (no separate `validate()`)
-- Direct instantiation (no builder pattern)
-- Mandatory assertion names
-- Focus on DuckDB's efficient query engine for performance
+### Adding New Features
+1. Write comprehensive tests first (TDD)
+2. Implement minimal working solution
+3. Run full test suite
+4. Check type hints with mypy
+5. Run pre-commit hooks
+6. Update documentation
+7. Add examples if appropriate
+
+### Code Review Checklist
+- [ ] Tests added/updated
+- [ ] Type hints complete
+- [ ] Docstrings updated
+- [ ] No backward compatibility breaks
+- [ ] Examples work correctly
+- [ ] Documentation updated
+
+## Known Issues
+
+### Current Limitations
+1. **No partial evaluation**: All metrics in suite must succeed
+2. **Limited error recovery**: Single failure stops evaluation
+3. **Memory metrics**: Large result sets need pagination
+
+### Workarounds
+1. **Partial evaluation**: Split into multiple suites
+2. **Error recovery**: Wrap metrics in try/except patterns
+3. **Large results**: Use database-side aggregation
+
+## Key Insights
+
+### What Works Well
+- Symbolic expression API is intuitive
+- Graph-based execution is efficient
+- Protocol-based extensions are clean
+- Error messages are helpful
+
+### What Needs Improvement
+- Better debugging tools for complex expressions
+- More built-in metrics (median, mode, etc.)
+- Performance profiling capabilities
+- Visualization of dependency graphs
+
+## Contact & Collaboration
+- Lead Developer: Nam Pham (phamducnam@gmail.com)
+- Development tracked in GitLab
+- Following TDD and clean code principles
+- Open to contributions after public release

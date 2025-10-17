@@ -2,158 +2,135 @@
 
 ## Why DQX Exists
 
-### The Problem Space
-Modern data pipelines face critical challenges in ensuring data quality at scale:
+### The Problem
+Data quality issues cost organizations billions annually through:
+- Bad business decisions based on incorrect data
+- Failed ML models due to data drift
+- Broken dashboards and reports
+- Time wasted debugging data issues
+- Loss of stakeholder trust in data
 
-1. **Scale Challenge**: Traditional data validation tools struggle with large-scale datasets
-2. **Performance Bottleneck**: Full dataset scans are prohibitively expensive
-3. **Complex Dependencies**: Data quality checks often have interdependent metrics
-4. **Limited Expressiveness**: Existing tools lack flexible mathematical assertions
-5. **Historical Blindness**: No easy way to track metric evolution over time
+Traditional approaches fall short:
+- **SQL scripts**: Ad-hoc, hard to maintain, no reusability
+- **Config-based tools**: Limited expressiveness, poor IDE support
+- **Spark-based solutions**: Operational complexity, slow for small datasets
+- **Manual testing**: Not scalable, prone to human error
 
-### Market Context
-Organizations increasingly rely on data for critical decisions, making data quality a board-level concern. Existing solutions either:
-- Sacrifice performance for completeness (full scans)
-- Sacrifice accuracy for speed (sampling)
-- Require extensive custom code for complex validations
-
-DQX bridges this gap by providing both performance AND accuracy through innovative architecture.
-
-## How DQX Solves These Problems
-
-### 1. **Graph-Based Architecture**
-- Automatically deduplicates metric computations
-- Enables efficient execution planning
-- Provides clear dependency visualization
-- Supports complex validation scenarios
-
-### 2. **Statistical Sketching**
-- HyperLogLog for cardinality (99.9% accuracy, <1% memory)
-- DataSketches for quantiles and distributions
-- Enables large-scale processing with MB-scale memory
-
-### 3. **Symbolic Expression System**
-- Natural mathematical syntax for assertions
-- Compose complex rules from simple metrics
-- Type-safe expression evaluation
-- Automatic null handling
-
-### 4. **Declarative API Design**
-```python
-# Instead of procedural validation...
-if avg_price is None or avg_price <= 0:
-    raise ValidationError("Invalid average price")
-
-# DQX provides declarative syntax
-ctx.assert_that(mp.average("price")).is_gt(0)
-```
+### The Solution
+DQX provides a developer-friendly framework for data quality that:
+- Uses native Python code for full expressiveness
+- Leverages SQL for efficient computation
+- Enables mathematical expressions for complex rules
+- Requires no infrastructure beyond a database
+- Integrates with existing workflows
 
 ## User Experience Goals
 
-### For Data Engineers
-1. **Write Once, Run Anywhere**: Same checks work on different data sources
-2. **Minimal Boilerplate**: Focus on validation logic, not infrastructure
-3. **Clear Error Messages**: Know exactly what failed and why
-4. **Integration Ready**: Works with existing pipelines (Airflow, dbt, etc.)
+### 1. Intuitive API
+```python
+@check("Orders have valid prices")
+def validate_orders(mp: MetricProvider, ctx: Context) -> None:
+    ctx.assert_that(mp.average("price")).where(name="Price check").is_positive()
+```
+- Reads like natural language
+- Full IDE support with autocomplete
+- Type-safe with immediate feedback
 
-### For Analytics Teams
-1. **Business-Friendly API**: Express rules in natural language
-2. **No SQL Required**: Use Python for all validations
-3. **Visual Feedback**: See validation results clearly
-4. **Historical Context**: Track metric trends over time
+### 2. Instant Feedback
+- Run validation → See results immediately
+- Clear pass/fail status with severity levels
+- Actionable error messages
+- Visual progress tracking
 
-### For Platform Teams
-1. **Production Ready**: Built-in error handling and monitoring
-2. **Extensible**: Add custom metrics and data sources
-3. **Observable**: Comprehensive logging and metrics
-4. **Scalable**: Handles growth without architecture changes
+### 3. Powerful Expressions
+```python
+# Compare across time
+today = mp.sum("revenue")
+yesterday = mp.sum("revenue", key=ctx.key.lag(1))
+change = (today - yesterday) / yesterday
+
+# Complex business rules
+error_rate = sp.Abs(calculated - reported) / reported
+ctx.assert_that(error_rate).where(name="Accuracy").is_lt(0.001)
+```
+
+### 4. Zero Friction Integration
+- Install with pip
+- No clusters to manage
+- Works with existing databases
+- Minimal configuration
 
 ## Core User Workflows
 
-### 1. **Quick Validation** (5 minutes)
-```python
-# Define check
-@check
-def validate_orders(mp, ctx):
-    ctx.assert_that(mp.null_count("order_id")).is_eq(0)
-    ctx.assert_that(mp.average("amount")).is_gt(0)
+### Daily Validation
+1. Define checks for critical metrics
+2. Schedule suite execution
+3. Get alerts on failures
+4. Investigate issues with detailed context
+5. Track quality trends over time
 
+### Development Testing
+1. Write new transformation code
+2. Add quality checks alongside
+3. Run validation in CI/CD
+4. Catch issues before production
 
-# Run validation
-suite = VerificationSuite([validate_orders], db, "Quick Check")
-suite.run({"orders": data}, key)
-```
-
-### 2. **Comprehensive Monitoring** (30 minutes)
-- Define multiple checks with severity levels
-- Set up cross-dataset validations
-- Configure historical comparisons
-- Integrate with alerting systems
-
-### 3. **Custom Extension** (2 hours)
-- Implement custom metric types
-- Add new data source adapters
-- Create domain-specific validators
-- Build reusable check libraries
+### Data Monitoring
+1. Set up comprehensive checks
+2. Persist metrics to database
+3. Build quality dashboards
+4. Alert on anomalies
 
 ## Product Principles
 
-### 1. **Performance First**
-Every design decision prioritizes sub-second response times on large datasets.
+### 1. Developer First
+- Code is the interface
+- Excellent error messages
+- Comprehensive documentation
+- Testable by design
 
-### 2. **Developer Joy**
-The API should feel natural and intuitive, with helpful error messages and clear documentation.
+### 2. Progressive Disclosure
+- Simple tasks are simple
+- Complex tasks are possible
+- Advanced features don't clutter basics
 
-### 3. **Production Ready**
-No surprises in production - comprehensive testing, error handling, and monitoring built-in.
+### 3. Fast Feedback Loop
+- Quick to write checks
+- Fast to run validation
+- Immediate actionable results
 
-### 4. **Extensible by Design**
-Users should be able to extend DQX without modifying core code.
-
-### 5. **Mathematical Rigor**
-Leverage proven algorithms and mathematical foundations for reliability.
-
-## Competitive Advantages
-
-### vs. Great Expectations
-- **Performance**: 100x faster on large datasets
-- **Memory**: Statistical sketches vs full data loading
-- **Simplicity**: Declarative API vs verbose configuration
-
-### vs. Apache Griffin
-- **Language**: Python-native vs JVM-based
-- **Integration**: Works with modern Python stack
-- **Learning Curve**: Intuitive API vs complex DSL
-
-### vs. Custom Solutions
-- **Time to Value**: Hours vs weeks of development
-- **Reliability**: Battle-tested vs untested code
-- **Maintenance**: Active development vs technical debt
+### 4. Composable Building Blocks
+- Small, focused functions
+- Combine for complex logic
+- Reuse across projects
 
 ## Success Metrics
 
-### Adoption Metrics
-- Time to first successful validation < 30 minutes
-- 90% of users complete setup without support
-- 80% of users expand usage after initial success
+### User Success
+- Time to first check: < 5 minutes
+- Time to production: < 1 day
+- Check reusability: > 80%
+- False positive rate: < 5%
 
-### Performance Metrics
-- P99 query latency < 1 second for 1TB datasets
-- Memory usage < 1GB for billion-row validations
-- Zero data loss or corruption incidents
+### Technical Success
+- Query performance: < 30s for typical datasets
+- Memory usage: Constant regardless of data size
+- Test coverage: 100%
+- Zero runtime dependencies issues
 
-### Quality Metrics
-- 100% backward compatibility between versions
-- <24 hour response time for critical issues
-- >95% user satisfaction score
+## Comparison to Alternatives
+
+### vs Great Expectations
+- **DQX**: Code-first, symbolic math, SQL-native
+- **GE**: Config-heavy, limited expressions, Python execution
+
+### vs dbt tests
+- **DQX**: Full programming power, cross-dataset, time-series
+- **dbt**: SQL-only, single query scope, limited assertions
+
+### vs Apache Griffin
+- **DQX**: Lightweight, no infrastructure, instant start
+- **Griffin**: Complex setup, requires Spark cluster
 
 ## Future Vision
-
-DQX aims to become the de facto standard for data quality validation in Python, eventually offering:
-- Real-time streaming validation
-- ML-powered anomaly detection
-- Visual rule builder interface
-- Federated quality standards
-- Self-healing data pipelines
-
-The goal is to make data quality validation so easy and fast that it becomes a default part of every data pipeline, not an afterthought.
+DQX becomes the standard way to express and validate data quality requirements, making "bad data in production" as rare as syntax errors in compiled code. Every data pipeline includes DQX checks, every notebook validates its inputs, and data quality becomes a solved problem.

@@ -2,395 +2,271 @@
 
 ## Technology Stack
 
-### Core Languages & Frameworks
-- **Python 3.11/3.12**: Primary language
-- **DuckDB ≥ 1.3.2**: SQL analytical engine
-- **PyArrow ≥ 21.0.0**: Columnar data processing
-- **SymPy ≥ 1.14.0**: Symbolic mathematics
-- **DataSketches ≥ 5.2.0**: Probabilistic data structures
-- **SQLAlchemy ≥ 2.0.43**: Database ORM/abstraction
-- **Returns ≥ 0.26.0**: Functional programming utilities
+### Core Dependencies
+- **Python 3.11+**: Required for modern type hints and performance
+- **SymPy (1.14.0+)**: Symbolic mathematics for expressions
+- **DuckDB (1.3.2+)**: In-memory SQL engine for analytics
+- **PyArrow (21.0.0+)**: Efficient columnar data processing
+- **SQLAlchemy (2.0.43+)**: Database abstraction for metric storage
+- **Rich (14.1.0+)**: Terminal formatting for result display
+- **Returns (0.26.0+)**: Functional error handling (Result type)
 
-### Development Tools
-- **uv**: Modern Python package manager (preferred over pip)
-- **pytest**: Testing framework with coverage support
-- **mypy**: Static type checking
-- **ruff**: Fast Python linter and formatter
-- **pre-commit**: Git hook framework for code quality
+### Supporting Libraries
+- **numpy (2.3.2+)**: Numerical operations
+- **datasketches (5.2.0+)**: Approximate algorithms (cardinality)
+- **msgpack (1.1.1+)**: Efficient binary serialization
 
-### Development Environment
-- **IDE**: Visual Studio Code (primary)
-- **Shell**: zsh (default on macOS)
-- **OS**: macOS (primary development)
-- **Git**: Version control with GitLab
-- **Python Version Management**: pyenv or uv
-
-## Dependency Management
-
-### Package Management with uv
-```bash
-# Install dependencies
-uv sync
-
-# Add new dependency
-uv add package_name
-
-# Run commands in virtual environment
-uv run python script.py
-uv run pytest
-uv run mypy src/
-```
-
-### Key Dependencies Explained
-
-#### DuckDB
-- **Purpose**: High-performance analytical SQL engine
-- **Why**: Columnar storage, vectorized execution, embedded database
-- **Usage**: All SQL query execution and data processing
-
-#### PyArrow
-- **Purpose**: Columnar memory format and data processing
-- **Why**: Efficient data interchange, Parquet support, zero-copy reads
-- **Usage**: Data source implementation, efficient data processing
-
-#### SymPy
-- **Purpose**: Symbolic mathematics library
-- **Why**: Expression handling, mathematical operations, lazy evaluation
-- **Usage**: Assertion expressions, metric combinations
-
-#### DataSketches
-- **Purpose**: Statistical sketching algorithms
-- **Why**: Memory-efficient approximate computations
-- **Usage**: Cardinality estimation, quantile sketches
-
-#### SQLAlchemy
-- **Purpose**: SQL toolkit and ORM
-- **Why**: Database abstraction, connection management
-- **Usage**: MetricDB persistence layer
-
-#### Returns
-- **Purpose**: Functional programming primitives
-- **Why**: Result type for error handling, Maybe type for nulls
-- **Usage**: Throughout codebase for safe error handling
+### Development Dependencies
+- **uv**: Modern Python package manager (replacement for pip/poetry)
+- **pytest (8.4.1+)**: Testing framework
+- **mypy (1.17.1+)**: Static type checking
+- **ruff (0.12.10+)**: Fast Python linter and formatter
+- **pre-commit (4.3.0+)**: Git hook framework
+- **pytest-cov (6.2.1+)**: Test coverage reporting
+- **faker (37.5.3+)**: Test data generation
 
 ## Development Setup
 
-### Initial Setup Script
+### Initial Setup
 ```bash
-#!/bin/bash
-# bin/setup-dev-env.sh
+# Clone repository
+git clone <repository-url>
+cd dqx
 
-# Install uv if not present
-if ! command -v uv &> /dev/null; then
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-fi
+# Run setup script (installs uv and dependencies)
+./bin/setup-dev-env.sh
+```
 
-# Install dependencies
-uv sync
+### Virtual Environment Management
+- Managed by `uv` automatically
+- Python version from `.python-version` file (3.11)
+- All commands run through `uv run <command>`
 
-# Install pre-commit hooks
-uv run pre-commit install
-
-# Run initial tests
+### Common Commands
+```bash
+# Run tests
 uv run pytest tests/ -v
-```
-
-### Pre-commit Configuration
-```yaml
-# .pre-commit-config.yaml highlights
-repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    hooks:
-      - id: ruff-check  # Linting
-      - id: ruff-format # Formatting
-
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    hooks:
-      - id: mypy        # Type checking
-
-  - repo: https://github.com/shellcheck-py/shellcheck-py
-    hooks:
-      - id: shellcheck  # Shell script validation
-```
-
-## Code Quality Standards
-
-### Type Annotations
-- **Requirement**: All functions must have type annotations
-- **Style**: Use modern Python typing (3.11+ features)
-- **Protocols**: Prefer Protocol over ABC for interfaces
-
-```python
-from typing import Protocol, Sequence
-
-
-class MetricSpec(Protocol):
-    metric_type: MetricType
-
-    @property
-    def name(self) -> str: ...
-
-    @property
-    def analyzers(self) -> Sequence[Op]: ...
-```
-
-### Code Style
-- **Formatter**: ruff format (Black-compatible)
-- **Linter**: ruff check with extensive rules
-- **Line Length**: 88 characters (Black standard)
-- **Imports**: Sorted and grouped automatically
-
-### Documentation
-- **Docstrings**: Google format required
-- **Type Stubs**: py.typed marker for type checking
-- **Examples**: Comprehensive examples/ directory
-
-## Testing Infrastructure
-
-### Test Organization
-```
-tests/
-├── test_*.py           # Unit tests
-├── e2e/                # End-to-end tests (DO NOT MODIFY)
-├── fixtures/           # Test data and fixtures
-├── extensions/         # Extension-specific tests
-├── graph/              # Graph module tests
-└── orm/                # ORM tests
-```
-
-### Testing Commands
-```bash
-# Run all tests
-uv run pytest
-
-# Run with coverage
-uv run pytest --cov=dqx --cov-report=html
 
 # Run specific test file
 uv run pytest tests/test_api.py -v
 
-# Run tests in parallel
-uv run pytest -n auto
+# Check coverage
+uv run pytest --cov=dqx --cov-report=html
 
-# Run only marked tests
-uv run pytest -m demo
+# Run pre-commit checks
+./bin/run-hooks.sh
+
+# Type checking
+uv run mypy src/
+
+# Linting
+uv run ruff check src/
+
+# Format code
+uv run ruff check --fix src/
 ```
 
-### Test Coverage Requirements
-- **Target**: 98%+ overall coverage
-- **Achieved 100%**: graph.py, display.py, analyzer.py
-- **Critical**: Never reduce coverage without approval
+## Project Structure
 
-## Build and Release
-
-### Version Management
-- **Tool**: Commitizen for semantic versioning
-- **Format**: MAJOR.MINOR.PATCH (e.g., 0.4.0)
-- **Breaking Changes**: Increment MAJOR version
-
-### Commit Standards
-```bash
-# Interactive commit
-cz commit
-
-# Commit types
-feat:     # New feature
-fix:      # Bug fix
-docs:     # Documentation only
-style:    # Code style (formatting)
-refactor: # Code refactoring
-perf:     # Performance improvement
-test:     # Test additions/changes
-chore:    # Build process or auxiliary tools
+### Source Layout
+```
+src/dqx/
+├── __init__.py          # Package initialization
+├── api.py               # User-facing API
+├── analyzer.py          # SQL analysis engine
+├── common.py            # Shared types and protocols
+├── compute.py           # Computation utilities
+├── dialect.py           # SQL dialect implementations
+├── display.py           # Result visualization
+├── evaluator.py         # Assertion evaluation
+├── functions.py         # Mathematical functions
+├── models.py            # Data models
+├── ops.py               # Metric operations
+├── provider.py          # Metric provider
+├── specs.py             # Metric specifications
+├── states.py            # State management
+├── utils.py             # Utility functions
+├── validator.py         # Suite validation
+├── extensions/          # Data source extensions
+├── graph/              # Graph implementation
+└── orm/                # Database persistence
 ```
 
-### Release Process
-1. Update version with `cz bump`
-2. Update CHANGELOG.md
-3. Run full test suite
-4. Create git tag
-5. Push to GitLab
-6. Create release notes
+### Test Structure
+```
+tests/
+├── test_*.py           # Unit tests (matching src/)
+├── e2e/                # End-to-end tests
+├── fixtures/           # Test data
+└── conftest.py         # Pytest configuration
+```
+
+## Configuration Files
+
+### pyproject.toml
+- Project metadata and dependencies
+- Tool configurations (ruff, mypy, pytest)
+- Build system configuration
+
+### .pre-commit-config.yaml
+- Automated code quality checks
+- Runs on every commit
+- Includes: ruff, mypy, trailing whitespace
+
+### .python-version
+- Specifies Python 3.11 for the project
+- Used by uv for environment creation
+
+## SQL Dialects
+
+### DuckDB (Default)
+- In-memory analytical database
+- Supports window functions, CTEs
+- Fast columnar processing
+- No external dependencies
+
+### BigQuery
+- Google Cloud data warehouse
+- Requires additional setup
+- Supports massive scale
+
+### PyArrow Integration
+- Works through DuckDB
+- Efficient for local data files
+- Parquet file support
+
+## Database Persistence
+
+### Supported Backends
+- **SQLite**: Local development
+- **PostgreSQL**: Production deployments
+- **In-Memory**: Testing and demos
+
+### Schema
+- Metrics table: Stores computed values
+- Results table: Stores assertion outcomes
+- Automatic migration on startup
+
+## Type System
+
+### Type Hints Everywhere
+```python
+def average(
+    self, column: str, dataset: str | None = None, key: ResultKeyProvider | None = None
+) -> sp.Expr:
+    pass
+```
+
+### Protocols for Extensions
+```python
+class MetricSpec(Protocol):
+    def to_sql(self, table_alias: str, dialect: Dialect) -> str: ...
+```
+
+### Result Types
+```python
+from returns.result import Result, Success, Failure
+
+Result[float, str]  # Success has float, Failure has error string
+```
+
+## Testing Philosophy
+
+### Test-Driven Development
+1. Write failing test first
+2. Implement minimal code to pass
+3. Refactor while keeping tests green
+4. Maintain 100% coverage
+
+### Test Categories
+- **Unit tests**: Individual components
+- **Integration tests**: Component interactions
+- **E2E tests**: Full workflow validation
+- **Demo tests**: Example usage patterns
+
+### Testing Best Practices
+- Prefer native objects over mocks
+- Test actual behavior, not implementation
+- Clear test names describing scenarios
+- Isolated tests with no dependencies
 
 ## Performance Considerations
 
-### Profiling Tools
-```python
-# Memory profiling
-from memory_profiler import profile
+### Query Optimization
+- Single-pass SQL generation
+- CTE-based query structure
+- Push computation to database
+- Minimize data transfer
 
-
-@profile
-def memory_intensive_function():
-    pass
-
-
-# Time profiling
-import cProfile
-
-cProfile.run("suite.run(datasources, key)")
-```
-
-### Optimization Techniques
-1. **SQL Query Optimization**: Combine multiple metrics in single query
-2. **Set-Based Deduplication**: Efficient operation tracking
-3. **Lazy Evaluation**: Compute only when needed
-4. **Statistical Sketches**: Trade accuracy for memory
+### Memory Management
+- No data materialization in Python
+- Streaming results processing
+- Constant memory usage
+- Lazy symbol evaluation
 
 ## Security Considerations
 
-### Input Validation
-- SQL injection prevention through parameterization
-- File path validation for data sources
-- Size limits on data processing
+### SQL Injection Prevention
+- Parameterized queries only
+- Column name validation
+- No dynamic SQL construction
 
-### Dependencies
-- Regular security updates
-- Minimal dependency footprint
-- No unnecessary network calls
+### Data Access
+- Read-only data source access
+- Separate metric storage credentials
+- No data modification capabilities
+
+## Deployment Patterns
+
+### Library Usage
+```bash
+pip install dqx
+```
+
+### Docker Container
+```dockerfile
+FROM python:3.11-slim
+RUN pip install dqx
+# Add your checks
+```
+
+### CI/CD Integration
+- Run checks in pipeline
+- Fail build on quality issues
+- Track metrics over time
 
 ## Debugging Tips
 
-### Logging Configuration
+### Enable Logging
 ```python
 import logging
 
-# Enable debug logging
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger("dqx")
 ```
 
-### Common Issues
-
-#### 1. Import Errors
-```bash
-# Ensure virtual environment is active
-uv run python -c "import dqx"
-
-# Check installed packages
-uv pip list
-```
-
-#### 2. Type Checking Failures
-```bash
-# Run mypy with clear cache
-uv run mypy src/ --no-incremental
-```
-
-#### 3. Test Failures
-```bash
-# Run with verbose output
-uv run pytest -vvs tests/failing_test.py
-
-# Debug with pdb
-uv run pytest --pdb
-```
-
-## Integration Patterns
-
-### Airflow Integration
+### Inspect Graph
 ```python
-from airflow.decorators import task
-
-
-@task
-def run_dqx_validation():
-    from dqx.api import VerificationSuite, check
-
-    # Define your checks here
-    suite = VerificationSuite([check1, check2], db, "Airflow Suite")
-    return suite.run(datasources, key)
+suite.graph.display()  # Visual representation
 ```
 
-### dbt Integration
-```yaml
-# dbt test using DQX
-tests:
-  - dqx_validation:
-      suite_name: "dbt Data Quality"
-      checks:
-        - completeness_check
-        - freshness_check
-```
-
-### CI/CD Pipeline
-```yaml
-# .gitlab-ci.yml example
-test:
-  script:
-    - uv sync
-    - uv run pytest --cov=dqx
-    - uv run mypy src/
-    - uv run ruff check src/
-```
-
-## Monitoring and Observability
-
-### Metrics Collection
+### Check SQL Generation
 ```python
-# Built-in metrics
-from dqx.api import GraphStates
-
-# Check execution state
-for metric in context._graph.metrics():
-    logger.info(f"Metric {metric.name}: {metric.state()}")
+analyzer._build_query(metrics)  # See generated SQL
 ```
 
-### Performance Monitoring
-- Query execution time tracking
-- Memory usage monitoring
-- Metric computation statistics
+## Common Issues
 
-## Troubleshooting Guide
+### Import Errors
+- Ensure Python 3.11+
+- Check virtual environment activation
+- Verify all dependencies installed
 
-### Common Problems
+### Type Errors
+- Run mypy for detailed messages
+- Check protocol implementations
+- Verify type annotations
 
-#### 1. DuckDB Connection Issues
-- Check file permissions
-- Verify disk space
-- Review connection string
-
-#### 2. Memory Errors
-- Optimize query structure
-- Use statistical sketches
-- Review data distribution
-
-#### 3. Slow Performance
-- Check SQL query plans
-- Verify indexes exist
-- Review data distribution
-
-### Debug Mode
-```python
-# Enable detailed logging
-import os
-
-os.environ["DQX_DEBUG"] = "1"
-
-# Inspect graph structure
-print(context._graph.display_tree())
-
-# Check pending metrics
-for metric in context._graph.pending_metrics():
-    print(f"Pending: {metric.spec.name}")
-```
-
-## Future Technical Directions
-
-### Planned Enhancements
-1. **GPU Acceleration**: RAPIDS.ai integration
-2. **Distributed Computing**: Ray/Dask support
-3. **Streaming Support**: Apache Flink connector
-4. **Cloud Native**: Kubernetes operators
-
-### Technical Debt
-1. Improve error message clarity
-2. Add query plan optimization
-3. Enhance type inference
-4. Implement metric caching layer
-
-### Research Areas
-1. Incremental computation algorithms
-2. Advanced statistical sketches
-3. Query optimization strategies
-4. Real-time anomaly detection
+### Test Failures
+- Check test isolation
+- Verify database state
+- Look for timing dependencies
