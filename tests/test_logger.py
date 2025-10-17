@@ -5,8 +5,9 @@ from typing import Generator
 from unittest.mock import patch
 
 import pytest
+from rich.logging import RichHandler
 
-from dqx import get_logger, DEFAULT_LOGGER_NAME
+from dqx import DEFAULT_LOGGER_NAME, get_logger
 
 
 @pytest.fixture(autouse=True)
@@ -66,12 +67,12 @@ class TestGetLogger:
         assert logger.level == logging.DEBUG
 
     def test_get_logger_has_handler(self) -> None:
-        """Test that logger has a StreamHandler."""
+        """Test that logger has a RichHandler."""
         # Use a unique logger to ensure clean state
         logger_name = f"dqx.test.handler_{uuid.uuid4().hex[:8]}"
         logger = get_logger(logger_name)
         assert len(logger.handlers) == 1
-        assert isinstance(logger.handlers[0], logging.StreamHandler)
+        assert isinstance(logger.handlers[0], RichHandler)
 
     def test_get_logger_default_format(self) -> None:
         """Test that logger uses default format string."""
@@ -79,7 +80,7 @@ class TestGetLogger:
         handler = logger.handlers[0]
         formatter = handler.formatter
         assert formatter is not None
-        # Test the format by creating a log record
+        # Rich handles formatting internally, so formatter just returns message
         record = logging.LogRecord(
             name=DEFAULT_LOGGER_NAME,
             level=logging.INFO,
@@ -90,11 +91,8 @@ class TestGetLogger:
             exc_info=None,
         )
         formatted = formatter.format(record)
-        # New format: "%(asctime)s [%(levelname).1s] %(message)s"
-        assert "[I]" in formatted  # INFO shows as [I]
-        assert "Test message" in formatted
-        # Logger name is no longer in the default format
-        assert DEFAULT_LOGGER_NAME not in formatted
+        # With Rich, the formatter only returns the message
+        assert formatted == "Test message"
 
     def test_get_logger_custom_format(self) -> None:
         """Test setting custom format string."""
@@ -103,7 +101,7 @@ class TestGetLogger:
         handler = logger.handlers[0]
         formatter = handler.formatter
         assert formatter is not None
-        # Test the format
+        # Rich ignores custom format and uses message-only formatter
         record = logging.LogRecord(
             name="dqx",
             level=logging.INFO,
@@ -114,7 +112,8 @@ class TestGetLogger:
             exc_info=None,
         )
         formatted = formatter.format(record)
-        assert formatted == "dqx - Test message"
+        # With Rich, the formatter only returns the message
+        assert formatted == "Test message"
 
     def test_get_logger_no_duplicate_handlers(self) -> None:
         """Test that calling get_logger multiple times doesn't add duplicate handlers."""
@@ -168,8 +167,7 @@ class TestGetLogger:
         handler = logger.handlers[0]
         formatter = handler.formatter
         assert formatter is not None
-        # The formatter's format string should match DEFAULT_FORMAT
-        # We test this by checking the formatted output includes expected parts
+        # Rich handles formatting internally, formatter just returns message
         record = logging.LogRecord(
             name="dqx.test.default_format",
             level=logging.INFO,
@@ -180,26 +178,21 @@ class TestGetLogger:
             exc_info=None,
         )
         formatted = formatter.format(record)
-        # DEFAULT_FORMAT includes asctime, [levelname.1s], and message
-        assert "[I]" in formatted  # INFO shows as [I]
-        assert "Test" in formatted
-        # Logger name is no longer in the default format
-        assert "dqx.test.default_format" not in formatted
+        # With Rich, the formatter only returns the message
+        assert formatted == "Test"
 
-    @patch("sys.stderr", new_callable=StringIO)
-    def test_get_logger_output(self, mock_stderr: StringIO) -> None:
+    @patch("sys.stdout", new_callable=StringIO)
+    def test_get_logger_output(self, mock_stdout: StringIO) -> None:
         """Test actual logging output."""
         logger = get_logger("dqx.test.output", level=logging.INFO)
         logger.info("Test info message")
 
-        output = mock_stderr.getvalue()
+        output = mock_stdout.getvalue()
         assert "Test info message" in output
-        assert "[I]" in output  # INFO shows as [I] in new format
-        # Logger name is no longer in the default format
-        assert "dqx.test.output" not in output
+        assert "INFO" in output  # Rich shows full level name
 
-    @patch("sys.stderr", new_callable=StringIO)
-    def test_get_logger_level_filtering(self, mock_stderr: StringIO) -> None:
+    @patch("sys.stdout", new_callable=StringIO)
+    def test_get_logger_level_filtering(self, mock_stdout: StringIO) -> None:
         """Test that log level filtering works correctly."""
         logger = get_logger("dqx.test.filter", level=logging.WARNING)
 
@@ -208,7 +201,7 @@ class TestGetLogger:
         logger.warning("Warning message")
         logger.error("Error message")
 
-        output = mock_stderr.getvalue()
+        output = mock_stdout.getvalue()
         assert "Debug message" not in output
         assert "Info message" not in output
         assert "Warning message" in output
