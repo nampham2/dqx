@@ -1,37 +1,23 @@
-We have a concrete plan written in a markdown documentation. You need to implement the tasks described in the plan documentation.
+# Plan Implementation
 
-<detailed_sequence_of_steps>
-# Plan implementation
+Implement tasks from a plan documented in markdown.
 
-## Step 1. Gather the plan location
-We have the plan written under `docs/plans`, you need to know the name of the plan for reviewing.
-The plan is usually in a markdown file that is recently modified in the current branch.
-Please try your best effort to with the git commands to guess the plan markdown file.
+## Step 1: Locate the Plan
+Use git commands to locate the plan in docs/plans/. Plans are typically recent markdown files in the current branch.
 
-```xml
 <ask_followup_question>
-<question>What is the name of the plan I have to implement?</question>
+<question>What is the name of the plan to implement?</question>
 </ask_followup_question>
-```
 
-## Step 2. Read and understand the implementation plan.
-Now you know the implementation plan, please read it carefully.
-Also read the memory bank, code base, and documentations. Use sequential thinking tool if needed.
+## Step 2: Understand the Implementation Plan
+Read the plan carefully. Review the memory bank, codebase, and documentation. Use sequential thinking tools as needed. Ask clarifying questions.
 
-Ask me clarification questions if needed.
+## Step 3: Determine Implementation Scope
+Check the codebase for already-implemented tasks and existing implementation summaries. Read these first, then identify remaining work.
 
-## Step 3. Gather what to implement.
-Check the codebase to see if there are tasks that have been implemented,
-and if there are implementation summary docs.
-Read all these first. Then ask me what tasks to implement.
-
-```xml
 <ask_followup_question>
-<question>Do you need me to implement all the tasks or only a subset of it?</question>
+<question>Which tasks should I implement?</question>
 </ask_followup_question>
-```
 
-## Step 4. Do the implementation
-Now you know what to implement, please go ahead. If you have questions, please stop and ask me. DO NOT DEVIATE FROM THE PLAN.
-
-</detailed_sequence_of_steps>
+## Step 4: Execute Implementation
+Implement the specified tasks. Ask questions when unclear. DO NOT DEVIATE FROM THE PLAN.

@@ -1,37 +1,36 @@
-We have come up with a good implementation plan in mind, now we need to write the concrete plan.
+# Implementation Plan Creation
+
+Create a concrete implementation plan.
 
 <detailed_sequence_of_steps>
-# Write out an implementation plan - Detailed sequence of steps.
 
-## Step 1. Gather version information
-Get the version information for the plan.
-The plan is usually in a markdown file that is recently modified in the current branch.
-Please try your best effort to with the git commands to guess the latest plan version.
-You can either write a new plan version or revise the latest plan version.
+## Step 1: Determine Plan Version
+Use git commands to identify the latest plan version in the current branch. Plans are typically recent markdown files. Choose whether to create a new version or revise the latest one.
 
 <ask_followup_question>
-<question>What version of the plan you want to write?</question>
+<question>What version of the plan should I write?</question>
 </ask_followup_question>
 
-## Step 2. Check out the git branch
-Check out the current git branch, if it is the master branch then create a new branch with a suitable name.
-Try to come up with the best git branch strategy, for examples use current branch, create a new branch,
-commit the current changed files before moving on ...
+## Step 2: Manage Git Branch
+Check the current git branch. If on the master branch, create a new branch with a descriptive name. Consider whether to commit current changes before proceeding.
 
 <ask_followup_question>
-<question>What git branch you want to create?</question>
+<question>Which git branch should I create?</question>
 </ask_followup_question>
 
-## Step 2. Write a plan to docs/plans with version gathered in step 1.
-Great. I need your help to write out a comprehensive implementation plan.
+YOU MUST create a git branch based on the above gathered information.
 
-Assume that the engineer has zero context for our codebase and questionable taste. document everything they need to know. which files to touch for each task, code, testing, docs they might need to check. how to test it.give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. frequent commits.
-Assume they are a skilled developer, but know almost nothing about our toolset or problem domain. assume they don't know good test design very well.
+## Step 3: Write Comprehensive Plan
+Write a detailed implementation plan in docs/plans/ using the version from Step 1.
 
-Plan requirement:
-  - The last step of the plan is to run pre-commit, pytest and fix problems with them.
-  - Only git commit the changes if all tests are passed and no problems with pre-commit. DO NOT commit in if some tests are expected to fail.
-  - The tasks should be grouped into groups of 3-5 tasks. The engineer will implement the tasks in batch. It's bests that the batches have good separation and can be commited separately.
+Requirements:
+- Assume the engineer has no context about the codebase
+- Document all necessary information: files to modify, code samples, testing approach, and relevant documentation
+- Structure tasks in groups of 3-5 for batch implementation
+- Follow principles: DRY, YAGNI, TDD, frequent commits
+- Final step must run pre-commit and pytest
+- Only commit when all tests pass
 
-Please write out this plan, in full detail, into docs/plans/ with the version gathered in Step 1.
+The plan should guide a skilled developer who lacks domain knowledge through bite-sized, well-defined tasks.
+
 </detailed_sequence_of_steps>

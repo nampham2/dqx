@@ -1,20 +1,16 @@
-# Idea brainstorming
-I've got an idea I want to talk through with you. I'd like you to help me turn it into a fully formed design and spec (and eventually an implementation plan)
+# Idea Brainstorming
 
-## Step 1. Check out the project and gather background information
-Checkout the memory bank and the current state of the project in our working directory to understand where we're starting off.
-Then ask me questions, one at a time, to help refine the idea.
-Ideally, the questions would be multiple choice, but open-ended questions are OK, too. Don't forget: only one question per message.
+Help me develop an idea into a complete design and implementation plan.
 
-## Step 2. Brainstorming topic
-Ask me what is the brainstorming topic and follow up with as many clarification questions as possible.
-If this topic involves code changes, YOU MUST ASK if we need backward compabilility in whatever we are brainstorming.
+## Step 1: Gather Background Information
+Review the memory bank and current project state to understand the starting point. Then ask clarifying questions one at a time. Use multiple-choice questions when possible, but open-ended questions are acceptable.
+
+## Step 2: Define the Topic
+Ask for the brainstorming topic and gather clarification through targeted questions. For topics involving code changes, confirm whether backward compatibility is required.
 
 <ask_followup_question>
 <question>What is the topic for brainstorming?</question>
 </ask_followup_question>
 
-## Step 3. Brainstorming session
-Think about the topic clearly, ask questions until you completely understand the topic.
-Once you believe you understand what we're doing, stop and describe the design to me,
-in sections of maybe 200-300 words at a time, asking after each section whether it looks right so far.
+## Step 3: Design Development
+Understand the topic thoroughly through questions. Once ready, present the design in sections of 200-300 words, confirming accuracy after each section.

@@ -1,37 +1,25 @@
-An architect has reviewed the plan with some specific versions.
-You will have to read the plan and incorporating the review into a new version of the plan.
+# Plan Iteration
 
-<detailed_sequence_of_steps>
-# Plan iterate
+Incorporate architectural review feedback into a new plan version.
 
-## Step 1. Gather the feedback location
-The feedback document should be in markdown format placed under the same folder as the plan with `_review` suffix.
-The feedback for a specific version contains the version in the filename.
-Please try your best effort to with the git commands to find the right feedback version (usually the latest one) to read.
-
-```xml
-<ask_followup_question>
-<question>What is the name of the review I have to read?</question>
-</ask_followup_question>
-```
-
-## Step 2. Read the review
-Please read the review carefully and compare with the corresponding plan. Use sequential thinking tool if needed.
-Ask me clarification questions if you have any.
-
-## Step 3. Plan to address the feedback and iterate
-Once you believe you understand what we're doing, stop and describe the plan to address the feedback,
-in sections of maybe 200-300 words at a time, asking after each section whether it looks right so far.
-
-Keep iterating until I am satisfied with the feedback.
-
-## Step 4. Write the feedback plan.
-First, confirm with me the location of new version of plan.
-Come up with a few options: next latest plan version, others ...
+## Step 1: Locate Review Feedback
+Use git commands to find the latest review document. Reviews are markdown files in the same folder as plans, with "_review" suffix. The filename includes the version number.
 
 <ask_followup_question>
-<question>What version of the plan you want to write?</question>
+<question>Which review should I read?</question>
 </ask_followup_question>
 
-Then write the plan to the aggreed location with the correct version.
-</detailed_sequence_of_steps>
+## Step 2: Analyze the Review
+Read the review carefully and compare it with the corresponding plan. Use sequential thinking tools as needed. Ask clarifying questions.
+
+## Step 3: Address Feedback
+Present your approach to address the feedback in 200-300 word sections, confirming accuracy after each section. Iterate until the feedback is addressed.
+
+## Step 4: Create Updated Plan
+Confirm the location for the new plan version. Suggest options: next version number or alternative approaches.
+
+<ask_followup_question>
+<question>What version should the updated plan use?</question>
+</ask_followup_question>
+
+Write the plan to the agreed location with the correct version.

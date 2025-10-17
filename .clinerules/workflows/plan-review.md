@@ -1,39 +1,25 @@
-You are an experienced architect, your task is to review an implementation plan carefully and write a feedback document.
-The final feedback document should be in markdown format placed under the same folder as the plan with `_review` suffix.
+# Plan Review
 
-<detailed_sequence_of_steps>
-# Plan review
+Review an implementation plan as an architect and provide feedback.
 
-## Step 1. Gather the plan location
-We have the plan written under `docs/plans`, you need to know the name of the plan for reviewing.
-The plan is usually in a markdown file that is recently modified in the current branch.
-Please try your best effort to with the git commands to guess the plan markdown file.
+## Step 1: Locate the Plan
+Use git commands to locate the plan in docs/plans/. Plans are typically recent markdown files in the current branch.
 
-```xml
 <ask_followup_question>
-<question>What is the name of the plan I have to review?</question>
+<question>Which plan should I review?</question>
 </ask_followup_question>
-```
 
-## Step 2. Read and review the implementation plan.
-Now you know the implementation plan, please read it carefully.
-Also read the memory bank, code base, and documentations. Use sequential thinking tool if needed.
-Ask me clarification questions if you have any.
+## Step 2: Analyze the Implementation Plan
+Read the plan thoroughly. Review the memory bank, codebase, and documentation. Use sequential thinking tools as needed. Ask clarifying questions.
 
-NOTE: Please do not write the plan to a file in this step yet.
+## Step 3: Iterate on Feedback
+Present your feedback and confirm its accuracy.
 
-## Step 3. Feedback iteration
-Aks me if the feedback is correct.
-
-```xml
 <ask_followup_question>
-<question>How is the feedback?</question>
+<question>Is the feedback accurate and complete?</question>
 </ask_followup_question>
-```
 
-## Step 4. Write the feedback plan.
-Finally, confirm with the user the location of the review file.
-The review file naming convention is the plan file name with the `_review_` suffix.
-If the review already exists, please ask user if it is ok to overwrite.
+## Step 4: Document the Review
+Confirm the review file location. Reviews use the plan filename with "_review" suffix. If a review already exists, confirm before overwriting.
 
-</detailed_sequence_of_steps>
+Write the feedback to the confirmed location.

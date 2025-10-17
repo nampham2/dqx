@@ -1,51 +1,26 @@
-An engineer as implemented the tasks in the plan, either all the tasks or part of it in group or phase ...
-You are the manager, your job is to review the implementation, making sure that
-it adhere to the plan and give feedback.
+# Plan Implementation Review
 
-<detailed_sequence_of_steps>
-# Plan implementation
+An engineer has implemented tasks from the plan. Review the implementation for adherence to the plan.
 
-## Step 1. Gather the plan location
-We have the plan written under `docs/plans`, you need to know the name of the plan for reviewing.
-The plan is usually in a markdown file that is recently modified in the current branch.
-Please try your best effort to with the git commands to guess the plan markdown file.
+## Step 1: Locate the Plan
+Use git commands to locate the plan in docs/plans/. Plans are typically recent markdown files in the current branch.
 
-```xml
 <ask_followup_question>
-<question>What is the name of the plan I have to implement?</question>
+<question>What is the name of the plan to review?</question>
 </ask_followup_question>
-```
 
-## Step 2. Read and understand the implementation plan.
-Now you know the implementation plan, please read it carefully.
-Also read the memory bank, code base, and documentations.
+## Step 2: Understand the Implementation Plan
+Read the plan carefully. Review the memory bank, codebase, and documentation. Ask clarifying questions as needed.
 
-Ask me clarification questions if needed.
+## Step 3: Identify Completed Tasks
+Determine which tasks have been implemented and require review. If tasks are grouped in phases, identify which groups are complete.
 
-## Step 3. Ask what tasks has been implemented and need review
-Ask me what tasks have been implemented and need to be reviewed.
-If the tasks is grouped, in phase for example, ask what groups has been implemented.
-
-```xml
 <ask_followup_question>
-<question>What tasks have been implemented and need reviewed?</question>
+<question>Which tasks have been implemented and need review?</question>
 </ask_followup_question>
-```
 
-## Step 3. Review the work
-There can be an implementation summary written in the docs folder.
-Try in the best effort manner with git tools to see they they exists.
-Read the summary carefully.
+## Step 4: Review the Work
+Look for implementation summaries in the docs folder using git tools. Review the implementation thoroughly. Use sequential thinking tools as needed. Present your analysis in 200-300 word sections, confirming understanding after each section.
 
-Now you can review the work carefully. Ask me questions if needed.
-Use sequential thinking tool if needed.
-Once you believe you understand what we're doing, stop and describe the design to me,
-in sections of maybe 200-300 words at a time, asking after each section whether it looks right so far.
-
-## Step 4. Optionally write the implementation feedback.
-Ask me if an implementation feedback need to be written.
-Determine yourself the name of the implementation feedback doc,
-it should be in the same folder as the related docs. Ask me if you are not sure.
-
-Finally, Write a constructive implementation feedback doc.
-</detailed_sequence_of_steps>
+## Step 5: Write Implementation Feedback (Optional)
+Ask whether implementation feedback should be documented. Determine the appropriate filename (same folder as related docs). Write constructive feedback if requested.
