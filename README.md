@@ -386,9 +386,7 @@ MIT License. See [LICENSE](LICENSE) for details.
 
 ## Questions?
 
-- 📖 [Full Documentation](https://dqx.readthedocs.io)
-- 💬 [Discussions](https://github.com/yourusername/dqx/discussions)
-- 🐛 [Issues](https://github.com/yourusername/dqx/issues)
+- 📐 [Design Document](docs/design.md) - Architecture and design decisions
 
 ---
 
