@@ -394,10 +394,16 @@ denominator is zero. Now returns NaN instead of raising an exception.
 Closes #123"
 ```
 
-#### Interactive Commit Helper
+#### Commit Creation and Validation
+
+You have two ways to create and validate commits:
+
 ```bash
-# Use commitizen for interactive commit creation
+# Option 1: Use commitizen for interactive commit creation
 uv run cz commit
+
+# Option 2: Use regular git commit (validation happens automatically)
+git commit -m "feat(api): add new validation method"
 
 # Check if your last commit follows the convention
 ./bin/run-hooks.sh --check-commit
