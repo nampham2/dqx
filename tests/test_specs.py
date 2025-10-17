@@ -91,6 +91,10 @@ class TestNumRows:
         assert nr != 42
         assert nr is not None
 
+    def test_str(self) -> None:
+        nr = specs.NumRows()
+        assert str(nr) == "num_rows()"
+
 
 class TestFirst:
     """Test First metric spec"""
@@ -152,6 +156,10 @@ class TestFirst:
         first = specs.First("test_col")
         assert first != specs.NumRows()
         assert first != "not_a_first"
+
+    def test_str(self) -> None:
+        first = specs.First("test_col")
+        assert str(first) == "first(test_col)"
 
 
 class TestAverage:
@@ -221,6 +229,10 @@ class TestAverage:
         avg = specs.Average("impressions")
         assert avg != specs.NumRows()
         assert avg != "not_an_average"
+
+    def test_str(self) -> None:
+        avg = specs.Average("impressions")
+        assert str(avg) == "average(impressions)"
 
 
 class TestVariance:
@@ -297,6 +309,10 @@ class TestVariance:
         assert var != specs.NumRows()
         assert var != "not_a_variance"
 
+    def test_str(self) -> None:
+        var = specs.Variance("test_col")
+        assert str(var) == "variance(test_col)"
+
 
 class TestMinimum:
     """Test Minimum metric spec"""
@@ -358,6 +374,10 @@ class TestMinimum:
         min_spec = specs.Minimum("test_col")
         assert min_spec != specs.NumRows()
         assert min_spec != "not_a_minimum"
+
+    def test_str(self) -> None:
+        min_spec = specs.Minimum("test_col")
+        assert str(min_spec) == "minimum(test_col)"
 
 
 class TestMaximum:
@@ -421,6 +441,10 @@ class TestMaximum:
         assert max_spec != specs.NumRows()
         assert max_spec != "not_a_maximum"
 
+    def test_str(self) -> None:
+        max_spec = specs.Maximum("test_col")
+        assert str(max_spec) == "maximum(test_col)"
+
 
 class TestSum:
     """Test Sum metric spec"""
@@ -482,6 +506,10 @@ class TestSum:
         sum_spec = specs.Sum("test_col")
         assert sum_spec != specs.NumRows()
         assert sum_spec != "not_a_sum"
+
+    def test_str(self) -> None:
+        sum_spec = specs.Sum("test_col")
+        assert str(sum_spec) == "sum(test_col)"
 
 
 class TestNullCount:
@@ -545,6 +573,10 @@ class TestNullCount:
         assert null_count != specs.NumRows()
         assert null_count != "not_a_nullcount"
 
+    def test_str(self) -> None:
+        null_count = specs.NullCount("test_col")
+        assert str(null_count) == "null_count(test_col)"
+
 
 class TestNegativeCount:
     """Test NegativeCount metric spec"""
@@ -607,6 +639,10 @@ class TestNegativeCount:
         assert neg_count != specs.NumRows()
         assert neg_count != "not_a_negativecount"
 
+    def test_str(self) -> None:
+        neg_count = specs.NegativeCount("test_col")
+        assert str(neg_count) == "non_negative(test_col)"
+
 
 class TestApproxCardinality:
     """Test ApproxCardinality metric spec"""
@@ -668,6 +704,10 @@ class TestApproxCardinality:
         approx_card = specs.ApproxCardinality("test_col")
         assert approx_card != specs.NumRows()
         assert approx_card != "not_an_approxcardinality"
+
+    def test_str(self) -> None:
+        approx_card = specs.ApproxCardinality("test_col")
+        assert str(approx_card) == "approx_cardinality(test_col)"
 
 
 class TestBuildRegistry:
@@ -820,6 +860,96 @@ class TestRegistry:
         assert specs.registry == manually_built
 
 
+class TestDuplicateCount:
+    """Test DuplicateCount metric spec"""
+
+    def test_metric_type(self) -> None:
+        dup_count = specs.DuplicateCount(["col1", "col2"])
+        assert dup_count.metric_type == "DuplicateCount"
+
+    def test_name_single_column(self) -> None:
+        dup_count = specs.DuplicateCount(["user_id"])
+        assert dup_count.name == "duplicate_count(user_id)"
+
+    def test_name_multiple_columns(self) -> None:
+        dup_count = specs.DuplicateCount(["user_id", "session_id"])
+        assert dup_count.name == "duplicate_count(session_id,user_id)"  # Should be sorted
+
+    def test_parameters(self) -> None:
+        dup_count = specs.DuplicateCount(["col1", "col2"])
+        assert dup_count.parameters == {"columns": ["col1", "col2"]}
+
+    def test_columns_sorted(self) -> None:
+        dup_count = specs.DuplicateCount(["zebra", "alpha", "beta"])
+        assert dup_count._columns == ["alpha", "beta", "zebra"]
+
+    def test_empty_columns_raises_error(self) -> None:
+        import pytest
+
+        with pytest.raises(ValueError, match="At least one column must be specified"):
+            specs.DuplicateCount([])
+
+    def test_analyzers(self) -> None:
+        dup_count = specs.DuplicateCount(["col1"])
+        assert len(dup_count.analyzers) == 1
+        assert isinstance(dup_count.analyzers[0], ops.DuplicateCount)
+
+    @patch("dqx.ops.DuplicateCount")
+    def test_state(self, mock_ops_dupcount: Mock) -> None:
+        mock_analyzer = Mock()
+        mock_analyzer.value.return_value = 5.0
+        mock_ops_dupcount.return_value = mock_analyzer
+
+        dup_count = specs.DuplicateCount(["col1"])
+        state = dup_count.state()
+
+        assert isinstance(state, states.DuplicateCount)
+        assert state.value == 5.0
+
+    def test_deserialize(self) -> None:
+        with patch.object(states.DuplicateCount, "deserialize") as mock_deserialize:
+            mock_state = Mock()
+            mock_deserialize.return_value = mock_state
+
+            result = specs.DuplicateCount.deserialize(b"test_bytes")
+
+            mock_deserialize.assert_called_once_with(b"test_bytes")
+            assert result == mock_state
+
+    def test_hash(self) -> None:
+        dup1 = specs.DuplicateCount(["col1", "col2"])
+        dup2 = specs.DuplicateCount(["col1", "col2"])
+        dup3 = specs.DuplicateCount(["col2", "col1"])  # Same columns, different order
+        dup4 = specs.DuplicateCount(["col3"])
+
+        assert hash(dup1) == hash(dup2)
+        assert hash(dup1) == hash(dup3)  # Should be same after sorting
+        assert hash(dup1) != hash(dup4)
+
+    def test_equality(self) -> None:
+        dup1 = specs.DuplicateCount(["col1", "col2"])
+        dup2 = specs.DuplicateCount(["col1", "col2"])
+        dup3 = specs.DuplicateCount(["col2", "col1"])  # Same columns, different order
+        dup4 = specs.DuplicateCount(["col3"])
+
+        assert dup1 == dup2
+        assert dup1 == dup3  # Should be equal after sorting
+        assert dup1 != dup4
+
+    def test_inequality_different_type(self) -> None:
+        """Test DuplicateCount.__eq__ returns False for non-DuplicateCount types."""
+        dup_count = specs.DuplicateCount(["col1"])
+        assert dup_count != specs.NumRows()
+        assert dup_count != "not_a_duplicatecount"
+        assert dup_count != 42
+        assert dup_count != ["col1"]
+        assert dup_count is not None
+
+    def test_str(self) -> None:
+        dup_count = specs.DuplicateCount(["user_id", "session_id"])
+        assert str(dup_count) == "duplicate_count(session_id,user_id)"
+
+
 class TestMetricTypes:
     """Test the MetricType literal"""
 
@@ -835,6 +965,7 @@ class TestMetricTypes:
             (specs.NullCount("col"), "NullCount"),
             (specs.NegativeCount("col"), "NegativeCount"),
             (specs.ApproxCardinality("col"), "ApproxCardinality"),
+            (specs.DuplicateCount(["col"]), "DuplicateCount"),
         ]
 
         for instance, expected_type in spec_instances:

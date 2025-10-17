@@ -1,11 +1,12 @@
 import sympy as sp
 
 from dqx.common import SymbolicValidator
+from dqx.graph.base import BaseNode
 from dqx.graph.nodes import RootNode
 from dqx.graph.traversal import Graph
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
-from dqx.validator import SuiteValidator, ValidationIssue, ValidationReport
+from dqx.validator import BaseValidator, SuiteValidator, ValidationIssue, ValidationReport
 
 
 def test_validation_issue_creation() -> None:
@@ -62,6 +63,16 @@ def test_validation_report_string_format() -> None:
     assert "WARNING" in report_str
     assert "Duplicate check name: 'test_check'" in report_str
     assert "Check 'test' has no assertions" in report_str
+
+
+def test_validation_report_string_format_no_issues() -> None:
+    """Test report string formatting when there are no issues."""
+    report = ValidationReport()
+
+    report_str = str(report)
+    assert "No validation issues found" in report_str
+    assert "ERROR" not in report_str
+    assert "WARNING" not in report_str
 
 
 def test_validation_report_to_dict() -> None:
@@ -214,3 +225,52 @@ def test_suite_validator_performance() -> None:
     # Should have no issues
     assert not report.has_errors()
     assert not report.has_warnings()
+
+
+def test_base_validator_get_issues() -> None:
+    """Test BaseValidator get_issues method."""
+
+    class TestValidator(BaseValidator):
+        """Simple test validator."""
+
+        name = "test_validator"
+        is_error = True
+
+        def process_node(self, node: BaseNode) -> None:
+            """Process a node and add a test issue."""
+            if hasattr(node, "name") and node.name == "problematic":
+                self._issues.append(
+                    ValidationIssue(rule=self.name, message="Found problematic node", node_path=["test", "path"])
+                )
+
+    # Create validator instance
+    validator = TestValidator()
+
+    # Initially should have no issues
+    assert len(validator.get_issues()) == 0
+
+    # Create a mock node and process it
+    from unittest.mock import Mock
+
+    problem_node = Mock()
+    problem_node.name = "problematic"
+    validator.process_node(problem_node)
+
+    # Should now have one issue
+    issues = validator.get_issues()
+    assert len(issues) == 1
+    assert issues[0].rule == "test_validator"
+    assert issues[0].message == "Found problematic node"
+    assert issues[0].node_path == ["test", "path"]
+
+    # Test with non-problematic node
+    good_node = Mock()
+    good_node.name = "good"
+    validator.process_node(good_node)
+
+    # Should still have only one issue
+    assert len(validator.get_issues()) == 1
+
+    # Test reset
+    validator.reset()
+    assert len(validator.get_issues()) == 0

@@ -90,30 +90,38 @@ class TestNodeFormatter:
         assert result == "MockNode"
 
     def test_simple_formatter_with_node_name_method(self) -> None:
-        """Test that formatter uses node_name() method when available (CheckNode)."""
-        # Given a CheckNode with node_name method
-        root = RootNode("test_suite")
-        check = root.add_check("Check One")
+        """Test that formatter uses node_name() method when available."""
+        # Given a node with node_name method
+        node = Mock(spec=BaseNode)
+        node.node_name = Mock(return_value="Node Name From Method")
+        node.label = "Test Label"
+        node.name = "test_name"
+        node.__class__.__name__ = "MockNode"
 
         # When formatting the node
         formatter = SimpleNodeFormatter()
-        result = formatter.format_node(check)
+        result = formatter.format_node(node)
 
-        # Then it should use node_name() which returns name
-        assert result == "Check One"
+        # Then it should use node_name() method
+        assert result == "Node Name From Method"
+        node.node_name.assert_called_once()
 
     def test_simple_formatter_with_node_name_method_no_label(self) -> None:
-        """Test that formatter uses node_name() method when no label (CheckNode)."""
-        # Given a CheckNode without label
-        root = RootNode("test_suite")
-        check = root.add_check("check1")
+        """Test that formatter uses node_name() method when no label."""
+        # Given a node with node_name method but no label
+        node = Mock(spec=BaseNode)
+        node.node_name = Mock(return_value="Node Name From Method")
+        node.label = None
+        node.name = "test_name"
+        node.__class__.__name__ = "MockNode"
 
         # When formatting the node
         formatter = SimpleNodeFormatter()
-        result = formatter.format_node(check)
+        result = formatter.format_node(node)
 
-        # Then it should use node_name() which returns name
-        assert result == "check1"
+        # Then it should use node_name() method
+        assert result == "Node Name From Method"
+        node.node_name.assert_called_once()
 
 
 class TestTreeBuilderVisitor:

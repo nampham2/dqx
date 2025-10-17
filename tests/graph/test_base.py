@@ -126,6 +126,17 @@ class TestBaseNode:
         assert leaf_node.is_leaf() is True
         assert non_leaf_node.is_leaf() is False
 
+    def test_base_node_is_leaf_not_implemented(self) -> None:
+        """Test that BaseNode.is_leaf() raises NotImplementedError."""
+
+        # Create a minimal concrete implementation for testing
+        class TestNode(BaseNode):
+            pass
+
+        node = TestNode(parent=None)
+        with pytest.raises(NotImplementedError):
+            node.is_leaf()
+
 
 class TestCompositeNode:
     """Test suite for CompositeNode functionality."""
