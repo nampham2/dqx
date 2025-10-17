@@ -13,7 +13,7 @@ pip install dqx
 ```
 
 ```python
-import pandas as pd
+import pyarrow as pa
 
 from dqx.api import check, VerificationSuite, MetricProvider, Context
 from dqx.extensions.pyarrow_ds import ArrowDataSource
@@ -27,12 +27,12 @@ def validate_orders(mp: MetricProvider, ctx: Context) -> None:
 
 
 # Example data
-df = pd.DataFrame({"price": [10.5, 24.99, 5.0, 100.0]})
+data = pa.Table.from_pydict({"price": [10.5, 24.99, 5.0, 100.0]})
 
 # Run it
 db = InMemoryMetricDB()
 suite = VerificationSuite([validate_orders], db, "Quick validation")
-suite.run({"orders": ArrowDataSource.from_pandas(df)}, ResultKey())
+suite.run({"orders": ArrowDataSource(data)}, ResultKey())
 # ✓ Orders have prices: OK
 ```
 
@@ -113,7 +113,7 @@ def detect_anomalies(mp: MetricProvider, ctx: Context) -> None:
 ```python
 from datetime import date
 
-import pandas as pd
+import pyarrow as pa
 import sympy as sp
 
 from dqx.api import check, VerificationSuite, MetricProvider, Context
@@ -148,8 +148,17 @@ def validate_ecommerce(mp: MetricProvider, ctx: Context) -> None:
 
 
 # Set up data
-df = pd.read_csv("orders.csv")
-datasource = ArrowDataSource.from_pandas(df)
+# In practice, you might read from parquet: data = pa.parquet.read_table("orders.parquet")
+data = pa.Table.from_pydict(
+    {
+        "order_id": list(range(1001, 1051)),  # 50 orders
+        "customer_id": [200 + i % 10 for i in range(50)],
+        "price": [10.0 + i * 2.5 for i in range(50)],
+        "quantity": [1 + i % 5 for i in range(50)],
+        "revenue": [(10.0 + i * 2.5) * (1 + i % 5) for i in range(50)],
+    }
+)
+datasource = ArrowDataSource(data)
 
 # Run validation
 db = MetricDB("postgresql://localhost/metrics")
@@ -250,11 +259,17 @@ Your Checks → Dependency Graph → Optimized SQL → DuckDB → Results
 
 ### Built-in Support
 ```python
-# PyArrow/Pandas
+# PyArrow Tables
 from dqx.extensions.pyarrow_ds import ArrowDataSource
+import pyarrow as pa
 
-ds = ArrowDataSource.from_pandas(df)
-ds = ArrowDataSource.from_parquet("file.parquet")
+# From dict
+data = pa.Table.from_pydict({"col": [1, 2, 3]})
+ds = ArrowDataSource(data)
+
+# From parquet file
+data = pa.parquet.read_table("file.parquet")
+ds = ArrowDataSource(data)
 
 # DuckDB
 from dqx.extensions.duck_ds import DuckDataSource
