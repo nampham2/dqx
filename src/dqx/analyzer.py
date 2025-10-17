@@ -3,7 +3,6 @@ from __future__ import annotations
 import datetime
 import itertools
 import logging
-import textwrap
 from collections import UserDict
 from collections.abc import Sequence
 from typing import TypeVar
@@ -20,7 +19,7 @@ from dqx.common import (
     SqlDataSource,
 )
 from dqx.dialect import get_dialect
-from dqx.ops import SketchOp, SqlOp
+from dqx.ops import SqlOp
 from dqx.orm.repositories import MetricDB
 from dqx.specs import MetricSpec
 
@@ -106,42 +105,6 @@ class AnalysisReport(UserDict[MetricKey, models.Metric]):
         # Merge and persist
         merged_report = self.merge(db_report)
         db.persist(merged_report.values())
-
-
-def analyze_sketch_ops(ds: T, ops: Sequence[SketchOp], batch_size: int, nominal_date: datetime.date) -> None:
-    if len(ops) == 0:
-        return
-
-    # Deduping the ops preserving order of first occurrence
-    seen = set()
-    distinct_ops = []
-    for op in ops:
-        if op not in seen:
-            seen.add(op)
-            distinct_ops.append(op)
-
-    # Constructing the query
-    logger.info(f"Analyzing SketchOps: {distinct_ops}")
-    query = textwrap.dedent(f"""\
-        WITH source AS ( {ds.cte(nominal_date)})
-        SELECT {", ".join(op.sketch_column for op in distinct_ops)} FROM source
-        """)
-
-    # Fetch the only the required columns into memory by batch
-    sketches = {op: op.create() for op in ops}
-    batches = ds.query(query, nominal_date).fetch_arrow_reader(
-        batch_size=batch_size,
-    )
-
-    # Fitting the sketches
-    # TODO(npham): Possible optimization by fitting multiple ops per column
-    for batch in batches:
-        for op in ops:
-            sketches[op].fit(batch[op.sketch_column])
-
-    # Assign the collected values to the ops
-    for op in ops:
-        op.assign(sketches[op])
 
 
 def analyze_sql_ops(ds: T, ops: Sequence[SqlOp], nominal_date: datetime.date) -> None:
@@ -242,10 +205,6 @@ class Analyzer:
         # Analyze sql ops - pass the date from key
         sql_ops = [op for op in all_ops if isinstance(op, SqlOp)]
         analyze_sql_ops(ds, sql_ops, key.yyyy_mm_dd)
-
-        # Analyze sketch ops - pass the date from key
-        sketch_ops = [op for op in all_ops if isinstance(op, SketchOp)]
-        analyze_sketch_ops(ds, sketch_ops, batch_size=100_000, nominal_date=key.yyyy_mm_dd)
 
         # Build the analysis report and merge with the current one
         report = AnalysisReport(data={(metric, key): models.Metric.build(metric, key) for metric in metrics})

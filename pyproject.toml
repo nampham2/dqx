@@ -6,7 +6,6 @@ readme = "README.md"
 authors = [{ name = "Nam Pham", email = "phamducnam@gmail.com" }]
 requires-python = ">=3.11,<=3.12"
 dependencies = [
-    "datasketches>=5.2.0",
     "duckdb>=1.3.2",
     "msgpack>=1.1.1",
     "numpy>=2.3.2",
@@ -55,7 +54,7 @@ python_version = "3.11"
 disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
-module = ["msgpack.*", "datasketches.*", "pyarrow.*", "sympy.*", "sqlparse.*"]
+module = ["msgpack.*", "pyarrow.*", "sympy.*", "sqlparse.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

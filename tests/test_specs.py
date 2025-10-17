@@ -22,7 +22,6 @@ class TestMetricSpec:
             specs.Sum,
             specs.NullCount,
             specs.NegativeCount,
-            specs.ApproxCardinality,
         ]
 
         for spec_class in spec_classes:
@@ -644,72 +643,6 @@ class TestNegativeCount:
         assert str(neg_count) == "non_negative(test_col)"
 
 
-class TestApproxCardinality:
-    """Test ApproxCardinality metric spec"""
-
-    def test_metric_type(self) -> None:
-        approx_card = specs.ApproxCardinality("test_col")
-        assert approx_card.metric_type == "ApproxCardinality"
-
-    def test_name(self) -> None:
-        approx_card = specs.ApproxCardinality("test_column")
-        assert approx_card.name == "approx_cardinality(test_column)"
-
-    def test_parameters(self) -> None:
-        approx_card = specs.ApproxCardinality("test_column")
-        assert approx_card.parameters == {"column": "test_column"}
-
-    def test_analyzers(self) -> None:
-        approx_card = specs.ApproxCardinality("test_column")
-        assert len(approx_card.analyzers) == 1
-        assert isinstance(approx_card.analyzers[0], ops.ApproxCardinality)
-
-    @patch("dqx.ops.ApproxCardinality")
-    def test_state(self, mock_ops_approxcard: Mock) -> None:
-        mock_sketch = Mock(spec=states.CardinalitySketch)
-        mock_analyzer = Mock()
-        mock_analyzer.value.return_value = mock_sketch
-        mock_ops_approxcard.return_value = mock_analyzer
-
-        approx_card = specs.ApproxCardinality("test_column")
-        state = approx_card.state()
-
-        assert state == mock_sketch
-
-    def test_deserialize(self) -> None:
-        with patch.object(states.CardinalitySketch, "deserialize") as mock_deserialize:
-            mock_state = Mock()
-            mock_deserialize.return_value = mock_state
-
-            result = specs.ApproxCardinality.deserialize(b"test_bytes")
-
-            mock_deserialize.assert_called_once_with(b"test_bytes")
-            assert result == mock_state
-
-    def test_hash(self) -> None:
-        approx1 = specs.ApproxCardinality("test_col")
-        approx2 = specs.ApproxCardinality("test_col")
-        approx3 = specs.ApproxCardinality("other_col")
-        assert hash(approx1) == hash(approx2)
-        assert hash(approx1) != hash(approx3)
-
-    def test_equality(self) -> None:
-        approx1 = specs.ApproxCardinality("test_col")
-        approx2 = specs.ApproxCardinality("test_col")
-        approx3 = specs.ApproxCardinality("other_col")
-        assert approx1 == approx2
-        assert approx1 != approx3
-
-    def test_inequality_different_type(self) -> None:
-        approx_card = specs.ApproxCardinality("test_col")
-        assert approx_card != specs.NumRows()
-        assert approx_card != "not_an_approxcardinality"
-
-    def test_str(self) -> None:
-        approx_card = specs.ApproxCardinality("test_col")
-        assert str(approx_card) == "approx_cardinality(test_col)"
-
-
 class TestBuildRegistry:
     """Test the _build_registry function"""
 
@@ -730,7 +663,6 @@ class TestBuildRegistry:
             "Sum",
             "NegativeCount",
             "NullCount",
-            "ApproxCardinality",
             "Variance",
             "DuplicateCount",
         }
@@ -747,7 +679,6 @@ class TestBuildRegistry:
         assert result["Sum"] == specs.Sum
         assert result["NegativeCount"] == specs.NegativeCount
         assert result["NullCount"] == specs.NullCount
-        assert result["ApproxCardinality"] == specs.ApproxCardinality
         assert result["Variance"] == specs.Variance
 
     def test_build_registry_excludes_protocol(self) -> None:
@@ -828,7 +759,6 @@ class TestRegistry:
             "Sum",
             "NegativeCount",
             "NullCount",
-            "ApproxCardinality",
             "Variance",
             "DuplicateCount",
         }
@@ -843,7 +773,6 @@ class TestRegistry:
         assert specs.registry["Sum"] == specs.Sum
         assert specs.registry["NegativeCount"] == specs.NegativeCount
         assert specs.registry["NullCount"] == specs.NullCount
-        assert specs.registry["ApproxCardinality"] == specs.ApproxCardinality
         assert specs.registry["Variance"] == specs.Variance
 
     def test_registry_classes_are_metric_specs(self) -> None:
@@ -964,7 +893,6 @@ class TestMetricTypes:
             (specs.Sum("col"), "Sum"),
             (specs.NullCount("col"), "NullCount"),
             (specs.NegativeCount("col"), "NegativeCount"),
-            (specs.ApproxCardinality("col"), "ApproxCardinality"),
             (specs.DuplicateCount(["col"]), "DuplicateCount"),
         ]
 

@@ -192,11 +192,6 @@ class MetricProvider(SymbolicMetricBase):
     ) -> sp.Symbol:
         return self.metric(specs.Variance(column), key, dataset)
 
-    def approx_cardinality(
-        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
-    ) -> sp.Symbol:
-        return self.metric(specs.ApproxCardinality(column), key, dataset)
-
     def duplicate_count(
         self, columns: list[str], key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:

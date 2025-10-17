@@ -15,7 +15,6 @@ MetricType = Literal[
     "Sum",
     "NullCount",
     "NegativeCount",
-    "ApproxCardinality",
     "DuplicateCount",
 ]
 
@@ -380,48 +379,6 @@ class NegativeCount:
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, NegativeCount):
-            return False
-        return self.name == other.name and self.parameters == other.parameters
-
-    def __str__(self) -> str:
-        return self.name
-
-
-class ApproxCardinality:
-    metric_type: MetricType = "ApproxCardinality"
-
-    def __init__(self, column: str) -> None:
-        self._column = column
-        self._analyzers = (ops.ApproxCardinality(self._column),)
-
-    @property
-    def name(self) -> str:
-        return f"approx_cardinality({self._column})"
-
-    @property
-    def parameters(self) -> Parameters:
-        return {"column": self._column}
-
-    @property
-    def analyzers(self) -> Sequence[ops.Op]:
-        return self._analyzers
-
-    # TODO(npham): rename the state method
-    # TODO(npham): The analyzer returns ApproxCardinality instead of a CPC sketch.
-    #              This is because the analyzer does not know which sketch class to use.
-    #              This is inconsistent with the SQLSketch. Let's decide the unified returning values of analyzers: spec or value.
-    def state(self) -> states.CardinalitySketch:
-        return self._analyzers[0].value()
-
-    @classmethod
-    def deserialize(cls, state: bytes) -> states.State:
-        return states.CardinalitySketch.deserialize(state)
-
-    def __hash__(self) -> int:
-        return hash((self.name, tuple(self.parameters.items())))
-
-    def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, ApproxCardinality):
             return False
         return self.name == other.name and self.parameters == other.parameters
 

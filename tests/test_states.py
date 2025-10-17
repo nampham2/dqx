@@ -2,23 +2,8 @@ import math
 from copy import copy
 
 import pytest
-from datasketches import cpc_sketch
 
 from dqx import states
-
-
-@pytest.fixture
-def one_cpc_sketch() -> cpc_sketch:
-    sketch = cpc_sketch()
-    sketch.update("one")
-    return sketch
-
-
-@pytest.fixture
-def two_cpc_sketch() -> cpc_sketch:
-    sketch = cpc_sketch()
-    sketch.update("two")
-    return sketch
 
 
 def test_average() -> None:
@@ -58,69 +43,6 @@ def test_average_merge_with_identity() -> None:
     a = states.Average(avg=1.0, n=10)
     assert a.merge(states.Average.identity()) == a
     assert states.Average.identity().merge(a) == a
-
-
-def test_cardinality_sketch_initialization(one_cpc_sketch: cpc_sketch) -> None:
-    # Create a new sketch using datasketches' cpc_sketch
-    # Initialize CardinalitySketch with the sketch
-    cs = states.CardinalitySketch(one_cpc_sketch)
-
-    # Test that it's initialized correctly and can return an estimate (which may not be accurate if no data is added)
-    assert isinstance(cs.value, float)
-    assert cs.value == pytest.approx(1.0)
-
-    assert states.CardinalitySketch.identity() == states.CardinalitySketch(cpc_sketch())
-
-
-def test_cardinality_identity() -> None:
-    identity = states.CardinalitySketch.identity()
-    assert identity.value == pytest.approx(0.0)
-
-
-def test_cardinality_sketch_serialization_deserialization() -> None:
-    # Create and initialize a cpc_sketch
-    sketch = cpc_sketch()
-
-    # Create CardinalitySketch instance
-    cs = states.CardinalitySketch(sketch)
-
-    assert cs.value == pytest.approx(0.0)
-    assert cs.identity()._sketch.get_estimate() == pytest.approx(0.0)
-
-    # Serialize the sketch
-    serialized_data = cs.serialize()
-
-    # Deserialize the data back into a sketch
-    deserialized_cs = states.CardinalitySketch.deserialize(serialized_data)
-
-    # Check if the estimated values match
-    assert cs == deserialized_cs
-
-    assert isinstance(cs, states.State)
-
-
-def test_cardinality_sketch_merge(one_cpc_sketch: cpc_sketch, two_cpc_sketch: cpc_sketch) -> None:
-    # Create CardinalitySketch instances
-    cs1 = states.CardinalitySketch(one_cpc_sketch)
-    cs2 = states.CardinalitySketch(two_cpc_sketch)
-
-    # Merge the two sketches
-    merged_cs = cs1.merge(cs2)
-
-    # Check if the estimate of the merged sketch is approximately the sum
-    assert merged_cs.value == pytest.approx(2.0, rel=0.1)
-
-
-def test_cardinality_sketch_identity_merge() -> None:
-    # Create a base sketch and initialize it
-    sketch = cpc_sketch()
-
-    # Create CardinalitySketch instance
-    cs = states.CardinalitySketch(sketch)
-
-    assert cs.merge(states.CardinalitySketch.identity()) == cs
-    assert states.CardinalitySketch.identity().merge(cs) == cs
-    assert cs.merge(states.CardinalitySketch.identity()) == cs
 
 
 def test_simple_additive_state() -> None:
@@ -321,36 +243,6 @@ def test_maximum_merge() -> None:
     assert identity.merge(m1) == m1
 
 
-def test_cardinality_sketch_fit() -> None:
-    import pyarrow as pa
-
-    sketch = states.CardinalitySketch.identity()
-
-    # Create a simple record batch with some data
-    data = pa.array(["a", "b", "c", "a", "b"])
-    _batch = pa.record_batch([data], names=["col"])
-
-    # The fit method should iterate over the columns and update the sketch
-    # Let's test by manually adding values to simulate what fit should do
-    for i in range(len(data)):
-        sketch._sketch.update(data[i].as_py())
-
-    # The estimate should be around 3 (unique values: a, b, c)
-    # But sketch estimates can be approximate, so we use a tolerance
-    assert sketch.value >= 2.0
-    assert sketch.value <= 4.0
-
-
-def test_cardinality_sketch_copy() -> None:
-    sketch = cpc_sketch()
-    sketch.update("test")
-    cs = states.CardinalitySketch(sketch)
-
-    copied = copy(cs)
-    assert copied == cs
-    assert copied is not cs
-
-
 def test_equality_with_different_types() -> None:
     """Test __eq__ methods return False for different types."""
 
@@ -389,12 +281,6 @@ def test_equality_with_different_types() -> None:
     assert max_state != "not a state"
     assert max_state != 42
     assert max_state != avg
-
-    # Test CardinalitySketch
-    sketch = states.CardinalitySketch.identity()
-    assert sketch != "not a state"
-    assert sketch != 42
-    assert sketch != avg
 
 
 def test_duplicate_count_state() -> None:
