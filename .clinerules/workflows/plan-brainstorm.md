@@ -8,7 +8,7 @@ Ideally, the questions would be multiple choice, but open-ended questions are OK
 
 ## Step 2. Brainstorming topic
 Ask me what is the brainstorming topic and follow up with as many clarification questions as possible.
-If this topic involve code chang, YOU MUST ASK if we need backward compabilility in whatever we are brainstorming.
+If this topic involves code changes, YOU MUST ASK if we need backward compabilility in whatever we are brainstorming.
 
 <ask_followup_question>
 <question>What is the topic for brainstorming?</question>
