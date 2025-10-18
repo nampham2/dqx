@@ -32,7 +32,7 @@ class TestPluginManager:
     def test_plugin_manager_custom_timeout(self) -> None:
         """Test PluginManager with custom timeout."""
         manager = PluginManager(_timeout_seconds=10)
-        assert manager._timeout == 10
+        assert manager._timeout_seconds == 10
 
     def test_get_metadata(self) -> None:
         """Test getting metadata from all plugins."""
@@ -202,8 +202,8 @@ class TestPluginManager:
         # Should not raise an exception
         manager = PluginManager()
 
-        # Manager should still have the built-in audit plugin
-        assert "audit" in manager._plugins
+        # Manager should have no plugins if discovery fails
+        assert len(manager._plugins) == 0
 
     def test_plugin_discovery_loads_external_plugins(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that external plugins are discovered and loaded."""
@@ -251,8 +251,7 @@ class TestPluginManager:
         # Verify plugin was created
         assert plugin_created
 
-        # Should have both audit and external plugins
-        assert "audit" in manager._plugins
+        # Should have only external plugin since we mocked entry_points
         assert "external" in manager._plugins
 
         # Verify external plugin metadata
@@ -292,9 +291,9 @@ class TestPluginManager:
         # Create manager
         manager = PluginManager()
 
-        # Should only have audit plugin, not the invalid one
-        assert "audit" in manager._plugins
+        # Should have no plugins since the invalid one was rejected
         assert "invalid" not in manager._plugins
+        assert len(manager._plugins) == 0
 
     def test_plugin_discovery_handles_load_errors(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that plugin load errors are handled gracefully."""
@@ -318,9 +317,9 @@ class TestPluginManager:
         # Should not raise an exception
         manager = PluginManager()
 
-        # Should still have audit plugin
-        assert "audit" in manager._plugins
+        # Should have no plugins since loading failed
         assert "failing" not in manager._plugins
+        assert len(manager._plugins) == 0
 
     def test_plugin_implements_protocol(self) -> None:
         """Test that plugins must implement ResultProcessor protocol."""

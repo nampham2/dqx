@@ -102,12 +102,13 @@ class TestPluginIntegration:
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             ctx.assert_that(mp.average("price")).where(name="y < 100", severity="P1").is_lt(100)
 
-        # Create suite with custom plugin manager
+        # Create suite
         db = Mock(spec=MetricDB)
-        plugin_manager = PluginManager()
-        plugin_manager._plugins = {"custom": CustomPlugin()}  # Only custom plugin
+        suite = VerificationSuite([test_check], db, "TestSuite")
 
-        suite = VerificationSuite([test_check], db, "TestSuite", plugins=plugin_manager)
+        # Register custom plugin
+        suite.plugin_manager.clear_plugins()  # Remove any default plugins
+        suite.plugin_manager.register_plugin("custom", CustomPlugin())
 
         # Mock evaluator results
         mock_results = [
@@ -271,12 +272,13 @@ class TestPluginIntegration:
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             ctx.assert_that(mp.num_rows()).where(name="always_true").is_positive()
 
-        # Create suite with custom plugin manager with short timeout
+        # Create suite
         db = Mock(spec=MetricDB)
-        plugin_manager = PluginManager(_timeout_seconds=1)
-        plugin_manager._plugins = {"slow": SlowPlugin()}
+        suite = VerificationSuite([test_check], db, "TestSuite")
 
-        suite = VerificationSuite([test_check], db, "TestSuite", plugins=plugin_manager)
+        # Replace plugin manager with short timeout
+        suite._plugin_manager = PluginManager(_timeout_seconds=1)
+        suite._plugin_manager._plugins = {"slow": SlowPlugin()}
 
         # Mock the execution
         with patch.object(suite, "collect_results", return_value=[]):
@@ -323,13 +325,12 @@ class TestPluginIntegration:
 
         # Create suite
         db = Mock(spec=MetricDB)
-        plugin_manager = PluginManager()
-        plugin_manager._plugins = {
-            "p1": Plugin1(),
-            "p2": Plugin2(),
-        }
+        suite = VerificationSuite([test_check], db, "TestSuite")
 
-        suite = VerificationSuite([test_check], db, "TestSuite", plugins=plugin_manager)
+        # Configure plugins
+        suite.plugin_manager.clear_plugins()
+        suite.plugin_manager.register_plugin("p1", Plugin1())
+        suite.plugin_manager.register_plugin("p2", Plugin2())
 
         # Mock the execution
         with patch.object(suite, "collect_results", return_value=[]):
@@ -368,12 +369,13 @@ class TestPluginIntegration:
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             ctx.assert_that(mp.num_rows()).where(name="test").is_positive()
 
-        # Create suite with failing plugin
+        # Create suite
         db = Mock(spec=MetricDB)
-        plugin_manager = PluginManager()
-        plugin_manager._plugins = {"failing": FailingPlugin()}
+        suite = VerificationSuite([test_check], db, "TestSuite")
 
-        suite = VerificationSuite([test_check], db, "TestSuite", plugins=plugin_manager)
+        # Configure failing plugin
+        suite.plugin_manager.clear_plugins()
+        suite.plugin_manager.register_plugin("failing", FailingPlugin())
 
         # Mock evaluator to return success
         mock_results = [

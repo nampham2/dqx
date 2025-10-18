@@ -85,12 +85,14 @@ The built-in audit plugin displays a Rich-formatted summary of validation result
 ```python
 from dqx.api import VerificationSuite
 
-# Audit plugin is enabled by default
-suite = VerificationSuite("MyDataQuality")
+# Create suite - plugins are managed internally
+suite = VerificationSuite(checks, db, "MyDataQuality")
 
-# Or explicitly enable/disable
-suite = VerificationSuite("MyDataQuality", enable_plugins=True)
-suite = VerificationSuite("MyDataQuality", enable_plugins=False)
+# Plugins are enabled by default when run() is called
+suite.run(datasources, key)  # Plugins enabled
+
+# Or explicitly disable plugins during run
+suite.run(datasources, key, enable_plugins=False)
 ```
 
 Output example:
@@ -236,16 +238,20 @@ slack_notifier = "mypackage.plugins:SlackNotifierPlugin"
 For testing or dynamic plugin loading:
 
 ```python
-from dqx.plugins import PluginManager
 from dqx.api import VerificationSuite
 
-# Create custom plugin manager
-manager = PluginManager()
-manager._plugins["custom"] = MyCustomPlugin()
+# Create suite
+suite = VerificationSuite(checks, db, "MyData")
 
-# Use with suite (currently requires accessing internals)
-suite = VerificationSuite("MyData")
-# Note: Direct plugin manager injection is not yet supported
+# Register custom plugins
+suite.plugin_manager.register_plugin("custom", MyCustomPlugin())
+
+# Clear default plugins if needed
+suite.plugin_manager.clear_plugins()
+
+# Register only your plugins
+suite.plugin_manager.register_plugin("json_reporter", JSONReporterPlugin())
+suite.plugin_manager.register_plugin("slack", SlackNotifierPlugin(webhook_url))
 ```
 
 ## Error Handling
