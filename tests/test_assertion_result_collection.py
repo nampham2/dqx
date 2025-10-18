@@ -32,7 +32,7 @@ class TestAssertionResultCollection:
         with pytest.raises(DQXError) as exc_info:
             suite.collect_results()
 
-        assert "Cannot collect results before suite execution" in str(exc_info.value)
+        assert "Verification suite has not been executed yet!" in str(exc_info.value)
 
     def test_suite_cannot_run_twice(self) -> None:
         """Should raise DQXError if suite.run() called twice."""
@@ -186,7 +186,7 @@ class TestAssertionResultCollection:
         # collect_results should still raise error
         with pytest.raises(DQXError) as exc_info:
             suite.collect_results()
-        assert "Cannot collect results" in str(exc_info.value)
+        assert "Verification suite has not been executed yet!" in str(exc_info.value)
 
     def test_collect_results_preserves_result_object(self) -> None:
         """Should preserve the full Result object for advanced usage."""
