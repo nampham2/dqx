@@ -56,6 +56,10 @@ class PluginManager:
 
     def _load_plugins(self) -> None:
         """Discover and load plugins from entry points."""
+        # First, load built-in plugins
+        self._plugins["audit"] = AuditPlugin()
+        logger.info("Loaded built-in plugin: audit v1.0.0")
+
         try:
             # Discover all plugins in the "dqx.plugins" group
             entry_points = importlib.metadata.entry_points(group="dqx.plugins")
