@@ -88,10 +88,10 @@ class PluginExecutionContext:
         return dict(Counter(f.severity for f in failures))
 ```
 
-### ResultProcessor Protocol
+### PostProcessor Protocol
 ```python
-class ResultProcessor(Protocol):
-    """Protocol for DQX result processor plugins."""
+class PostProcessor(Protocol):
+    """Protocol for DQX post-processor plugins."""
 
     @staticmethod
     def metadata() -> PluginMetadata:
@@ -551,7 +551,7 @@ class PluginManager:
             _timeout_seconds: Internal parameter for testing. Users should not set this.
                             Defaults to PLUGIN_TIMEOUT_SECONDS.
         """
-        self._plugins: dict[str, ResultProcessor] = {}
+        self._plugins: dict[str, PostProcessor] = {}
         self._timeout = _timeout_seconds or PLUGIN_TIMEOUT_SECONDS
         self._load_plugins()
 
@@ -575,9 +575,9 @@ class PluginManager:
                     metadata = plugin_class.metadata()
 
                     # Verify it implements the protocol
-                    if not isinstance(plugin, ResultProcessor):
+                    if not isinstance(plugin, PostProcessor):
                         logger.error(
-                            f"Plugin {ep.name} does not implement ResultProcessor protocol"
+                            f"Plugin {ep.name} does not implement PostProcessor protocol"
                         )
                         continue
 
@@ -592,7 +592,7 @@ class PluginManager:
         except Exception as e:
             logger.error(f"Failed to discover plugins: {e}")
 
-    def get_plugins(self) -> dict[str, ResultProcessor]:
+    def get_plugins(self) -> dict[str, PostProcessor]:
         """
         Get all loaded plugins.
 
@@ -807,7 +807,7 @@ git add src/dqx/common.py src/dqx/plugins.py
 git commit -m "feat(plugins): add plugin system with metadata and context dataclass
 
 - Add PluginMetadata and PluginExecutionContext to common.py
-- Implement ResultProcessor protocol with metadata requirement
+- Implement PostProcessor protocol with metadata requirement
 - Create PluginManager with entry point discovery and metadata collection
 - Add AuditPlugin with Rich table display using context methods
 - Include full type annotations for mypy compliance"
@@ -1039,7 +1039,7 @@ from dqx.common import (
     ResultValue,
     SymbolInfo,
 )
-from dqx.plugins import PluginManager, ResultProcessor
+from dqx.plugins import PluginManager, PostProcessor
 
 
 class MockSuccessPlugin:
@@ -1091,7 +1091,7 @@ class MockFailurePlugin:
 
 
 class NotAPlugin:
-    """Class that doesn't implement ResultProcessor."""
+    """Class that doesn't implement PostProcessor."""
 
     def do_something(self) -> None:
         """Some unrelated method."""
@@ -1131,7 +1131,7 @@ def test_plugin_discovery_success() -> None:
 
 
 def test_plugin_discovery_invalid_plugin() -> None:
-    """Test handling of plugins that don't implement ResultProcessor."""
+    """Test handling of plugins that don't implement PostProcessor."""
     # Create mock entry point for invalid plugin
     mock_ep = MagicMock()
     mock_ep.name = "invalid_plugin"
@@ -2313,7 +2313,7 @@ Add plugin registration example to pyproject.toml:
 ```toml
 # Plugin System
 # DQX uses Python entry points for plugin discovery.
-# Plugins must implement the ResultProcessor protocol with metadata.
+# Plugins must implement the PostProcessor protocol with metadata.
 #
 # Example registration:
 # [project.entry-points."dqx.plugins"]
@@ -2515,7 +2515,7 @@ The v2 plugin system is now ready with:
 ### Changes from v1 to v2
 
 1. **Removed all configuration support**:
-   - No `initialize()` method in the ResultProcessor protocol
+   - No `initialize()` method in the PostProcessor protocol
    - No `plugin_config` parameter in VerificationSuite
    - No `PluginConfig` protocol
    - Plugins handle their own configuration (e.g., environment variables)

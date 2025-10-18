@@ -26,11 +26,11 @@ VerificationSuite
 
 ## Creating a Plugin
 
-Plugins must implement the `ResultProcessor` protocol:
+Plugins must implement the `PostProcessor` protocol:
 
 ```python
 from dqx.common import PluginExecutionContext, PluginMetadata
-from dqx.plugins import ResultProcessor
+from dqx.plugins import PostProcessor
 
 
 class MyPlugin:

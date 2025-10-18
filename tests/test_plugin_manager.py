@@ -193,7 +193,7 @@ class TestPluginManager:
         assert plugin_called
 
     def test_plugin_discovery_rejects_invalid_plugins(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test that plugins not implementing ResultProcessor are rejected."""
+        """Test that plugins not implementing PostProcessor are rejected."""
 
         # Create an invalid plugin (doesn't implement protocol)
         class InvalidPlugin:
@@ -252,7 +252,7 @@ class TestPluginManager:
         assert "audit" in manager._plugins
 
     def test_plugin_implements_protocol(self) -> None:
-        """Test that plugins must implement ResultProcessor protocol."""
+        """Test that plugins must implement PostProcessor protocol."""
         # This is a compile-time check, but we can verify at runtime
         manager = PluginManager()
 
@@ -266,6 +266,18 @@ class TestPluginManager:
             # Verify it has the required protocol methods
             assert hasattr(plugin, "process")
             assert hasattr(plugin.__class__, "metadata")
+
+    def test_plugin_validation_uses_isinstance(self) -> None:
+        """Test that plugin validation uses isinstance for protocol checking."""
+        manager = PluginManager()
+
+        # Test with a class that doesn't implement the protocol
+        with pytest.raises(ValueError, match="doesn't implement PostProcessor protocol"):
+            manager.register_plugin("tests.fixtures.test_plugins.InvalidPlugin")
+
+        # Test with a class that has wrong metadata return type
+        with pytest.raises(ValueError, match="metadata\\(\\) must return a PluginMetadata instance"):
+            manager.register_plugin("tests.fixtures.test_plugins.WrongMetadataPlugin")
 
 
 class TestAuditPlugin:

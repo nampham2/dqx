@@ -22,8 +22,8 @@ PLUGIN_TIMEOUT_SECONDS = 60
 
 
 @runtime_checkable
-class ResultProcessor(Protocol):
-    """Protocol for DQX result processor plugins."""
+class PostProcessor(Protocol):
+    """Protocol for DQX post-processor plugins."""
 
     @staticmethod
     def metadata() -> PluginMetadata:
@@ -51,7 +51,7 @@ class PluginManager:
             _timeout_seconds: Timeout in seconds for plugin execution.
                             Defaults to PLUGIN_TIMEOUT_SECONDS (60).
         """
-        self._plugins: dict[str, ResultProcessor] = {}
+        self._plugins: dict[str, PostProcessor] = {}
         self._timeout_seconds: float = timeout_seconds
 
         # Register built-in plugins
@@ -62,7 +62,7 @@ class PluginManager:
         """Get the plugin execution timeout in seconds."""
         return self._timeout_seconds
 
-    def get_plugins(self) -> dict[str, ResultProcessor]:
+    def get_plugins(self) -> dict[str, PostProcessor]:
         """
         Get all loaded plugins.
 
@@ -83,47 +83,6 @@ class PluginManager:
         """
         return name in self._plugins
 
-    def _validate_plugin_class(self, plugin_class: type, class_name: str) -> None:
-        """
-        Validate that a class implements the ResultProcessor protocol.
-
-        Args:
-            plugin_class: The class to validate
-            class_name: The fully qualified class name for error messages
-
-        Raises:
-            ValueError: If the class doesn't implement ResultProcessor protocol
-        """
-        # Check for metadata method
-        if not hasattr(plugin_class, "metadata"):
-            raise ValueError(f"Plugin class {class_name} must have a 'metadata' method")
-
-        if not callable(getattr(plugin_class, "metadata", None)):
-            raise ValueError(f"Plugin class {class_name}'s 'metadata' must be callable")
-
-        # Check for process method (will be on instances)
-        if not hasattr(plugin_class, "process"):
-            raise ValueError(f"Plugin class {class_name} must have a 'process' method")
-
-        # Ensure process is not just an attribute but will be callable on instances
-        # We can't check if it's callable directly on the class because it might be an instance method
-        # Instead, we'll check after instantiation
-
-        # Try to get metadata and validate it
-        try:
-            # Try calling as static/class method first
-            try:
-                metadata = plugin_class.metadata()
-            except TypeError:
-                # If that fails, it might be an instance method, so create instance first
-                temp_instance = plugin_class()
-                metadata = temp_instance.metadata()
-
-            if not isinstance(metadata, PluginMetadata):
-                raise ValueError(f"Plugin class {class_name}'s metadata() must return a PluginMetadata instance")
-        except Exception as e:
-            raise ValueError(f"Failed to get metadata from {class_name}: {e}")
-
     def register_plugin(self, class_name: str) -> None:
         """
         Register a plugin by its fully qualified class name.
@@ -132,7 +91,7 @@ class PluginManager:
             class_name: Fully qualified class name (e.g., 'dqx.plugins.AuditPlugin')
 
         Raises:
-            ValueError: If class cannot be imported or doesn't implement ResultProcessor
+            ValueError: If class cannot be imported or doesn't implement PostProcessor
         """
         try:
             # Parse the class name
@@ -154,22 +113,18 @@ class PluginManager:
 
             plugin_class = getattr(module, cls_name)
 
-            # Validate the class
-            self._validate_plugin_class(plugin_class, class_name)
-
             # Instantiate the plugin
             plugin = plugin_class()
 
-            # Validate that process is callable on the instance
-            if not callable(getattr(plugin, "process", None)):
-                raise ValueError(f"Plugin instance {class_name}'s 'process' must be callable")
+            # Use isinstance to check protocol implementation (KISS principle)
+            if not isinstance(plugin, PostProcessor):
+                raise ValueError(f"Plugin class {class_name} doesn't implement PostProcessor protocol")
 
-            # Get the plugin name from metadata (try both class and instance)
-            try:
-                metadata = plugin_class.metadata()
-            except TypeError:
-                # Instance method, use the instance we already created
-                metadata = plugin.metadata()
+            # Validate metadata returns correct type
+            metadata = plugin.metadata()
+            if not isinstance(metadata, PluginMetadata):
+                raise ValueError(f"Plugin class {class_name}'s metadata() must return a PluginMetadata instance")
+
             plugin_name = metadata.name
 
             # Store the plugin
