@@ -269,15 +269,39 @@ class TestPluginManager:
 
     def test_plugin_validation_uses_isinstance(self) -> None:
         """Test that plugin validation uses isinstance for protocol checking."""
+
+        # Define test plugin classes locally
+        class InvalidPlugin:
+            """Plugin that doesn't implement the protocol."""
+
+            pass
+
+        class WrongMetadataPlugin:
+            """Plugin with wrong metadata return type."""
+
+            @staticmethod
+            def metadata() -> str:  # Wrong return type
+                return "wrong"
+
+            def process(self, context: PluginExecutionContext) -> None:
+                pass
+
+        # Add these test classes to the current module for import
+        import sys
+
+        current_module = sys.modules[__name__]
+        setattr(current_module, "InvalidPlugin", InvalidPlugin)
+        setattr(current_module, "WrongMetadataPlugin", WrongMetadataPlugin)
+
         manager = PluginManager()
 
         # Test with a class that doesn't implement the protocol
         with pytest.raises(ValueError, match="doesn't implement PostProcessor protocol"):
-            manager.register_plugin("tests.fixtures.test_plugins.InvalidPlugin")
+            manager.register_plugin(f"{__name__}.InvalidPlugin")
 
         # Test with a class that has wrong metadata return type
         with pytest.raises(ValueError, match="metadata\\(\\) must return a PluginMetadata instance"):
-            manager.register_plugin("tests.fixtures.test_plugins.WrongMetadataPlugin")
+            manager.register_plugin(f"{__name__}.WrongMetadataPlugin")
 
 
 class TestAuditPlugin:
