@@ -279,14 +279,17 @@ def _get_plugin_manager(self) -> PluginManager:
     return self._plugin_manager
 ```
 
-### Step 2.4: Integrate Plugin Execution in run()
+### Step 2.4: Add Plugin Execution Method
 
-In the `run()` method, after the line `self.is_evaluated = True`, add:
+Add a new private method to handle plugin execution:
 
 ```python
-# Execute plugins if any are loaded
-plugin_manager = self._get_plugin_manager()
-if plugin_manager.get_plugins():
+def _execute_plugins(self, datasources: dict[str, SqlDataSource], key: ResultKey) -> None:
+    """Execute plugins if any are loaded."""
+    plugin_manager = self._get_plugin_manager()
+    if not plugin_manager.get_plugins():
+        return
+
     logger.info("Executing result processor plugins...")
 
     # Create execution context
@@ -310,7 +313,16 @@ if plugin_manager.get_plugins():
     )
 ```
 
-### Step 2.5: Validation
+### Step 2.5: Call Plugin Execution in run()
+
+In the `run()` method, after the line `self.is_evaluated = True`, add:
+
+```python
+# Execute plugins
+self._execute_plugins(datasources, key)
+```
+
+### Step 2.6: Validation
 
 ```bash
 # Type check
@@ -323,7 +335,7 @@ uv run ruff check src/dqx/api.py
 uv run pytest tests/test_api.py -v
 ```
 
-### Step 2.6: Git Commit
+### Step 2.7: Git Commit
 
 ```bash
 git add src/dqx/api.py
@@ -331,6 +343,7 @@ git commit -m "feat(api): integrate plugin execution in VerificationSuite
 
 - Add plugin_config parameter to VerificationSuite
 - Implement lazy loading of PluginManager
+- Extract plugin execution to separate _execute_plugins method
 - Execute plugins after suite evaluation
 - Pass results, symbols, and context to plugins"
 ```
