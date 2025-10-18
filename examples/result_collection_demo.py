@@ -215,7 +215,7 @@ def main() -> None:
     suite.run({"orders": orders_datasource}, key)
 
     # Check evaluation status
-    print(f"Suite evaluated: {suite.is_evaluated}")
+    print(f"Suite evaluated: {suite._is_evaluated}")
 
     # Collect results - no key needed anymore!
     results = suite.collect_results()

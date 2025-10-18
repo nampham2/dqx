@@ -278,7 +278,7 @@ class TestValidationExpressions:
         # Set up mock values
         assertion._metric = Success(75.0)
         assertion._result = "OK"
-        suite.is_evaluated = True
+        suite._is_evaluated = True
         suite._key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
         results = suite.collect_results()

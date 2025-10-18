@@ -138,7 +138,7 @@ def test_verification_suite_already_executed_error() -> None:
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
     # We just need to set is_evaluated to True to test the error
-    suite.is_evaluated = True
+    suite._is_evaluated = True
 
     # Second run should raise error
     with pytest.raises(DQXError, match="Verification suite has already been executed"):
@@ -216,7 +216,7 @@ def test_verification_suite_collect_results_without_key() -> None:
 
     # Force the state where suite is evaluated but key is None
     # This is an edge case that shouldn't happen in normal operation
-    suite.is_evaluated = True
+    suite._is_evaluated = True
     suite._key = None
 
     with pytest.raises(DQXError, match="No ResultKey available"):
@@ -229,13 +229,18 @@ def test_verification_suite_collect_symbols_without_key() -> None:
 
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(sp.Symbol("x")).where(name="Test").is_positive()
+        # Use a metric that will register a symbolic metric
+        ctx.assert_that(mp.average("price")).where(name="Test").is_positive()
 
     suite = VerificationSuite([test_check], db, "Test Suite")
 
+    # Build the graph to register the symbolic metric
+    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+    suite.build_graph(suite._context, key)
+
     # Force the state where suite is evaluated but key is None
     # This is an edge case that shouldn't happen in normal operation
-    suite.is_evaluated = True
+    suite._is_evaluated = True
     suite._key = None
 
     with pytest.raises(DQXError, match="No ResultKey available"):
@@ -299,7 +304,7 @@ def test_collect_symbols_with_evaluation_error() -> None:
     suite.build_graph(suite._context, key)
 
     # Mark as evaluated
-    suite.is_evaluated = True
+    suite._is_evaluated = True
     suite._key = key
 
     # Get the registered metric
@@ -318,7 +323,7 @@ def test_collect_symbols_with_evaluation_error() -> None:
 
 
 def test_process_plugins_early_return() -> None:
-    """Test _process_plugins returns early when execution metadata is missing."""
+    """Test _process_plugins raises error when suite has not been evaluated."""
     db = InMemoryMetricDB()
 
     @check(name="Test Check")
@@ -327,15 +332,12 @@ def test_process_plugins_early_return() -> None:
 
     suite = VerificationSuite([test_check], db, "Test Suite")
 
-    # Call _process_plugins with missing execution metadata
-    # Should return early without processing
-    suite._process_plugins({"test": None})  # type: ignore
+    # Call _process_plugins when suite hasn't been evaluated
+    # Should raise DQXError
+    with pytest.raises(DQXError, match="Cannot process plugins: Suite has not been evaluated yet"):
+        suite._process_plugins({"test": None})  # type: ignore
 
-    # Set partial metadata - still should return early
+    # Even with execution_start set, should still raise error since not evaluated
     suite._execution_start = 123.45
-    suite._process_plugins({"test": None})  # type: ignore
-
-    suite._execution_duration_ms = 1000.0
-    suite._process_plugins({"test": None})  # type: ignore
-
-    # All should return early without errors
+    with pytest.raises(DQXError, match="Cannot process plugins: Suite has not been evaluated yet"):
+        suite._process_plugins({"test": None})  # type: ignore

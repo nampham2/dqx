@@ -26,7 +26,7 @@ class TestAssertionResultCollection:
         suite = VerificationSuite([dummy_check], db, "Test Suite")
 
         # Should not be evaluated initially
-        assert suite.is_evaluated is False
+        assert suite._is_evaluated is False
 
         # Should raise error when trying to collect results
         with pytest.raises(DQXError) as exc_info:
@@ -51,7 +51,7 @@ class TestAssertionResultCollection:
 
         # First run should succeed
         suite.run({"data": datasource}, key)
-        assert suite.is_evaluated is True
+        assert suite._is_evaluated is True
 
         # Second run should raise error
         with pytest.raises(DQXError) as exc_info:
@@ -114,7 +114,7 @@ class TestAssertionResultCollection:
         suite.run({"test_data": datasource}, key)
 
         # Should be evaluated after run
-        assert suite.is_evaluated is True
+        assert suite._is_evaluated is True
 
         # Collect results (no key needed!)
         results = suite.collect_results()
@@ -170,7 +170,7 @@ class TestAssertionResultCollection:
         db = InMemoryMetricDB()
         suite = VerificationSuite([failing_check], db, "Test Suite")
 
-        assert suite.is_evaluated is False
+        assert suite._is_evaluated is False
 
         # Run should fail
         data = pa.table({"x": [1]})
@@ -181,7 +181,7 @@ class TestAssertionResultCollection:
             suite.run({"data": ArrowDataSource(data)}, key)
 
         # Flag should NOT be set on failure
-        assert suite.is_evaluated is False
+        assert suite._is_evaluated is False
 
         # collect_results should still raise error
         with pytest.raises(DQXError) as exc_info:
@@ -239,7 +239,7 @@ class TestAssertionResultCollection:
             # Expected - no metrics to analyze
             assert "No metrics provided for analysis" in str(e)
             # Suite should still be marked as evaluated after error
-            assert suite.is_evaluated is False
+            assert suite._is_evaluated is False
             return
 
         # If it somehow succeeded (shouldn't happen), check results

@@ -30,6 +30,7 @@ from dqx.orm.repositories import MetricDB
 from dqx.plugins import PluginManager
 from dqx.provider import MetricProvider, SymbolicMetric
 from dqx.specs import MetricSpec
+from dqx.timer import Registry
 from dqx.validator import SuiteValidator
 
 CheckProducer = Callable[[MetricProvider, "Context"], None]
@@ -37,6 +38,7 @@ CheckCreator = Callable[[CheckProducer], CheckProducer]
 
 
 logger = get_logger(__name__)
+timer_registry = Registry()
 
 
 class AssertionDraft:
@@ -319,7 +321,7 @@ class VerificationSuite:
         self._context = Context(suite=self._name, db=db)
 
         # State tracking for result collection
-        self.is_evaluated = False  # Track if assertions have been evaluated
+        self._is_evaluated = False  # Track if assertions have been evaluated
         self._key: ResultKey | None = None  # Store the key used during run()
 
         # Graph state tracking
@@ -328,9 +330,8 @@ class VerificationSuite:
         # Lazy-loaded plugin manager
         self._plugin_manager: PluginManager | None = None
 
-        # Track execution timing
-        self._execution_start: float | None = None
-        self._execution_duration_ms: float | None = None
+        # Timer for analyzing phase
+        self._analyze_ms = timer_registry.timer("analyzing.time_ms")
 
     @property
     def graph(self) -> Graph:
@@ -381,6 +382,24 @@ class VerificationSuite:
             self._plugin_manager = PluginManager()
         return self._plugin_manager
 
+    @property
+    def key(self) -> ResultKey:
+        """
+        Return the ResultKey used during the last run() call.
+
+        The ResultKey stores information about the time period and tags used
+        during the verification suite execution.
+
+        Returns:
+            ResultKey instance used during the last run() call
+
+        Raises:
+            DQXError: If called before run() has been executed successfully
+        """
+        if self._key is None:
+            raise DQXError("No ResultKey available. This should not happen after successful run().")
+        return self._key
+
     def build_graph(self, context: Context, key: ResultKey) -> None:
         """
         Build the dependency graph by executing all checks without running analysis.
@@ -420,7 +439,27 @@ class VerificationSuite:
         # Mark graph as built
         self._graph_built = True
 
-    def run(self, datasources: dict[str, SqlDataSource], key: ResultKey, enable_plugins: bool = True) -> None:
+    def _analyze(self, datasources: dict[str, SqlDataSource], key: ResultKey) -> None:
+        for ds_name in datasources.keys():
+            # Get all symbolic metrics for this dataset
+            symbolic_metrics = self._context.pending_metrics(ds_name)
+
+            # Group metrics by their effective date
+            metrics_by_date: dict[ResultKey, list[MetricSpec]] = defaultdict(list)
+            for sym_metric in symbolic_metrics:
+                effective_key = sym_metric.key_provider.create(key)
+                metrics_by_date[effective_key].append(sym_metric.metric_spec)
+
+            # Analyze each date group separately
+            analyzer = Analyzer()
+            for effective_key, metrics in metrics_by_date.items():
+                logger.info(f"Analyzing {ds_name}: {len(metrics)} metrics for {effective_key.yyyy_mm_dd}")
+                analyzer.analyze(datasources[ds_name], metrics, effective_key)
+
+            # Persist the combined report
+            analyzer.report.persist(self.provider._db)
+
+    def run(self, datasources: dict[str, SqlDataSource], key: ResultKey, *, enable_plugins: bool = True) -> None:
         """
         Execute the verification suite against the provided data sources.
 
@@ -436,7 +475,7 @@ class VerificationSuite:
             DQXError: If no data sources provided or suite already executed
         """
         # Prevent multiple runs
-        if self.is_evaluated:
+        if self._is_evaluated:
             raise DQXError("Verification suite has already been executed. Create a new suite instance to run again.")
 
         logger.info(f"Running verification suite '{self._name}' with datasets: {list(datasources.keys())}")
@@ -460,34 +499,15 @@ class VerificationSuite:
         self.graph.impute_datasets(list(datasources.keys()), self._context.provider)
 
         # 2. Analyze by datasources
-        for ds_name in datasources.keys():
-            # Get all symbolic metrics for this dataset
-            symbolic_metrics = self._context.pending_metrics(ds_name)
-
-            # Group metrics by their effective date
-            metrics_by_date: dict[ResultKey, list[MetricSpec]] = defaultdict(list)
-            for sym_metric in symbolic_metrics:
-                effective_key = sym_metric.key_provider.create(key)
-                metrics_by_date[effective_key].append(sym_metric.metric_spec)
-
-            # Analyze each date group separately
-            analyzer = Analyzer()
-            for effective_key, metrics in metrics_by_date.items():
-                logger.info(f"Analyzing {ds_name}: {len(metrics)} metrics for {effective_key.yyyy_mm_dd}")
-                analyzer.analyze(datasources[ds_name], metrics, effective_key)
-
-            # Persist the combined report
-            analyzer.report.persist(self.provider._db)
+        with self._analyze_ms:
+            self._analyze(datasources, key)
 
         # 3. Evaluate assertions
         evaluator = Evaluator(self.provider, key, self._name)
         self.graph.bfs(evaluator)
 
-        # Calculate execution duration
-        self._execution_duration_ms = (time.time() - self._execution_start) * 1000
-
         # Mark suite as evaluated only after successful completion
-        self.is_evaluated = True
+        self._is_evaluated = True
 
         # 4. Process results through plugins if enabled
         if enable_plugins:
@@ -520,17 +540,11 @@ class VerificationSuite:
             ...         for f in failures:
             ...             print(f"  Error: {f.error_message}")
         """
-        if not self.is_evaluated:
+        if not self._is_evaluated:
             raise DQXError("Cannot collect results before suite execution. Call run() first to evaluate assertions.")
 
-        # Check that we have a key
-        if self._key is None:
-            raise DQXError("No ResultKey available. This should not happen after successful run().")
-
-        # Import here to avoid circular imports
-
         # Use the stored key
-        key = self._key
+        key = self.key
         results = []
 
         # Use the graph's built-in method to get all assertions
@@ -578,18 +592,15 @@ class VerificationSuite:
             ...     if s.value.is_success():
             ...         print(f"{s.metric}: {s.value.unwrap()}")
         """
-        if not self.is_evaluated:
+        if not self._is_evaluated:
             raise DQXError("Cannot collect symbols before suite execution. Call run() first to evaluate assertions.")
-
-        if self._key is None:
-            raise DQXError("No ResultKey available. This should not happen after successful run().")
 
         symbols = []
 
         # Iterate through all registered symbols
         for symbolic_metric in self._context.provider.symbolic_metrics:
             # Calculate the effective key for this symbol
-            effective_key = symbolic_metric.key_provider.create(self._key)
+            effective_key = symbolic_metric.key_provider.create(self.key)
 
             # Try to evaluate the symbol to get its value
             try:
@@ -623,16 +634,24 @@ class VerificationSuite:
         Args:
             datasources: Dictionary of data sources used in the suite execution
         """
-        if not self._execution_start or not self._execution_duration_ms or not self._key:
-            return
+        # Raise error if the suite hasn't been properly executed
+        if not self._is_evaluated:
+            raise DQXError("Cannot process plugins: Suite has not been evaluated yet")
+
+        # Calculate duration - handle case where timer wasn't started
+        try:
+            duration_ms = self._analyze_ms.elapsed_ms()
+        except (RuntimeError, AttributeError):
+            # Timer wasn't started, calculate from execution start
+            duration_ms = (time.time() - self._execution_start) * 1000 if hasattr(self, "_execution_start") else 0.0
 
         # Create plugin execution context
         context = PluginExecutionContext(
             suite_name=self._name,
             datasources=list(datasources.keys()),
-            key=self._key,
-            timestamp=self._execution_start,
-            duration_ms=self._execution_duration_ms,
+            key=self.key,
+            timestamp=self._execution_start if hasattr(self, "_execution_start") else time.time(),
+            duration_ms=duration_ms,
             results=self.collect_results(),
             symbols=self.collect_symbols(),
         )

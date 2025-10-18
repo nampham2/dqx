@@ -145,13 +145,13 @@ class TestPluginIntegration:
             with patch.object(suite, "collect_results", return_value=mock_results):
                 with patch.object(suite, "collect_symbols", return_value=[]):
                     # Mock the graph building and execution
-                    suite.is_evaluated = True
+                    suite._is_evaluated = True
                     suite._key = ResultKey(datetime.now().date(), {})
                     suite._execution_start = time.time()
-                    suite._execution_duration_ms = 100.0
-
-                    # Process plugins
-                    suite._process_plugins({"ds1": Mock()})
+                    # Mock the timer to return a duration
+                    with patch.object(suite._analyze_ms, "elapsed_ms", return_value=100.0):
+                        # Process plugins
+                        suite._process_plugins({"ds1": Mock()})
 
             # Verify audit plugin was called (console output)
             assert mock_console_print.call_count > 0
@@ -214,13 +214,13 @@ class TestPluginIntegration:
         with patch.object(suite, "collect_results", return_value=mock_results):
             with patch.object(suite, "collect_symbols", return_value=[]):
                 # Mock the graph building and execution
-                suite.is_evaluated = True
+                suite._is_evaluated = True
                 suite._key = ResultKey(datetime.now().date(), {})
                 suite._execution_start = time.time()
-                suite._execution_duration_ms = 100.0
-
-                # Process plugins
-                suite._process_plugins({"ds1": Mock()})
+                # Mock the timer to return a duration
+                with patch.object(suite._analyze_ms, "elapsed_ms", return_value=100.0):
+                    # Process plugins
+                    suite._process_plugins({"ds1": Mock()})
 
         # Verify custom plugin was called
         assert len(plugin_contexts) == 1
@@ -369,13 +369,13 @@ class TestPluginIntegration:
         with patch.object(suite, "collect_results", return_value=[]):
             with patch.object(suite, "collect_symbols", return_value=[]):
                 # Mock the graph building and execution
-                suite.is_evaluated = True
+                suite._is_evaluated = True
                 suite._key = ResultKey(datetime.now().date(), {})
                 suite._execution_start = time.time()
-                suite._execution_duration_ms = 100.0
-
-                # Process plugins - should timeout
-                suite._process_plugins({"ds1": Mock()})
+                # Mock the timer to return a duration
+                with patch.object(suite._analyze_ms, "elapsed_ms", return_value=100.0):
+                    # Process plugins - should timeout
+                    suite._process_plugins({"ds1": Mock()})
 
         # Verify plugin started but was terminated
         assert plugin_started
@@ -424,13 +424,13 @@ class TestPluginIntegration:
         with patch.object(suite, "collect_results", return_value=[]):
             with patch.object(suite, "collect_symbols", return_value=[]):
                 # Mock the graph building and execution
-                suite.is_evaluated = True
+                suite._is_evaluated = True
                 suite._key = ResultKey(datetime.now().date(), {})
                 suite._execution_start = time.time()
-                suite._execution_duration_ms = 100.0
-
-                # Process plugins
-                suite._process_plugins({"ds1": Mock()})
+                # Mock the timer to return a duration
+                with patch.object(suite._analyze_ms, "elapsed_ms", return_value=100.0):
+                    # Process plugins
+                    suite._process_plugins({"ds1": Mock()})
 
         # Both plugins should be called
         assert plugin1_called
@@ -484,13 +484,13 @@ class TestPluginIntegration:
         with patch.object(suite, "collect_results", return_value=mock_results):
             with patch.object(suite, "collect_symbols", return_value=[]):
                 # Mock the graph building and execution
-                suite.is_evaluated = True
+                suite._is_evaluated = True
                 suite._key = ResultKey(datetime.now().date(), {})
                 suite._execution_start = time.time()
-                suite._execution_duration_ms = 100.0
-
-                # Process plugins - should not raise
-                suite._process_plugins({"ds1": Mock()})
+                # Mock the timer to return a duration
+                with patch.object(suite._analyze_ms, "elapsed_ms", return_value=100.0):
+                    # Process plugins - should not raise
+                    suite._process_plugins({"ds1": Mock()})
 
                 # Get results
                 results = suite.collect_results()
