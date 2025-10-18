@@ -20,47 +20,17 @@ Currently, DQX executes validation checks and collects results, but has no mecha
 3. **Single File Implementation**: All plugin code in `src/dqx/plugins.py` for simplicity
 4. **Full Type Annotations**: Ensuring mypy compliance with `disallow_untyped_defs = true`
 
-## Architecture
+## Implementation Guide
 
-### Plugin Protocol
+Each task group below is self-contained and ends with validation and a git commit. Complete each group before moving to the next.
 
-```python
-class ResultProcessor(Protocol):
-    """Protocol that all DQX result processor plugins must implement."""
+---
 
-    def process(
-        self,
-        results: list[AssertionResult],
-        symbols: list[SymbolInfo],
-        suite_name: str,
-        context: dict[str, Any]
-    ) -> None:
-        """Process validation results after suite execution."""
-        ...
+## Task Group 1: Core Plugin Infrastructure
 
-    def initialize(self, config: dict[str, Any]) -> None:
-        """Initialize the plugin with configuration."""
-        ...
-```
+### Step 1.1: Create the Plugin Module
 
-### Entry Point Registration (Future Usage)
-
-**Note**: This example shows how external packages will register plugins in the future. No external plugins exist yet.
-
-External plugins will register via `pyproject.toml`:
-
-```toml
-# Example from future external package (e.g., bkng-dqx)
-[project.optional-dependencies]
-bkng = ["bkng-dqx>=1.1"]
-
-[project.entry-points."dqx.plugins"]
-bkng_dqx = "external.bkng.dqx:Integration"
-```
-
-## Complete Implementation Code
-
-### src/dqx/plugins.py
+Create `src/dqx/plugins.py` with the complete implementation:
 
 ```python
 """Plugin system for DQX result processing."""
@@ -200,95 +170,175 @@ class PluginManager:
                 logger.error(f"Plugin {name} failed during processing: {e}")
 ```
 
-### VerificationSuite Integration
+### Step 1.2: Validation
 
-Add the following changes to `src/dqx/api.py`:
+Run the following commands to ensure the code is correct:
 
-```python
-# Add import at the top
-from dqx.plugins import PluginManager
+```bash
+# Type check
+uv run mypy src/dqx/plugins.py
 
-# In VerificationSuite class, add after __init__:
-    def __init__(
-        self,
-        checks: Sequence[CheckProducer | DecoratedCheck],
-        db: MetricDB,
-        name: str,
-        plugin_config: dict[str, dict[str, Any]] | None = None,  # NEW
-    ) -> None:
-        """
-        Initialize the verification suite.
+# Lint check
+uv run ruff check src/dqx/plugins.py
 
-        Args:
-            checks: Sequence of check functions to execute
-            db: Database for storing and retrieving metrics
-            name: Human-readable name for the suite
-            plugin_config: Optional configuration for plugins  # NEW
-
-        Raises:
-            DQXError: If no checks provided or name is empty
-        """
-        if not checks:
-            raise DQXError("At least one check must be provided")
-        if not name.strip():
-            raise DQXError("Suite name cannot be empty")
-
-        self._checks: Sequence[CheckProducer | DecoratedCheck] = checks
-        self._name = name.strip()
-
-        # Create a context
-        self._context = Context(suite=self._name, db=db)
-
-        # State tracking for result collection
-        self.is_evaluated = False
-        self._key: ResultKey | None = None
-
-        # Graph state tracking
-        self._graph_built = False
-
-        # Plugin support
-        self._plugin_manager: PluginManager | None = None  # NEW
-        self._plugin_config = plugin_config  # NEW
-
-    def _get_plugin_manager(self) -> PluginManager:  # NEW
-        """Get or create plugin manager instance (lazy loading)."""
-        if self._plugin_manager is None:
-            self._plugin_manager = PluginManager()
-        return self._plugin_manager
-
-    # In the run() method, add after self.is_evaluated = True:
-        # Mark suite as evaluated only after successful completion
-        self.is_evaluated = True
-
-        # Execute plugins if any are loaded  # NEW
-        plugin_manager = self._get_plugin_manager()
-        if plugin_manager.get_plugins():
-            logger.info("Executing result processor plugins...")
-
-            # Create execution context
-            context = {
-                "datasources": list(datasources.keys()),
-                "key": key,
-                "timestamp": time.time(),
-            }
-
-            # Collect results and symbols
-            results = self.collect_results()
-            symbols = self.collect_symbols()
-
-            # Process through plugins
-            plugin_manager.process_all(
-                results=results,
-                symbols=symbols,
-                suite_name=self._name,
-                context=context,
-                config=self._plugin_config
-            )
+# Fix any linting issues
+uv run ruff check --fix src/dqx/plugins.py
 ```
 
-## Complete Test Implementation
+### Step 1.3: Git Commit
 
-### tests/test_plugins.py
+Once validation passes:
+
+```bash
+git add src/dqx/plugins.py
+git commit -m "feat(plugins): add ResultProcessor protocol and PluginManager
+
+- Define ResultProcessor protocol for plugin interface
+- Implement PluginManager with entry point discovery
+- Add error handling and logging for plugin lifecycle
+- Include full type annotations for mypy compliance"
+```
+
+---
+
+## Task Group 2: API Integration
+
+### Step 2.1: Add Import to api.py
+
+Add this import at the top of `src/dqx/api.py`:
+
+```python
+from dqx.plugins import PluginManager
+```
+
+Also add `time` import if not already present:
+
+```python
+import time
+```
+
+### Step 2.2: Modify VerificationSuite Constructor
+
+Update the `__init__` method signature and add plugin support attributes:
+
+```python
+def __init__(
+    self,
+    checks: Sequence[CheckProducer | DecoratedCheck],
+    db: MetricDB,
+    name: str,
+    plugin_config: dict[str, dict[str, Any]] | None = None,  # NEW
+) -> None:
+    """
+    Initialize the verification suite.
+
+    Args:
+        checks: Sequence of check functions to execute
+        db: Database for storing and retrieving metrics
+        name: Human-readable name for the suite
+        plugin_config: Optional configuration for plugins  # NEW
+
+    Raises:
+        DQXError: If no checks provided or name is empty
+    """
+    if not checks:
+        raise DQXError("At least one check must be provided")
+    if not name.strip():
+        raise DQXError("Suite name cannot be empty")
+
+    self._checks: Sequence[CheckProducer | DecoratedCheck] = checks
+    self._name = name.strip()
+
+    # Create a context
+    self._context = Context(suite=self._name, db=db)
+
+    # State tracking for result collection
+    self.is_evaluated = False
+    self._key: ResultKey | None = None
+
+    # Graph state tracking
+    self._graph_built = False
+
+    # Plugin support
+    self._plugin_manager: PluginManager | None = None  # NEW
+    self._plugin_config = plugin_config  # NEW
+```
+
+### Step 2.3: Add Plugin Manager Lazy Loading
+
+Add this method after the constructor:
+
+```python
+def _get_plugin_manager(self) -> PluginManager:
+    """Get or create plugin manager instance (lazy loading)."""
+    if self._plugin_manager is None:
+        self._plugin_manager = PluginManager()
+    return self._plugin_manager
+```
+
+### Step 2.4: Integrate Plugin Execution in run()
+
+In the `run()` method, after the line `self.is_evaluated = True`, add:
+
+```python
+# Execute plugins if any are loaded
+plugin_manager = self._get_plugin_manager()
+if plugin_manager.get_plugins():
+    logger.info("Executing result processor plugins...")
+
+    # Create execution context
+    context = {
+        "datasources": list(datasources.keys()),
+        "key": key,
+        "timestamp": time.time(),
+    }
+
+    # Collect results and symbols
+    results = self.collect_results()
+    symbols = self.collect_symbols()
+
+    # Process through plugins
+    plugin_manager.process_all(
+        results=results,
+        symbols=symbols,
+        suite_name=self._name,
+        context=context,
+        config=self._plugin_config
+    )
+```
+
+### Step 2.5: Validation
+
+```bash
+# Type check
+uv run mypy src/dqx/api.py
+
+# Lint check
+uv run ruff check src/dqx/api.py
+
+# Run existing API tests to ensure backward compatibility
+uv run pytest tests/test_api.py -v
+```
+
+### Step 2.6: Git Commit
+
+```bash
+git add src/dqx/api.py
+git commit -m "feat(api): integrate plugin execution in VerificationSuite
+
+- Add plugin_config parameter to VerificationSuite
+- Implement lazy loading of PluginManager
+- Execute plugins after suite evaluation
+- Pass results, symbols, and context to plugins"
+```
+
+---
+
+## Task Group 3: Test Infrastructure
+
+### Step 3.1: Create Plugin Tests
+
+Create `tests/test_plugins.py` with the complete test suite:
 
 ```python
 """Tests for the plugin system."""
@@ -549,74 +599,48 @@ def test_plugin_execution_time_logging() -> None:
             assert any("processed results in" in call for call in info_calls)
 ```
 
-### Integration Test Example
+### Step 3.2: Add Integration Test
+
+Add this to `tests/test_api.py` (or create a new file `tests/test_api_plugins.py`):
 
 ```python
-# In tests/test_api.py or separate integration test file
-
-def test_verification_suite_plugin_integration() -> None:
-    """Test that VerificationSuite integrates with plugins correctly."""
+def test_verification_suite_plugin_config() -> None:
+    """Test that VerificationSuite accepts plugin configuration."""
     from dqx.api import VerificationSuite, check
     from dqx.orm.repositories import MetricDB
 
-    # Create a test check
     @check(name="test_check")
     def my_check(mp, ctx):
-        ctx.assert_that(mp.average("col1"))\\
-           .where(name="Test assertion")\\
-           .is_positive()
+        pass
 
-    # Create mock plugin
-    mock_plugin = MockSuccessPlugin()
+    # Should accept plugin_config parameter
+    suite = VerificationSuite(
+        checks=[my_check],
+        db=MetricDB(),
+        name="Test Suite",
+        plugin_config={"test": {"key": "value"}}
+    )
 
-    # Mock the plugin manager
-    with patch("dqx.plugins.PluginManager") as MockPluginManager:
-        mock_manager = MockPluginManager.return_value
-        mock_manager.get_plugins.return_value = {"test": mock_plugin}
-        mock_manager.process_all = MagicMock()
-
-        # Create and run suite
-        db = MetricDB()
-        suite = VerificationSuite(
-            checks=[my_check],
-            db=db,
-            name="Test Suite",
-            plugin_config={"test": {"key": "value"}}
-        )
-
-        # Run would need mock datasources and key
-        # This example shows the integration pattern
+    assert suite._plugin_config == {"test": {"key": "value"}}
 ```
 
-## Git Commit Strategy
+### Step 3.3: Validation
 
-Each task group should have its own commit following conventional commit format:
-
-### Commit 1: Core Plugin Infrastructure
 ```bash
-git add src/dqx/plugins.py
-git commit -m "feat(plugins): add ResultProcessor protocol and PluginManager
+# Type check
+uv run mypy tests/test_plugins.py
 
-- Define ResultProcessor protocol for plugin interface
-- Implement PluginManager with entry point discovery
-- Add error handling and logging for plugin lifecycle
-- Include full type annotations for mypy compliance"
+# Run the new tests
+uv run pytest tests/test_plugins.py -v
+
+# Check coverage
+uv run pytest tests/test_plugins.py -v --cov=dqx.plugins --cov-report=term-missing
 ```
 
-### Commit 2: VerificationSuite Integration
-```bash
-git add src/dqx/api.py
-git commit -m "feat(api): integrate plugin execution in VerificationSuite
+### Step 3.4: Git Commit
 
-- Add plugin_config parameter to VerificationSuite
-- Implement lazy loading of PluginManager
-- Execute plugins after suite evaluation
-- Pass results, symbols, and context to plugins"
-```
-
-### Commit 3: Test Infrastructure
 ```bash
-git add tests/test_plugins.py
+git add tests/test_plugins.py tests/test_api.py
 git commit -m "test(plugins): add comprehensive plugin system tests
 
 - Test plugin discovery and loading
@@ -626,155 +650,13 @@ git commit -m "test(plugins): add comprehensive plugin system tests
 - Ensure 100% code coverage"
 ```
 
-### Commit 4: Documentation
-```bash
-git add examples/plugin_*.py README.md
-git commit -m "docs(plugins): add plugin examples and documentation
+---
 
-- Add email alerts plugin example
-- Add database writer plugin example
-- Update README with plugin development guide
-- Include configuration examples"
-```
+## Task Group 4: Documentation and Examples
 
-### Commit 5: Final Validation
-```bash
-git add -u
-git commit -m "chore(plugins): final validation and cleanup
+### Step 4.1: Create Email Alerts Example
 
-- Fix any remaining mypy/ruff issues
-- Update pyproject.toml with entry point example
-- Ensure all tests pass
-- Update documentation"
-```
-
-## Implementation Tasks
-
-### Task Group 1: Core Plugin Infrastructure
-
-**Task 1.1: Create Plugin Protocol and Manager**
-- Create `src/dqx/plugins.py` file
-- Define `ResultProcessor` protocol with full type annotations
-- Implement `PluginManager` class with:
-  - `__init__` method to initialize plugin storage
-  - `_load_plugins` method to discover and instantiate plugins
-  - `get_plugins` method to return loaded plugins
-  - `process_all` method to execute all plugins with error handling
-- Add appropriate logging for plugin loading and execution
-
-**Task 1.2: Implement Plugin Discovery**
-- Use `importlib.metadata.entry_points(group="dqx.plugins")` for discovery
-- Handle missing/invalid plugins gracefully
-- Log plugin loading success/failure
-- Ensure plugins are instantiated correctly
-
-**Task 1.3: Add Type Stubs and Imports**
-- Import necessary types from `dqx.common`
-- Add logger configuration
-- Ensure all methods have return type annotations
-- Add docstrings with parameter descriptions
-
-### Task Group 2: Integration with VerificationSuite
-
-**Task 2.1: Modify VerificationSuite Class**
-- Add `_plugin_manager: PluginManager | None = None` attribute
-- Create `_get_plugin_manager()` method for lazy initialization
-- Import `PluginManager` from `dqx.plugins`
-- Maintain backward compatibility
-
-**Task 2.2: Integrate Plugin Execution**
-- In `VerificationSuite.run()`, after `self.is_evaluated = True`
-- Create execution context with datasources, key, and timestamp
-- Call `self.collect_results()` and `self.collect_symbols()`
-- Execute plugins via `plugin_manager.process_all()`
-- Ensure plugin failures don't break main execution
-
-**Task 2.3: Add Configuration Support**
-- Add optional `plugin_config` parameter to `VerificationSuite.__init__`
-- Pass configuration to plugins during initialization
-- Document configuration format
-
-### Task Group 3: Testing Infrastructure
-
-**Task 3.1: Create Core Plugin Tests**
-- Create `tests/test_plugins.py` file
-- Test `PluginManager` initialization
-- Test plugin discovery with mock entry points
-- Test error handling for failed plugins
-- Ensure all tests have type annotations
-
-**Task 3.2: Create Integration Tests**
-- Test `VerificationSuite` with mock plugins
-- Verify plugins receive correct data
-- Test plugin execution order
-- Test configuration passing
-
-**Task 3.3: Create Example Test Plugin**
-- Implement a simple test plugin that logs results
-- Use in integration tests
-- Demonstrate protocol implementation
-
-### Task Group 4: Documentation and Examples
-
-**Task 4.1: Update API Documentation**
-- Document `ResultProcessor` protocol
-- Document `PluginManager` class
-- Add plugin development guide to README
-- Include configuration examples
-
-**Task 4.2: Create Example Plugins**
-- Create `examples/plugin_email_alerts.py` showing email alerts
-- Create `examples/plugin_custom_db.py` showing database writing
-- Include inline documentation
-- Show proper type annotations
-
-**Task 4.3: Update pyproject.toml Example**
-- Add commented example of plugin registration
-- Document entry point format
-- Show optional dependency configuration
-
-### Task Group 5: Final Validation
-
-**Task 5.1: Run Type Checking**
-- Run `uv run mypy src/dqx/plugins.py`
-- Run `uv run mypy tests/test_plugins.py`
-- Fix any type annotation issues
-
-**Task 5.2: Run Linting and Tests**
-- Run `uv run ruff check --fix`
-- Run `uv run pytest tests/test_plugins.py -v`
-- Ensure 100% test coverage for new code
-
-**Task 5.3: Run Pre-commit and Full Test Suite**
-- Run `bin/run-hooks.sh`
-- Run `uv run pytest tests/ -v`
-- Commit only when all tests pass
-
-## Technical Considerations
-
-### Error Handling
-- Plugin failures must not crash the validation suite
-- All plugin exceptions should be caught and logged
-- Consider adding a `fail_on_plugin_error` configuration option
-
-### Performance
-- Plugins execute synchronously after validation
-- Consider future async plugin support if needed
-- Plugin execution time should be logged
-
-### Security
-- Plugins run with same permissions as DQX
-- Document security implications in plugin guide
-- Consider plugin sandboxing in future versions
-
-### Backward Compatibility
-- Plugin system is entirely optional
-- Existing code continues to work unchanged
-- No breaking changes to public APIs
-
-## Example Plugin Implementations
-
-### Email Alerts Plugin (examples/plugin_email_alerts.py)
+Create `examples/plugin_email_alerts.py`:
 
 ```python
 """Example email alerts plugin for DQX."""
@@ -864,7 +746,9 @@ class EmailAlertsPlugin:
 # email_alerts = "your_package.plugins:EmailAlertsPlugin"
 ```
 
-### Database Writer Plugin (examples/plugin_database_writer.py)
+### Step 4.2: Create Database Writer Example
+
+Create `examples/plugin_database_writer.py`:
 
 ```python
 """Example database writer plugin for DQX."""
@@ -971,29 +855,32 @@ class DatabaseWriterPlugin:
 # db_writer = "your_package.plugins:DatabaseWriterPlugin"
 ```
 
-### Monitoring Integration Plugin (examples/plugin_monitoring.py)
+### Step 4.3: Update README
+
+Add this section to `README.md`:
+
+```markdown
+## Plugin System
+
+DQX supports a plugin system that allows external packages to process validation results. Plugins can be used to:
+
+- Send alerts when assertions fail
+- Write results to external databases
+- Integrate with monitoring systems
+- Generate custom reports
+
+### Creating a Plugin
+
+Plugins must implement the `ResultProcessor` protocol:
 
 ```python
-"""Example monitoring system integration plugin for DQX."""
-
-import logging
 from typing import Any
-
 from dqx.common import AssertionResult, SymbolInfo
 
-logger = logging.getLogger(__name__)
-
-
-class MonitoringPlugin:
-    """Send metrics to monitoring system (e.g., Prometheus, DataDog)."""
-
+class MyPlugin:
     def initialize(self, config: dict[str, Any]) -> None:
-        """Initialize monitoring client."""
-        self.endpoint = config.get("endpoint", "http://localhost:9091")
-        self.namespace = config.get("namespace", "dqx")
-        self.labels = config.get("default_labels", {})
-
-        logger.info(f"Monitoring plugin configured for: {self.endpoint}")
+        """Initialize the plugin with configuration."""
+        pass
 
     def process(
         self,
@@ -1002,99 +889,193 @@ class MonitoringPlugin:
         suite_name: str,
         context: dict[str, Any]
     ) -> None:
-        """Send validation metrics to monitoring system."""
-        # Calculate metrics
-        metrics = self._calculate_metrics(results, suite_name)
-
-        # Send to monitoring system
-        self._push_metrics(metrics, context)
-
-        logger.info(f"Pushed {len(metrics)} metrics to monitoring system")
-
-    def _calculate_metrics(
-        self,
-        results: list[AssertionResult],
-        suite_name: str
-    ) -> dict[str, float]:
-        """Calculate metrics from results."""
-        total = len(results)
-        failures = sum(1 for r in results if r.status == "FAILURE")
-
-        # Group by severity
-        severity_counts = {"P0": 0, "P1": 0, "P2": 0, "P3": 0}
-        for r in results:
-            if r.status == "FAILURE":
-                severity_counts[r.severity] = severity_counts.get(r.severity, 0) + 1
-
-        return {
-            f"{self.namespace}_total_assertions": total,
-            f"{self.namespace}_failed_assertions": failures,
-            f"{self.namespace}_success_rate": (total - failures) / total if total > 0 else 1.0,
-            **{f"{self.namespace}_failures_{sev}": count for sev, count in severity_counts.items()}
-        }
-
-    def _push_metrics(
-        self,
-        metrics: dict[str, float],
-        context: dict[str, Any]
-    ) -> None:
-        """Push metrics to monitoring system."""
-        # Mock implementation - in reality, use prometheus_client or similar
-        labels = {
-            **self.labels,
-            "suite": context.get("suite_name", "unknown"),
-            "date": str(context.get("key", {}).get("yyyy_mm_dd", "unknown")),
-        }
-
-        for metric_name, value in metrics.items():
-            logger.debug(f"[MOCK] Push metric: {metric_name}={value} labels={labels}")
-
-
-# Usage in external package pyproject.toml:
-# [project.entry-points."dqx.plugins"]
-# monitoring = "your_package.plugins:MonitoringPlugin"
+        """Process validation results."""
+        pass
 ```
 
-### Configuration Examples
+### Registering a Plugin
+
+External packages register plugins via `pyproject.toml`:
+
+```toml
+[project.entry-points."dqx.plugins"]
+my_plugin = "mypackage.plugins:MyPlugin"
+```
+
+### Using Plugins
+
+Configure plugins when creating a VerificationSuite:
 
 ```python
-# In your verification suite code:
-from dqx.api import VerificationSuite
-from dqx.orm.repositories import MetricDB
-
-# Configure plugins
-plugin_config = {
-    "email_alerts": {
-        "smtp_host": "smtp.example.com",
-        "from_email": "dqx-alerts@example.com",
-        "to_emails": ["team@example.com"],
-        "severity_levels": ["P0", "P1"],
-    },
-    "db_writer": {
-        "database_url": "postgresql://user:pass@localhost/monitoring",
-        "table_prefix": "dqx_prod_",
-    },
-    "monitoring": {
-        "endpoint": "http://prometheus-pushgateway:9091",
-        "namespace": "dqx_prod",
-        "default_labels": {"env": "production"},
-    }
-}
-
-# Create suite with plugin configuration
 suite = VerificationSuite(
-    checks=[check1, check2],
-    db=MetricDB(),
-    name="Production Data Quality",
-    plugin_config=plugin_config
+    checks=checks,
+    db=db,
+    name="My Suite",
+    plugin_config={
+        "my_plugin": {
+            "setting": "value"
+        }
+    }
 )
 ```
 
+See `examples/plugin_*.py` for complete examples.
+```
+
+### Step 4.4: Add Entry Point Example to pyproject.toml
+
+Add this commented section to `pyproject.toml`:
+
+```toml
+# Example: How external packages register DQX plugins
+# [project.entry-points."dqx.plugins"]
+# email_alerts = "mypackage.plugins:EmailAlertsPlugin"
+# db_writer = "mypackage.plugins:DatabaseWriterPlugin"
+```
+
+### Step 4.5: Validation
+
+```bash
+# Type check examples
+uv run mypy examples/plugin_email_alerts.py
+uv run mypy examples/plugin_database_writer.py
+
+# Run full test suite to ensure nothing broke
+uv run pytest tests/ -v
+
+# Run pre-commit hooks
+bin/run-hooks.sh
+```
+
+### Step 4.6: Git Commit
+
+```bash
+git add examples/plugin_*.py README.md pyproject.toml
+git commit -m "docs(plugins): add plugin examples and documentation
+
+- Add email alerts plugin example
+- Add database writer plugin example
+- Update README with plugin development guide
+- Include configuration examples"
+```
+
+---
+
+## Task Group 5: Final Integration Test
+
+### Step 5.1: Create Full Integration Test
+
+Create `tests/test_plugin_integration.py`:
+
+```python
+"""Integration test for the complete plugin system."""
+
+from datetime import date
+from unittest.mock import patch
+
+from dqx.api import VerificationSuite, check
+from dqx.common import ResultKey
+from dqx.orm.repositories import MetricDB
+from dqx.provider import DataSource
+
+from tests.test_plugins import MockSuccessPlugin
+
+
+def test_full_plugin_integration() -> None:
+    """Test complete plugin integration from suite execution to plugin processing."""
+    # Create checks
+    @check(name="Price Check")
+    def price_check(mp, ctx):
+        ctx.assert_that(mp.average("price"))\\
+           .where(name="Average price is positive")\\
+           .is_positive()
+
+    @check(name="Count Check")
+    def count_check(mp, ctx):
+        ctx.assert_that(mp.count("id"))\\
+           .where(name="Has records", severity="P0")\\
+           .is_gt(0)
+
+    # Create mock plugin
+    mock_plugin = MockSuccessPlugin()
+
+    # Mock the plugin manager to use our mock plugin
+    with patch("dqx.plugins.PluginManager") as MockPluginManager:
+        mock_manager = MockPluginManager.return_value
+        mock_manager.get_plugins.return_value = {"test": mock_plugin}
+        mock_manager.process_all.side_effect = lambda *args, **kwargs: mock_plugin.process_all(*args, **kwargs)
+
+        # Create suite with plugin config
+        db = MetricDB()
+        suite = VerificationSuite(
+            checks=[price_check, count_check],
+            db=db,
+            name="Integration Test Suite",
+            plugin_config={"test": {"key": "value"}}
+        )
+
+        # Create test data
+        datasources = {
+            "sales": DataSource.from_records([
+                {"price": 10.0, "id": 1},
+                {"price": 20.0, "id": 2},
+            ])
+        }
+
+        key = ResultKey(date.today(), {"env": "test"})
+
+        # Run suite
+        suite.run(datasources, key)
+
+        # Verify plugin was called
+        assert mock_manager.process_all.called
+
+        # Get the call arguments
+        call_args = mock_manager.process_all.call_args
+
+        # Verify correct arguments were passed
+        assert len(call_args[0]) == 5  # results, symbols, suite_name, context, config
+        assert call_args[1]["config"] == {"test": {"key": "value"}}
+```
+
+### Step 5.2: Validation
+
+```bash
+# Run all tests including integration
+uv run pytest tests/test_plugin_integration.py -v
+
+# Run full test suite
+uv run pytest tests/ -v
+
+# Final mypy check
+uv run mypy src/dqx/plugins.py src/dqx/api.py
+
+# Final ruff check
+uv run ruff check src/dqx/plugins.py src/dqx/api.py
+```
+
+### Step 5.3: Git Commit
+
+```bash
+git add tests/test_plugin_integration.py
+git commit -m "test(plugins): add full integration test
+
+- Test complete flow from suite execution to plugin processing
+- Verify plugin receives correct data
+- Ensure plugin configuration is passed through"
+```
+
+---
+
 ## Success Criteria
 
-1. Plugins can be discovered and loaded from entry points
-2. Plugins receive validation results after suite execution
-3. Plugin failures don't break validation flow
-4. Full type annotations pass mypy strict mode
-5. 100% test coverage for plugin code
-6. Clear documentation for plugin developers
+After completing all task groups, you should have:
+
+1. ✅ A working plugin system in `src/dqx/plugins.py`
+2. ✅ Integration with VerificationSuite in `src/dqx/api.py`
+3. ✅ Comprehensive tests with 100% coverage
+4. ✅ Example plugins demonstrating usage
+5. ✅ Updated documentation
+6. ✅ Clean git history with atomic commits
+
+The plugin system is now ready for external packages to create and register their own result processors!
