@@ -57,30 +57,10 @@ class PluginManager:
         # Register built-in plugins
         self.register_plugin("dqx.plugins.AuditPlugin")
 
-        # Discover external plugins
-        self._discover_plugins()
-
     @property
     def timeout_seconds(self) -> float:
         """Get the plugin execution timeout in seconds."""
         return self._timeout_seconds
-
-    def _discover_plugins(self) -> None:
-        """Discover and load plugins from entry points."""
-        try:
-            # Discover all plugins in the "dqx.plugins" group
-            entry_points = importlib.metadata.entry_points(group="dqx.plugins")
-
-            for ep in entry_points:
-                try:
-                    # Get the class path from entry point
-                    class_path = str(ep.value)
-                    self.register_plugin(class_path)
-                except Exception:
-                    logger.warning(f"Plugin not available: {ep.name}")
-
-        except Exception as e:
-            logger.error(f"Failed to discover plugins: {e}")
 
     def get_plugins(self) -> dict[str, ResultProcessor]:
         """
