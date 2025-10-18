@@ -34,14 +34,16 @@ class TestPluginManager:
         manager = PluginManager(timeout_seconds=10)
         assert manager._timeout_seconds == 10
 
-    def test_get_metadata(self) -> None:
-        """Test getting metadata from all plugins."""
+    def test_get_plugin_metadata(self) -> None:
+        """Test getting metadata from plugins."""
         manager = PluginManager()
-        metadata = manager.get_metadata()
 
-        # Check audit plugin metadata
-        assert "audit" in metadata
-        audit_meta = metadata["audit"]
+        # Check audit plugin exists
+        assert "audit" in manager.get_plugins()
+
+        # Get metadata from the plugin
+        audit_plugin = manager.get_plugins()["audit"]
+        audit_meta = audit_plugin.__class__.metadata()
         assert audit_meta.name == "audit"
         assert audit_meta.version == "1.0.0"
         assert audit_meta.author == "DQX Team"
@@ -202,8 +204,9 @@ class TestPluginManager:
         # Should not raise an exception
         manager = PluginManager()
 
-        # Manager should have no plugins if discovery fails
-        assert len(manager._plugins) == 0
+        # Manager should have only the audit plugin (discovery failed for others)
+        assert len(manager._plugins) == 1
+        assert "audit" in manager._plugins
 
     def test_plugin_discovery_loads_external_plugins(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that external plugins are discovered and loaded."""
@@ -228,14 +231,12 @@ class TestPluginManager:
             def process(self, context: PluginExecutionContext) -> None:
                 pass
 
-        # Create a mock entry point
+        # Create a mock entry point that provides the class path
         class MockEntryPoint:
             def __init__(self, name: str, plugin_class: type) -> None:
                 self.name = name
-                self._plugin_class = plugin_class
-
-            def load(self) -> type:
-                return self._plugin_class
+                # Store the class path as value (what register_plugin expects)
+                self.value = f"tests.test_plugin_manager.{plugin_class.__name__}"
 
         # Mock entry_points to return our mock plugin
         def mock_entry_points(group: str | None = None) -> list:
@@ -245,19 +246,26 @@ class TestPluginManager:
 
         monkeypatch.setattr("importlib.metadata.entry_points", mock_entry_points)
 
+        # We need to register the plugin class in the test module BEFORE creating manager
+        import sys
+
+        setattr(sys.modules[__name__], "ExternalPlugin", ExternalPlugin)
+
         # Create manager - this will trigger plugin loading
         manager = PluginManager()
 
         # Verify plugin was created
         assert plugin_created
 
-        # Should have only external plugin since we mocked entry_points
+        # Should have both audit and external plugins
         assert "external" in manager._plugins
+        assert "audit" in manager._plugins
 
         # Verify external plugin metadata
-        metadata = manager.get_metadata()
-        assert metadata["external"].name == "external"
-        assert metadata["external"].version == "2.0.0"
+        external_plugin = manager._plugins["external"]
+        external_meta = external_plugin.__class__.metadata()
+        assert external_meta.name == "external"
+        assert external_meta.version == "2.0.0"
 
         # Verify the plugin implements the protocol
         assert hasattr(manager._plugins["external"], "process")
@@ -271,14 +279,12 @@ class TestPluginManager:
             def __init__(self) -> None:
                 pass
 
-        # Create a mock entry point
+        # Create a mock entry point that provides the class path
         class MockEntryPoint:
             def __init__(self, name: str, plugin_class: type) -> None:
                 self.name = name
-                self._plugin_class = plugin_class
-
-            def load(self) -> type:
-                return self._plugin_class
+                # Store the class path as value (what register_plugin expects)
+                self.value = f"tests.test_plugin_manager.{plugin_class.__name__}"
 
         # Mock entry_points to return our invalid plugin
         def mock_entry_points(group: str | None = None) -> list:
@@ -291,9 +297,10 @@ class TestPluginManager:
         # Create manager
         manager = PluginManager()
 
-        # Should have no plugins since the invalid one was rejected
+        # Should have only audit plugin since the invalid one was rejected
         assert "invalid" not in manager._plugins
-        assert len(manager._plugins) == 0
+        assert len(manager._plugins) == 1
+        assert "audit" in manager._plugins
 
     def test_plugin_discovery_handles_load_errors(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test that plugin load errors are handled gracefully."""
@@ -302,6 +309,7 @@ class TestPluginManager:
         class FailingEntryPoint:
             def __init__(self) -> None:
                 self.name = "failing"
+                self.value = "nonexistent.module.FailingPlugin"  # This will fail in register_plugin
 
             def load(self) -> None:
                 raise ImportError("Failed to import plugin")
@@ -317,9 +325,10 @@ class TestPluginManager:
         # Should not raise an exception
         manager = PluginManager()
 
-        # Should have no plugins since loading failed
+        # Should have only audit plugin since loading failed
         assert "failing" not in manager._plugins
-        assert len(manager._plugins) == 0
+        assert len(manager._plugins) == 1
+        assert "audit" in manager._plugins
 
     def test_plugin_implements_protocol(self) -> None:
         """Test that plugins must implement ResultProcessor protocol."""
