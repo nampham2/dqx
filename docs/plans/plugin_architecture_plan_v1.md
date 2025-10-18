@@ -176,9 +176,7 @@ class PluginManager:
                 logger.error(f"Plugin {name} failed during processing: {e}")
 ```
 
-### Step 1.2: Validation
-
-Run the following commands to ensure the code is correct:
+### Step 1.2: Initial Validation
 
 ```bash
 # Type check
@@ -191,11 +189,24 @@ uv run ruff check src/dqx/plugins.py
 uv run ruff check --fix src/dqx/plugins.py
 ```
 
-### Step 1.3: Git Commit
-
-Once validation passes:
+### Step 1.3: Final Validation and Commit
 
 ```bash
+# Run all tests to ensure nothing is broken
+uv run pytest tests/ -v
+
+# Run full pre-commit checks
+bin/run-hooks.sh
+
+# If any issues are found:
+# - For ruff: uv run ruff check --fix src/dqx/plugins.py
+# - For mypy: manually fix type annotations
+# - For test failures: investigate and fix
+
+# Re-run tests after any fixes
+uv run pytest tests/ -v
+
+# Once everything passes, commit:
 git add src/dqx/plugins.py
 git commit -m "feat(plugins): add ResultProcessor protocol and PluginManager
 
@@ -325,7 +336,7 @@ In the `run()` method, after the line `self.is_evaluated = True`, add:
 self._execute_plugins(datasources, key)
 ```
 
-### Step 2.6: Validation
+### Step 2.6: Initial Validation
 
 ```bash
 # Type check
@@ -338,9 +349,24 @@ uv run ruff check src/dqx/api.py
 uv run pytest tests/test_api.py -v
 ```
 
-### Step 2.7: Git Commit
+### Step 2.7: Final Validation and Commit
 
 ```bash
+# Run all tests to ensure integration works
+uv run pytest tests/ -v
+
+# Run full pre-commit checks
+bin/run-hooks.sh
+
+# Fix any issues found:
+# - For ruff: uv run ruff check --fix src/dqx/api.py
+# - For mypy: manually fix type annotations
+# - For test failures: debug and fix
+
+# Re-run tests after fixes
+uv run pytest tests/ -v
+
+# Once all checks pass, commit:
 git add src/dqx/api.py
 git commit -m "feat(api): integrate plugin execution in VerificationSuite
 
@@ -643,7 +669,7 @@ def test_verification_suite_plugin_config() -> None:
     assert suite._plugin_config == {"test": {"key": "value"}}
 ```
 
-### Step 3.3: Validation
+### Step 3.3: Initial Validation
 
 ```bash
 # Type check
@@ -656,9 +682,24 @@ uv run pytest tests/test_plugins.py -v
 uv run pytest tests/test_plugins.py -v --cov=dqx.plugins --cov-report=term-missing
 ```
 
-### Step 3.4: Git Commit
+### Step 3.4: Final Validation and Commit
 
 ```bash
+# Run all tests to ensure nothing is broken
+uv run pytest tests/ -v
+
+# Run full pre-commit checks
+bin/run-hooks.sh
+
+# Fix any issues:
+# - For test failures: debug and fix
+# - For linting: uv run ruff check --fix tests/test_plugins.py
+# - For mypy: fix type annotations
+
+# Verify coverage is still 100%
+uv run pytest tests/test_plugins.py -v --cov=dqx.plugins --cov-report=term-missing
+
+# Once all checks pass, commit:
 git add tests/test_plugins.py tests/test_api.py
 git commit -m "test(plugins): add comprehensive plugin system tests
 
@@ -1071,7 +1112,7 @@ def test_audit_plugin_no_failures() -> None:
         assert len(severity_tables) == 0
 ```
 
-### Step 4.4: Validation
+### Step 4.4: Initial Validation
 
 ```bash
 # Type check
@@ -1087,9 +1128,24 @@ uv run pytest tests/test_audit_plugin.py -v
 uv run pytest tests/test_audit_plugin.py -v --cov=dqx.plugins --cov-report=term-missing
 ```
 
-### Step 4.5: Git Commit
+### Step 4.5: Final Validation and Commit
 
 ```bash
+# Run all tests including new audit plugin tests
+uv run pytest tests/ -v
+
+# Run full pre-commit checks
+bin/run-hooks.sh
+
+# Fix any issues:
+# - For ruff: uv run ruff check --fix src/dqx/plugins.py
+# - For mypy: fix type annotations
+# - For test failures: debug and fix
+
+# Verify plugin coverage is still 100%
+uv run pytest tests/test_plugins.py tests/test_audit_plugin.py -v --cov=dqx.plugins --cov-report=term-missing
+
+# Once all checks pass, commit:
 git add src/dqx/plugins.py tests/test_audit_plugin.py pyproject.toml
 git commit -m "feat(plugins): add built-in audit plugin with Rich display
 
@@ -1180,7 +1236,7 @@ def test_full_plugin_integration() -> None:
         assert call_args[1]["config"] == {"test": {"key": "value"}}
 ```
 
-### Step 5.2: Validation
+### Step 5.2: Initial Validation
 
 ```bash
 # Run all tests including integration
@@ -1196,9 +1252,24 @@ uv run mypy src/dqx/plugins.py src/dqx/api.py
 uv run ruff check src/dqx/plugins.py src/dqx/api.py
 ```
 
-### Step 5.3: Git Commit
+### Step 5.3: Final Validation and Commit
 
 ```bash
+# Run complete test suite
+uv run pytest tests/ -v
+
+# Run full pre-commit checks on all files
+bin/run-hooks.sh
+
+# Fix any issues found:
+# - For ruff: uv run ruff check --fix tests/test_plugin_integration.py
+# - For mypy: fix type annotations
+# - For test failures: debug and fix
+
+# Verify all tests still pass
+uv run pytest tests/ -v
+
+# Once everything passes, commit:
 git add tests/test_plugin_integration.py
 git commit -m "test(plugins): add full integration test
 
@@ -1379,7 +1450,7 @@ audit = "dqx.plugins:AuditPlugin"
 # slack_notifier = "mypackage.plugins:SlackPlugin"
 ```
 
-### Step 6.4: Validation
+### Step 6.4: Initial Validation
 
 ```bash
 # Verify markdown syntax
@@ -1389,9 +1460,24 @@ cat docs/plugins.md
 uv run pytest tests/ -v
 ```
 
-### Step 6.5: Git Commit
+### Step 6.5: Final Validation and Commit
 
 ```bash
+# Run complete test suite one final time
+uv run pytest tests/ -v
+
+# Run full pre-commit checks
+bin/run-hooks.sh
+
+# Fix any issues:
+# - Documentation formatting
+# - Any test failures
+# - Linting issues
+
+# Final verification - all tests should pass
+uv run pytest tests/ -v
+
+# Once everything is green, commit:
 git add README.md docs/plugins.md pyproject.toml
 git commit -m "docs(plugins): simplify README and add dedicated plugin guide
 
