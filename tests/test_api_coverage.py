@@ -108,7 +108,7 @@ def test_collect_results_before_run_error() -> None:
 
     suite = VerificationSuite([test_check], db, "Test Suite")
 
-    with pytest.raises(DQXError, match="Cannot collect results before suite execution"):
+    with pytest.raises(DQXError, match="Verification suite has not been executed yet!"):
         suite.collect_results()
 
 
@@ -122,7 +122,7 @@ def test_collect_symbols_before_run_error() -> None:
 
     suite = VerificationSuite([test_check], db, "Test Suite")
 
-    with pytest.raises(DQXError, match="Cannot collect symbols before suite execution"):
+    with pytest.raises(DQXError, match="Verification suite has not been executed yet!"):
         suite.collect_symbols()
 
 
@@ -334,10 +334,10 @@ def test_process_plugins_early_return() -> None:
 
     # Call _process_plugins when suite hasn't been evaluated
     # Should raise DQXError
-    with pytest.raises(DQXError, match="Cannot process plugins: Suite has not been evaluated yet"):
+    with pytest.raises(DQXError, match="Verification suite has not been executed yet!"):
         suite._process_plugins({"test": None})  # type: ignore
 
     # Even with execution_start set, should still raise error since not evaluated
     suite._execution_start = 123.45
-    with pytest.raises(DQXError, match="Cannot process plugins: Suite has not been evaluated yet"):
+    with pytest.raises(DQXError, match="Verification suite has not been executed yet!"):
         suite._process_plugins({"test": None})  # type: ignore
