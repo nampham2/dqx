@@ -277,7 +277,7 @@ class TestPluginIntegration:
         suite = VerificationSuite([test_check], db, "TestSuite")
 
         # Replace plugin manager with short timeout
-        suite._plugin_manager = PluginManager(_timeout_seconds=1)
+        suite._plugin_manager = PluginManager(timeout_seconds=1)
         suite._plugin_manager._plugins = {"slow": SlowPlugin()}
 
         # Mock the execution

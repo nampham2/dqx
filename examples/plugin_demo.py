@@ -240,7 +240,7 @@ def demo_plugin_error_handling() -> None:
             raise RuntimeError("Simulated plugin failure!")
 
     # Create manager with custom timeout
-    manager = PluginManager(_timeout_seconds=2)
+    manager = PluginManager(timeout_seconds=2)
     manager._plugins["failing"] = FailingPlugin()
 
     # Create minimal context
@@ -282,7 +282,7 @@ def demo_plugin_timeout() -> None:
             print("This won't be printed due to timeout")
 
     # Create manager with 1 second timeout
-    manager = PluginManager(_timeout_seconds=1)
+    manager = PluginManager(timeout_seconds=1)
     manager._plugins = {}  # Clear default plugins
     manager._plugins["slow"] = SlowPlugin()
 

@@ -31,7 +31,7 @@ class TestPluginManager:
 
     def test_plugin_manager_custom_timeout(self) -> None:
         """Test PluginManager with custom timeout."""
-        manager = PluginManager(_timeout_seconds=10)
+        manager = PluginManager(timeout_seconds=10)
         assert manager._timeout_seconds == 10
 
     def test_get_metadata(self) -> None:
@@ -119,7 +119,7 @@ class TestPluginManager:
             def process(self, context: PluginExecutionContext) -> None:
                 time.sleep(2)  # Sleep longer than timeout
 
-        manager = PluginManager(_timeout_seconds=1)
+        manager = PluginManager(timeout_seconds=1)
 
         # Create a proper context
         context = PluginExecutionContext(

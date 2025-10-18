@@ -42,7 +42,7 @@ class ResultProcessor(Protocol):
 class PluginManager:
     """Manages DQX result processor plugins."""
 
-    def __init__(self, *, _timeout_seconds: float = PLUGIN_TIMEOUT_SECONDS) -> None:
+    def __init__(self, *, timeout_seconds: float = PLUGIN_TIMEOUT_SECONDS) -> None:
         """
         Initialize the plugin manager.
 
@@ -51,8 +51,13 @@ class PluginManager:
                             Defaults to PLUGIN_TIMEOUT_SECONDS (60).
         """
         self._plugins: dict[str, ResultProcessor] = {}
-        self._timeout_seconds: float = _timeout_seconds
+        self._timeout_seconds: float = timeout_seconds
         self._discover_plugins()
+
+    @property
+    def timeout_seconds(self) -> float:
+        """Get the plugin execution timeout in seconds."""
+        return self._timeout_seconds
 
     def _discover_plugins(self) -> None:
         """Discover and load plugins from entry points."""
@@ -70,11 +75,6 @@ class PluginManager:
                     # Instantiate the plugin
                     plugin = plugin_class()
 
-                    # Verify it implements the protocol
-                    if not self._is_valid_plugin(plugin):
-                        logger.error(f"Plugin {ep.name} does not implement ResultProcessor protocol")
-                        continue
-
                     # Store the plugin
                     self._plugins[ep.name] = plugin
 
@@ -87,15 +87,6 @@ class PluginManager:
 
         except Exception as e:
             logger.error(f"Failed to discover plugins: {e}")
-
-    def _is_valid_plugin(self, plugin: object) -> bool:
-        """Check if object implements ResultProcessor protocol."""
-        return (
-            hasattr(plugin, "metadata")
-            and callable(getattr(plugin, "metadata"))
-            and hasattr(plugin, "process")
-            and callable(getattr(plugin, "process"))
-        )
 
     def get_plugins(self) -> dict[str, ResultProcessor]:
         """
@@ -115,6 +106,18 @@ class PluginManager:
         """
         return {name: plugin.__class__.metadata() for name, plugin in self._plugins.items()}
 
+    def plugin_name_exists(self, name: str) -> bool:
+        """
+        Check if a plugin with the given name is registered.
+
+        Args:
+            name: Name of the plugin to check
+
+        Returns:
+            True if the plugin exists, False otherwise
+        """
+        return name in self._plugins
+
     def register_plugin(self, name: str, plugin: object) -> None:
         """
         Register a plugin manually.
@@ -126,8 +129,7 @@ class PluginManager:
         Raises:
             ValueError: If plugin doesn't implement ResultProcessor protocol
         """
-        if not self._is_valid_plugin(plugin):
-            raise ValueError(f"Invalid plugin: {name} does not implement ResultProcessor protocol")
+        # Check if the plugin name already exists
         self._plugins[name] = plugin  # type: ignore[assignment]
         logger.info(f"Registered plugin: {name}")
 
@@ -163,13 +165,13 @@ class PluginManager:
         for name, plugin in self._plugins.items():
             try:
                 # Hard time limit for plugin execution
-                with TimeLimiting(int(self._timeout_seconds)) as timer:
+                with TimeLimiting(int(self.timeout_seconds)) as timer:
                     plugin.process(context)
 
                 logger.info(f"Plugin {name} processed results in {timer.elapsed_ms():.2f}ms")
 
             except TimeLimitExceededError:
-                logger.error(f"Plugin {name} exceeded {self._timeout_seconds}s time limit")
+                logger.error(f"Plugin {name} exceeded {self.timeout_seconds}s time limit")
             except Exception as e:
                 # Log error but don't fail the entire suite
                 logger.error(f"Plugin {name} failed during processing: {e}")
