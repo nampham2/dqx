@@ -116,7 +116,8 @@ def demo_plugin_system() -> None:
     manager._plugins["metrics_collector"] = MetricsCollectorPlugin()
 
     print(f"\nLoaded {len(manager.get_plugins())} plugins:")
-    for name, metadata in manager.get_metadata().items():
+    for name, plugin in manager.get_plugins().items():
+        metadata = plugin.__class__.metadata()
         print(f"  - {name} v{metadata.version}: {metadata.description}")
 
     # Create sample validation results

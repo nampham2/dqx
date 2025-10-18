@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 
 from dqx.api import Context, VerificationSuite, check
 from dqx.common import (
+    PluginExecutionContext,
     PluginMetadata,
     ResultKey,
 )
@@ -14,11 +15,29 @@ from dqx.orm.repositories import MetricDB
 from dqx.provider import MetricProvider
 
 
+class TestPlugin:
+    """Test plugin for enable/disable testing."""
+
+    called = False  # Class variable to track calls
+
+    @staticmethod
+    def metadata() -> PluginMetadata:
+        return PluginMetadata(
+            name="test",
+            version="1.0.0",
+            author="Test",
+            description="Test plugin",
+        )
+
+    def process(self, context: PluginExecutionContext) -> None:
+        TestPlugin.called = True
+
+
 def test_enable_plugins_true_by_default() -> None:
     """Test that plugins are enabled by default."""
     plugin_called = False
 
-    class TestPlugin:
+    class LocalTestPlugin:
         @staticmethod
         def metadata() -> PluginMetadata:
             return PluginMetadata(
@@ -28,7 +47,7 @@ def test_enable_plugins_true_by_default() -> None:
                 description="Test plugin",
             )
 
-        def process(self, context: object) -> None:
+        def process(self, context: PluginExecutionContext) -> None:
             nonlocal plugin_called
             plugin_called = True
 
@@ -41,9 +60,9 @@ def test_enable_plugins_true_by_default() -> None:
     db = Mock(spec=MetricDB)
     suite = VerificationSuite([test_check], db, "TestSuite")
 
-    # Register test plugin
+    # Register test plugin directly
     suite.plugin_manager.clear_plugins()
-    suite.plugin_manager.register_plugin("test", TestPlugin())
+    suite.plugin_manager._plugins["test"] = LocalTestPlugin()
 
     # Mock data source
     datasource = Mock()
@@ -89,7 +108,7 @@ def test_enable_plugins_false_disables_plugins() -> None:
     """Test that enable_plugins=False disables plugin execution."""
     plugin_called = False
 
-    class TestPlugin:
+    class LocalTestPlugin:
         @staticmethod
         def metadata() -> PluginMetadata:
             return PluginMetadata(
@@ -99,7 +118,7 @@ def test_enable_plugins_false_disables_plugins() -> None:
                 description="Test plugin",
             )
 
-        def process(self, context: object) -> None:
+        def process(self, context: PluginExecutionContext) -> None:
             nonlocal plugin_called
             plugin_called = True
 
@@ -112,9 +131,9 @@ def test_enable_plugins_false_disables_plugins() -> None:
     db = Mock(spec=MetricDB)
     suite = VerificationSuite([test_check], db, "TestSuite")
 
-    # Register test plugin
+    # Register test plugin directly
     suite.plugin_manager.clear_plugins()
-    suite.plugin_manager.register_plugin("test", TestPlugin())
+    suite.plugin_manager._plugins["test"] = LocalTestPlugin()
 
     # Mock data source
     datasource = Mock()
@@ -160,7 +179,7 @@ def test_enable_plugins_true_explicit() -> None:
     """Test that enable_plugins=True explicitly enables plugins."""
     plugin_called = False
 
-    class TestPlugin:
+    class LocalTestPlugin:
         @staticmethod
         def metadata() -> PluginMetadata:
             return PluginMetadata(
@@ -170,7 +189,7 @@ def test_enable_plugins_true_explicit() -> None:
                 description="Test plugin",
             )
 
-        def process(self, context: object) -> None:
+        def process(self, context: PluginExecutionContext) -> None:
             nonlocal plugin_called
             plugin_called = True
 
@@ -183,9 +202,9 @@ def test_enable_plugins_true_explicit() -> None:
     db = Mock(spec=MetricDB)
     suite = VerificationSuite([test_check], db, "TestSuite")
 
-    # Register test plugin
+    # Register test plugin directly
     suite.plugin_manager.clear_plugins()
-    suite.plugin_manager.register_plugin("test", TestPlugin())
+    suite.plugin_manager._plugins["test"] = LocalTestPlugin()
 
     # Mock data source
     datasource = Mock()

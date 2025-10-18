@@ -1,5 +1,6 @@
 """Plugin system for DQX result processing."""
 
+import importlib
 import importlib.metadata
 import logging
 from typing import Protocol, runtime_checkable
@@ -52,41 +53,14 @@ class PluginManager:
         """
         self._plugins: dict[str, ResultProcessor] = {}
         self._timeout_seconds: float = timeout_seconds
-        self._discover_plugins()
+
+        # Register built-in plugins
+        self.register_plugin("dqx.plugins.AuditPlugin")
 
     @property
     def timeout_seconds(self) -> float:
         """Get the plugin execution timeout in seconds."""
         return self._timeout_seconds
-
-    def _discover_plugins(self) -> None:
-        """Discover and load plugins from entry points."""
-        try:
-            # Discover all plugins in the "dqx.plugins" group
-            entry_points = importlib.metadata.entry_points(group="dqx.plugins")
-
-            for ep in entry_points:
-                try:
-                    logger.info(f"Loading plugin: {ep.name}")
-
-                    # Load the plugin class
-                    plugin_class = ep.load()
-
-                    # Instantiate the plugin
-                    plugin = plugin_class()
-
-                    # Store the plugin
-                    self._plugins[ep.name] = plugin
-
-                    # Get metadata
-                    metadata = plugin_class.metadata()
-                    logger.info(f"Loaded plugin: {metadata.name} v{metadata.version}")
-
-                except Exception:
-                    logger.warning(f"Plugin not available: {ep.name}")
-
-        except Exception as e:
-            logger.error(f"Failed to discover plugins: {e}")
 
     def get_plugins(self) -> dict[str, ResultProcessor]:
         """
@@ -97,16 +71,7 @@ class PluginManager:
         """
         return self._plugins
 
-    def get_metadata(self) -> dict[str, PluginMetadata]:
-        """
-        Get all plugin metadata by calling their static methods.
-
-        Returns:
-            Dictionary mapping plugin names to metadata
-        """
-        return {name: plugin.__class__.metadata() for name, plugin in self._plugins.items()}
-
-    def plugin_name_exists(self, name: str) -> bool:
+    def plugin_exists(self, name: str) -> bool:
         """
         Check if a plugin with the given name is registered.
 
@@ -118,20 +83,104 @@ class PluginManager:
         """
         return name in self._plugins
 
-    def register_plugin(self, name: str, plugin: object) -> None:
+    def _validate_plugin_class(self, plugin_class: type, class_name: str) -> None:
         """
-        Register a plugin manually.
+        Validate that a class implements the ResultProcessor protocol.
 
         Args:
-            name: Unique name for the plugin
-            plugin: Plugin instance that implements ResultProcessor protocol
+            plugin_class: The class to validate
+            class_name: The fully qualified class name for error messages
 
         Raises:
-            ValueError: If plugin doesn't implement ResultProcessor protocol
+            ValueError: If the class doesn't implement ResultProcessor protocol
         """
-        # Check if the plugin name already exists
-        self._plugins[name] = plugin  # type: ignore[assignment]
-        logger.info(f"Registered plugin: {name}")
+        # Check for metadata method
+        if not hasattr(plugin_class, "metadata"):
+            raise ValueError(f"Plugin class {class_name} must have a 'metadata' method")
+
+        if not callable(getattr(plugin_class, "metadata", None)):
+            raise ValueError(f"Plugin class {class_name}'s 'metadata' must be callable")
+
+        # Check for process method (will be on instances)
+        if not hasattr(plugin_class, "process"):
+            raise ValueError(f"Plugin class {class_name} must have a 'process' method")
+
+        # Ensure process is not just an attribute but will be callable on instances
+        # We can't check if it's callable directly on the class because it might be an instance method
+        # Instead, we'll check after instantiation
+
+        # Try to get metadata and validate it
+        try:
+            # Try calling as static/class method first
+            try:
+                metadata = plugin_class.metadata()
+            except TypeError:
+                # If that fails, it might be an instance method, so create instance first
+                temp_instance = plugin_class()
+                metadata = temp_instance.metadata()
+
+            if not isinstance(metadata, PluginMetadata):
+                raise ValueError(f"Plugin class {class_name}'s metadata() must return a PluginMetadata instance")
+        except Exception as e:
+            raise ValueError(f"Failed to get metadata from {class_name}: {e}")
+
+    def register_plugin(self, class_name: str) -> None:
+        """
+        Register a plugin by its fully qualified class name.
+
+        Args:
+            class_name: Fully qualified class name (e.g., 'dqx.plugins.AuditPlugin')
+
+        Raises:
+            ValueError: If class cannot be imported or doesn't implement ResultProcessor
+        """
+        try:
+            # Parse the class name
+            parts = class_name.rsplit(".", 1)
+            if len(parts) != 2:
+                raise ValueError(f"Invalid class name format: {class_name}")
+
+            module_name, cls_name = parts
+
+            # Import the module
+            try:
+                module = importlib.import_module(module_name)
+            except ImportError as e:
+                raise ValueError(f"Cannot import module {module_name}: {e}")
+
+            # Get the class
+            if not hasattr(module, cls_name):
+                raise ValueError(f"Module {module_name} has no class {cls_name}")
+
+            plugin_class = getattr(module, cls_name)
+
+            # Validate the class
+            self._validate_plugin_class(plugin_class, class_name)
+
+            # Instantiate the plugin
+            plugin = plugin_class()
+
+            # Validate that process is callable on the instance
+            if not callable(getattr(plugin, "process", None)):
+                raise ValueError(f"Plugin instance {class_name}'s 'process' must be callable")
+
+            # Get the plugin name from metadata (try both class and instance)
+            try:
+                metadata = plugin_class.metadata()
+            except TypeError:
+                # Instance method, use the instance we already created
+                metadata = plugin.metadata()
+            plugin_name = metadata.name
+
+            # Store the plugin
+            self._plugins[plugin_name] = plugin
+            logger.info(f"Registered plugin: {plugin_name} (from {class_name})")
+
+        except Exception as e:
+            # Re-raise ValueError, let other exceptions propagate
+            if not isinstance(e, ValueError):
+                raise ValueError(f"Failed to register plugin {class_name}: {e}")
+            raise
 
     def unregister_plugin(self, name: str) -> None:
         """

@@ -13,6 +13,112 @@ from dqx.common import (
 from dqx.plugins import PluginManager
 
 
+# Module-level test plugin classes
+class ValidPlugin:
+    """Valid test plugin."""
+
+    @staticmethod
+    def metadata() -> PluginMetadata:
+        return PluginMetadata(
+            name="test",
+            version="1.0.0",
+            author="Test",
+            description="Test plugin",
+        )
+
+    def process(self, context: PluginExecutionContext) -> None:
+        pass
+
+
+class InvalidPlugin:
+    """Invalid plugin missing required methods."""
+
+    pass
+
+
+class PartialPluginNoProcess:
+    """Plugin with metadata but no process method."""
+
+    @staticmethod
+    def metadata() -> PluginMetadata:
+        return PluginMetadata(
+            name="partial",
+            version="1.0.0",
+            author="Test",
+            description="Partial plugin",
+        )
+
+
+class PartialPluginNoMetadata:
+    """Plugin with process but no metadata method."""
+
+    def process(self, context: PluginExecutionContext) -> None:
+        pass
+
+
+class TrackerPlugin:
+    """Plugin that tracks when it's called."""
+
+    @staticmethod
+    def metadata() -> PluginMetadata:
+        return PluginMetadata(
+            name="tracker",
+            version="1.0.0",
+            author="Test",
+            description="Tracking plugin",
+        )
+
+    def __init__(self) -> None:
+        self.called = False
+
+    def process(self, context: PluginExecutionContext) -> None:
+        self.called = True
+
+
+class BadPluginInstanceMetadata:
+    """Plugin with instance method metadata."""
+
+    def metadata(self) -> PluginMetadata:
+        return PluginMetadata(
+            name="bad",
+            version="1.0.0",
+            author="Test",
+            description="Bad plugin",
+        )
+
+    def process(self, context: PluginExecutionContext) -> None:
+        pass
+
+
+class BadPluginMetadataAttribute:
+    """Plugin with metadata as attribute."""
+
+    metadata = PluginMetadata(
+        name="bad",
+        version="1.0.0",
+        author="Test",
+        description="Bad plugin",
+    )
+
+    def process(self, context: PluginExecutionContext) -> None:
+        pass
+
+
+class BadPluginProcessAttribute:
+    """Plugin with process as attribute."""
+
+    @staticmethod
+    def metadata() -> PluginMetadata:
+        return PluginMetadata(
+            name="bad",
+            version="1.0.0",
+            author="Test",
+            description="Bad plugin",
+        )
+
+    process = "not a method"  # type: ignore
+
+
 class TestPluginPublicAPI:
     """Test cases for PluginManager public API."""
 
@@ -20,39 +126,22 @@ class TestPluginPublicAPI:
         """Test registering a valid plugin."""
         manager = PluginManager()
 
-        # Create a valid plugin
-        class ValidPlugin:
-            @staticmethod
-            def metadata() -> PluginMetadata:
-                return PluginMetadata(
-                    name="test",
-                    version="1.0.0",
-                    author="Test",
-                    description="Test plugin",
-                )
+        # Clear default plugins first
+        manager.clear_plugins()
 
-            def process(self, context: PluginExecutionContext) -> None:
-                pass
+        # Register using class name
+        manager.register_plugin("tests.test_plugin_public_api.ValidPlugin")
 
-        plugin = ValidPlugin()
-        manager.register_plugin("test", plugin)
-
-        # Verify plugin was registered
+        # Verify plugin was registered with name from metadata
         assert "test" in manager.get_plugins()
-        assert manager.get_plugins()["test"] is plugin
+        assert isinstance(manager.get_plugins()["test"], ValidPlugin)
 
     def test_register_plugin_invalid(self) -> None:
         """Test registering an invalid plugin raises ValueError."""
         manager = PluginManager()
 
-        # Create an invalid plugin (missing methods)
-        class InvalidPlugin:
-            pass
-
-        plugin = InvalidPlugin()
-
-        with pytest.raises(ValueError, match="Invalid plugin: bad_plugin does not implement ResultProcessor protocol"):
-            manager.register_plugin("bad_plugin", plugin)
+        with pytest.raises(ValueError, match="must have a 'metadata' method"):
+            manager.register_plugin("tests.test_plugin_public_api.InvalidPlugin")
 
         # Verify plugin was not registered
         assert "bad_plugin" not in manager.get_plugins()
@@ -61,35 +150,15 @@ class TestPluginPublicAPI:
         """Test registering a plugin without process method."""
         manager = PluginManager()
 
-        # Plugin with metadata but no process
-        class PartialPlugin:
-            @staticmethod
-            def metadata() -> PluginMetadata:
-                return PluginMetadata(
-                    name="partial",
-                    version="1.0.0",
-                    author="Test",
-                    description="Partial plugin",
-                )
-
-        plugin = PartialPlugin()
-
-        with pytest.raises(ValueError):
-            manager.register_plugin("partial", plugin)
+        with pytest.raises(ValueError, match="must have a 'process' method"):
+            manager.register_plugin("tests.test_plugin_public_api.PartialPluginNoProcess")
 
     def test_register_plugin_missing_metadata(self) -> None:
         """Test registering a plugin without metadata method."""
         manager = PluginManager()
 
-        # Plugin with process but no metadata
-        class PartialPlugin:
-            def process(self, context: PluginExecutionContext) -> None:
-                pass
-
-        plugin = PartialPlugin()
-
-        with pytest.raises(ValueError):
-            manager.register_plugin("partial", plugin)
+        with pytest.raises(ValueError, match="must have a 'metadata' method"):
+            manager.register_plugin("tests.test_plugin_public_api.PartialPluginNoMetadata")
 
     def test_unregister_plugin_existing(self) -> None:
         """Test unregistering an existing plugin."""
@@ -118,21 +187,8 @@ class TestPluginPublicAPI:
         """Test clearing all plugins."""
         manager = PluginManager()
 
-        # Add a custom plugin
-        class TestPlugin:
-            @staticmethod
-            def metadata() -> PluginMetadata:
-                return PluginMetadata(
-                    name="test",
-                    version="1.0.0",
-                    author="Test",
-                    description="Test plugin",
-                )
-
-            def process(self, context: PluginExecutionContext) -> None:
-                pass
-
-        manager.register_plugin("test", TestPlugin())
+        # Register a test plugin using class name
+        manager.register_plugin("tests.test_plugin_public_api.ValidPlugin")
 
         # Verify we have plugins
         assert len(manager.get_plugins()) > 0
@@ -147,27 +203,15 @@ class TestPluginPublicAPI:
         """Test complete plugin lifecycle: register, use, unregister."""
         manager = PluginManager()
 
-        # Track if plugin was called
-        plugin_called = False
+        # Clear default plugins
+        manager.clear_plugins()
 
-        # Create a plugin that tracks calls
-        class TrackerPlugin:
-            @staticmethod
-            def metadata() -> PluginMetadata:
-                return PluginMetadata(
-                    name="tracker",
-                    version="1.0.0",
-                    author="Test",
-                    description="Tracking plugin",
-                )
+        # Register the tracker plugin
+        manager.register_plugin("tests.test_plugin_public_api.TrackerPlugin")
 
-            def process(self, context: PluginExecutionContext) -> None:
-                nonlocal plugin_called
-                plugin_called = True
-
-        # Register the plugin
-        tracker = TrackerPlugin()
-        manager.register_plugin("tracker", tracker)
+        # Get the plugin instance to check if it was called
+        tracker = manager.get_plugins()["tracker"]
+        assert isinstance(tracker, TrackerPlugin)
 
         # Create context and process
         context = PluginExecutionContext(
@@ -183,84 +227,44 @@ class TestPluginPublicAPI:
         manager.process_all(context)
 
         # Verify plugin was called
-        assert plugin_called
+        assert tracker.called
 
         # Unregister and reset flag
         manager.unregister_plugin("tracker")
-        plugin_called = False
+        tracker.called = False
 
         # Process again
         manager.process_all(context)
 
-        # Verify plugin was NOT called this time
-        assert not plugin_called
+        # Verify plugin was NOT called this time (it's been unregistered)
+        assert not tracker.called
 
 
 class TestPluginValidation:
     """Test plugin validation edge cases."""
 
     def test_plugin_with_non_static_metadata(self) -> None:
-        """Test plugin with instance method metadata is rejected."""
+        """Test plugin with instance method metadata works correctly."""
         manager = PluginManager()
 
-        # Plugin with instance method metadata
-        class BadPlugin:
-            def metadata(self) -> PluginMetadata:
-                return PluginMetadata(
-                    name="bad",
-                    version="1.0.0",
-                    author="Test",
-                    description="Bad plugin",
-                )
+        # Clear default plugins
+        manager.clear_plugins()
 
-            def process(self, context: PluginExecutionContext) -> None:
-                pass
-
-        plugin = BadPlugin()
-
-        # Should still work because we check callability
-        manager.register_plugin("bad", plugin)
+        # Register using class name - should work because we check callability
+        manager.register_plugin("tests.test_plugin_public_api.BadPluginInstanceMetadata")
         assert "bad" in manager.get_plugins()
 
     def test_plugin_metadata_not_callable(self) -> None:
         """Test plugin with metadata as attribute is rejected."""
         manager = PluginManager()
 
-        # Plugin with metadata as attribute
-        class BadPlugin:
-            metadata = PluginMetadata(
-                name="bad",
-                version="1.0.0",
-                author="Test",
-                description="Bad plugin",
-            )
-
-            def process(self, context: PluginExecutionContext) -> None:
-                pass
-
-        plugin = BadPlugin()
-
-        with pytest.raises(ValueError):
-            manager.register_plugin("bad", plugin)
+        with pytest.raises(ValueError, match="'metadata' must be callable"):
+            manager.register_plugin("tests.test_plugin_public_api.BadPluginMetadataAttribute")
 
     def test_plugin_process_not_callable(self) -> None:
         """Test plugin with process as attribute is rejected."""
         manager = PluginManager()
 
-        # Plugin with process as attribute
-        class BadPlugin:
-            @staticmethod
-            def metadata() -> PluginMetadata:
-                return PluginMetadata(
-                    name="bad",
-                    version="1.0.0",
-                    author="Test",
-                    description="Bad plugin",
-                )
-
-            process = "not a method"
-
-        plugin = BadPlugin()
-
+        # This will fail during instantiation when trying to call process
         with pytest.raises(ValueError):
-            manager.register_plugin("bad", plugin)
+            manager.register_plugin("tests.test_plugin_public_api.BadPluginProcessAttribute")

@@ -233,6 +233,8 @@ json_reporter = "mypackage.plugins:JSONReporterPlugin"
 slack_notifier = "mypackage.plugins:SlackNotifierPlugin"
 ```
 
+This approach supports automatic plugin discovery when your package is installed.
+
 ### Method 2: Manual Registration
 
 For testing or dynamic plugin loading:
@@ -243,15 +245,17 @@ from dqx.api import VerificationSuite
 # Create suite
 suite = VerificationSuite(checks, db, "MyData")
 
-# Register custom plugins
-suite.plugin_manager.register_plugin("custom", MyCustomPlugin())
+# Register custom plugins using fully qualified class names
+suite.plugin_manager.register_plugin("mypackage.plugins.MyCustomPlugin")
 
 # Clear default plugins if needed
 suite.plugin_manager.clear_plugins()
 
 # Register only your plugins
-suite.plugin_manager.register_plugin("json_reporter", JSONReporterPlugin())
-suite.plugin_manager.register_plugin("slack", SlackNotifierPlugin(webhook_url))
+suite.plugin_manager.register_plugin("mypackage.plugins.JSONReporterPlugin")
+
+# Note: For plugins with constructor arguments, you'll need to use entry points
+# or create a wrapper class that handles initialization
 ```
 
 ## Error Handling
