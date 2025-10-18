@@ -240,3 +240,102 @@ def test_verification_suite_collect_symbols_without_key() -> None:
 
     with pytest.raises(DQXError, match="No ResultKey available"):
         suite.collect_symbols()
+
+
+def test_verification_suite_graph_before_build_error() -> None:
+    """Test accessing graph property before build_graph() raises error."""
+    db = InMemoryMetricDB()
+
+    @check(name="Test Check")
+    def test_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(sp.Symbol("x")).where(name="Test").is_positive()
+
+    suite = VerificationSuite([test_check], db, "Test Suite")
+
+    # Accessing graph before build_graph() should raise error
+    with pytest.raises(DQXError, match="Graph not built yet. Call build_graph\\(\\) or run\\(\\) first"):
+        _ = suite.graph
+
+
+def test_verification_suite_plugin_manager_lazy_initialization() -> None:
+    """Test plugin_manager property lazy initialization."""
+    db = InMemoryMetricDB()
+
+    @check(name="Test Check")
+    def test_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(sp.Symbol("x")).where(name="Test").is_positive()
+
+    suite = VerificationSuite([test_check], db, "Test Suite")
+
+    # Initially, _plugin_manager should be None
+    assert suite._plugin_manager is None
+
+    # Access plugin_manager property - should create instance
+    plugin_manager = suite.plugin_manager
+
+    # Verify it's created
+    assert plugin_manager is not None
+    assert suite._plugin_manager is not None
+
+    # Verify it returns the same instance on subsequent access
+    assert suite.plugin_manager is plugin_manager
+
+
+def test_collect_symbols_with_evaluation_error() -> None:
+    """Test collect_symbols handles exceptions during symbol evaluation."""
+    from unittest.mock import patch
+
+    db = InMemoryMetricDB()
+
+    @check(name="Test Check")
+    def test_check(mp: MetricProvider, ctx: Context) -> None:
+        # This will register a symbolic metric
+        ctx.assert_that(mp.average("price")).where(name="Test").is_positive()
+
+    suite = VerificationSuite([test_check], db, "Test Suite")
+    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+
+    # Build the graph to register metrics
+    suite.build_graph(suite._context, key)
+
+    # Mark as evaluated
+    suite.is_evaluated = True
+    suite._key = key
+
+    # Get the registered metric
+    assert len(suite._context.provider.symbolic_metrics) > 0
+    metric = suite._context.provider.symbolic_metrics[0]
+
+    # Mock the fn to raise an exception
+    with patch.object(metric, "fn", side_effect=RuntimeError("Test error")):
+        # Collect symbols - should handle the exception
+        symbols = suite.collect_symbols()
+
+        # Verify the symbol was created with a Failure value
+        assert len(symbols) == 1
+        assert symbols[0].name == "x_1"
+        assert symbols[0].value.failure()  # Returns the error message
+
+
+def test_process_plugins_early_return() -> None:
+    """Test _process_plugins returns early when execution metadata is missing."""
+    db = InMemoryMetricDB()
+
+    @check(name="Test Check")
+    def test_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(sp.Symbol("x")).where(name="Test").is_positive()
+
+    suite = VerificationSuite([test_check], db, "Test Suite")
+
+    # Call _process_plugins with missing execution metadata
+    # Should return early without processing
+    suite._process_plugins({"test": None})  # type: ignore
+
+    # Set partial metadata - still should return early
+    suite._execution_start = 123.45
+    suite._process_plugins({"test": None})  # type: ignore
+
+    suite._execution_duration_ms = 1000.0
+    suite._process_plugins({"test": None})  # type: ignore
+
+    # All should return early without errors

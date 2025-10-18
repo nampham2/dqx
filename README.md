@@ -328,6 +328,58 @@ symbols = suite.collect_symbols()
 print_symbols(symbols)  # Show all computed values
 ```
 
+## Plugin System
+
+DQX includes a plugin system for extending validation result processing. Plugins can generate reports, send notifications, collect metrics, or perform custom processing after validation completes.
+
+### Built-in Audit Plugin
+
+The audit plugin displays a Rich-formatted summary of validation results and is enabled by default:
+
+```python
+# Audit plugin enabled by default
+suite = VerificationSuite("MyDataQuality")
+
+# Explicitly control plugin usage
+suite = VerificationSuite("MyDataQuality", enable_plugins=True)
+suite = VerificationSuite("MyDataQuality", enable_plugins=False)
+```
+
+### Creating Custom Plugins
+
+```python
+from dqx.common import PluginExecutionContext, PluginMetadata
+
+
+class MyPlugin:
+    @staticmethod
+    def metadata() -> PluginMetadata:
+        return PluginMetadata(
+            name="my_plugin",
+            version="1.0.0",
+            author="Your Name",
+            description="What your plugin does",
+        )
+
+    def process(self, context: PluginExecutionContext) -> None:
+        """Process validation results."""
+        if context.failed_assertions() > 0:
+            # Send alerts, write reports, etc.
+            print(
+                f"Alert: {context.suite_name} has {context.failed_assertions()} failures!"
+            )
+```
+
+### Plugin Examples
+
+See the [Plugin System Documentation](docs/plugin_system.md) for complete examples including:
+- JSON report generation
+- Slack notifications
+- Metrics collection
+- Error handling and timeouts
+
+The [plugin demo](examples/plugin_demo.py) shows a complete working implementation.
+
 ## Development
 
 ### Setup
