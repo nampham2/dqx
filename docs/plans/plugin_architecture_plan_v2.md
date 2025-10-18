@@ -46,7 +46,7 @@ class PluginExecutionContext:
     datasources: list[str]
     key: ResultKey
     timestamp: float
-    duration_seconds: float
+    duration_ms: float
     results: list[AssertionResult]
     symbols: list[SymbolInfo]
 
@@ -212,19 +212,21 @@ def test_plugin_execution_context_creation() -> None:
     ]
 
     context = PluginExecutionContext(
+        suite_name="test",
         datasources=["ds1", "ds2"],
         key=ResultKey("2024-01-01", {"env": "prod"}),
         timestamp=1704067200.0,
-        duration_seconds=2.5,
+        duration_ms=2500.0,
         results=results,
         symbols=symbols
     )
 
+    assert context.suite_name == "test"
     assert context.datasources == ["ds1", "ds2"]
     assert context.key.yyyy_mm_dd == "2024-01-01"
     assert context.key.tags == {"env": "prod"}
     assert context.timestamp == 1704067200.0
-    assert context.duration_seconds == 2.5
+    assert context.duration_ms == 2500.0
     assert len(context.results) == 1
     assert len(context.symbols) == 1
 
@@ -232,10 +234,11 @@ def test_plugin_execution_context_creation() -> None:
 def test_context_total_assertions() -> None:
     """Test total_assertions method."""
     context = PluginExecutionContext(
+        suite_name="test",
         datasources=[],
         key=ResultKey("2024-01-01", {}),
         timestamp=0.0,
-        duration_seconds=0.0,
+        duration_ms=0.0,
         results=[
             AssertionResult(
                 yyyy_mm_dd="2024-01-01",
@@ -272,10 +275,11 @@ def test_context_failed_assertions() -> None:
     ]
 
     context = PluginExecutionContext(
+        suite_name="test",
         datasources=[],
         key=ResultKey("2024-01-01", {}),
         timestamp=0.0,
-        duration_seconds=0.0,
+        duration_ms=0.0,
         results=results,
         symbols=[]
     )
@@ -302,10 +306,11 @@ def test_context_assertion_pass_rate() -> None:
     ]
 
     context = PluginExecutionContext(
+        suite_name="test",
         datasources=[],
         key=ResultKey("2024-01-01", {}),
         timestamp=0.0,
-        duration_seconds=0.0,
+        duration_ms=0.0,
         results=results,
         symbols=[]
     )
@@ -314,10 +319,11 @@ def test_context_assertion_pass_rate() -> None:
 
     # Empty results = 100% pass rate
     empty_context = PluginExecutionContext(
+        suite_name="test",
         datasources=[],
         key=ResultKey("2024-01-01", {}),
         timestamp=0.0,
-        duration_seconds=0.0,
+        duration_ms=0.0,
         results=[],
         symbols=[]
     )
@@ -340,10 +346,11 @@ def test_context_symbol_methods() -> None:
     ]
 
     context = PluginExecutionContext(
+        suite_name="test",
         datasources=["ds1"],
         key=ResultKey("2024-01-01", {}),
         timestamp=0.0,
-        duration_seconds=0.0,
+        duration_ms=0.0,
         results=[],
         symbols=symbols
     )
@@ -369,10 +376,11 @@ def test_context_assertions_by_severity() -> None:
     ]
 
     context = PluginExecutionContext(
+        suite_name="test",
         datasources=[],
         key=ResultKey("2024-01-01", {}),
         timestamp=0.0,
-        duration_seconds=0.0,
+        duration_ms=0.0,
         results=results,
         symbols=[]
     )
@@ -398,10 +406,11 @@ def test_context_failures_by_severity() -> None:
     ]
 
     context = PluginExecutionContext(
+        suite_name="test",
         datasources=[],
         key=ResultKey("2024-01-01", {}),
         timestamp=0.0,
-        duration_seconds=0.0,
+        duration_ms=0.0,
         results=results,
         symbols=[]
     )
@@ -680,7 +689,7 @@ class AuditPlugin:
         self.console.print("[bold blue]═══ DQX Audit Report ═══[/bold blue]")
         self.console.print(f"[cyan]Suite:[/cyan] {suite_name}")
         self.console.print(f"[cyan]Date:[/cyan] {context.key.yyyy_mm_dd}")
-        self.console.print(f"[cyan]Duration:[/cyan] {context.duration_seconds:.2f}s")
+        self.console.print(f"[cyan]Duration:[/cyan] {context.duration_ms:.2f}ms")
         if context.datasources:
             self.console.print(f"[cyan]Datasets:[/cyan] {', '.join(context.datasources)}")
         self.console.print()
@@ -946,7 +955,7 @@ def _execute_plugins(self, datasources: dict[str, SqlDataSource], key: ResultKey
         datasources=list(datasources.keys()),
         key=key,
         timestamp=timestamp,  # Passed directly from timer.tick
-        duration_seconds=validation_duration_ms / 1000.0,  # Convert ms to seconds
+        duration_ms=validation_duration_ms,  # Pass ms directly, no conversion
         results=self.collect_results(),
         symbols=self.collect_symbols()
     )
@@ -1173,7 +1182,7 @@ def test_process_all_no_plugins() -> None:
             datasources=["test_ds"],
             key=ResultKey("2024-01-01", {}),
             timestamp=0.0,
-            duration_seconds=1.0,
+            duration_ms=1000.0,
             results=[],
             symbols=[]
         )
@@ -1213,10 +1222,10 @@ def test_process_all_with_plugin() -> None:
     context = PluginExecutionContext(
         datasources=["test_dataset"],
         key=ResultKey("2024-01-01", {"env": "test"}),
-        timestamp=1704067200.0,
-        duration_seconds=2.5,
-        results=[result],
-        symbols=[symbol]
+            timestamp=1704067200.0,
+            duration_ms=2500.0,
+            results=[result],
+            symbols=[symbol]
     )
 
     config = {"test_plugin": {"setting": "value"}}
@@ -1299,10 +1308,10 @@ def test_context_methods() -> None:
     context = PluginExecutionContext(
         datasources=["ds1", "ds2"],
         key=ResultKey("2024-01-01", {}),
-        timestamp=0.0,
-        duration_seconds=1.0,
-        results=results,
-        symbols=symbols
+            timestamp=0.0,
+            duration_ms=1000.0,
+            results=results,
+            symbols=symbols
     )
 
     # Test assertion methods
@@ -1469,7 +1478,7 @@ def test_plugin_timeout() -> None:
             datasources=[],
             key=ResultKey("2024-01-01", {}),
             timestamp=0.0,
-            duration_seconds=0.0,
+            duration_ms=0.0,
             results=[],
             symbols=[]
         )
@@ -1648,7 +1657,7 @@ def create_test_context() -> PluginExecutionContext:
         datasources=["dataset1", "dataset2"],
         key=ResultKey("2024-01-01", {"env": "test"}),
         timestamp=1704067200.0,  # 2024-01-01 00:00:00 UTC
-        duration_seconds=2.5,
+        duration_ms=2500.0,
         results=results,
         symbols=symbols
     )
@@ -1705,10 +1714,10 @@ def test_audit_plugin_handles_empty_results() -> None:
     context = PluginExecutionContext(
         datasources=[],
         key=ResultKey("2024-01-01", {}),
-        timestamp=0.0,
-        duration_seconds=0.0,
-        results=[],
-        symbols=[]
+            timestamp=0.0,
+            duration_ms=0.0,
+            results=[],
+            symbols=[]
     )
 
     # Mock console to verify it still prints
@@ -1780,10 +1789,10 @@ def test_audit_plugin_severity_colors() -> None:
     context = PluginExecutionContext(
         datasources=[],
         key=ResultKey("2024-01-01", {}),
-        timestamp=0.0,
-        duration_seconds=0.0,
-        results=results,
-        symbols=[]
+            timestamp=0.0,
+            duration_ms=0.0,
+            results=[],
+            symbols=[]
     )
 
     plugin = AuditPlugin()
@@ -1827,7 +1836,7 @@ def test_audit_plugin_no_failures() -> None:
         datasources=["test_ds"],
         key=ResultKey("2024-01-01", {}),
         timestamp=0.0,
-        duration_seconds=1.0,
+        duration_ms=1000.0,
         results=results,
         symbols=[]
     )
@@ -1859,7 +1868,7 @@ def test_audit_plugin_displays_duration() -> None:
         datasources=["ds1"],
         key=ResultKey("2024-01-01", {}),
         timestamp=1704067200.0,
-        duration_seconds=3.14159,
+        duration_ms=3141.59,
         results=[],
         symbols=[]
     )
@@ -2002,7 +2011,7 @@ def test_full_plugin_integration() -> None:
         assert isinstance(context, PluginExecutionContext)
         assert context.datasources == ["sales"]
         assert context.key == key
-        assert context.duration_seconds > 0
+        assert context.duration_ms > 0
 
         # Verify context methods work
         assert context.total_assertions() == 2
@@ -2271,7 +2280,7 @@ context.symbols                 # List[SymbolInfo]
 context.datasources            # List[str] - dataset names
 context.key                    # ResultKey with date and tags
 context.timestamp              # Unix timestamp of execution
-context.duration_seconds       # Execution duration
+context.duration_ms            # Execution duration in milliseconds
 ```
 
 ## Built-in Plugins
