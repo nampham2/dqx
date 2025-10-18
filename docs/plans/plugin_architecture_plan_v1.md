@@ -655,318 +655,9 @@ git commit -m "test(plugins): add comprehensive plugin system tests
 
 ---
 
-## Task Group 4: Documentation and Examples
+## Task Group 4: Built-in Audit Plugin
 
-### Step 4.1: Create Email Alerts Example
-
-Create `examples/plugin_email_alerts.py`:
-
-```python
-"""Example email alerts plugin for DQX."""
-
-import logging
-from typing import Any
-
-from dqx.common import AssertionResult, SymbolInfo
-
-logger = logging.getLogger(__name__)
-
-
-class EmailAlertsPlugin:
-    """Send email alerts for assertion failures."""
-
-    def initialize(self, config: dict[str, Any]) -> None:
-        """Initialize with email configuration."""
-        self.smtp_host = config.get("smtp_host", "localhost")
-        self.smtp_port = config.get("smtp_port", 587)
-        self.from_email = config.get("from_email", "dqx@example.com")
-        self.to_emails = config.get("to_emails", [])
-        self.severity_levels = config.get("severity_levels", ["P0", "P1"])
-
-        # In real implementation, validate SMTP connection
-        logger.info(f"Email alerts configured for severities: {self.severity_levels}")
-
-    def process(
-        self,
-        results: list[AssertionResult],
-        symbols: list[SymbolInfo],
-        suite_name: str,
-        context: dict[str, Any]
-    ) -> None:
-        """Send email if critical failures found."""
-        # Filter for failures matching our severity levels
-        failures = [
-            r for r in results
-            if r.status == "FAILURE" and r.severity in self.severity_levels
-        ]
-
-        if not failures:
-            logger.info("No critical failures found, no email sent")
-            return
-
-        # Build email content
-        subject = f"DQX Alert: {len(failures)} failures in {suite_name}"
-        body = self._build_email_body(failures, suite_name, context)
-
-        # Send email (mock implementation)
-        self._send_email(subject, body)
-        logger.info(f"Alert email sent for {len(failures)} failures")
-
-    def _build_email_body(
-        self,
-        failures: list[AssertionResult],
-        suite_name: str,
-        context: dict[str, Any]
-    ) -> str:
-        """Build email body with failure details."""
-        lines = [
-            f"DQX Validation Suite: {suite_name}",
-            f"Date: {context.get('key', {}).get('yyyy_mm_dd', 'Unknown')}",
-            f"Datasets: {', '.join(context.get('datasources', []))}",
-            "",
-            "Failures:",
-        ]
-
-        for f in failures:
-            lines.extend([
-                f"- [{f.severity}] {f.check}/{f.assertion}",
-                f"  Expression: {f.expression}",
-                f"  Metric: {f.metric}",
-                ""
-            ])
-
-        return "\n".join(lines)
-
-    def _send_email(self, subject: str, body: str) -> None:
-        """Send email via SMTP (mock implementation)."""
-        # In real implementation, use smtplib
-        logger.info(f"[MOCK] Sending email: {subject}")
-        logger.debug(f"[MOCK] Email body:\n{body}")
-
-
-# Usage in external package pyproject.toml:
-# [project.entry-points."dqx.plugins"]
-# email_alerts = "your_package.plugins:EmailAlertsPlugin"
-```
-
-### Step 4.2: Create Database Writer Example
-
-Create `examples/plugin_database_writer.py`:
-
-```python
-"""Example database writer plugin for DQX."""
-
-import json
-import logging
-from datetime import datetime
-from typing import Any
-
-from dqx.common import AssertionResult, SymbolInfo
-
-logger = logging.getLogger(__name__)
-
-
-class DatabaseWriterPlugin:
-    """Write validation results to external database."""
-
-    def initialize(self, config: dict[str, Any]) -> None:
-        """Initialize database connection."""
-        self.db_url = config.get("database_url", "postgresql://localhost/dqx")
-        self.table_prefix = config.get("table_prefix", "dqx_")
-        self.batch_size = config.get("batch_size", 1000)
-
-        # In real implementation, create connection pool
-        logger.info(f"Database writer configured for: {self.db_url}")
-
-    def process(
-        self,
-        results: list[AssertionResult],
-        symbols: list[SymbolInfo],
-        suite_name: str,
-        context: dict[str, Any]
-    ) -> None:
-        """Write results to database."""
-        timestamp = datetime.fromtimestamp(context.get("timestamp", 0))
-
-        # Write assertion results
-        self._write_results(results, suite_name, timestamp)
-
-        # Write symbol values
-        self._write_symbols(symbols, suite_name, timestamp)
-
-        logger.info(
-            f"Wrote {len(results)} results and {len(symbols)} symbols to database"
-        )
-
-    def _write_results(
-        self,
-        results: list[AssertionResult],
-        suite_name: str,
-        timestamp: datetime
-    ) -> None:
-        """Write assertion results to database."""
-        # Mock implementation - in reality, use SQLAlchemy or similar
-        rows = []
-        for r in results:
-            rows.append({
-                "suite_name": suite_name,
-                "check_name": r.check,
-                "assertion_name": r.assertion,
-                "severity": r.severity,
-                "status": r.status,
-                "expression": r.expression,
-                "metric": r.metric,
-                "date": r.yyyy_mm_dd,
-                "tags": json.dumps(r.tags),
-                "timestamp": timestamp,
-            })
-
-        # Batch insert
-        for i in range(0, len(rows), self.batch_size):
-            batch = rows[i:i + self.batch_size]
-            logger.debug(f"[MOCK] Inserting {len(batch)} results")
-
-    def _write_symbols(
-        self,
-        symbols: list[SymbolInfo],
-        suite_name: str,
-        timestamp: datetime
-    ) -> None:
-        """Write symbol values to database."""
-        rows = []
-        for s in symbols:
-            if s.value.is_success():
-                rows.append({
-                    "suite_name": suite_name,
-                    "symbol_name": s.name,
-                    "metric": s.metric,
-                    "dataset": s.dataset,
-                    "value": s.value.unwrap(),
-                    "date": s.yyyy_mm_dd,
-                    "tags": json.dumps(s.tags),
-                    "timestamp": timestamp,
-                })
-
-        # Batch insert
-        for i in range(0, len(rows), self.batch_size):
-            batch = rows[i:i + self.batch_size]
-            logger.debug(f"[MOCK] Inserting {len(batch)} symbols")
-
-
-# Usage in external package pyproject.toml:
-# [project.entry-points."dqx.plugins"]
-# db_writer = "your_package.plugins:DatabaseWriterPlugin"
-```
-
-### Step 4.3: Update README
-
-Add this section to `README.md`:
-
-```markdown
-## Plugin System
-
-DQX supports a plugin system that allows external packages to process validation results. Plugins can be used to:
-
-- Send alerts when assertions fail
-- Write results to external databases
-- Integrate with monitoring systems
-- Generate custom reports
-
-### Creating a Plugin
-
-Plugins must implement the `ResultProcessor` protocol:
-
-```python
-from typing import Any
-from dqx.common import AssertionResult, SymbolInfo
-
-class MyPlugin:
-    def initialize(self, config: dict[str, Any]) -> None:
-        """Initialize the plugin with configuration."""
-        pass
-
-    def process(
-        self,
-        results: list[AssertionResult],
-        symbols: list[SymbolInfo],
-        suite_name: str,
-        context: dict[str, Any]
-    ) -> None:
-        """Process validation results."""
-        pass
-```
-
-### Registering a Plugin
-
-External packages register plugins via `pyproject.toml`:
-
-```toml
-[project.entry-points."dqx.plugins"]
-my_plugin = "mypackage.plugins:MyPlugin"
-```
-
-### Using Plugins
-
-Configure plugins when creating a VerificationSuite:
-
-```python
-suite = VerificationSuite(
-    checks=checks,
-    db=db,
-    name="My Suite",
-    plugin_config={
-        "my_plugin": {
-            "setting": "value"
-        }
-    }
-)
-```
-
-See `examples/plugin_*.py` for complete examples.
-```
-
-### Step 4.4: Add Entry Point Example to pyproject.toml
-
-Add this commented section to `pyproject.toml`:
-
-```toml
-# Example: How external packages register DQX plugins
-# [project.entry-points."dqx.plugins"]
-# email_alerts = "mypackage.plugins:EmailAlertsPlugin"
-# db_writer = "mypackage.plugins:DatabaseWriterPlugin"
-```
-
-### Step 4.5: Validation
-
-```bash
-# Type check examples
-uv run mypy examples/plugin_email_alerts.py
-uv run mypy examples/plugin_database_writer.py
-
-# Run full test suite to ensure nothing broke
-uv run pytest tests/ -v
-
-# Run pre-commit hooks
-bin/run-hooks.sh
-```
-
-### Step 4.6: Git Commit
-
-```bash
-git add examples/plugin_*.py README.md pyproject.toml
-git commit -m "docs(plugins): add plugin examples and documentation
-
-- Add email alerts plugin example
-- Add database writer plugin example
-- Update README with plugin development guide
-- Include configuration examples"
-```
-
----
-
-## Task Group 5: Built-in Audit Plugin
-
-### Step 5.1: Create Plugin Directory Structure
+### Step 4.1: Create Plugin Directory Structure
 
 Create the plugins submodule structure:
 
@@ -975,7 +666,7 @@ mkdir -p src/dqx/plugins
 touch src/dqx/plugins/__init__.py
 ```
 
-### Step 5.2: Create Audit Plugin
+### Step 4.2: Create Audit Plugin
 
 Create `src/dqx/plugins/audit.py`:
 
@@ -1106,7 +797,7 @@ class AuditPlugin:
                 logger.error(f"Failed to write audit to file: {e}")
 ```
 
-### Step 5.3: Update Package __init__.py
+### Step 4.3: Update Package __init__.py
 
 Update `src/dqx/plugins/__init__.py`:
 
@@ -1118,7 +809,7 @@ from dqx.plugins.audit import AuditPlugin
 __all__ = ["AuditPlugin"]
 ```
 
-### Step 5.4: Register Built-in Plugin
+### Step 4.4: Register Built-in Plugin
 
 Add to `pyproject.toml` in the appropriate section:
 
@@ -1127,7 +818,7 @@ Add to `pyproject.toml` in the appropriate section:
 dqx_audit = "dqx.plugins.audit:AuditPlugin"
 ```
 
-### Step 5.5: Create Tests for Audit Plugin
+### Step 4.5: Create Tests for Audit Plugin
 
 Create `tests/test_audit_plugin.py`:
 
@@ -1314,7 +1005,7 @@ def test_audit_plugin_file_write_error_handling() -> None:
         assert "Failed to write audit to file" in str(error_calls[0])
 ```
 
-### Step 5.6: Validation
+### Step 4.6: Validation
 
 ```bash
 # Type check
@@ -1330,91 +1021,25 @@ uv run pytest tests/test_audit_plugin.py -v
 uv run pytest tests/test_audit_plugin.py -v --cov=dqx.plugins.audit --cov-report=term-missing
 ```
 
-### Step 5.7: Update Examples
-
-Add example usage to `examples/plugin_audit_demo.py`:
-
-```python
-"""Demonstration of the built-in audit plugin."""
-
-from datetime import date
-
-from dqx.api import VerificationSuite, check
-from dqx.common import ResultKey
-from dqx.orm.repositories import MetricDB
-from dqx.provider import DataSource
-
-
-def main() -> None:
-    """Run verification suite with audit plugin enabled."""
-    # Define checks
-    @check(name="Sales Validation")
-    def sales_check(mp, ctx):
-        ctx.assert_that(mp.sum("amount"))\\
-           .where(name="Total sales positive", severity="P0")\\
-           .is_positive()
-
-        ctx.assert_that(mp.count("transaction_id"))\\
-           .where(name="Has transactions")\\
-           .is_gt(0)
-
-    @check(name="Data Freshness")
-    def freshness_check(mp, ctx):
-        ctx.assert_that(mp.max("updated_at"))\\
-           .where(name="Data is recent", severity="P1")\\
-           .is_gte("2024-01-01")
-
-    # Create suite with audit plugin configured
-    suite = VerificationSuite(
-        checks=[sales_check, freshness_check],
-        db=MetricDB(),
-        name="Daily Sales Validation",
-        plugin_config={
-            "dqx_audit": {
-                "log_to_file": True,
-                "audit_file": "sales_audit.log"
-            }
-        }
-    )
-
-    # Create test data
-    datasources = {
-        "sales": DataSource.from_records([
-            {"amount": 100.0, "transaction_id": "T1", "updated_at": "2024-01-15"},
-            {"amount": 200.0, "transaction_id": "T2", "updated_at": "2024-01-15"},
-            {"amount": -50.0, "transaction_id": "T3", "updated_at": "2024-01-14"},
-        ])
-    }
-
-    # Run validation
-    key = ResultKey(date.today(), {"region": "US"})
-    suite.run(datasources, key)
-
-    print("Validation completed. Check sales_audit.log for audit details.")
-
-
-if __name__ == "__main__":
-    main()
-```
-
-### Step 5.8: Git Commit
+### Step 4.7: Git Commit
 
 ```bash
-git add src/dqx/plugins/ tests/test_audit_plugin.py examples/plugin_audit_demo.py pyproject.toml
+git add src/dqx/plugins/ tests/test_audit_plugin.py pyproject.toml
 git commit -m "feat(plugins): add built-in audit plugin
 
 - Create AuditPlugin for execution tracking and statistics
 - Register plugin via entry point in pyproject.toml
 - Support file-based audit logging
 - Add comprehensive tests with full coverage
-- Include usage example"
+- Include usage example
+- Register via entry point in pyproject.toml"
 ```
 
 ---
 
-## Task Group 6: Final Integration Test
+## Task Group 5: Final Integration Test
 
-### Step 6.1: Create Full Integration Test
+### Step 5.1: Create Full Integration Test
 
 Create `tests/test_plugin_integration.py`:
 
@@ -1489,7 +1114,7 @@ def test_full_plugin_integration() -> None:
         assert call_args[1]["config"] == {"test": {"key": "value"}}
 ```
 
-### Step 6.2: Validation
+### Step 5.2: Validation
 
 ```bash
 # Run all tests including integration
@@ -1505,7 +1130,7 @@ uv run mypy src/dqx/plugins.py src/dqx/api.py
 uv run ruff check src/dqx/plugins.py src/dqx/api.py
 ```
 
-### Step 6.3: Git Commit
+### Step 5.3: Git Commit
 
 ```bash
 git add tests/test_plugin_integration.py
@@ -1518,9 +1143,9 @@ git commit -m "test(plugins): add full integration test
 
 ---
 
-## Task Group 7: Documentation Updates
+## Task Group 6: Documentation
 
-### Step 7.1: Update README.md
+### Step 6.1: Update README.md
 
 Replace the detailed plugin section with a brief mention and link:
 
@@ -1532,7 +1157,7 @@ DQX supports a plugin system for processing validation results. Plugins can send
 See [Plugin Development Guide](docs/plugins.md) for details on creating your own plugins.
 ```
 
-### Step 7.2: Create docs/plugins.md
+### Step 6.2: Create docs/plugins.md
 
 Create a simple, pragmatic plugin development guide:
 
@@ -1610,12 +1235,39 @@ Plugins must implement two methods:
   - `key`: ResultKey with date and tags
   - `timestamp`: Unix timestamp of execution
 
-## Examples
+## Example Plugin Implementations
 
-See the `examples/` directory for complete plugin examples:
-- `plugin_email_alerts.py` - Send email alerts for failures
-- `plugin_database_writer.py` - Write results to external database
-- `plugin_audit_demo.py` - Use the built-in audit plugin
+Here's a simple example of an email alerts plugin:
+
+```python
+import logging
+from typing import Any
+from dqx.common import AssertionResult, SymbolInfo
+
+logger = logging.getLogger(__name__)
+
+class EmailAlertsPlugin:
+    def initialize(self, config: dict[str, Any]) -> None:
+        self.smtp_host = config.get("smtp_host", "localhost")
+        self.severity_levels = config.get("severity_levels", ["P0", "P1"])
+        logger.info(f"Email alerts configured for severities: {self.severity_levels}")
+
+    def process(
+        self,
+        results: list[AssertionResult],
+        symbols: list[SymbolInfo],
+        suite_name: str,
+        context: dict[str, Any]
+    ) -> None:
+        failures = [
+            r for r in results
+            if r.status == "FAILURE" and r.severity in self.severity_levels
+        ]
+
+        if failures:
+            # In real implementation, send email via SMTP
+            logger.info(f"Would send alert for {len(failures)} failures in {suite_name}")
+```
 
 ## Built-in Plugins
 
@@ -1639,7 +1291,7 @@ plugin_config={
 5. **Test thoroughly** - Include unit tests for your plugin logic
 ```
 
-### Step 7.3: Update pyproject.toml Comments
+### Step 6.3: Update pyproject.toml Comments
 
 Move the detailed plugin registration example from README to pyproject.toml:
 
@@ -1658,17 +1310,17 @@ dqx_audit = "dqx.plugins.audit:AuditPlugin"
 # slack_notifier = "mypackage.plugins:SlackPlugin"
 ```
 
-### Step 7.4: Validation
+### Step 6.4: Validation
 
 ```bash
 # Verify markdown syntax
 cat docs/plugins.md
 
-# Ensure examples still type check
-uv run mypy examples/plugin_*.py
+# Run full test suite
+uv run pytest tests/ -v
 ```
 
-### Step 7.5: Git Commit
+### Step 6.5: Git Commit
 
 ```bash
 git add README.md docs/plugins.md pyproject.toml
@@ -1690,11 +1342,10 @@ After completing all task groups, you should have:
 2. ✅ Integration with VerificationSuite in `src/dqx/api.py`
 3. ✅ Built-in audit plugin in `src/dqx/plugins/audit.py`
 4. ✅ Comprehensive tests with 100% coverage
-5. ✅ Example plugins demonstrating usage
-6. ✅ Updated documentation
-7. ✅ Clean git history with atomic commits
+5. ✅ Updated documentation with simple plugin guide
+6. ✅ Clean git history with atomic commits
 
 The plugin system is now ready with:
 - A built-in audit plugin for tracking execution
 - Support for external packages to create and register their own result processors
-- Full documentation and examples showing how to build plugins
+- Full documentation showing how to build plugins
