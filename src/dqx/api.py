@@ -400,6 +400,16 @@ class VerificationSuite:
             raise DQXError("No ResultKey available. This should not happen after successful run().")
         return self._key
 
+    def assert_is_evaluated(self) -> None:
+        """
+        Ensure the suite has been evaluated before proceeding.
+
+        Raises:
+            DQXError: If the suite has not been evaluated yet
+        """
+        if not self._is_evaluated:
+            raise DQXError("Verification suite has not been executed yet!")
+
     def build_graph(self, context: Context, key: ResultKey) -> None:
         """
         Build the dependency graph by executing all checks without running analysis.
@@ -540,10 +550,8 @@ class VerificationSuite:
             ...         for f in failures:
             ...             print(f"  Error: {f.error_message}")
         """
-        if not self._is_evaluated:
-            raise DQXError("Cannot collect results before suite execution. Call run() first to evaluate assertions.")
-
-        # Use the stored key
+        # Only collect results after evaluation
+        self.assert_is_evaluated()
         key = self.key
         results = []
 
@@ -592,9 +600,8 @@ class VerificationSuite:
             ...     if s.value.is_success():
             ...         print(f"{s.metric}: {s.value.unwrap()}")
         """
-        if not self._is_evaluated:
-            raise DQXError("Cannot collect symbols before suite execution. Call run() first to evaluate assertions.")
-
+        # Only collect symbols after evaluation
+        self.assert_is_evaluated()
         symbols = []
 
         # Iterate through all registered symbols
@@ -635,8 +642,7 @@ class VerificationSuite:
             datasources: Dictionary of data sources used in the suite execution
         """
         # Raise error if the suite hasn't been properly executed
-        if not self._is_evaluated:
-            raise DQXError("Cannot process plugins: Suite has not been evaluated yet")
+        self.assert_is_evaluated()
 
         # Calculate duration - handle case where timer wasn't started
         try:
