@@ -10,7 +10,10 @@ Currently, DQX executes validation checks and collects results, but has no mecha
 
 - Sending alerts/emails when assertions fail
 - Writing results to custom databases
-- Integration with monitoring systems
+- Workflow & Orchestration Integration: Trigger downstream workflows in Airflow/Prefect/Dagster based on validation results
+- Data Catalog Integration: Sync quality metrics to DataHub, Amundsen, or Collibra for unified data discovery
+- Integration with monitoring systems: Send metrics to Prometheus, DataDog, or New Relic for operational visibility
+- Dashboarding & debugging: Export results to Tableau/PowerBI or create custom dashboards for troubleshooting data issues
 - Custom reporting and analytics
 
 ## Design Decisions
@@ -961,9 +964,457 @@ git commit -m "docs(plugins): add plugin examples and documentation
 
 ---
 
-## Task Group 5: Final Integration Test
+## Task Group 5: Built-in Audit Plugin
 
-### Step 5.1: Create Full Integration Test
+### Step 5.1: Create Plugin Directory Structure
+
+Create the plugins submodule structure:
+
+```bash
+mkdir -p src/dqx/plugins
+touch src/dqx/plugins/__init__.py
+```
+
+### Step 5.2: Create Audit Plugin
+
+Create `src/dqx/plugins/audit.py`:
+
+```python
+"""Built-in audit plugin for DQX execution tracking."""
+
+import logging
+import time
+from pathlib import Path
+from typing import Any
+
+from dqx.common import AssertionResult, SymbolInfo
+
+logger = logging.getLogger(__name__)
+
+
+class AuditPlugin:
+    """
+    DQX built-in audit plugin for tracking suite execution.
+
+    This plugin provides basic auditing functionality including:
+    - Execution timing
+    - Result statistics
+    - Performance metrics
+    """
+
+    def __init__(self) -> None:
+        """Initialize the audit plugin."""
+        self.start_time: float | None = None
+        self.audit_file: Path | None = None
+        self.log_to_file: bool = False
+
+    def initialize(self, config: dict[str, Any]) -> None:
+        """
+        Initialize with audit configuration.
+
+        Args:
+            config: Configuration with optional keys:
+                - audit_file: Path to write audit logs
+                - log_to_file: Whether to write to file (default: False)
+        """
+        self.log_to_file = config.get("log_to_file", False)
+
+        if self.log_to_file:
+            audit_file_path = config.get("audit_file", "dqx_audit.log")
+            self.audit_file = Path(audit_file_path)
+            logger.info(f"Audit logging to file: {self.audit_file}")
+
+    def process(
+        self,
+        results: list[AssertionResult],
+        symbols: list[SymbolInfo],
+        suite_name: str,
+        context: dict[str, Any]
+    ) -> None:
+        """
+        Process and audit the validation results.
+
+        Args:
+            results: List of assertion results
+            symbols: List of symbol values
+            suite_name: Name of the verification suite
+            context: Execution context
+        """
+        # Calculate statistics
+        total_assertions = len(results)
+        passed = sum(1 for r in results if r.status == "SUCCESS")
+        failed = sum(1 for r in results if r.status == "FAILURE")
+
+        # Group failures by severity
+        failures_by_severity: dict[str, int] = {}
+        for r in results:
+            if r.status == "FAILURE":
+                failures_by_severity[r.severity] = failures_by_severity.get(r.severity, 0) + 1
+
+        # Calculate unique checks and datasets
+        unique_checks = len(set(r.check for r in results))
+        unique_datasets = context.get("datasources", [])
+
+        # Build audit message
+        timestamp = context.get("timestamp", time.time())
+        audit_lines = [
+            f"=== DQX Audit Log ===",
+            f"Suite: {suite_name}",
+            f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp))}",
+            f"Date: {context.get('key', {}).get('yyyy_mm_dd', 'N/A')}",
+            f"Datasets: {', '.join(unique_datasets) if unique_datasets else 'None'}",
+            f"",
+            f"Execution Summary:",
+            f"  Total Checks: {unique_checks}",
+            f"  Total Assertions: {total_assertions}",
+            f"  Passed: {passed} ({passed/total_assertions*100:.1f}%)" if total_assertions else "  Passed: 0",
+            f"  Failed: {failed} ({failed/total_assertions*100:.1f}%)" if total_assertions else "  Failed: 0",
+        ]
+
+        if failures_by_severity:
+            audit_lines.extend([
+                f"",
+                f"Failures by Severity:",
+            ])
+            for severity, count in sorted(failures_by_severity.items()):
+                audit_lines.append(f"  {severity}: {count}")
+
+        # Add symbol statistics
+        if symbols:
+            successful_symbols = sum(1 for s in symbols if s.value.is_success())
+            audit_lines.extend([
+                f"",
+                f"Symbol Statistics:",
+                f"  Total Symbols: {len(symbols)}",
+                f"  Successful: {successful_symbols}",
+                f"  Failed: {len(symbols) - successful_symbols}",
+            ])
+
+        audit_lines.append("=" * 20)
+
+        # Log the audit
+        audit_message = "\n".join(audit_lines)
+        logger.info(f"Audit Report:\n{audit_message}")
+
+        # Write to file if configured
+        if self.log_to_file and self.audit_file:
+            try:
+                with open(self.audit_file, "a") as f:
+                    f.write(f"{audit_message}\n\n")
+                logger.debug(f"Audit written to {self.audit_file}")
+            except Exception as e:
+                logger.error(f"Failed to write audit to file: {e}")
+```
+
+### Step 5.3: Update Package __init__.py
+
+Update `src/dqx/plugins/__init__.py`:
+
+```python
+"""DQX built-in plugins."""
+
+from dqx.plugins.audit import AuditPlugin
+
+__all__ = ["AuditPlugin"]
+```
+
+### Step 5.4: Register Built-in Plugin
+
+Add to `pyproject.toml` in the appropriate section:
+
+```toml
+[project.entry-points."dqx.plugins"]
+dqx_audit = "dqx.plugins.audit:AuditPlugin"
+```
+
+### Step 5.5: Create Tests for Audit Plugin
+
+Create `tests/test_audit_plugin.py`:
+
+```python
+"""Tests for the built-in audit plugin."""
+
+import tempfile
+from pathlib import Path
+from typing import Any
+from unittest.mock import patch
+
+import pytest
+
+from dqx.common import AssertionResult, ResultValue, SymbolInfo
+from dqx.plugins.audit import AuditPlugin
+
+
+def create_test_results() -> tuple[list[AssertionResult], list[SymbolInfo]]:
+    """Create test data for audit plugin testing."""
+    results = [
+        AssertionResult(
+            yyyy_mm_dd="2024-01-01",
+            suite="test_suite",
+            check="check1",
+            assertion="assertion1",
+            severity="P1",
+            status="SUCCESS",
+            metric="metric1",
+            expression="x > 0",
+            tags={}
+        ),
+        AssertionResult(
+            yyyy_mm_dd="2024-01-01",
+            suite="test_suite",
+            check="check1",
+            assertion="assertion2",
+            severity="P0",
+            status="FAILURE",
+            metric="metric2",
+            expression="y < 10",
+            tags={}
+        ),
+        AssertionResult(
+            yyyy_mm_dd="2024-01-01",
+            suite="test_suite",
+            check="check2",
+            assertion="assertion3",
+            severity="P1",
+            status="FAILURE",
+            metric="metric3",
+            expression="z == 0",
+            tags={}
+        ),
+    ]
+
+    symbols = [
+        SymbolInfo(
+            name="x",
+            metric="average",
+            dataset="dataset1",
+            value=ResultValue.success(5.0),
+            yyyy_mm_dd="2024-01-01",
+            suite="test_suite",
+            tags={}
+        ),
+        SymbolInfo(
+            name="y",
+            metric="count",
+            dataset="dataset2",
+            value=ResultValue.failure(Exception("Failed to compute")),
+            yyyy_mm_dd="2024-01-01",
+            suite="test_suite",
+            tags={}
+        ),
+    ]
+
+    return results, symbols
+
+
+def test_audit_plugin_initialization() -> None:
+    """Test audit plugin initializes correctly."""
+    plugin = AuditPlugin()
+
+    # Default initialization
+    plugin.initialize({})
+    assert not plugin.log_to_file
+    assert plugin.audit_file is None
+
+    # With file logging
+    plugin.initialize({"log_to_file": True, "audit_file": "test.log"})
+    assert plugin.log_to_file
+    assert plugin.audit_file == Path("test.log")
+
+
+def test_audit_plugin_process_logs_statistics() -> None:
+    """Test audit plugin logs execution statistics."""
+    plugin = AuditPlugin()
+    plugin.initialize({})
+
+    results, symbols = create_test_results()
+    context = {
+        "datasources": ["dataset1", "dataset2"],
+        "key": {"yyyy_mm_dd": "2024-01-01"},
+        "timestamp": 1704067200.0,  # 2024-01-01 00:00:00 UTC
+    }
+
+    with patch("dqx.plugins.audit.logger") as mock_logger:
+        plugin.process(results, symbols, "Test Suite", context)
+
+        # Verify logger was called
+        assert mock_logger.info.called
+
+        # Get the logged message
+        call_args = mock_logger.info.call_args[0][0]
+
+        # Verify content
+        assert "Suite: Test Suite" in call_args
+        assert "Total Checks: 2" in call_args
+        assert "Total Assertions: 3" in call_args
+        assert "Passed: 1 (33.3%)" in call_args
+        assert "Failed: 2 (66.7%)" in call_args
+        assert "P0: 1" in call_args
+        assert "P1: 1" in call_args
+        assert "Total Symbols: 2" in call_args
+
+
+def test_audit_plugin_file_writing() -> None:
+    """Test audit plugin writes to file when configured."""
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as tf:
+        audit_file = Path(tf.name)
+
+    try:
+        plugin = AuditPlugin()
+        plugin.initialize({"log_to_file": True, "audit_file": str(audit_file)})
+
+        results, symbols = create_test_results()
+        context = {
+            "datasources": ["dataset1"],
+            "key": {"yyyy_mm_dd": "2024-01-01"},
+        }
+
+        plugin.process(results, symbols, "File Test Suite", context)
+
+        # Verify file was written
+        assert audit_file.exists()
+        content = audit_file.read_text()
+
+        assert "=== DQX Audit Log ===" in content
+        assert "Suite: File Test Suite" in content
+        assert "Total Assertions: 3" in content
+
+    finally:
+        # Clean up
+        if audit_file.exists():
+            audit_file.unlink()
+
+
+def test_audit_plugin_handles_empty_results() -> None:
+    """Test audit plugin handles empty results gracefully."""
+    plugin = AuditPlugin()
+    plugin.initialize({})
+
+    # Should not crash with empty data
+    plugin.process([], [], "Empty Suite", {})
+
+
+def test_audit_plugin_file_write_error_handling() -> None:
+    """Test audit plugin handles file write errors gracefully."""
+    plugin = AuditPlugin()
+    plugin.initialize({
+        "log_to_file": True,
+        "audit_file": "/invalid/path/that/does/not/exist/audit.log"
+    })
+
+    results, symbols = create_test_results()
+
+    # Should log error but not crash
+    with patch("dqx.plugins.audit.logger") as mock_logger:
+        plugin.process(results, symbols, "Test Suite", {})
+
+        # Verify error was logged
+        error_calls = [call for call in mock_logger.error.call_args_list]
+        assert len(error_calls) > 0
+        assert "Failed to write audit to file" in str(error_calls[0])
+```
+
+### Step 5.6: Validation
+
+```bash
+# Type check
+uv run mypy src/dqx/plugins/audit.py
+
+# Lint check
+uv run ruff check src/dqx/plugins/
+
+# Run tests
+uv run pytest tests/test_audit_plugin.py -v
+
+# Check coverage
+uv run pytest tests/test_audit_plugin.py -v --cov=dqx.plugins.audit --cov-report=term-missing
+```
+
+### Step 5.7: Update Examples
+
+Add example usage to `examples/plugin_audit_demo.py`:
+
+```python
+"""Demonstration of the built-in audit plugin."""
+
+from datetime import date
+
+from dqx.api import VerificationSuite, check
+from dqx.common import ResultKey
+from dqx.orm.repositories import MetricDB
+from dqx.provider import DataSource
+
+
+def main() -> None:
+    """Run verification suite with audit plugin enabled."""
+    # Define checks
+    @check(name="Sales Validation")
+    def sales_check(mp, ctx):
+        ctx.assert_that(mp.sum("amount"))\\
+           .where(name="Total sales positive", severity="P0")\\
+           .is_positive()
+
+        ctx.assert_that(mp.count("transaction_id"))\\
+           .where(name="Has transactions")\\
+           .is_gt(0)
+
+    @check(name="Data Freshness")
+    def freshness_check(mp, ctx):
+        ctx.assert_that(mp.max("updated_at"))\\
+           .where(name="Data is recent", severity="P1")\\
+           .is_gte("2024-01-01")
+
+    # Create suite with audit plugin configured
+    suite = VerificationSuite(
+        checks=[sales_check, freshness_check],
+        db=MetricDB(),
+        name="Daily Sales Validation",
+        plugin_config={
+            "dqx_audit": {
+                "log_to_file": True,
+                "audit_file": "sales_audit.log"
+            }
+        }
+    )
+
+    # Create test data
+    datasources = {
+        "sales": DataSource.from_records([
+            {"amount": 100.0, "transaction_id": "T1", "updated_at": "2024-01-15"},
+            {"amount": 200.0, "transaction_id": "T2", "updated_at": "2024-01-15"},
+            {"amount": -50.0, "transaction_id": "T3", "updated_at": "2024-01-14"},
+        ])
+    }
+
+    # Run validation
+    key = ResultKey(date.today(), {"region": "US"})
+    suite.run(datasources, key)
+
+    print("Validation completed. Check sales_audit.log for audit details.")
+
+
+if __name__ == "__main__":
+    main()
+```
+
+### Step 5.8: Git Commit
+
+```bash
+git add src/dqx/plugins/ tests/test_audit_plugin.py examples/plugin_audit_demo.py pyproject.toml
+git commit -m "feat(plugins): add built-in audit plugin
+
+- Create AuditPlugin for execution tracking and statistics
+- Register plugin via entry point in pyproject.toml
+- Support file-based audit logging
+- Add comprehensive tests with full coverage
+- Include usage example"
+```
+
+---
+
+## Task Group 6: Final Integration Test
+
+### Step 6.1: Create Full Integration Test
 
 Create `tests/test_plugin_integration.py`:
 
@@ -1038,7 +1489,7 @@ def test_full_plugin_integration() -> None:
         assert call_args[1]["config"] == {"test": {"key": "value"}}
 ```
 
-### Step 5.2: Validation
+### Step 6.2: Validation
 
 ```bash
 # Run all tests including integration
@@ -1054,7 +1505,7 @@ uv run mypy src/dqx/plugins.py src/dqx/api.py
 uv run ruff check src/dqx/plugins.py src/dqx/api.py
 ```
 
-### Step 5.3: Git Commit
+### Step 6.3: Git Commit
 
 ```bash
 git add tests/test_plugin_integration.py
@@ -1073,9 +1524,13 @@ After completing all task groups, you should have:
 
 1. ✅ A working plugin system in `src/dqx/plugins.py`
 2. ✅ Integration with VerificationSuite in `src/dqx/api.py`
-3. ✅ Comprehensive tests with 100% coverage
-4. ✅ Example plugins demonstrating usage
-5. ✅ Updated documentation
-6. ✅ Clean git history with atomic commits
+3. ✅ Built-in audit plugin in `src/dqx/plugins/audit.py`
+4. ✅ Comprehensive tests with 100% coverage
+5. ✅ Example plugins demonstrating usage
+6. ✅ Updated documentation
+7. ✅ Clean git history with atomic commits
 
-The plugin system is now ready for external packages to create and register their own result processors!
+The plugin system is now ready with:
+- A built-in audit plugin for tracking execution
+- Support for external packages to create and register their own result processors
+- Full documentation and examples showing how to build plugins
