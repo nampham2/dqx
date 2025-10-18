@@ -1518,6 +1518,170 @@ git commit -m "test(plugins): add full integration test
 
 ---
 
+## Task Group 7: Documentation Updates
+
+### Step 7.1: Update README.md
+
+Replace the detailed plugin section with a brief mention and link:
+
+```markdown
+## Plugin System
+
+DQX supports a plugin system for processing validation results. Plugins can send alerts, write to databases, integrate with monitoring systems, and more.
+
+See [Plugin Development Guide](docs/plugins.md) for details on creating your own plugins.
+```
+
+### Step 7.2: Create docs/plugins.md
+
+Create a simple, pragmatic plugin development guide:
+
+```markdown
+# DQX Plugin Development Guide
+
+## Overview
+
+DQX plugins allow you to process validation results after suite execution. Common use cases include sending alerts, writing to databases, or integrating with monitoring systems.
+
+## Quick Start
+
+### 1. Create Your Plugin
+
+```python
+from typing import Any
+from dqx.common import AssertionResult, SymbolInfo
+
+class MyPlugin:
+    def initialize(self, config: dict[str, Any]) -> None:
+        """Initialize with configuration."""
+        self.setting = config.get("setting", "default")
+
+    def process(
+        self,
+        results: list[AssertionResult],
+        symbols: list[SymbolInfo],
+        suite_name: str,
+        context: dict[str, Any]
+    ) -> None:
+        """Process validation results."""
+        failures = [r for r in results if r.status == "FAILURE"]
+        if failures:
+            print(f"Found {len(failures)} failures in {suite_name}")
+```
+
+### 2. Register in pyproject.toml
+
+```toml
+[project.entry-points."dqx.plugins"]
+my_plugin = "mypackage.plugins:MyPlugin"
+```
+
+### 3. Configure in DQX
+
+```python
+from dqx.api import VerificationSuite
+
+suite = VerificationSuite(
+    checks=checks,
+    db=db,
+    name="My Suite",
+    plugin_config={
+        "my_plugin": {
+            "setting": "custom_value"
+        }
+    }
+)
+```
+
+## Plugin Protocol
+
+Plugins must implement two methods:
+
+- `initialize(config)` - Called with plugin-specific configuration
+- `process(results, symbols, suite_name, context)` - Called after suite execution
+
+### Parameters
+
+- `results`: List of `AssertionResult` objects with validation outcomes
+- `symbols`: List of `SymbolInfo` objects with computed metric values
+- `suite_name`: Name of the verification suite
+- `context`: Dictionary with execution context:
+  - `datasources`: List of dataset names
+  - `key`: ResultKey with date and tags
+  - `timestamp`: Unix timestamp of execution
+
+## Examples
+
+See the `examples/` directory for complete plugin examples:
+- `plugin_email_alerts.py` - Send email alerts for failures
+- `plugin_database_writer.py` - Write results to external database
+- `plugin_audit_demo.py` - Use the built-in audit plugin
+
+## Built-in Plugins
+
+DQX includes a built-in audit plugin (`dqx_audit`) that logs execution statistics. Enable it with:
+
+```python
+plugin_config={
+    "dqx_audit": {
+        "log_to_file": True,
+        "audit_file": "validation_audit.log"
+    }
+}
+```
+
+## Best Practices
+
+1. **Handle errors gracefully** - Don't let plugin failures crash the validation suite
+2. **Log appropriately** - Use Python's logging module for debugging
+3. **Keep it focused** - Each plugin should do one thing well
+4. **Document configuration** - Clearly document required and optional settings
+5. **Test thoroughly** - Include unit tests for your plugin logic
+```
+
+### Step 7.3: Update pyproject.toml Comments
+
+Move the detailed plugin registration example from README to pyproject.toml:
+
+```toml
+# Built-in DQX plugins
+[project.entry-points."dqx.plugins"]
+dqx_audit = "dqx.plugins.audit:AuditPlugin"
+
+# Example: How external packages register DQX plugins
+# Create a plugin class implementing the ResultProcessor protocol,
+# then register it in your package's pyproject.toml:
+#
+# [project.entry-points."dqx.plugins"]
+# email_alerts = "mypackage.plugins:EmailAlertsPlugin"
+# db_writer = "mypackage.plugins:DatabaseWriterPlugin"
+# slack_notifier = "mypackage.plugins:SlackPlugin"
+```
+
+### Step 7.4: Validation
+
+```bash
+# Verify markdown syntax
+cat docs/plugins.md
+
+# Ensure examples still type check
+uv run mypy examples/plugin_*.py
+```
+
+### Step 7.5: Git Commit
+
+```bash
+git add README.md docs/plugins.md pyproject.toml
+git commit -m "docs(plugins): simplify README and add dedicated plugin guide
+
+- Replace detailed plugin section in README with brief mention
+- Create docs/plugins.md with pragmatic development guide
+- Move registration examples to pyproject.toml comments
+- Keep documentation simple and focused on getting started"
+```
+
+---
+
 ## Success Criteria
 
 After completing all task groups, you should have:
