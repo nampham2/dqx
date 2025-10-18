@@ -44,6 +44,9 @@ import time
 from typing import Any, Protocol
 
 from dqx.common import AssertionResult, SymbolInfo
+from rich.console import Console
+from rich.table import Table
+from rich import box
 
 logger = logging.getLogger(__name__)
 
@@ -683,31 +686,23 @@ class AuditPlugin:
 
     This plugin provides basic auditing functionality including:
     - Execution timing
-    - Result statistics
-    - Performance metrics
+    - Result statistics with Rich table display
+    - Performance metrics with colors
     """
 
     def __init__(self) -> None:
         """Initialize the audit plugin."""
-        self.start_time: float | None = None
-        self.audit_file: Path | None = None
-        self.log_to_file: bool = False
+        self.console = Console()
 
     def initialize(self, config: dict[str, Any]) -> None:
         """
         Initialize with audit configuration.
 
         Args:
-            config: Configuration with optional keys:
-                - audit_file: Path to write audit logs
-                - log_to_file: Whether to write to file (default: False)
+            config: Configuration dictionary (currently unused)
         """
-        self.log_to_file = config.get("log_to_file", False)
-
-        if self.log_to_file:
-            audit_file_path = config.get("audit_file", "dqx_audit.log")
-            self.audit_file = Path(audit_file_path)
-            logger.info(f"Audit logging to file: {self.audit_file}")
+        # No configuration needed for console output
+        pass
 
     def process(
         self,
@@ -717,7 +712,7 @@ class AuditPlugin:
         context: dict[str, Any]
     ) -> None:
         """
-        Process and audit the validation results.
+        Process and display validation results in a Rich table.
 
         Args:
             results: List of assertion results
@@ -740,55 +735,99 @@ class AuditPlugin:
         unique_checks = len(set(r.check for r in results))
         unique_datasets = context.get("datasources", [])
 
-        # Build audit message
+        # Extract context information
         timestamp = context.get("timestamp", time.time())
-        audit_lines = [
-            f"=== DQX Audit Log ===",
-            f"Suite: {suite_name}",
-            f"Timestamp: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp))}",
-            f"Date: {context.get('key', {}).get('yyyy_mm_dd', 'N/A')}",
-            f"Datasets: {', '.join(unique_datasets) if unique_datasets else 'None'}",
-            f"",
-            f"Execution Summary:",
-            f"  Total Checks: {unique_checks}",
-            f"  Total Assertions: {total_assertions}",
-            f"  Passed: {passed} ({passed/total_assertions*100:.1f}%)" if total_assertions else "  Passed: 0",
-            f"  Failed: {failed} ({failed/total_assertions*100:.1f}%)" if total_assertions else "  Failed: 0",
-        ]
+        date_str = context.get("key", {}).get("yyyy_mm_dd", "N/A")
 
+        # Create header
+        self.console.print()
+        self.console.print("[bold blue]═══ DQX Audit Report ═══[/bold blue]")
+        self.console.print(f"[cyan]Suite:[/cyan] {suite_name}")
+        self.console.print(f"[cyan]Date:[/cyan] {date_str}")
+        self.console.print(f"[cyan]Time:[/cyan] {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(timestamp))}")
+        if unique_datasets:
+            self.console.print(f"[cyan]Datasets:[/cyan] {', '.join(unique_datasets)}")
+        self.console.print()
+
+        # Create summary table
+        summary_table = Table(title="Execution Summary", box=box.ROUNDED)
+        summary_table.add_column("Metric", style="cyan")
+        summary_table.add_column("Count", justify="right")
+        summary_table.add_column("Rate", justify="right")
+
+        summary_table.add_row("Total Checks", str(unique_checks), "")
+        summary_table.add_row("Total Assertions", str(total_assertions), "")
+
+        # Color-coded pass/fail rows
+        if total_assertions > 0:
+            pass_rate = f"{passed/total_assertions*100:.1f}%"
+            fail_rate = f"{failed/total_assertions*100:.1f}%"
+            summary_table.add_row(
+                "[green]Passed ✓[/green]",
+                f"[green]{passed}[/green]",
+                f"[green]{pass_rate}[/green]"
+            )
+            summary_table.add_row(
+                "[red]Failed ✗[/red]",
+                f"[red]{failed}[/red]",
+                f"[red]{fail_rate}[/red]"
+            )
+        else:
+            summary_table.add_row("Passed ✓", "0", "0.0%")
+            summary_table.add_row("Failed ✗", "0", "0.0%")
+
+        self.console.print(summary_table)
+
+        # Show failures by severity if any
         if failures_by_severity:
-            audit_lines.extend([
-                f"",
-                f"Failures by Severity:",
-            ])
-            for severity, count in sorted(failures_by_severity.items()):
-                audit_lines.append(f"  {severity}: {count}")
+            self.console.print()
+            severity_table = Table(title="Failures by Severity", box=box.ROUNDED)
+            severity_table.add_column("Severity", style="bold")
+            severity_table.add_column("Count", justify="right")
 
-        # Add symbol statistics
+            # Color code by severity
+            severity_colors = {
+                "P0": "red bold",
+                "P1": "orange1",
+                "P2": "yellow",
+                "P3": "blue",
+                "P4": "grey50"
+            }
+
+            for severity, count in sorted(failures_by_severity.items()):
+                color = severity_colors.get(severity, "white")
+                severity_table.add_row(
+                    f"[{color}]{severity}[/{color}]",
+                    f"[{color}]{count}[/{color}]"
+                )
+
+            self.console.print(severity_table)
+
+        # Show symbol statistics if any
         if symbols:
             successful_symbols = sum(1 for s in symbols if s.value.is_success())
-            audit_lines.extend([
-                f"",
-                f"Symbol Statistics:",
-                f"  Total Symbols: {len(symbols)}",
-                f"  Successful: {successful_symbols}",
-                f"  Failed: {len(symbols) - successful_symbols}",
-            ])
+            failed_symbols = len(symbols) - successful_symbols
 
-        audit_lines.append("=" * 20)
+            self.console.print()
+            symbol_table = Table(title="Symbol Statistics", box=box.ROUNDED)
+            symbol_table.add_column("Metric", style="cyan")
+            symbol_table.add_column("Count", justify="right")
 
-        # Log the audit
-        audit_message = "\n".join(audit_lines)
-        logger.info(f"Audit Report:\n{audit_message}")
+            symbol_table.add_row("Total Symbols", str(len(symbols)))
+            symbol_table.add_row(
+                "[green]Successful[/green]",
+                f"[green]{successful_symbols}[/green]"
+            )
+            symbol_table.add_row(
+                "[red]Failed[/red]",
+                f"[red]{failed_symbols}[/red]"
+            )
 
-        # Write to file if configured
-        if self.log_to_file and self.audit_file:
-            try:
-                with open(self.audit_file, "a") as f:
-                    f.write(f"{audit_message}\n\n")
-                logger.debug(f"Audit written to {self.audit_file}")
-            except Exception as e:
-                logger.error(f"Failed to write audit to file: {e}")
+            self.console.print(symbol_table)
+
+        self.console.print()
+        self.console.print("[bold blue]══════════════════════[/bold blue]")
+        self.console.print()
 ```
 
 ### Step 4.2: Register Built-in Plugin
@@ -807,10 +846,8 @@ Create `tests/test_audit_plugin.py`:
 ```python
 """Tests for the built-in audit plugin."""
 
-import tempfile
-from pathlib import Path
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -883,20 +920,15 @@ def create_test_results() -> tuple[list[AssertionResult], list[SymbolInfo]]:
 def test_audit_plugin_initialization() -> None:
     """Test audit plugin initializes correctly."""
     plugin = AuditPlugin()
+    assert hasattr(plugin, "console")
 
-    # Default initialization
+    # Initialize should accept config but not require anything
     plugin.initialize({})
-    assert not plugin.log_to_file
-    assert plugin.audit_file is None
-
-    # With file logging
-    plugin.initialize({"log_to_file": True, "audit_file": "test.log"})
-    assert plugin.log_to_file
-    assert plugin.audit_file == Path("test.log")
+    plugin.initialize({"unused": "value"})
 
 
-def test_audit_plugin_process_logs_statistics() -> None:
-    """Test audit plugin logs execution statistics."""
+def test_audit_plugin_displays_rich_tables() -> None:
+    """Test audit plugin displays results using Rich tables."""
     plugin = AuditPlugin()
     plugin.initialize({})
 
@@ -907,55 +939,26 @@ def test_audit_plugin_process_logs_statistics() -> None:
         "timestamp": 1704067200.0,  # 2024-01-01 00:00:00 UTC
     }
 
-    with patch("dqx.plugins.logger") as mock_logger:
+    # Mock the console to capture output
+    with patch.object(plugin, "console") as mock_console:
         plugin.process(results, symbols, "Test Suite", context)
 
-        # Verify logger was called
-        assert mock_logger.info.called
+        # Verify console.print was called multiple times
+        assert mock_console.print.called
+        calls = mock_console.print.call_args_list
 
-        # Get the logged message
-        call_args = mock_logger.info.call_args[0][0]
+        # Verify header was printed
+        header_found = any(
+            "DQX Audit Report" in str(call) for call in calls
+        )
+        assert header_found
 
-        # Verify content
-        assert "Suite: Test Suite" in call_args
-        assert "Total Checks: 2" in call_args
-        assert "Total Assertions: 3" in call_args
-        assert "Passed: 1 (33.3%)" in call_args
-        assert "Failed: 2 (66.7%)" in call_args
-        assert "P0: 1" in call_args
-        assert "P1: 1" in call_args
-        assert "Total Symbols: 2" in call_args
-
-
-def test_audit_plugin_file_writing() -> None:
-    """Test audit plugin writes to file when configured."""
-    with tempfile.NamedTemporaryFile(mode="w", delete=False) as tf:
-        audit_file = Path(tf.name)
-
-    try:
-        plugin = AuditPlugin()
-        plugin.initialize({"log_to_file": True, "audit_file": str(audit_file)})
-
-        results, symbols = create_test_results()
-        context = {
-            "datasources": ["dataset1"],
-            "key": {"yyyy_mm_dd": "2024-01-01"},
-        }
-
-        plugin.process(results, symbols, "File Test Suite", context)
-
-        # Verify file was written
-        assert audit_file.exists()
-        content = audit_file.read_text()
-
-        assert "=== DQX Audit Log ===" in content
-        assert "Suite: File Test Suite" in content
-        assert "Total Assertions: 3" in content
-
-    finally:
-        # Clean up
-        if audit_file.exists():
-            audit_file.unlink()
+        # Verify tables were created
+        table_calls = [
+            call for call in calls
+            if len(call[0]) > 0 and hasattr(call[0][0], "title")
+        ]
+        assert len(table_calls) >= 2  # Summary + severity tables
 
 
 def test_audit_plugin_handles_empty_results() -> None:
@@ -963,28 +966,109 @@ def test_audit_plugin_handles_empty_results() -> None:
     plugin = AuditPlugin()
     plugin.initialize({})
 
-    # Should not crash with empty data
-    plugin.process([], [], "Empty Suite", {})
+    # Mock console to verify it still prints
+    with patch.object(plugin, "console") as mock_console:
+        plugin.process([], [], "Empty Suite", {})
+
+        # Should still print header and summary
+        assert mock_console.print.called
 
 
-def test_audit_plugin_file_write_error_handling() -> None:
-    """Test audit plugin handles file write errors gracefully."""
+def test_audit_plugin_color_coding() -> None:
+    """Test audit plugin uses appropriate colors."""
     plugin = AuditPlugin()
-    plugin.initialize({
-        "log_to_file": True,
-        "audit_file": "/invalid/path/that/does/not/exist/audit.log"
-    })
+    plugin.initialize({})
 
     results, symbols = create_test_results()
+    context = {"datasources": [], "key": {}, "timestamp": 0}
 
-    # Should log error but not crash
-    with patch("dqx.plugins.logger") as mock_logger:
-        plugin.process(results, symbols, "Test Suite", {})
+    with patch.object(plugin, "console") as mock_console:
+        plugin.process(results, symbols, "Color Test", context)
 
-        # Verify error was logged
-        error_calls = [call for call in mock_logger.error.call_args_list]
-        assert len(error_calls) > 0
-        assert "Failed to write audit to file" in str(error_calls[0])
+        # Check that color tags are used
+        print_calls = str(mock_console.print.call_args_list)
+
+        # Verify color codes
+        assert "[green]" in print_calls  # For passed
+        assert "[red]" in print_calls    # For failed
+        assert "[cyan]" in print_calls   # For headers
+
+
+def test_audit_plugin_severity_colors() -> None:
+    """Test audit plugin colors severities appropriately."""
+    # Create results with different severities
+    results = []
+    for severity in ["P0", "P1", "P2", "P3", "P4"]:
+        results.append(
+            AssertionResult(
+                yyyy_mm_dd="2024-01-01",
+                suite="test",
+                check="check",
+                assertion=f"assertion_{severity}",
+                severity=severity,
+                status="FAILURE",
+                metric="metric",
+                expression="x > 0",
+                tags={}
+            )
+        )
+
+    plugin = AuditPlugin()
+    plugin.initialize({})
+
+    with patch.object(plugin, "console") as mock_console:
+        plugin.process(results, [], "Severity Test", {})
+
+        # Verify severity table was created with colors
+        table_calls = [
+            call for call in mock_console.print.call_args_list
+            if len(call[0]) > 0 and hasattr(call[0][0], "title")
+        ]
+
+        # Find the severity table
+        severity_table = None
+        for call in table_calls:
+            if hasattr(call[0][0], "title") and "Severity" in str(call[0][0].title):
+                severity_table = call[0][0]
+                break
+
+        assert severity_table is not None
+
+
+def test_audit_plugin_no_failures() -> None:
+    """Test audit plugin when all checks pass."""
+    results = [
+        AssertionResult(
+            yyyy_mm_dd="2024-01-01",
+            suite="test",
+            check="check",
+            assertion="assertion",
+            severity="P1",
+            status="SUCCESS",
+            metric="metric",
+            expression="x > 0",
+            tags={}
+        )
+    ]
+
+    plugin = AuditPlugin()
+    plugin.initialize({})
+
+    with patch.object(plugin, "console") as mock_console:
+        plugin.process(results, [], "Success Suite", {})
+
+        # Should not show severity table
+        table_calls = [
+            call for call in mock_console.print.call_args_list
+            if len(call[0]) > 0 and hasattr(call[0][0], "title")
+        ]
+
+        severity_tables = [
+            call for call in table_calls
+            if "Severity" in str(call[0][0].title)
+        ]
+
+        assert len(severity_tables) == 0
 ```
 
 ### Step 4.4: Validation
@@ -1007,11 +1091,13 @@ uv run pytest tests/test_audit_plugin.py -v --cov=dqx.plugins --cov-report=term-
 
 ```bash
 git add src/dqx/plugins.py tests/test_audit_plugin.py pyproject.toml
-git commit -m "feat(plugins): add built-in audit plugin
+git commit -m "feat(plugins): add built-in audit plugin with Rich display
 
 - Add AuditPlugin to existing plugins.py module
+- Display results in colorful Rich tables
+- Color-code severities (P0=red, P1=orange, etc.)
+- Show execution statistics and symbol info
 - Register plugin via entry point in pyproject.toml
-- Support file-based audit logging
 - Add comprehensive tests with full coverage"
 ```
 
@@ -1251,16 +1337,19 @@ class EmailAlertsPlugin:
 
 ## Built-in Plugins
 
-DQX includes a built-in audit plugin (`audit`) that logs execution statistics. Enable it with:
+DQX includes a built-in audit plugin (`audit`) that displays colorful execution statistics using Rich tables in the console. Enable it with:
 
 ```python
 plugin_config={
-    "audit": {
-        "log_to_file": True,
-        "audit_file": "validation_audit.log"
-    }
+    "audit": {}  # No configuration needed
 }
 ```
+
+The audit plugin will display:
+- Execution summary with pass/fail rates
+- Failures grouped by severity with color coding
+- Symbol computation statistics
+- All formatted in beautiful Rich tables with colors
 
 ## Best Practices
 
