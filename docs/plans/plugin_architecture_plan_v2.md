@@ -42,6 +42,7 @@ class PluginMetadata:
 @dataclass
 class PluginExecutionContext:
     """Execution context passed to plugins."""
+    suite_name: str  # Suite name is now part of context
     datasources: list[str]
     key: ResultKey
     timestamp: float
@@ -97,17 +98,12 @@ class ResultProcessor(Protocol):
         """Return plugin metadata."""
         ...
 
-    def process(
-        self,
-        context: PluginExecutionContext,
-        suite_name: str
-    ) -> None:
+    def process(self, context: PluginExecutionContext) -> None:
         """
         Process validation results after suite execution.
 
         Args:
-            context: Execution context with results and convenience methods
-            suite_name: Name of the verification suite
+            context: Execution context with results, suite name, and convenience methods
         """
         ...
 ```
@@ -525,17 +521,12 @@ class ResultProcessor(Protocol):
         """Return plugin metadata."""
         ...
 
-    def process(
-        self,
-        context: PluginExecutionContext,
-        suite_name: str
-    ) -> None:
+    def process(self, context: PluginExecutionContext) -> None:
         """
         Process validation results after suite execution.
 
         Args:
-            context: Execution context with results and convenience methods
-            suite_name: Name of the verification suite
+            context: Execution context with results, suite name, and convenience methods
         """
         ...
 
@@ -613,17 +604,12 @@ class PluginManager:
             for name, plugin in self._plugins.items()
         }
 
-    def process_all(
-        self,
-        context: PluginExecutionContext,
-        suite_name: str
-    ) -> None:
+    def process_all(self, context: PluginExecutionContext) -> None:
         """
         Process results through all loaded plugins with time limits.
 
         Args:
-            context: Execution context with results and convenience methods
-            suite_name: Name of the verification suite
+            context: Execution context with results, suite name, and convenience methods
         """
         if not self._plugins:
             logger.debug("No plugins loaded, skipping plugin processing")
@@ -635,7 +621,7 @@ class PluginManager:
             try:
                 # Hard time limit for plugin execution
                 with TimeLimiting(self._timeout) as timer:
-                    plugin.process(context, suite_name)
+                    plugin.process(context)
 
                 logger.info(f"Plugin {name} processed results in {timer.elapsed_ms():.2f}ms")
 
@@ -879,7 +865,6 @@ def __init__(
 
     # Plugin support
     self._plugin_manager: PluginManager | None = None  # NEW
-    self._start_time: float = 0.0  # NEW - for tracking duration
 ```
 
 ### Step 2.3: Add Plugin Manager Property
@@ -895,26 +880,52 @@ def plugin_manager(self) -> PluginManager:
     return self._plugin_manager
 ```
 
-### Step 2.4: Track Start Time in run()
+### Step 2.4: Update run() Method to Use TimeLimiting
 
-In the `run()` method, add timing tracking at the beginning (right after the docstring):
+Update the `run()` method to add the `enable_plugins` parameter and use TimeLimiting for timing:
 
 ```python
-def run(self, datasources: dict[str, SqlDataSource], key: ResultKey) -> None:
+def run(
+    self,
+    datasources: dict[str, SqlDataSource],
+    key: ResultKey,
+    *,
+    enable_plugins: bool = True
+) -> None:
     """
     Run the verification suite against provided data sources.
 
     Args:
         datasources: Dictionary mapping dataset names to SQL data sources
         key: Key for storing/retrieving results
+        enable_plugins: Whether to execute plugins after evaluation (default: True)
 
     Raises:
         DQXError: If suite already evaluated, graph building fails, or evaluation fails
     """
-    # Track start time for duration calculation
-    self._start_time = time.time()  # NEW
+    # Setup/validation (not timed)
+    if self.is_evaluated:
+        raise DQXError(f"Suite '{self._name}' has already been evaluated")
 
-    # Existing validation code continues...
+    # Store the key for result collection
+    self._key = key
+
+    # Build graph if needed (not timed)
+    if not self._graph_built:
+        self._build_graph()
+
+    # Time only the actual evaluation
+    with TimeLimiting(None) as validation_timer:
+        # Run the actual evaluation
+        evaluator = Evaluator(self._context.graph)
+        evaluator.run(datasources)
+
+    # Mark as evaluated (outside timer)
+    self.is_evaluated = True
+
+    # Execute plugins with timing info
+    if enable_plugins:
+        self._execute_plugins(datasources, key, validation_timer.tick, validation_timer.elapsed_ms())
 ```
 
 ### Step 2.5: Add Plugin Execution Method
@@ -922,31 +933,26 @@ def run(self, datasources: dict[str, SqlDataSource], key: ResultKey) -> None:
 Add a new private method to handle plugin execution:
 
 ```python
-def _execute_plugins(self, datasources: dict[str, SqlDataSource], key: ResultKey) -> None:
-    """Execute plugins with new context structure."""
+def _execute_plugins(self, datasources: dict[str, SqlDataSource], key: ResultKey, timestamp: float, validation_duration_ms: float) -> None:
+    """Execute plugins with validation timing."""
     if not self.plugin_manager.get_plugins():
         return
 
     logger.info("Executing result processor plugins...")
 
-    # Calculate duration
-    duration = time.time() - self._start_time
-
     # Create execution context
     context = PluginExecutionContext(
+        suite_name=self._name,
         datasources=list(datasources.keys()),
         key=key,
-        timestamp=self._start_time,
-        duration_seconds=duration,
+        timestamp=timestamp,  # Passed directly from timer.tick
+        duration_seconds=validation_duration_ms / 1000.0,  # Convert ms to seconds
         results=self.collect_results(),
         symbols=self.collect_symbols()
     )
 
     # Process through plugins
-    self.plugin_manager.process_all(
-        context=context,
-        suite_name=self._name
-    )
+    self.plugin_manager.process_all(context)
 ```
 
 ### Step 2.6: Call Plugin Execution in run()
@@ -1046,15 +1052,11 @@ class MockSuccessPlugin:
         self.received_context: PluginExecutionContext | None = None
         self.received_suite_name = ""
 
-    def process(
-        self,
-        context: PluginExecutionContext,
-        suite_name: str
-    ) -> None:
+    def process(self, context: PluginExecutionContext) -> None:
         """Track processing."""
         self.processed = True
         self.received_context = context
-        self.received_suite_name = suite_name
+        self.received_suite_name = context.suite_name
 
 
 class MockFailurePlugin:
@@ -2007,18 +2009,11 @@ def test_full_plugin_integration() -> None:
         assert context.assertion_pass_rate() > 0
 
 
-def test_disabled_plugin_config() -> None:
-    """Test that disabled plugins are not executed."""
-    from dataclasses import dataclass
+def test_enable_plugins_kill_switch() -> None:
+    """Test that enable_plugins=False prevents plugin execution."""
     from dqx.api import VerificationSuite, check
     from dqx.orm.repositories import MetricDB
-    from dqx.plugins import PluginConfig
     from dqx.provider import DataSource
-
-    @dataclass
-    class TestPluginConfig(PluginConfig):
-        enabled: bool = False
-        setting: str = "value"
 
     @check(name="Test Check")
     def test_check(mp, ctx):
@@ -2033,37 +2028,77 @@ def test_disabled_plugin_config() -> None:
         mock_manager = MockPluginManager.return_value
         mock_manager.get_plugins.return_value = {"test": mock_plugin}
 
-        # Mock process_all to track if plugin is called
+        # Track if process_all is called
         process_all_called = False
-        def mock_process_all(context, suite_name, config=None):
+        def mock_process_all(context):
             nonlocal process_all_called
             process_all_called = True
-            # Simulate the manager checking if plugin is disabled
-            if config and "test" in config:
-                test_config = config["test"]
-                if isinstance(test_config, PluginConfig) and not test_config.enabled:
-                    return
-            mock_plugin.process(context, suite_name)
+            mock_plugin.process(context)
 
         mock_manager.process_all.side_effect = mock_process_all
 
-        # Create suite with disabled plugin
+        # Create suite
         db = MetricDB()
         suite = VerificationSuite(
             checks=[test_check],
             db=db,
-            name="Test Suite",
-            plugin_config={"test": TestPluginConfig(enabled=False)}
+            name="Test Suite"
         )
 
-        # Run suite
+        # Run suite with enable_plugins=False
+        datasources = {"test": DataSource.from_records([{"id": 1}])}
+        key = ResultKey(date.today(), {})
+        suite.run(datasources, key, enable_plugins=False)
+
+        # Verify plugin manager was NOT called at all
+        assert not process_all_called
+        assert not mock_plugin.processed
+
+
+def test_enable_plugins_default_true() -> None:
+    """Test that enable_plugins defaults to True."""
+    from dqx.api import VerificationSuite, check
+    from dqx.orm.repositories import MetricDB
+    from dqx.provider import DataSource
+
+    @check(name="Test Check")
+    def test_check(mp, ctx):
+        ctx.assert_that(mp.count("id"))\
+           .where(name="Has records")\
+           .is_gt(0)
+
+    # Create mock plugin
+    mock_plugin = MockSuccessPlugin()
+
+    with patch("dqx.plugins.PluginManager") as MockPluginManager:
+        mock_manager = MockPluginManager.return_value
+        mock_manager.get_plugins.return_value = {"test": mock_plugin}
+
+        # Track if process_all is called
+        process_all_called = False
+        def mock_process_all(context):
+            nonlocal process_all_called
+            process_all_called = True
+            mock_plugin.process(context)
+
+        mock_manager.process_all.side_effect = mock_process_all
+
+        # Create suite
+        db = MetricDB()
+        suite = VerificationSuite(
+            checks=[test_check],
+            db=db,
+            name="Test Suite"
+        )
+
+        # Run suite without specifying enable_plugins (should default to True)
         datasources = {"test": DataSource.from_records([{"id": 1}])}
         key = ResultKey(date.today(), {})
         suite.run(datasources, key)
 
-        # Verify plugin manager was called but plugin was not processed
+        # Verify plugin manager WAS called (default behavior)
         assert process_all_called
-        assert not mock_plugin.processed
+        assert mock_plugin.processed
 ```
 
 ### Step 5.2: Initial Validation
@@ -2318,6 +2353,134 @@ git commit -m "docs(plugins): add plugin development guide with v2 features
 
 ---
 
+## Task Group 7: Timer Coverage to 100%
+
+### Step 7.1: Update timer.py Tests
+
+Add these test cases to `tests/test_timer.py` to achieve 100% coverage:
+
+```python
+def test_timer_context_manager() -> None:
+    """Test Timer as a context manager with Registry."""
+    registry = Registry()
+    timer = registry.timer("test_metric")
+
+    with timer:
+        sleep(0.05)
+
+    assert timer.elapsed_ms() > 50
+    assert registry["test_metric"] > 50
+
+
+def test_timer_elapsed_before_exit() -> None:
+    """Test Timer.elapsed_ms() called before timer stops."""
+    registry = Registry()
+    metric = Metric("test", registry)
+    timer = Timer(metric)
+
+    # Enter context but don't exit yet
+    timer.__enter__()
+
+    # Should raise RuntimeError when called before exit
+    with pytest.raises(RuntimeError, match="Timer has not been stopped yet"):
+        timer.elapsed_ms()
+
+    # Clean up
+    timer.__exit__(None, None, None)
+
+
+def test_time_limiting_no_limit() -> None:
+    """Test TimeLimiting with None time_limit (no alarm)."""
+    with TimeLimiting(None) as timer:
+        sleep(0.1)
+
+    assert timer.elapsed_ms() > 100
+    # Should complete without any signal handling
+
+
+def test_metric_collection() -> None:
+    """Test Metric.collect() and value property."""
+    registry = Registry()
+    metric = Metric("test_metric", registry)
+
+    # Initially no value
+    assert metric.value is None
+
+    # Collect a value
+    metric.collect(123.45)
+
+    # Check it was stored
+    assert metric.value == 123.45
+    assert registry["test_metric"] == 123.45
+
+
+def test_registry_timer_method() -> None:
+    """Test Registry.timer() returns a Timer instance."""
+    registry = Registry()
+
+    timer = registry.timer("my_metric")
+
+    assert isinstance(timer, Timer)
+    assert timer.collector.name == "my_metric"
+    assert timer.collector.collector is registry
+
+
+def test_timed_decorator_with_kwargs() -> None:
+    """Test @Timer.timed decorator with keyword arguments."""
+    metric = Metric("with_kwargs", Registry())
+
+    @Timer.timed(collector=metric, extra_arg="test")
+    def fn_with_args(x: int, y: int = 10) -> int:
+        sleep(0.05)
+        return x + y
+
+    result = fn_with_args(5, y=20)
+
+    assert result == 25
+    assert metric.value is not None
+    assert metric.value > 50
+```
+
+### Step 7.2: Initial Validation
+
+```bash
+# Run timer tests with coverage
+uv run pytest tests/test_timer.py -v --cov=dqx.timer --cov-report=term-missing
+
+# Verify we now have 100% coverage
+```
+
+### Step 7.3: Final Validation and Commit
+
+```bash
+# Run all tests to ensure nothing is broken
+uv run pytest tests/ -v
+
+# Run full pre-commit checks
+bin/run-hooks.sh
+
+# Fix any issues:
+# - For ruff: uv run ruff check --fix tests/test_timer.py
+# - For mypy: fix type annotations
+# - For test failures: debug and fix
+
+# Verify timer.py has 100% coverage
+uv run pytest tests/test_timer.py -v --cov=dqx.timer --cov-report=term-missing
+
+# Once everything passes, commit:
+git add tests/test_timer.py
+git commit -m "test(timer): achieve 100% code coverage
+
+- Test Timer context manager with Registry
+- Test Timer.elapsed_ms() error case before exit
+- Test TimeLimiting with None time_limit
+- Test Metric collection and value property
+- Test Registry.timer() method
+- Test @Timer.timed decorator with kwargs"
+```
+
+---
+
 ## Success Criteria
 
 After completing all task groups, you should have:
@@ -2328,6 +2491,7 @@ After completing all task groups, you should have:
 4. ✅ Comprehensive tests with 100% coverage
 5. ✅ Documentation showing v2 features
 6. ✅ Clean git history with atomic commits
+7. ✅ Timer module with 100% code coverage
 
 The v2 plugin system is now ready with:
 - **PluginMetadata** for better plugin identification
@@ -2335,6 +2499,7 @@ The v2 plugin system is now ready with:
 - Built-in audit plugin using the new context methods
 - Full documentation showing how to leverage the simplified API
 - No backward compatibility code or complex features
+- **100% test coverage** for all modules including timer.py
 
 ## Changelog
 
