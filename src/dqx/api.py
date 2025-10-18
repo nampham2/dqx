@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import functools
 import threading
+import time
 from collections import defaultdict
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
@@ -14,6 +15,7 @@ from dqx.analyzer import Analyzer
 from dqx.common import (
     AssertionResult,
     DQXError,
+    PluginExecutionContext,
     ResultKey,
     ResultKeyProvider,
     SeverityLevel,
@@ -25,6 +27,7 @@ from dqx.evaluator import Evaluator
 from dqx.graph.nodes import CheckNode, RootNode
 from dqx.graph.traversal import Graph
 from dqx.orm.repositories import MetricDB
+from dqx.plugins import PluginManager
 from dqx.provider import MetricProvider, SymbolicMetric
 from dqx.specs import MetricSpec
 from dqx.validator import SuiteValidator
@@ -292,6 +295,8 @@ class VerificationSuite:
         checks: Sequence[CheckProducer | DecoratedCheck],
         db: MetricDB,
         name: str,
+        *,
+        plugins: PluginManager | None = None,
     ) -> None:
         """
         Initialize the verification suite.
@@ -300,6 +305,8 @@ class VerificationSuite:
             checks: Sequence of check functions to execute
             db: Database for storing and retrieving metrics
             name: Human-readable name for the suite
+            plugins: Optional PluginManager instance. If not provided,
+                    a default instance will be created with built-in plugins
 
         Raises:
             DQXError: If no checks provided or name is empty
@@ -321,6 +328,13 @@ class VerificationSuite:
 
         # Graph state tracking
         self._graph_built = False  # Track if graph has been built
+
+        # Initialize plugin manager
+        self._plugins = plugins or PluginManager()
+
+        # Track execution timing
+        self._execution_start: float | None = None
+        self._execution_duration_ms: float | None = None
 
     @property
     def graph(self) -> Graph:
@@ -425,6 +439,9 @@ class VerificationSuite:
         # Store the key for later use in collect_results
         self._key = key
 
+        # Track execution start time
+        self._execution_start = time.time()
+
         # Build the dependency graph
         logger.info("Building dependency graph...")
         self.build_graph(self._context, key)
@@ -457,8 +474,14 @@ class VerificationSuite:
         evaluator = Evaluator(self.provider, key, self._name)
         self.graph.bfs(evaluator)
 
+        # Calculate execution duration
+        self._execution_duration_ms = (time.time() - self._execution_start) * 1000
+
         # Mark suite as evaluated only after successful completion
         self.is_evaluated = True
+
+        # 4. Process results through plugins
+        self._process_plugins(datasources)
 
     def collect_results(self) -> list[AssertionResult]:
         """
@@ -576,6 +599,30 @@ class VerificationSuite:
         # Sort by symbol numeric suffix for natural ordering (x_1, x_2, ..., x_10)
         # instead of lexicographic ordering (x_1, x_10, x_2)
         return sorted(symbols, key=lambda s: int(s.name.split("_")[1]))
+
+    def _process_plugins(self, datasources: dict[str, SqlDataSource]) -> None:
+        """
+        Process results through all loaded plugins.
+
+        Args:
+            datasources: Dictionary of data sources used in the suite execution
+        """
+        if not self._execution_start or not self._execution_duration_ms or not self._key:
+            return
+
+        # Create plugin execution context
+        context = PluginExecutionContext(
+            suite_name=self._name,
+            datasources=list(datasources.keys()),
+            key=self._key,
+            timestamp=self._execution_start,
+            duration_ms=self._execution_duration_ms,
+            results=self.collect_results(),
+            symbols=self.collect_symbols(),
+        )
+
+        # Process through all plugins
+        self._plugins.process_all(context)
 
 
 def _create_check(
