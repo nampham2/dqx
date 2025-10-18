@@ -29,10 +29,97 @@ class TestPluginManager:
         assert "audit" in plugins
         assert isinstance(plugins["audit"], AuditPlugin)
 
+        # Test timeout property
+        assert manager.timeout_seconds == 60  # default value
+
     def test_plugin_manager_custom_timeout(self) -> None:
         """Test PluginManager with custom timeout."""
         manager = PluginManager(timeout_seconds=10)
         assert manager._timeout_seconds == 10
+
+    def test_plugin_exists_returns_true(self) -> None:
+        """Test plugin_exists returns True for existing plugin."""
+        manager = PluginManager()
+
+        # Verify audit plugin exists (registered by default)
+        assert manager.plugin_exists("audit") is True
+
+        # Clear plugins and add a test one
+        manager.clear_plugins()
+        assert manager.plugin_exists("audit") is False
+
+        # Register it back
+        manager.register_plugin("dqx.plugins.AuditPlugin")
+        assert manager.plugin_exists("audit") is True
+
+    def test_register_plugin_successful_import(self) -> None:
+        """Test successful plugin registration covering normal import path."""
+        manager = PluginManager()
+
+        # Clear default plugins
+        manager.clear_plugins()
+
+        # Register the AuditPlugin successfully
+        manager.register_plugin("dqx.plugins.AuditPlugin")
+
+        # Verify it was registered
+        assert "audit" in manager.get_plugins()
+        assert isinstance(manager.get_plugins()["audit"], AuditPlugin)
+
+    def test_register_plugin_import_error(self) -> None:
+        """Test register_plugin handles ImportError when module cannot be imported."""
+        manager = PluginManager()
+
+        # Try to register a plugin from a non-existent module
+        with pytest.raises(ValueError, match="Cannot import module nonexistent.module"):
+            manager.register_plugin("nonexistent.module.Plugin")
+
+    def test_register_plugin_invalid_class_name_format(self) -> None:
+        """Test register_plugin with invalid class name format."""
+        manager = PluginManager()
+
+        # Test with no dots (invalid format)
+        with pytest.raises(ValueError, match="Invalid class name format: InvalidName"):
+            manager.register_plugin("InvalidName")
+
+        # Test with empty string
+        with pytest.raises(ValueError, match="Invalid class name format: "):
+            manager.register_plugin("")
+
+    def test_register_plugin_class_not_in_module(self) -> None:
+        """Test register_plugin when class doesn't exist in module."""
+        manager = PluginManager()
+
+        # Try to register a non-existent class from an existing module
+        with pytest.raises(ValueError, match="Module dqx.plugins has no class NonExistentClass"):
+            manager.register_plugin("dqx.plugins.NonExistentClass")
+
+    def test_register_plugin_generic_exception_handling(self) -> None:
+        """Test register_plugin wraps non-ValueError exceptions."""
+        from unittest.mock import patch
+
+        manager = PluginManager()
+
+        # Mock importlib.import_module to raise a generic exception
+        with patch("importlib.import_module", side_effect=RuntimeError("Generic error")):
+            with pytest.raises(ValueError, match="Failed to register plugin test.module.Class: Generic error"):
+                manager.register_plugin("test.module.Class")
+
+    def test_unregister_plugin(self) -> None:
+        """Test unregister_plugin removes plugin correctly."""
+        manager = PluginManager()
+
+        # Verify audit plugin exists
+        assert "audit" in manager.get_plugins()
+
+        # Unregister it
+        manager.unregister_plugin("audit")
+
+        # Verify it's gone
+        assert "audit" not in manager.get_plugins()
+
+        # Unregistering non-existent plugin should not raise error
+        manager.unregister_plugin("non_existent")  # Should not raise
 
     def test_get_plugin_metadata(self) -> None:
         """Test getting metadata from plugins."""
