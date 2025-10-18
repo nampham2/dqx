@@ -657,30 +657,11 @@ git commit -m "test(plugins): add comprehensive plugin system tests
 
 ## Task Group 4: Built-in Audit Plugin
 
-### Step 4.1: Create Plugin Directory Structure
+### Step 4.1: Add Audit Plugin to plugins.py
 
-Create the plugins submodule structure:
-
-```bash
-mkdir -p src/dqx/plugins
-touch src/dqx/plugins/__init__.py
-```
-
-### Step 4.2: Create Audit Plugin
-
-Create `src/dqx/plugins/audit.py`:
+Add the AuditPlugin class to the existing `src/dqx/plugins.py` file (after the PluginManager class):
 
 ```python
-"""Built-in audit plugin for DQX execution tracking."""
-
-import logging
-import time
-from pathlib import Path
-from typing import Any
-
-from dqx.common import AssertionResult, SymbolInfo
-
-logger = logging.getLogger(__name__)
 
 
 class AuditPlugin:
@@ -797,28 +778,16 @@ class AuditPlugin:
                 logger.error(f"Failed to write audit to file: {e}")
 ```
 
-### Step 4.3: Update Package __init__.py
+### Step 4.2: Register Built-in Plugin
 
-Update `src/dqx/plugins/__init__.py`:
-
-```python
-"""DQX built-in plugins."""
-
-from dqx.plugins.audit import AuditPlugin
-
-__all__ = ["AuditPlugin"]
-```
-
-### Step 4.4: Register Built-in Plugin
-
-Add to `pyproject.toml` in the appropriate section:
+Add to `pyproject.toml` in the appropriate section (create the entry-points section if it doesn't exist):
 
 ```toml
 [project.entry-points."dqx.plugins"]
-dqx_audit = "dqx.plugins.audit:AuditPlugin"
+audit = "dqx.plugins:AuditPlugin"
 ```
 
-### Step 4.5: Create Tests for Audit Plugin
+### Step 4.3: Create Tests for Audit Plugin
 
 Create `tests/test_audit_plugin.py`:
 
@@ -833,7 +802,7 @@ from unittest.mock import patch
 import pytest
 
 from dqx.common import AssertionResult, ResultValue, SymbolInfo
-from dqx.plugins.audit import AuditPlugin
+from dqx.plugins import AuditPlugin
 
 
 def create_test_results() -> tuple[list[AssertionResult], list[SymbolInfo]]:
@@ -925,7 +894,7 @@ def test_audit_plugin_process_logs_statistics() -> None:
         "timestamp": 1704067200.0,  # 2024-01-01 00:00:00 UTC
     }
 
-    with patch("dqx.plugins.audit.logger") as mock_logger:
+    with patch("dqx.plugins.logger") as mock_logger:
         plugin.process(results, symbols, "Test Suite", context)
 
         # Verify logger was called
@@ -996,7 +965,7 @@ def test_audit_plugin_file_write_error_handling() -> None:
     results, symbols = create_test_results()
 
     # Should log error but not crash
-    with patch("dqx.plugins.audit.logger") as mock_logger:
+    with patch("dqx.plugins.logger") as mock_logger:
         plugin.process(results, symbols, "Test Suite", {})
 
         # Verify error was logged
@@ -1005,34 +974,32 @@ def test_audit_plugin_file_write_error_handling() -> None:
         assert "Failed to write audit to file" in str(error_calls[0])
 ```
 
-### Step 4.6: Validation
+### Step 4.4: Validation
 
 ```bash
 # Type check
-uv run mypy src/dqx/plugins/audit.py
+uv run mypy src/dqx/plugins.py
 
 # Lint check
-uv run ruff check src/dqx/plugins/
+uv run ruff check src/dqx/plugins.py
 
 # Run tests
 uv run pytest tests/test_audit_plugin.py -v
 
 # Check coverage
-uv run pytest tests/test_audit_plugin.py -v --cov=dqx.plugins.audit --cov-report=term-missing
+uv run pytest tests/test_audit_plugin.py -v --cov=dqx.plugins --cov-report=term-missing
 ```
 
-### Step 4.7: Git Commit
+### Step 4.5: Git Commit
 
 ```bash
-git add src/dqx/plugins/ tests/test_audit_plugin.py pyproject.toml
+git add src/dqx/plugins.py tests/test_audit_plugin.py pyproject.toml
 git commit -m "feat(plugins): add built-in audit plugin
 
-- Create AuditPlugin for execution tracking and statistics
+- Add AuditPlugin to existing plugins.py module
 - Register plugin via entry point in pyproject.toml
 - Support file-based audit logging
-- Add comprehensive tests with full coverage
-- Include usage example
-- Register via entry point in pyproject.toml"
+- Add comprehensive tests with full coverage"
 ```
 
 ---
@@ -1271,11 +1238,11 @@ class EmailAlertsPlugin:
 
 ## Built-in Plugins
 
-DQX includes a built-in audit plugin (`dqx_audit`) that logs execution statistics. Enable it with:
+DQX includes a built-in audit plugin (`audit`) that logs execution statistics. Enable it with:
 
 ```python
 plugin_config={
-    "dqx_audit": {
+    "audit": {
         "log_to_file": True,
         "audit_file": "validation_audit.log"
     }
@@ -1296,9 +1263,9 @@ plugin_config={
 Move the detailed plugin registration example from README to pyproject.toml:
 
 ```toml
-# Built-in DQX plugins
+# Built-in DQX plugin
 [project.entry-points."dqx.plugins"]
-dqx_audit = "dqx.plugins.audit:AuditPlugin"
+audit = "dqx.plugins:AuditPlugin"
 
 # Example: How external packages register DQX plugins
 # Create a plugin class implementing the ResultProcessor protocol,
@@ -1340,7 +1307,7 @@ After completing all task groups, you should have:
 
 1. ✅ A working plugin system in `src/dqx/plugins.py`
 2. ✅ Integration with VerificationSuite in `src/dqx/api.py`
-3. ✅ Built-in audit plugin in `src/dqx/plugins/audit.py`
+3. ✅ Built-in audit plugin in `src/dqx/plugins.py`
 4. ✅ Comprehensive tests with 100% coverage
 5. ✅ Updated documentation with simple plugin guide
 6. ✅ Clean git history with atomic commits
