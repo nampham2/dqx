@@ -118,15 +118,21 @@ class TestDuplicateCountIntegration:
         # Create suite
         suite = VerificationSuite(checks=[check_no_duplicates], db=mock_db, name="test_suite")
 
-        # Build graph and verify structure
+        # Run suite which will build graph internally
         import datetime
 
         from dqx.common import ResultKey
 
         key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-        suite.build_graph(suite._context, key)
 
-        # Access graph after building
+        import pyarrow as pa
+
+        from dqx.extensions.pyarrow_ds import ArrowDataSource
+
+        data = pa.table({"order_id": [1, 2, 3]})
+        suite.run({"data": ArrowDataSource(data)}, key)
+
+        # Access graph after running
         graph = suite.graph
 
         # Verify graph structure

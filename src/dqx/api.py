@@ -497,16 +497,18 @@ class VerificationSuite:
         self.build_graph(self._context, key)
 
         # 1. Impute datasets using visitor pattern
+        # Use graph in the context to avoid the check if the suite has been evaluated
         logger.info("Imputing datasets...")
-        self.graph.impute_datasets(list(datasources.keys()), self._context.provider)
+        self._context._graph.impute_datasets(list(datasources.keys()), self._context.provider)
 
         # 2. Analyze by datasources
         with self._analyze_ms:
             self._analyze(datasources, key)
 
         # 3. Evaluate assertions
+        # Use graph in the context to avoid the check if the suite has been evaluated
         evaluator = Evaluator(self.provider, key, self._name)
-        self.graph.bfs(evaluator)
+        self._context._graph.bfs(evaluator)
 
         # Mark suite as evaluated only after successful completion
         self._is_evaluated = True

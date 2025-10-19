@@ -261,8 +261,14 @@ class TestValidationExpressions:
         # Mock the provider and evaluator behavior
         suite.provider._symbol_index = {}
 
-        # Run collection phase
-        suite.build_graph(suite._context, ResultKey(yyyy_mm_dd=datetime.date.today(), tags={}))
+        # Run suite which will build graph internally
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+        import pyarrow as pa
+
+        from dqx.extensions.pyarrow_ds import ArrowDataSource
+
+        data = pa.table({"price": [75.0]})
+        suite.run({"data": ArrowDataSource(data)}, key)
 
         # Get the assertion node
         assertions = list(suite.graph.assertions())
@@ -278,8 +284,6 @@ class TestValidationExpressions:
         # Set up mock values
         assertion._metric = Success(75.0)
         assertion._result = "OK"
-        suite._is_evaluated = True
-        suite._key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
         results = suite.collect_results()
 
