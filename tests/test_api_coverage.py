@@ -165,8 +165,13 @@ def test_verification_suite_multiple_checks() -> None:
     suite = VerificationSuite([check1, check2, check3], db, "Multi Check Suite")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
-    # Build graph
-    suite.build_graph(suite._context, key)
+    # Run suite which will build graph internally
+    import pyarrow as pa
+
+    from dqx.extensions.pyarrow_ds import ArrowDataSource
+
+    data = pa.table({"price": [10, 20, 30], "quantity": [100, 200, 300]})
+    suite.run({"orders": ArrowDataSource(data)}, key)
 
     # Verify all checks were added
     checks = list(suite.graph.checks())
@@ -369,12 +374,19 @@ def test_is_leq_assertion() -> None:
     @check(name="LEQ Check")
     def leq_check(mp: MetricProvider, ctx: Context) -> None:
         # Test is_leq
-        ctx.assert_that(sp.Symbol("x")).where(name="X is LEQ 10").is_leq(10)
-        ctx.assert_that(sp.Symbol("y")).where(name="Y is LEQ 20 with tol").is_leq(20, tol=0.1)
+        ctx.assert_that(mp.average("x")).where(name="X is LEQ 10").is_leq(10)
+        ctx.assert_that(mp.average("y")).where(name="Y is LEQ 20 with tol").is_leq(20, tol=0.1)
 
     suite = VerificationSuite([leq_check], db, "test")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.build_graph(suite._context, key=key)
+
+    # Run suite which will build graph internally
+    import pyarrow as pa
+
+    from dqx.extensions.pyarrow_ds import ArrowDataSource
+
+    data = pa.table({"x": [1, 2, 3], "y": [10, 15, 20]})
+    suite.run({"data": ArrowDataSource(data)}, key)
 
     # Verify assertions were created
     assertions = list(suite.graph.assertions())
@@ -390,12 +402,19 @@ def test_is_lt_assertion() -> None:
     @check(name="LT Check")
     def lt_check(mp: MetricProvider, ctx: Context) -> None:
         # Test is_lt
-        ctx.assert_that(sp.Symbol("x")).where(name="X is LT 10").is_lt(10)
-        ctx.assert_that(sp.Symbol("y")).where(name="Y is LT 20 with tol").is_lt(20, tol=0.01)
+        ctx.assert_that(mp.average("x")).where(name="X is LT 10").is_lt(10)
+        ctx.assert_that(mp.average("y")).where(name="Y is LT 20 with tol").is_lt(20, tol=0.01)
 
     suite = VerificationSuite([lt_check], db, "test")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.build_graph(suite._context, key=key)
+
+    # Run suite which will build graph internally
+    import pyarrow as pa
+
+    from dqx.extensions.pyarrow_ds import ArrowDataSource
+
+    data = pa.table({"x": [5, 10, 15], "y": [18, 19, 20]})
+    suite.run({"data": ArrowDataSource(data)}, key)
 
     # Verify assertions were created
     assertions = list(suite.graph.assertions())
@@ -411,12 +430,19 @@ def test_is_eq_assertion() -> None:
     @check(name="EQ Check")
     def eq_check(mp: MetricProvider, ctx: Context) -> None:
         # Test is_eq
-        ctx.assert_that(sp.Symbol("x")).where(name="X equals 10").is_eq(10)
-        ctx.assert_that(sp.Symbol("y")).where(name="Y equals 20 with tol").is_eq(20, tol=0.001)
+        ctx.assert_that(mp.average("x")).where(name="X equals 10").is_eq(10)
+        ctx.assert_that(mp.average("y")).where(name="Y equals 20 with tol").is_eq(20, tol=0.001)
 
     suite = VerificationSuite([eq_check], db, "test")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.build_graph(suite._context, key=key)
+
+    # Run suite which will build graph internally
+    import pyarrow as pa
+
+    from dqx.extensions.pyarrow_ds import ArrowDataSource
+
+    data = pa.table({"x": [10, 10, 10], "y": [20, 20, 20]})
+    suite.run({"data": ArrowDataSource(data)}, key)
 
     # Verify assertions were created
     assertions = list(suite.graph.assertions())
@@ -448,12 +474,19 @@ def test_is_between_valid_assertion() -> None:
     @check(name="Between Check")
     def between_check(mp: MetricProvider, ctx: Context) -> None:
         # Test valid range
-        ctx.assert_that(sp.Symbol("x")).where(name="X is between 0 and 10").is_between(0, 10)
-        ctx.assert_that(sp.Symbol("y")).where(name="Y is between -5 and 5 with tol").is_between(-5, 5, tol=0.1)
+        ctx.assert_that(mp.average("x")).where(name="X is between 0 and 10").is_between(0, 10)
+        ctx.assert_that(mp.average("y")).where(name="Y is between -5 and 5 with tol").is_between(-5, 5, tol=0.1)
 
     suite = VerificationSuite([between_check], db, "test")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.build_graph(suite._context, key=key)
+
+    # Run suite which will build graph internally
+    import pyarrow as pa
+
+    from dqx.extensions.pyarrow_ds import ArrowDataSource
+
+    data = pa.table({"x": [5, 7, 9], "y": [-3, 0, 3]})
+    suite.run({"data": ArrowDataSource(data)}, key)
 
     # Verify assertions were created
     assertions = list(suite.graph.assertions())
@@ -738,3 +771,4 @@ def test_collect_results_successful() -> None:
     # Check second result
     assert results[1].assertion == "Average price reasonable"
     assert results[1].status == "FAILURE"
+    assert results[1].severity == "P1"  # Default severity
