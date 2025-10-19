@@ -324,9 +324,6 @@ class VerificationSuite:
         self._is_evaluated = False  # Track if assertions have been evaluated
         self._key: ResultKey | None = None  # Store the key used during run()
 
-        # Graph state tracking
-        self._graph_built = False  # Track if graph has been built
-
         # Lazy-loaded plugin manager
         self._plugin_manager: PluginManager | None = None
 
@@ -354,8 +351,7 @@ class VerificationSuite:
             >>> graph = suite.graph  # Now accessible
             >>> print(f"Graph has {len(list(graph.checks()))} checks")
         """
-        if not self._graph_built:
-            raise DQXError("Graph not built yet. Call build_graph() or run() first to build the dependency graph.")
+        self.assert_is_evaluated()
         return self._context._graph
 
     @property
@@ -418,7 +414,6 @@ class VerificationSuite:
         1. Executes all check functions to populate the graph with assertions
         2. Validates the graph structure for errors or warnings
         3. Raises DQXError if validation fails
-        4. Sets the _graph_built flag to True
 
         Args:
             context: The execution context containing the graph
@@ -445,9 +440,6 @@ class VerificationSuite:
             raise DQXError(f"Suite validation failed:\n{report}")
         elif report.has_warnings():
             logger.warning(f"Suite validation warnings:\n{report}")
-
-        # Mark graph as built
-        self._graph_built = True
 
     def _analyze(self, datasources: dict[str, SqlDataSource], key: ResultKey) -> None:
         for ds_name in datasources.keys():
@@ -505,16 +497,18 @@ class VerificationSuite:
         self.build_graph(self._context, key)
 
         # 1. Impute datasets using visitor pattern
+        # Use graph in the context to avoid the check if the suite has been evaluated
         logger.info("Imputing datasets...")
-        self.graph.impute_datasets(list(datasources.keys()), self._context.provider)
+        self._context._graph.impute_datasets(list(datasources.keys()), self._context.provider)
 
         # 2. Analyze by datasources
         with self._analyze_ms:
             self._analyze(datasources, key)
 
         # 3. Evaluate assertions
+        # Use graph in the context to avoid the check if the suite has been evaluated
         evaluator = Evaluator(self.provider, key, self._name)
-        self.graph.bfs(evaluator)
+        self._context._graph.bfs(evaluator)
 
         # Mark suite as evaluated only after successful completion
         self._is_evaluated = True

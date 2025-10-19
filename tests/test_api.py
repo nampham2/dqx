@@ -402,13 +402,19 @@ def test_verification_suite_graph_property() -> None:
     db = InMemoryMetricDB()
     suite = VerificationSuite([simple_check], db, "Test Suite")
 
-    # Should raise error before build_graph is called
-    with pytest.raises(DQXError, match="Graph not built yet"):
+    # Should raise error before run is called
+    with pytest.raises(DQXError, match="Verification suite has not been executed yet!"):
         _ = suite.graph
 
-    # After building graph, should work
+    # After running suite, should work
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.build_graph(suite._context, key)  # type: ignore[attr-defined]  # Use suite's context
+    # Need to provide a mock data source for run
+    import pyarrow as pa
+
+    from dqx.extensions.pyarrow_ds import ArrowDataSource
+
+    data = pa.table({"x": [1, 2, 3]})
+    suite.run({"data": ArrowDataSource(data)}, key)
 
     # Should return a Graph instance
     from dqx.graph.traversal import Graph
@@ -437,10 +443,15 @@ def test_verification_suite_build_graph_method() -> None:
     # Should not have collect method anymore
     assert not hasattr(suite, "collect")
 
-    # build_graph should work
-    suite.build_graph(suite._context, key)  # type: ignore[attr-defined]
+    # Run suite which will call build_graph internally
+    import pyarrow as pa
 
-    # Graph should be populated
+    from dqx.extensions.pyarrow_ds import ArrowDataSource
+
+    data = pa.table({"x": [1, 2, 3]})
+    suite.run({"data": ArrowDataSource(data)}, key)
+
+    # After run, graph should be populated
     assert len(suite.graph.root.children) > 0
 
 
