@@ -8,8 +8,9 @@
 - **DuckDB (1.3.2+)**: In-memory SQL engine for analytics
 - **PyArrow (21.0.0+)**: Efficient columnar data processing
 - **SQLAlchemy (2.0.43+)**: Database abstraction for metric storage
-- **Rich (14.1.0+)**: Terminal formatting for result display
+- **Rich (14.1.0+)**: Terminal formatting for result display (moved from dev to core)
 - **Returns (0.26.0+)**: Functional error handling (Result type)
+- **sqlparse (0.5.0+)**: SQL formatting and beautification
 
 ### Supporting Libraries
 - **numpy (2.3.2+)**: Numerical operations
@@ -24,6 +25,9 @@
 - **pre-commit (4.3.0+)**: Git hook framework
 - **pytest-cov (6.2.1+)**: Test coverage reporting
 - **faker (37.5.3+)**: Test data generation
+- **yamllint**: YAML file validation (new)
+- **shfmt**: Shell script formatting (new)
+- **shellcheck**: Shell script validation (new)
 
 ## Development Setup
 
@@ -82,14 +86,17 @@ src/dqx/
 ├── functions.py         # Mathematical functions
 ├── models.py            # Data models
 ├── ops.py               # Metric operations
+├── plugins.py           # Plugin system
 ├── provider.py          # Metric provider
 ├── specs.py             # Metric specifications
 ├── states.py            # State management
+├── timer.py             # Performance timing
 ├── utils.py             # Utility functions
 ├── validator.py         # Suite validation
 ├── extensions/          # Data source extensions
 ├── graph/              # Graph implementation
-└── orm/                # Database persistence
+├── orm/                # Database persistence
+└── plugins/            # Built-in plugins
 ```
 
 ### Test Structure
@@ -107,11 +114,13 @@ tests/
 - Project metadata and dependencies
 - Tool configurations (ruff, mypy, pytest)
 - Build system configuration
+- Version management
 
 ### .pre-commit-config.yaml
 - Automated code quality checks
 - Runs on every commit
-- Includes: ruff, mypy, trailing whitespace
+- Includes: ruff, mypy, trailing whitespace, yamllint, shfmt, shellcheck
+- Ensures consistent code quality
 
 ### .python-version
 - Specifies Python 3.11 for the project
@@ -134,6 +143,11 @@ tests/
 - Works through DuckDB
 - Efficient for local data files
 - Parquet file support
+
+### Future Dialects
+- PostgreSQL (planned for v0.4.0)
+- Snowflake (under consideration)
+- MySQL/MariaDB (evaluation phase)
 
 ## Database Persistence
 
@@ -161,6 +175,13 @@ def average(
 ```python
 class MetricSpec(Protocol):
     def to_sql(self, table_alias: str, dialect: Dialect) -> str: ...
+
+
+class PostProcessor(Protocol):
+    @staticmethod
+    def metadata() -> PluginMetadata: ...
+
+    def process(self, context: PluginExecutionContext) -> None: ...
 ```
 
 ### Result Types
@@ -183,12 +204,14 @@ Result[float, str]  # Success has float, Failure has error string
 - **Integration tests**: Component interactions
 - **E2E tests**: Full workflow validation
 - **Demo tests**: Example usage patterns
+- **Plugin tests**: Plugin functionality
 
 ### Testing Best Practices
 - Prefer native objects over mocks
 - Test actual behavior, not implementation
 - Clear test names describing scenarios
 - Isolated tests with no dependencies
+- Test error paths as thoroughly as success paths
 
 ## Performance Considerations
 
@@ -197,12 +220,18 @@ Result[float, str]  # Success has float, Failure has error string
 - CTE-based query structure
 - Push computation to database
 - Minimize data transfer
+- SQL formatting for readability
 
 ### Memory Management
 - No data materialization in Python
 - Streaming results processing
 - Constant memory usage
 - Lazy symbol evaluation
+
+### Plugin Performance
+- 60-second hard timeout
+- Time tracking for each plugin
+- Isolated execution environment
 
 ## Security Considerations
 
@@ -215,6 +244,11 @@ Result[float, str]  # Success has float, Failure has error string
 - Read-only data source access
 - Separate metric storage credentials
 - No data modification capabilities
+
+### Plugin Security
+- Time-limited execution
+- Error isolation
+- No access to sensitive internals
 
 ## Deployment Patterns
 
@@ -234,6 +268,7 @@ RUN pip install dqx
 - Run checks in pipeline
 - Fail build on quality issues
 - Track metrics over time
+- Plugin-based reporting
 
 ## Debugging Tips
 
@@ -254,6 +289,15 @@ suite.graph.display()  # Visual representation
 analyzer._build_query(metrics)  # See generated SQL
 ```
 
+### Debug Plugins
+```python
+# Check loaded plugins
+suite.plugin_manager.get_plugins()
+
+# Test plugin directly
+plugin.process(context)
+```
+
 ## Common Issues
 
 ### Import Errors
@@ -270,3 +314,26 @@ analyzer._build_query(metrics)  # See generated SQL
 - Check test isolation
 - Verify database state
 - Look for timing dependencies
+
+### Plugin Issues
+- Check plugin registration
+- Verify metadata() returns PluginMetadata
+- Ensure process() handles all context fields
+
+## Recent Changes
+
+### Removed Features
+- Batch processing support (simplified architecture)
+- Threading infrastructure (no longer needed)
+- Parallel execution capabilities
+
+### Added Tools
+- yamllint for YAML validation
+- shfmt for shell script formatting
+- shellcheck for shell script linting
+- sqlparse for SQL formatting
+
+### Dependency Changes
+- Rich moved from dev to core dependencies
+- Added sqlparse as core dependency
+- Updated pre-commit hooks configuration

@@ -4,7 +4,7 @@
 DQX - Data Quality eXcellence
 
 ## Version
-0.2.0
+0.3.0
 
 ## Core Purpose
 DQX is a data quality validation framework that enables developers to write quality checks as mathematical expressions in Python, validate data efficiently using SQL backends, and get instant feedback on data integrity issues.

@@ -1,9 +1,40 @@
 # DQX Active Context
 
 ## Current Focus
-As of October 2025, DQX is at version 0.2.0 preparing for its first public release. The focus has been on simplifying the architecture and ensuring a solid foundation.
+As of October 2025, DQX has reached version 0.3.0 with significant architectural enhancements. The focus has been on adding extensibility through plugins, improving validation capabilities, and enhancing the developer experience.
 
 ## Recent Changes
+
+### Plugin System Implementation (October 2025)
+- **PluginManager**: Centralized plugin lifecycle management
+- **PostProcessor Protocol**: Clean interface for result processing plugins
+- **Built-in AuditPlugin**: Rich-formatted execution reports with statistics
+- **Time-limited Execution**: 60-second timeout for plugin safety
+- **Plugin Discovery**: Automatic registration of built-in plugins
+
+### Enhanced Validation Framework (October 2025)
+- **Comprehensive Validators**: Four specialized validators for different issues
+  - `DuplicateCheckNameValidator`: Detects duplicate check names (error)
+  - `EmptyCheckValidator`: Warns about checks with no assertions (warning)
+  - `DuplicateAssertionNameValidator`: Catches duplicate assertion names within checks (error)
+  - `DatasetValidator`: Detects dataset mismatches and ambiguities (error)
+- **CompositeValidationVisitor**: Efficient single-pass validation
+- **Structured Reports**: ValidationReport with errors, warnings, and structured output
+
+### Evaluation Failure Improvements (October 2025)
+- **EvaluationFailure Dataclass**: Rich error context with expression and symbol info
+- **SymbolInfo Dataclass**: Complete metadata for each symbol including dataset and suite
+- **Complex Number Handling**: Proper detection and error reporting for complex/infinite values
+- **Enhanced Error Messages**: Include symbol values and expressions in failures
+
+### Symbol Natural Ordering (October 2025)
+- Symbols now sort numerically: x_1, x_2, ..., x_10 (not x_1, x_10, x_2)
+- Consistent ordering in reports and displays
+
+### SQL Formatting (October 2025)
+- Integration with `sqlparse` library
+- Formatted SQL output for better readability
+- Automatic formatting in query generation
 
 ### Removed Features (Simplification)
 1. **Batch Processing Support** (October 2025)
@@ -33,15 +64,27 @@ As of October 2025, DQX is at version 0.2.0 preparing for its first public relea
   - Prevents unnamed assertions in reports
   - Better error messages and debugging
 
+- **Mandatory Severity**: All assertions must have a severity level
+  - No longer accepts None
+  - Defaults to "P1" if not specified
+  - Breaking change from previous versions
+
+- **Mandatory Check Names**: @check decorator requires name parameter
+  - `@check(name="My Check")` is required
+  - No default or automatic naming
+  - Improves clarity and debugging
+
 ### Graph Architecture
 - **Visitor pattern** for extensibility
 - **Node hierarchy**: Root → Check → Assertion → Symbol
 - **Dataset imputation**: Automatic inference of dataset associations
+- **Defensive graph property**: Explicit `_graph_built` flag for safety
 
 ### Error Handling
 - **Returns library** for functional error handling
 - **Result types** instead of exceptions for expected failures
 - **Detailed failure context** in assertion results
+- **EvaluationFailure** for rich error information
 
 ## Next Steps
 
@@ -50,6 +93,7 @@ As of October 2025, DQX is at version 0.2.0 preparing for its first public relea
    - More real-world examples
    - Tutorial series
    - API reference completion
+   - Plugin development guide
 
 2. **Performance Optimization**
    - Query plan analysis
@@ -92,6 +136,25 @@ def validate_data(mp: MetricProvider, ctx: Context) -> None:
     )
 ```
 
+### Plugin Development Pattern
+```python
+class MyPlugin:
+    @staticmethod
+    def metadata() -> PluginMetadata:
+        return PluginMetadata(
+            name="my-plugin",
+            version="1.0.0",
+            author="Your Name",
+            description="Description",
+            capabilities={"reporting"},
+        )
+
+    def process(self, context: PluginExecutionContext) -> None:
+        # Access results and symbols
+        failed = context.failed_assertions()
+        pass_rate = context.assertion_pass_rate()
+```
+
 ### Metric Reuse Pattern
 ```python
 # Define once, use multiple times
@@ -113,8 +176,12 @@ failures = [r for r in results if r.status == "FAILURE"]
 
 # Examine failure details
 for failure in failures:
-    error = failure.metric.failure()
-    print(f"{failure.check}/{failure.assertion}: {error}")
+    if failure.metric.is_failure():
+        errors = failure.metric.failure()
+        for error in errors:
+            print(f"Expression: {error.expression}")
+            for symbol in error.symbols:
+                print(f"  {symbol.name}: {symbol.value}")
 ```
 
 ## Development Workflow
@@ -124,7 +191,7 @@ for failure in failures:
 2. Implement minimal working solution
 3. Run full test suite
 4. Check type hints with mypy
-5. Run pre-commit hooks
+5. Run pre-commit hooks (now includes yamllint, shfmt, shellcheck)
 6. Update documentation
 7. Add examples if appropriate
 
@@ -135,6 +202,7 @@ for failure in failures:
 - [ ] No backward compatibility breaks
 - [ ] Examples work correctly
 - [ ] Documentation updated
+- [ ] Plugin compatibility verified
 
 ## Known Issues
 
@@ -145,7 +213,7 @@ for failure in failures:
 
 ### Workarounds
 1. **Partial evaluation**: Split into multiple suites
-2. **Error recovery**: Wrap metrics in try/except patterns
+2. **Error recovery**: Use plugins for custom error handling
 3. **Large results**: Use database-side aggregation
 
 ## Key Insights
@@ -155,12 +223,15 @@ for failure in failures:
 - Graph-based execution is efficient
 - Protocol-based extensions are clean
 - Error messages are helpful
+- Plugin system provides flexibility
+- Validation framework catches issues early
 
 ### What Needs Improvement
 - Better debugging tools for complex expressions
 - More built-in metrics (median, mode, etc.)
 - Performance profiling capabilities
 - Visualization of dependency graphs
+- Plugin marketplace/registry
 
 ## Contact & Collaboration
 - Lead Developer: Nam Pham (phamducnam@gmail.com)
