@@ -18,40 +18,54 @@ repos:
       # Fast syntax checks
       - id: check-ast
         name: Check Python syntax
+        stages: [pre-commit]
 
       # Security - no private keys
       - id: detect-private-key
+        stages: [pre-commit]
 
       # Check for merge conflicts
       - id: check-merge-conflict
+        stages: [pre-commit]
 
       # Debug statements
       - id: debug-statements
         name: Check for debug statements
+        stages: [pre-commit]
 
       # File quality checks
       - id: trailing-whitespace
+        stages: [pre-commit]
       - id: end-of-file-fixer
+        stages: [pre-commit]
       - id: check-case-conflict
+        stages: [pre-commit]
       - id: mixed-line-ending
         args: ['--fix=lf']
+        stages: [pre-commit]
       - id: fix-byte-order-marker
+        stages: [pre-commit]
 
       # Content validation
       - id: check-yaml
         args: ['--allow-multiple-documents']
+        stages: [pre-commit]
       - id: check-toml
+        stages: [pre-commit]
       - id: check-json
         # Note: This will fail on JSON with comments (like .vscode/settings.json)
         exclude: '.vscode/.*\.json$'
+        stages: [pre-commit]
 
       # Prevent large files (increased limit for lock files)
       - id: check-added-large-files
         args: ['--maxkb=1000']
         exclude: 'uv\.lock$'
+        stages: [pre-commit]
 
       # Python specific
       - id: check-docstring-first
+        stages: [pre-commit]
 
   # Shell script validation
   - repo: https://github.com/shellcheck-py/shellcheck-py
@@ -63,6 +77,7 @@ repos:
         files: '\.(sh|bash)$'
         types: [shell]
         require_serial: false
+        stages: [pre-commit]
 
   # Shell script formatting
   - repo: https://github.com/scop/pre-commit-shfmt
@@ -73,6 +88,7 @@ repos:
         args: ['-i', '2', '-w']  # 2-space indent, write changes
         files: '\.(sh|bash)$'
         types: [shell]
+        stages: [pre-commit]
 
   # Python code formatting in documentation
   - repo: https://github.com/asottile/blacken-docs
@@ -85,6 +101,7 @@ repos:
         files: '\.(md|rst|tex)$'
         types: [text]
         exclude: '^docs/plans/'  # Exclude planning docs with pseudo-code
+        stages: [pre-commit]
 
   # YAML validation and linting
   - repo: https://github.com/adrienverge/yamllint
@@ -98,6 +115,7 @@ repos:
         ]
         files: '\.(yaml|yml)$'
         types: [yaml]
+        stages: [pre-commit]
 
   # Local hooks that use our project's virtual environment
   - repo: local
@@ -118,6 +136,7 @@ repos:
         language: system
         types: [python]
         require_serial: true
+        stages: [pre-commit]
 
       # Ruff - Then lint (may modify files)
       - id: ruff-check
@@ -126,6 +145,7 @@ repos:
         language: system
         types: [python]
         require_serial: true
+        stages: [pre-commit]
 
       # MyPy - Static type checker (doesn't modify files)
       - id: mypy
@@ -136,5 +156,6 @@ repos:
         require_serial: true
         pass_filenames: false
         args: [src, tests, examples]
+        stages: [pre-commit]
         # Note: We use full project checking to ensure type consistency
         # For faster commits, developers can use SKIP=mypy
