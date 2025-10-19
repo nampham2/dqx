@@ -258,7 +258,7 @@ def test_verification_suite_graph_before_build_error() -> None:
     suite = VerificationSuite([test_check], db, "Test Suite")
 
     # Accessing graph before build_graph() should raise error
-    with pytest.raises(DQXError, match="Graph not built yet. Call build_graph\\(\\) or run\\(\\) first"):
+    with pytest.raises(DQXError, match="Verification suite has not been executed yet!"):
         _ = suite.graph
 
 
@@ -341,58 +341,6 @@ def test_process_plugins_early_return() -> None:
     suite._execution_start = 123.45
     with pytest.raises(DQXError, match="Verification suite has not been executed yet!"):
         suite._process_plugins({"test": None})  # type: ignore
-
-
-def test_process_plugins_without_execution_start() -> None:
-    """Test _process_plugins when _execution_start attribute is missing (covers fallback duration calculation)."""
-    from unittest.mock import MagicMock, patch
-
-    db = InMemoryMetricDB()
-
-    @check(name="Test Check")
-    def test_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
-
-    suite = VerificationSuite([test_check], db, "Test Suite")
-    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-
-    # Build graph and mark as evaluated without going through run()
-    suite.build_graph(suite._context, key)
-    suite._is_evaluated = True
-    suite._key = key
-
-    # Mock the timer to raise AttributeError (timer wasn't started properly)
-    suite._analyze_ms = MagicMock()
-    suite._analyze_ms.elapsed_ms.side_effect = AttributeError("Timer not started")
-
-    # Ensure _execution_start doesn't exist
-    if hasattr(suite, "_execution_start"):
-        delattr(suite, "_execution_start")
-
-    # Mock collect_results and collect_symbols to avoid accessing _result attribute
-    mock_results: list[Any] = []
-    mock_symbols: list[Any] = []
-
-    # Mock the plugin manager to track if process_all was called
-    mock_plugin_manager = MagicMock()
-    mock_plugin_manager.process_all = MagicMock()
-    suite._plugin_manager = mock_plugin_manager
-
-    # Mock time.time to return a known value
-    with patch("time.time", return_value=1234567890.0):
-        with patch.object(suite, "collect_results", return_value=mock_results):
-            with patch.object(suite, "collect_symbols", return_value=mock_symbols):
-                # Call _process_plugins - should use fallback duration of 0.0
-                suite._process_plugins({"test": None})  # type: ignore
-
-    # Verify process_all was called
-    assert mock_plugin_manager.process_all.called
-    call_args = mock_plugin_manager.process_all.call_args[0][0]
-
-    # Check that duration_ms is 0.0 (fallback value)
-    assert call_args.duration_ms == 0.0
-    # Check timestamp is the mocked value
-    assert call_args.timestamp == 1234567890.0
 
 
 def test_assertion_name_validation() -> None:

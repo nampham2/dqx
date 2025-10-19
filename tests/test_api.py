@@ -403,7 +403,7 @@ def test_verification_suite_graph_property() -> None:
     suite = VerificationSuite([simple_check], db, "Test Suite")
 
     # Should raise error before build_graph is called
-    with pytest.raises(DQXError, match="Graph not built yet"):
+    with pytest.raises(DQXError, match="Verification suite has not been executed yet!"):
         _ = suite.graph
 
     # After building graph, should work
