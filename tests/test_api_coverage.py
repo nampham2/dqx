@@ -327,27 +327,6 @@ def test_collect_symbols_with_evaluation_error() -> None:
         assert symbols[0].value.failure()  # Returns the error message
 
 
-def test_process_plugins_early_return() -> None:
-    """Test _process_plugins raises error when suite has not been evaluated."""
-    db = InMemoryMetricDB()
-
-    @check(name="Test Check")
-    def test_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(sp.Symbol("x")).where(name="Test").is_positive()
-
-    suite = VerificationSuite([test_check], db, "Test Suite")
-
-    # Call _process_plugins when suite hasn't been evaluated
-    # Should raise DQXError
-    with pytest.raises(DQXError, match="Verification suite has not been executed yet!"):
-        suite._process_plugins({"test": None})  # type: ignore
-
-    # Even with execution_start set, should still raise error since not evaluated
-    suite._execution_start = 123.45
-    with pytest.raises(DQXError, match="Verification suite has not been executed yet!"):
-        suite._process_plugins({"test": None})  # type: ignore
-
-
 def test_assertion_name_validation() -> None:
     """Test assertion name validation in where() method."""
     db = InMemoryMetricDB()

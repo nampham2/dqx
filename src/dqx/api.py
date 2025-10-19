@@ -396,6 +396,16 @@ class VerificationSuite:
             raise DQXError("No ResultKey available. This should not happen after successful run().")
         return self._key
 
+    @property
+    def is_evaluated(self) -> bool:
+        """
+        Check if the suite has been evaluated.
+
+        Returns:
+            True if the suite has been executed, False otherwise.
+        """
+        return self._is_evaluated
+
     def assert_is_evaluated(self) -> None:
         """
         Ensure the suite has been evaluated before proceeding.
@@ -477,7 +487,7 @@ class VerificationSuite:
             DQXError: If no data sources provided or suite already executed
         """
         # Prevent multiple runs
-        if self._is_evaluated:
+        if self.is_evaluated:
             raise DQXError("Verification suite has already been executed. Create a new suite instance to run again.")
 
         logger.info(f"Running verification suite '{self._name}' with datasets: {list(datasources.keys())}")
@@ -488,9 +498,6 @@ class VerificationSuite:
 
         # Store the key for later use in collect_results
         self._key = key
-
-        # Track execution start time
-        self._execution_start = time.time()
 
         # Build the dependency graph
         logger.info("Building dependency graph...")
@@ -637,20 +644,14 @@ class VerificationSuite:
         """
         # Raise error if the suite hasn't been properly executed
         self.assert_is_evaluated()
-
-        # Calculate duration - handle case where timer wasn't started
-        try:
-            duration_ms = self._analyze_ms.elapsed_ms()
-        except (RuntimeError, AttributeError):
-            # Timer wasn't started, calculate from execution start
-            duration_ms = (time.time() - self._execution_start) * 1000 if hasattr(self, "_execution_start") else 0.0
+        duration_ms = self._analyze_ms.elapsed_ms()
 
         # Create plugin execution context
         context = PluginExecutionContext(
             suite_name=self._name,
             datasources=list(datasources.keys()),
             key=self.key,
-            timestamp=self._execution_start if hasattr(self, "_execution_start") else time.time(),
+            timestamp=time.time(),  # TODO: Track the actual execution time
             duration_ms=duration_ms,
             results=self.collect_results(),
             symbols=self.collect_symbols(),
