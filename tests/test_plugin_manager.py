@@ -843,3 +843,243 @@ class TestAuditPlugin:
         # 14. Footer
         # 15. Empty line
         assert len(print_calls) >= 10  # At minimum
+
+
+class TestPluginInstanceEdgeCases:
+    """Edge case tests for plugin instance registration."""
+
+    def test_register_plugin_with_exception_in_metadata(self) -> None:
+        """Test registering instance that raises exception in metadata()."""
+
+        class ExceptionMetadataPlugin:
+            @staticmethod
+            def metadata() -> PluginMetadata:
+                raise RuntimeError("Metadata retrieval failed")
+
+            def process(self, context: PluginExecutionContext) -> None:
+                pass
+
+        manager = PluginManager()
+        plugin = ExceptionMetadataPlugin()
+
+        with pytest.raises(ValueError, match="Failed to get metadata from plugin instance"):
+            manager.register_plugin(plugin)
+
+    def test_register_plugin_with_none_metadata(self) -> None:
+        """Test registering instance that returns None from metadata()."""
+
+        class NoneMetadataPlugin:
+            @staticmethod
+            def metadata() -> None:  # type: ignore[return]
+                return None
+
+            def process(self, context: PluginExecutionContext) -> None:
+                pass
+
+        manager = PluginManager()
+        plugin = NoneMetadataPlugin()
+
+        with pytest.raises(ValueError, match="metadata\\(\\) must return a PluginMetadata instance"):
+            manager.register_plugin(plugin)  # type: ignore[call-overload]
+
+    def test_plugin_instance_lifecycle(self) -> None:
+        """Test complete lifecycle of plugin instance registration."""
+
+        class LifecyclePlugin:
+            def __init__(self) -> None:
+                self.initialized = True
+                self.process_count = 0
+
+            @staticmethod
+            def metadata() -> PluginMetadata:
+                return PluginMetadata(
+                    name="lifecycle",
+                    version="1.0.0",
+                    author="Test",
+                    description="Lifecycle test plugin",
+                )
+
+            def process(self, context: PluginExecutionContext) -> None:
+                self.process_count += 1
+
+        # Create and register
+        manager = PluginManager()
+        plugin = LifecyclePlugin()
+        manager.register_plugin(plugin)
+
+        # Verify registration
+        assert manager.plugin_exists("lifecycle")
+        assert manager.get_plugins()["lifecycle"] is plugin
+
+        # Create context
+        context = PluginExecutionContext(
+            suite_name="Test",
+            datasources=[],
+            key=ResultKey(datetime.now().date(), {}),
+            timestamp=time.time(),
+            duration_ms=0.0,
+            results=[],
+            symbols=[],
+        )
+
+        # Process
+        manager.process_all(context)
+        assert plugin.process_count == 1
+
+        # Process again
+        manager.process_all(context)
+        assert plugin.process_count == 2
+
+        # Unregister
+        manager.unregister_plugin("lifecycle")
+        assert not manager.plugin_exists("lifecycle")
+
+        # Process should not call plugin
+        manager.process_all(context)
+        assert plugin.process_count == 2  # No change
+
+    def test_multiple_instance_registration_different_names(self) -> None:
+        """Test registering multiple instances with different names."""
+
+        class MultiPlugin:
+            def __init__(self, name: str) -> None:
+                self._name = name
+
+            def metadata(self) -> PluginMetadata:
+                return PluginMetadata(
+                    name=self._name,
+                    version="1.0.0",
+                    author="Test",
+                    description=f"Multi plugin {self._name}",
+                )
+
+            def process(self, context: PluginExecutionContext) -> None:
+                pass
+
+        manager = PluginManager()
+        manager.clear_plugins()
+
+        # Register multiple instances
+        plugin1 = MultiPlugin("multi1")
+        plugin2 = MultiPlugin("multi2")
+        plugin3 = MultiPlugin("multi3")
+
+        manager.register_plugin(plugin1)  # type: ignore[call-overload]
+        manager.register_plugin(plugin2)  # type: ignore[call-overload]
+        manager.register_plugin(plugin3)  # type: ignore[call-overload]
+
+        # Verify all registered
+        plugins = manager.get_plugins()
+        assert len(plugins) == 3
+        assert plugins["multi1"] is plugin1
+        assert plugins["multi2"] is plugin2
+        assert plugins["multi3"] is plugin3
+
+
+class TestPluginIntegration:
+    """Integration tests combining string and instance registration."""
+
+    def test_mixed_registration_with_processing(self) -> None:
+        """Test processing with mixed string and instance registered plugins."""
+        results: list[str] = []
+
+        class TrackingPlugin:
+            def __init__(self, tag: str) -> None:
+                self.tag = tag
+
+            @staticmethod
+            def metadata() -> PluginMetadata:
+                return PluginMetadata(
+                    name="tracking",
+                    version="1.0.0",
+                    author="Test",
+                    description="Tracking plugin",
+                )
+
+            def process(self, context: PluginExecutionContext) -> None:
+                results.append(f"instance-{self.tag}")
+
+        # Create a module-level plugin for string registration
+        import sys
+
+        module = sys.modules[__name__]
+
+        class StringPlugin:
+            @staticmethod
+            def metadata() -> PluginMetadata:
+                return PluginMetadata(
+                    name="string_plugin",
+                    version="1.0.0",
+                    author="Test",
+                    description="String registered plugin",
+                )
+
+            def process(self, context: PluginExecutionContext) -> None:
+                results.append("string-plugin")
+
+        setattr(module, "StringPlugin", StringPlugin)
+
+        # Setup manager
+        manager = PluginManager()
+        manager.clear_plugins()
+
+        # Register by string
+        manager.register_plugin(f"{__name__}.StringPlugin")
+
+        # Register by instance
+        instance = TrackingPlugin("test")
+        manager.register_plugin(instance)
+
+        # Create context
+        context = PluginExecutionContext(
+            suite_name="Integration Test",
+            datasources=[],
+            key=ResultKey(datetime.now().date(), {}),
+            timestamp=time.time(),
+            duration_ms=0.0,
+            results=[],
+            symbols=[],
+        )
+
+        # Process all
+        manager.process_all(context)
+
+        # Verify both plugins ran
+        assert "string-plugin" in results
+        assert "instance-test" in results
+
+    def test_replacing_string_with_instance(self) -> None:
+        """Test replacing a string-registered plugin with an instance."""
+
+        class CustomAuditPlugin:
+            def __init__(self, prefix: str = "CUSTOM") -> None:
+                self.prefix = prefix
+
+            @staticmethod
+            def metadata() -> PluginMetadata:
+                return PluginMetadata(
+                    name="audit",  # Same name as built-in
+                    version="2.0.0",
+                    author="Custom",
+                    description="Custom audit plugin",
+                )
+
+            def process(self, context: PluginExecutionContext) -> None:
+                print(f"{self.prefix}: Processing {context.suite_name}")
+
+        manager = PluginManager()
+
+        # Initially has string-registered audit plugin
+        assert manager.plugin_exists("audit")
+        original = manager.get_plugins()["audit"]
+        assert isinstance(original, AuditPlugin)
+
+        # Replace with instance
+        custom = CustomAuditPlugin("REPLACED")
+        manager.register_plugin(custom)
+
+        # Verify replacement
+        assert manager.plugin_exists("audit")
+        current = manager.get_plugins()["audit"]
+        assert current is custom
+        assert current is not original
