@@ -188,11 +188,11 @@ Refactor the `register_plugin` method:
             ValueError: If the plugin is invalid or doesn't implement PostProcessor
         """
         if isinstance(plugin, str):
-            self._register_from_string(plugin)
+            self._register_from_class(plugin)
         else:
             self._register_from_instance(plugin)
 
-    def _register_from_string(self, class_name: str) -> None:
+    def _register_from_class(self, class_name: str) -> None:
         """Register a plugin from a class name string (existing logic)."""
         try:
             # Move ALL existing register_plugin logic here unchanged
