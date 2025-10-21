@@ -60,6 +60,9 @@
 - **Built-in AuditPlugin**: Rich-formatted execution reports
 - **Time-limited Execution**: 60-second timeout for safety
 - **Plugin Context**: Rich execution context with helper methods
+- **Instance Registration**: Support for registering PostProcessor instances directly
+- **Type-safe Overloads**: register_plugin accepts both str and PostProcessor
+- **Runtime Validation**: Protocol compliance checked at runtime
 
 ### Validation Framework ✅
 - **Comprehensive Validators**: 4 specialized validators
