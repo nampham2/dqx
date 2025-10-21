@@ -3,7 +3,7 @@
 import importlib
 import importlib.metadata
 import logging
-from typing import Protocol, runtime_checkable
+from typing import Protocol, overload, runtime_checkable
 
 from rich import box
 from rich.console import Console
@@ -83,59 +83,88 @@ class PluginManager:
         """
         return name in self._plugins
 
-    def register_plugin(self, class_name: str) -> None:
+    @overload
+    def register_plugin(self, plugin: str) -> None:
+        """Register a plugin by its fully qualified class name."""
+        ...
+
+    @overload
+    def register_plugin(self, plugin: PostProcessor) -> None:
+        """Register a plugin by passing a PostProcessor instance directly."""
+        ...
+
+    def register_plugin(self, plugin: str | PostProcessor) -> None:
         """
-        Register a plugin by its fully qualified class name.
+        Register a plugin either by class name or PostProcessor instance.
 
         Args:
-            class_name: Fully qualified class name (e.g., 'dqx.plugins.AuditPlugin')
+            plugin: Either a fully qualified class name string or a PostProcessor instance
 
         Raises:
-            ValueError: If class cannot be imported or doesn't implement PostProcessor
+            ValueError: If the plugin is invalid or doesn't implement PostProcessor
+            NotImplementedError: If PostProcessor instance registration is not yet supported
         """
-        try:
-            # Parse the class name
-            parts = class_name.rsplit(".", 1)
-            if len(parts) != 2:
-                raise ValueError(f"Invalid class name format: {class_name}")
-
-            module_name, cls_name = parts
-
-            # Import the module
+        # Defensive type checking
+        if isinstance(plugin, str):
+            # Handle string case (existing implementation)
+            class_name = plugin
             try:
-                module = importlib.import_module(module_name)
-            except ImportError as e:
-                raise ValueError(f"Cannot import module {module_name}: {e}")
+                # Parse the class name
+                parts = class_name.rsplit(".", 1)
+                if len(parts) != 2:
+                    raise ValueError(f"Invalid class name format: {class_name}")
 
-            # Get the class
-            if not hasattr(module, cls_name):
-                raise ValueError(f"Module {module_name} has no class {cls_name}")
+                module_name, cls_name = parts
 
-            plugin_class = getattr(module, cls_name)
+                # Import the module
+                try:
+                    module = importlib.import_module(module_name)
+                except ImportError as e:
+                    raise ValueError(f"Cannot import module {module_name}: {e}")
 
-            # Instantiate the plugin
-            plugin = plugin_class()
+                # Get the class
+                if not hasattr(module, cls_name):
+                    raise ValueError(f"Module {module_name} has no class {cls_name}")
 
-            # Use isinstance to check protocol implementation (KISS principle)
-            if not isinstance(plugin, PostProcessor):
-                raise ValueError(f"Plugin class {class_name} doesn't implement PostProcessor protocol")
+                plugin_class = getattr(module, cls_name)
 
-            # Validate metadata returns correct type
-            metadata = plugin.metadata()
-            if not isinstance(metadata, PluginMetadata):
-                raise ValueError(f"Plugin class {class_name}'s metadata() must return a PluginMetadata instance")
+                # Instantiate the plugin
+                plugin = plugin_class()
 
-            plugin_name = metadata.name
+                # Use isinstance to check protocol implementation (KISS principle)
+                if not isinstance(plugin, PostProcessor):
+                    raise ValueError(f"Plugin class {class_name} doesn't implement PostProcessor protocol")
 
-            # Store the plugin
-            self._plugins[plugin_name] = plugin
-            logger.info(f"Registered plugin: {plugin_name} (from {class_name})")
+                # Validate metadata returns correct type
+                metadata = plugin.metadata()
+                if not isinstance(metadata, PluginMetadata):
+                    raise ValueError(f"Plugin class {class_name}'s metadata() must return a PluginMetadata instance")
 
-        except Exception as e:
-            # Re-raise ValueError, let other exceptions propagate
-            if not isinstance(e, ValueError):
-                raise ValueError(f"Failed to register plugin {class_name}: {e}")
-            raise
+                plugin_name = metadata.name
+
+                # Store the plugin
+                self._plugins[plugin_name] = plugin
+                logger.info(f"Registered plugin: {plugin_name} (from {class_name})")
+
+            except Exception as e:
+                # Re-raise ValueError, let other exceptions propagate
+                if not isinstance(e, ValueError):
+                    raise ValueError(f"Failed to register plugin {class_name}: {e}")
+                raise
+        elif isinstance(plugin, PostProcessor):
+            # PostProcessor instance (not yet implemented)
+            raise NotImplementedError(
+                "PostProcessor instance registration not yet supported. "
+                "This feature is being implemented. Please use string-based "
+                "registration for now: register_plugin('module.Class')"
+            )
+        else:
+            # Invalid type
+            raise ValueError(
+                f"Invalid plugin type: {type(plugin).__name__}. "
+                f"Expected either a string (module.Class format) or a "
+                f"PostProcessor instance."
+            )
 
     def unregister_plugin(self, name: str) -> None:
         """

@@ -17,6 +17,62 @@ from dqx.common import (
 from dqx.plugins import AuditPlugin, PluginManager
 
 
+class ValidInstancePlugin:
+    """Valid plugin for testing instance registration."""
+
+    @staticmethod
+    def metadata() -> PluginMetadata:
+        return PluginMetadata(
+            name="instance_plugin", version="1.0.0", author="Test", description="Test instance plugin"
+        )
+
+    def process(self, context: PluginExecutionContext) -> None:
+        pass
+
+
+class PluginWithConstructor:
+    """Plugin that accepts constructor arguments."""
+
+    def __init__(self, threshold: float, debug: bool = False):
+        self.threshold = threshold
+        self.debug = debug
+
+    @staticmethod
+    def metadata() -> PluginMetadata:
+        return PluginMetadata(
+            name="configured_plugin", version="1.0.0", author="Test", description="Plugin with configuration"
+        )
+
+    def process(self, context: PluginExecutionContext) -> None:
+        pass
+
+
+class InvalidInstancePlugin:
+    """Invalid plugin missing process method."""
+
+    @staticmethod
+    def metadata() -> PluginMetadata:
+        return PluginMetadata(name="invalid", version="1.0.0", author="Test", description="Invalid plugin")
+
+
+class StatefulPlugin:
+    """Plugin that maintains state across calls."""
+
+    def __init__(self) -> None:
+        self.call_count = 0
+        self.processed_suites: list[str] = []
+
+    @staticmethod
+    def metadata() -> PluginMetadata:
+        return PluginMetadata(
+            name="stateful_plugin", version="1.0.0", author="Test", description="Plugin with internal state"
+        )
+
+    def process(self, context: PluginExecutionContext) -> None:
+        self.call_count += 1
+        self.processed_suites.append(context.suite_name)
+
+
 class TestPluginManager:
     """Test cases for PluginManager."""
 
