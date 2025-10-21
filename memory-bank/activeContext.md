@@ -2,16 +2,18 @@
 
 ## Current Work Focus
 
+### Plugin Instance Registration Implementation (In Progress)
+- Created TDD implementation plan for adding PostProcessor instance support to register_plugin method
+- Working on feat/register-plugin-instances branch
+- Plan includes 6 independently committable task groups following strict TDD
+- Each task group passes all tests, linting, and pre-commit checks
+- Maintains backward compatibility with string-based registration
+
 ### Pre-commit Configuration Improvements (Completed)
 - Fixed duplicate pre-commit hook output by adding explicit `stages: [pre-commit]` to all file-checking hooks
 - This ensures hooks only run during their intended stage, eliminating the duplicate "(no files to check)" messages
 - Commit message validation continues to run separately at the commit-msg stage
 - Solution implemented in commit 6e34bad
-
-### Graph API Cleanup (In Progress on chore/graph_built_clean_up branch)
-- Working on removing `graph_built` parameter from evaluation flow
-- Fixed failing tests in test_api_coverage.py
-- Added timer fallback tests achieving 100% coverage for api.py
 
 ## Recent Changes
 
