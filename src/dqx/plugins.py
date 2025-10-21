@@ -169,10 +169,24 @@ class PluginManager:
 
     def _register_from_instance(self, plugin: PostProcessor) -> None:
         """Register a PostProcessor instance directly."""
-        # Minimal implementation to pass test
-        # Full validation will be added in Task Group 3
-        metadata = plugin.metadata()
+        # Use isinstance to check protocol implementation (KISS principle)
+        if not isinstance(plugin, PostProcessor):
+            raise ValueError(f"Plugin instance {type(plugin).__name__} doesn't implement PostProcessor protocol")
+
+        # Validate metadata returns correct type
+        try:
+            metadata = plugin.metadata()
+        except Exception as e:
+            raise ValueError(f"Failed to get metadata from plugin instance: {e}")
+
+        if not isinstance(metadata, PluginMetadata):
+            raise ValueError(
+                f"Plugin instance's metadata() must return a PluginMetadata instance, got {type(metadata).__name__}"
+            )
+
         plugin_name = metadata.name
+
+        # Store the plugin instance
         self._plugins[plugin_name] = plugin
         logger.info(f"Registered plugin: {plugin_name} (instance)")
 
