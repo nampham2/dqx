@@ -3,7 +3,7 @@
 import importlib
 import importlib.metadata
 import logging
-from typing import Protocol, runtime_checkable
+from typing import Protocol, overload, runtime_checkable
 
 from rich import box
 from rich.console import Console
@@ -83,17 +83,47 @@ class PluginManager:
         """
         return name in self._plugins
 
-    def register_plugin(self, class_name: str) -> None:
+    @overload
+    def register_plugin(self, plugin: str) -> None:
+        """Register a plugin by its fully qualified class name."""
+        ...
+
+    @overload
+    def register_plugin(self, plugin: PostProcessor) -> None:
+        """Register a plugin by passing a PostProcessor instance directly."""
+        ...
+
+    def register_plugin(self, plugin: str | PostProcessor) -> None:
         """
-        Register a plugin by its fully qualified class name.
+        Register a plugin either by class name or PostProcessor instance.
 
         Args:
-            class_name: Fully qualified class name (e.g., 'dqx.plugins.AuditPlugin')
+            plugin: Either a fully qualified class name string or a PostProcessor instance
 
         Raises:
-            ValueError: If class cannot be imported or doesn't implement PostProcessor
+            ValueError: If the plugin is invalid or doesn't implement PostProcessor
         """
+        if isinstance(plugin, str):
+            self._register_from_class(plugin)
+        else:
+            # Note: Minimal implementation - full validation in Task Group 3
+            self._register_from_instance(plugin)
+
+    def unregister_plugin(self, name: str) -> None:
+        """
+        Remove a plugin by name.
+
+        Args:
+            name: Name of the plugin to remove
+        """
+        if name in self._plugins:
+            del self._plugins[name]
+            logger.info(f"Unregistered plugin: {name}")
+
+    def _register_from_class(self, class_name: str) -> None:
+        """Register a plugin from a class name string (existing logic)."""
         try:
+            # Move ALL existing register_plugin logic here unchanged
             # Parse the class name
             parts = class_name.rsplit(".", 1)
             if len(parts) != 2:
@@ -137,16 +167,28 @@ class PluginManager:
                 raise ValueError(f"Failed to register plugin {class_name}: {e}")
             raise
 
-    def unregister_plugin(self, name: str) -> None:
-        """
-        Remove a plugin by name.
+    def _register_from_instance(self, plugin: PostProcessor) -> None:
+        """Register a PostProcessor instance directly."""
+        # Use isinstance to check protocol implementation (KISS principle)
+        if not isinstance(plugin, PostProcessor):
+            raise ValueError(f"Plugin instance {type(plugin).__name__} doesn't implement PostProcessor protocol")
 
-        Args:
-            name: Name of the plugin to remove
-        """
-        if name in self._plugins:
-            del self._plugins[name]
-            logger.info(f"Unregistered plugin: {name}")
+        # Validate metadata returns correct type
+        try:
+            metadata = plugin.metadata()
+        except Exception as e:
+            raise ValueError(f"Failed to get metadata from plugin instance: {e}")
+
+        if not isinstance(metadata, PluginMetadata):
+            raise ValueError(
+                f"Plugin instance's metadata() must return a PluginMetadata instance, got {type(metadata).__name__}"
+            )
+
+        plugin_name = metadata.name
+
+        # Store the plugin instance
+        self._plugins[plugin_name] = plugin
+        logger.info(f"Registered plugin: {plugin_name} (instance)")
 
     def clear_plugins(self) -> None:
         """Remove all registered plugins."""

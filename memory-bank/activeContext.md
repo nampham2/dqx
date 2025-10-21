@@ -2,16 +2,25 @@
 
 ## Current Work Focus
 
+### Plugin Instance Registration Implementation (Completed - 2025-10-21)
+- Successfully implemented PostProcessor instance support in register_plugin method
+- Working on feat/register-plugin-instances branch
+- Completed all 5 task groups following strict TDD approach:
+  1. Test Infrastructure & Type Stubs
+  2. First Working Test + Minimal Implementation
+  3. Comprehensive Validation Tests + Implementation
+  4. Edge Case and Integration Tests
+  5. Type Checking Test File
+- Each task group committed separately with full test/mypy/ruff compliance
+- Maintains backward compatibility with string-based registration
+- Added overloaded register_plugin method supporting both str and PostProcessor
+- Implemented thorough validation including protocol checking and metadata validation
+
 ### Pre-commit Configuration Improvements (Completed)
 - Fixed duplicate pre-commit hook output by adding explicit `stages: [pre-commit]` to all file-checking hooks
 - This ensures hooks only run during their intended stage, eliminating the duplicate "(no files to check)" messages
 - Commit message validation continues to run separately at the commit-msg stage
 - Solution implemented in commit 6e34bad
-
-### Graph API Cleanup (In Progress on chore/graph_built_clean_up branch)
-- Working on removing `graph_built` parameter from evaluation flow
-- Fixed failing tests in test_api_coverage.py
-- Added timer fallback tests achieving 100% coverage for api.py
 
 ## Recent Changes
 
