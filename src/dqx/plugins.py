@@ -102,69 +102,12 @@ class PluginManager:
 
         Raises:
             ValueError: If the plugin is invalid or doesn't implement PostProcessor
-            NotImplementedError: If PostProcessor instance registration is not yet supported
         """
-        # Defensive type checking
         if isinstance(plugin, str):
-            # Handle string case (existing implementation)
-            class_name = plugin
-            try:
-                # Parse the class name
-                parts = class_name.rsplit(".", 1)
-                if len(parts) != 2:
-                    raise ValueError(f"Invalid class name format: {class_name}")
-
-                module_name, cls_name = parts
-
-                # Import the module
-                try:
-                    module = importlib.import_module(module_name)
-                except ImportError as e:
-                    raise ValueError(f"Cannot import module {module_name}: {e}")
-
-                # Get the class
-                if not hasattr(module, cls_name):
-                    raise ValueError(f"Module {module_name} has no class {cls_name}")
-
-                plugin_class = getattr(module, cls_name)
-
-                # Instantiate the plugin
-                plugin = plugin_class()
-
-                # Use isinstance to check protocol implementation (KISS principle)
-                if not isinstance(plugin, PostProcessor):
-                    raise ValueError(f"Plugin class {class_name} doesn't implement PostProcessor protocol")
-
-                # Validate metadata returns correct type
-                metadata = plugin.metadata()
-                if not isinstance(metadata, PluginMetadata):
-                    raise ValueError(f"Plugin class {class_name}'s metadata() must return a PluginMetadata instance")
-
-                plugin_name = metadata.name
-
-                # Store the plugin
-                self._plugins[plugin_name] = plugin
-                logger.info(f"Registered plugin: {plugin_name} (from {class_name})")
-
-            except Exception as e:
-                # Re-raise ValueError, let other exceptions propagate
-                if not isinstance(e, ValueError):
-                    raise ValueError(f"Failed to register plugin {class_name}: {e}")
-                raise
-        elif isinstance(plugin, PostProcessor):
-            # PostProcessor instance (not yet implemented)
-            raise NotImplementedError(
-                "PostProcessor instance registration not yet supported. "
-                "This feature is being implemented. Please use string-based "
-                "registration for now: register_plugin('module.Class')"
-            )
+            self._register_from_class(plugin)
         else:
-            # Invalid type
-            raise ValueError(
-                f"Invalid plugin type: {type(plugin).__name__}. "
-                f"Expected either a string (module.Class format) or a "
-                f"PostProcessor instance."
-            )
+            # Note: Minimal implementation - full validation in Task Group 3
+            self._register_from_instance(plugin)
 
     def unregister_plugin(self, name: str) -> None:
         """
@@ -176,6 +119,62 @@ class PluginManager:
         if name in self._plugins:
             del self._plugins[name]
             logger.info(f"Unregistered plugin: {name}")
+
+    def _register_from_class(self, class_name: str) -> None:
+        """Register a plugin from a class name string (existing logic)."""
+        try:
+            # Move ALL existing register_plugin logic here unchanged
+            # Parse the class name
+            parts = class_name.rsplit(".", 1)
+            if len(parts) != 2:
+                raise ValueError(f"Invalid class name format: {class_name}")
+
+            module_name, cls_name = parts
+
+            # Import the module
+            try:
+                module = importlib.import_module(module_name)
+            except ImportError as e:
+                raise ValueError(f"Cannot import module {module_name}: {e}")
+
+            # Get the class
+            if not hasattr(module, cls_name):
+                raise ValueError(f"Module {module_name} has no class {cls_name}")
+
+            plugin_class = getattr(module, cls_name)
+
+            # Instantiate the plugin
+            plugin = plugin_class()
+
+            # Use isinstance to check protocol implementation (KISS principle)
+            if not isinstance(plugin, PostProcessor):
+                raise ValueError(f"Plugin class {class_name} doesn't implement PostProcessor protocol")
+
+            # Validate metadata returns correct type
+            metadata = plugin.metadata()
+            if not isinstance(metadata, PluginMetadata):
+                raise ValueError(f"Plugin class {class_name}'s metadata() must return a PluginMetadata instance")
+
+            plugin_name = metadata.name
+
+            # Store the plugin
+            self._plugins[plugin_name] = plugin
+            logger.info(f"Registered plugin: {plugin_name} (from {class_name})")
+
+        except Exception as e:
+            # Re-raise ValueError, let other exceptions propagate
+            if not isinstance(e, ValueError):
+                raise ValueError(f"Failed to register plugin {class_name}: {e}")
+            raise
+
+    def _register_from_instance(self, plugin: PostProcessor) -> None:
+        """Register a PostProcessor instance directly."""
+        # Minimal implementation to pass test
+        # Full validation will be added in Task Group 3
+        metadata = plugin.metadata()
+        plugin_name = metadata.name
+        self._plugins[plugin_name] = plugin
+        logger.info(f"Registered plugin: {plugin_name} (instance)")
 
     def clear_plugins(self) -> None:
         """Remove all registered plugins."""

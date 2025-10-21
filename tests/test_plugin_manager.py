@@ -76,6 +76,17 @@ class StatefulPlugin:
 class TestPluginManager:
     """Test cases for PluginManager."""
 
+    def test_register_plugin_instance_stores_reference(self) -> None:
+        """Test registering a PostProcessor instance stores the exact reference."""
+        manager = PluginManager()
+        plugin = ValidInstancePlugin()
+
+        manager.register_plugin(plugin)
+
+        assert manager.plugin_exists("instance_plugin")
+        # Verify exact same instance is stored (not a copy)
+        assert manager.get_plugins()["instance_plugin"] is plugin
+
     def test_plugin_manager_initialization(self) -> None:
         """Test that PluginManager initializes correctly."""
         manager = PluginManager()
