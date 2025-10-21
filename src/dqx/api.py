@@ -208,11 +208,32 @@ class Context:
         self._provider = MetricProvider(db)
         self._local = threading.local()
 
+        # Track the start time of the suite execution
+        self._start_time: float = time.time()
+
     @property
     def _check_stack(self) -> list[CheckNode]:
         if not hasattr(self._local, "check_stack"):
             self._local.check_stack = []
         return self._local.check_stack
+
+    @property
+    def start_time(self) -> float:
+        """
+        The start time of the data quality check suite execution.
+
+        Returns:
+            float: The start time in seconds since the epoch.
+        """
+        return self._start_time
+
+    def tick(self) -> None:
+        """
+        Reset the start time of the data quality check suite execution.
+
+        This method is usually called between suites to track the total execution time.
+        """
+        self._start_time = time.time()
 
     def _push_check(self, check_node: CheckNode) -> None:
         """Push a check onto the thread-local stack."""
@@ -499,6 +520,9 @@ class VerificationSuite:
         # Store the key for later use in collect_results
         self._key = key
 
+        # Reset the run timer
+        self._context.tick()
+
         # Build the dependency graph
         logger.info("Building dependency graph...")
         self.build_graph(self._context, key)
@@ -651,7 +675,7 @@ class VerificationSuite:
             suite_name=self._name,
             datasources=list(datasources.keys()),
             key=self.key,
-            timestamp=time.time(),  # TODO: Track the actual execution time
+            timestamp=self._context.start_time,
             duration_ms=duration_ms,
             results=self.collect_results(),
             symbols=self.collect_symbols(),
