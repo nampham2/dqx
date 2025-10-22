@@ -582,10 +582,14 @@ class TestAuditPlugin:
         plugin = AuditPlugin()
 
         # Track console print calls
-        print_calls: list[tuple[tuple, dict]] = []
+        print_calls: list[str] = []
 
         def mock_print(*args: object, **kwargs: object) -> None:
-            print_calls.append((args, kwargs))
+            # Convert args to string and capture
+            if args:
+                # Handle both plain strings and Rich markup
+                text = str(args[0]) if len(args) == 1 else " ".join(str(arg) for arg in args)
+                print_calls.append(text)
 
         monkeypatch.setattr(plugin.console, "print", mock_print)
 
@@ -640,27 +644,102 @@ class TestAuditPlugin:
         # Process the context
         plugin.process(context)
 
-        # Verify console was called
-        assert len(print_calls) > 0
+        # Join all output
+        captured_output = "\n".join(print_calls)
 
-        # Convert print calls to strings for easier searching
-        print_strings = [str(args) for args, kwargs in print_calls]
-        all_output = " ".join(print_strings)
+        # Check for specific text output
+        assert "═══ DQX Audit Report ═══" in captured_output
+        assert "Test Suite" in captured_output  # Suite name is there
+        assert "Date:" in captured_output
+        assert "env=prod" in captured_output  # Tag value is there
+        assert "250.50ms" in captured_output  # Duration value is there
+        assert "ds1, ds2" in captured_output  # Datasets are there
 
-        # Should print suite info
-        assert "Test Suite" in all_output
-        assert "250.5" in all_output  # Duration
-        assert "ds1, ds2" in all_output
+        # Check execution summary
+        assert "Execution Summary:" in captured_output
+        # Check for the parts of the assertion line (accounting for Rich markup)
+        assert "Assertions: 2 total" in captured_output
+        assert "1 passed (50.0%)" in captured_output
+        assert "1 failed (50.0%)" in captured_output
+        assert "Symbols: 1 total, 1 successful, 0 failed" in captured_output
+
+        # Check footer
+        assert "══════════════════════" in captured_output
+
+    def test_audit_plugin_with_tags(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test AuditPlugin with tags."""
+        plugin = AuditPlugin()
+
+        # Track console print calls
+        print_calls: list[str] = []
+
+        def mock_print(*args: object, **kwargs: object) -> None:
+            if args:
+                text = str(args[0]) if len(args) == 1 else " ".join(str(arg) for arg in args)
+                print_calls.append(text)
+
+        monkeypatch.setattr(plugin.console, "print", mock_print)
+
+        context = PluginExecutionContext(
+            suite_name="Tagged Suite",
+            datasources=[],
+            key=ResultKey(datetime.now().date(), {"env": "prod", "region": "us-east"}),
+            timestamp=time.time(),
+            duration_ms=50.0,
+            results=[],
+            symbols=[],
+        )
+
+        plugin.process(context)
+
+        captured_output = "\n".join(print_calls)
+
+        # Expect tags in output (with Rich markup)
+        assert "env=prod, region=us-east" in captured_output
+
+    def test_audit_plugin_no_tags(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test AuditPlugin with empty tags."""
+        plugin = AuditPlugin()
+
+        # Track console print calls
+        print_calls: list[str] = []
+
+        def mock_print(*args: object, **kwargs: object) -> None:
+            if args:
+                text = str(args[0]) if len(args) == 1 else " ".join(str(arg) for arg in args)
+                print_calls.append(text)
+
+        monkeypatch.setattr(plugin.console, "print", mock_print)
+
+        context = PluginExecutionContext(
+            suite_name="No Tags Suite",
+            datasources=[],
+            key=ResultKey(datetime.now().date(), {}),
+            timestamp=time.time(),
+            duration_ms=30.0,
+            results=[],
+            symbols=[],
+        )
+
+        plugin.process(context)
+
+        captured_output = "\n".join(print_calls)
+
+        # Expect "none" for tags (with Rich markup)
+        assert "none" in captured_output
+        assert "Tags:" in captured_output
 
     def test_audit_plugin_empty_results(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test AuditPlugin with no results."""
         plugin = AuditPlugin()
 
         # Track console print calls
-        print_calls: list[tuple[tuple, dict]] = []
+        print_calls: list[str] = []
 
         def mock_print(*args: object, **kwargs: object) -> None:
-            print_calls.append((args, kwargs))
+            if args:
+                text = str(args[0]) if len(args) == 1 else " ".join(str(arg) for arg in args)
+                print_calls.append(text)
 
         monkeypatch.setattr(plugin.console, "print", mock_print)
 
@@ -677,22 +756,22 @@ class TestAuditPlugin:
         # Should not raise any errors
         plugin.process(context)
 
-        # Should still print header
-        assert len(print_calls) > 0
+        captured_output = "\n".join(print_calls)
+
+        # Should display empty statistics
+        assert "Assertions: 0 total, 0 passed (0.0%), 0 failed (0.0%)" in captured_output
 
     def test_audit_plugin_with_statistics(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test AuditPlugin displays statistics correctly."""
         plugin = AuditPlugin()
 
-        # Track console print calls and table rendering
-        print_calls: list[tuple[tuple, dict]] = []
-        table_adds: list[tuple] = []
+        # Track console print calls
+        print_calls: list[str] = []
 
         def mock_print(*args: object, **kwargs: object) -> None:
-            print_calls.append((args, kwargs))
-
-        def mock_add_row(*args: object) -> None:
-            table_adds.append(args)
+            if args:
+                text = str(args[0]) if len(args) == 1 else " ".join(str(arg) for arg in args)
+                print_calls.append(text)
 
         monkeypatch.setattr(plugin.console, "print", mock_print)
 
@@ -803,46 +882,26 @@ class TestAuditPlugin:
         # Process the context
         plugin.process(context)
 
-        # Verify statistics were printed
-        assert len(print_calls) > 0
-
-        # The plugin prints multiple things, including Tables
-        # Let's check for the expected content
-
-        # Find all string arguments in print calls
-        all_strings = []
-        for args, kwargs in print_calls:
-            for arg in args:
-                if isinstance(arg, str):
-                    all_strings.append(arg)
-
-        # Join all strings
-        output_text = " ".join(all_strings)
+        # Join all output
+        captured_output = "\n".join(print_calls)
 
         # Check header
-        assert "DQX Audit Report" in output_text
-        assert "Test Suite" in output_text
-        assert "500.0" in output_text  # Duration
+        assert "═══ DQX Audit Report ═══" in captured_output
+        assert "Test Suite" in captured_output  # Suite name is there
+        assert "env=test" in captured_output  # Tag value is there
+        assert "500.00ms" in captured_output  # Duration value is there
+        assert "ds1, ds2" in captured_output  # Datasets are there
 
-        # The actual statistics are in Table objects, so we can't check them as strings
-        # But we can verify that tables were created by checking the number of print calls
-        # We expect:
-        # 1. Empty line
-        # 2. Header
-        # 3. Suite name
-        # 4. Date
-        # 5. Duration
-        # 6. Datasets
-        # 7. Empty line
-        # 8. Summary table
-        # 9. Empty line (before severity table)
-        # 10. Severity table
-        # 11. Empty line (before symbol table)
-        # 12. Symbol table
-        # 13. Empty line
-        # 14. Footer
-        # 15. Empty line
-        assert len(print_calls) >= 10  # At minimum
+        # Check execution summary with merged format (accounting for Rich markup)
+        assert "Execution Summary:" in captured_output
+        # Check the parts of the assertion line
+        assert "Assertions: 5 total" in captured_output
+        assert "3 passed (60.0%)" in captured_output
+        assert "2 failed (40.0%)" in captured_output
+        assert "Symbols: 3 total, 2 successful, 1 failed" in captured_output
+
+        # Check footer
+        assert "══════════════════════" in captured_output
 
 
 class TestPluginInstanceEdgeCases:

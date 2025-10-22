@@ -5,9 +5,7 @@ import importlib.metadata
 import logging
 from typing import Protocol, overload, runtime_checkable
 
-from rich import box
 from rich.console import Console
-from rich.table import Table
 
 from dqx.common import (
     PluginExecutionContext,
@@ -214,9 +212,10 @@ class AuditPlugin:
     DQX built-in audit plugin for tracking suite execution.
 
     This plugin provides basic auditing functionality including:
-    - Execution timing
-    - Result statistics with Rich table display
-    - Performance metrics with colors
+    - Execution timing and performance metrics
+    - Text-based result statistics with Rich color markup
+    - Tag display with proper formatting
+    - Symbol execution tracking
     """
 
     @staticmethod
@@ -226,7 +225,7 @@ class AuditPlugin:
             name="audit",
             version="1.0.0",
             author="DQX Team",
-            description="Display execution audit report with Rich tables",
+            description="Display execution audit report in text format with Rich color markup",
             capabilities={"console_output", "statistics"},
         )
 
@@ -241,74 +240,47 @@ class AuditPlugin:
         Args:
             context: Execution context with results and convenience methods
         """
-        # Use context methods for statistics
-        total = context.total_assertions()
-        passed = context.passed_assertions()
-        failed = context.failed_assertions()
-        pass_rate = context.assertion_pass_rate()
-
-        # Display header
         self.console.print()
         self.console.print("[bold blue]═══ DQX Audit Report ═══[/bold blue]")
         self.console.print(f"[cyan]Suite:[/cyan] {context.suite_name}")
         self.console.print(f"[cyan]Date:[/cyan] {context.key.yyyy_mm_dd}")
+
+        # Tags handling
+        if context.key.tags:
+            sorted_tags = ", ".join(f"{k}={v}" for k, v in sorted(context.key.tags.items()))
+            self.console.print(f"[cyan]Tags:[/cyan] {sorted_tags}")
+        else:
+            self.console.print("[cyan]Tags:[/cyan] none")
+
         self.console.print(f"[cyan]Duration:[/cyan] {context.duration_ms:.2f}ms")
+
         if context.datasources:
             self.console.print(f"[cyan]Datasets:[/cyan] {', '.join(context.datasources)}")
+
+        # Calculate statistics
+        total = context.total_assertions()
+        passed = context.passed_assertions()
+        failed = context.failed_assertions()
+        pass_rate = (passed / total * 100) if total > 0 else 0.0
+
         self.console.print()
+        self.console.print("[cyan]Execution Summary:[/cyan]")
 
-        # Create summary table using context methods
-        summary_table = Table(title="Execution Summary", box=box.ROUNDED)
-        summary_table.add_column("Metric", style="cyan")
-        summary_table.add_column("Count", justify="right")
-        summary_table.add_column("Rate", justify="right")
-
-        summary_table.add_row("Total Assertions", str(total), "")
-
+        # Assertions line
         if total > 0:
-            summary_table.add_row(
-                "[green]Passed ✓[/green]", f"[green]{passed}[/green]", f"[green]{pass_rate:.1f}%[/green]"
+            self.console.print(
+                f"  Assertions: {total} total, [green]{passed} passed ({pass_rate:.1f}%)[/green], [red]{failed} failed ({100 - pass_rate:.1f}%)[/red]"
             )
-            summary_table.add_row("[red]Failed ✗[/red]", f"[red]{failed}[/red]", f"[red]{100 - pass_rate:.1f}%[/red]")
         else:
-            summary_table.add_row("Passed ✓", "0", "0.0%")
-            summary_table.add_row("Failed ✗", "0", "0.0%")
+            self.console.print("  Assertions: 0 total, 0 passed (0.0%), 0 failed (0.0%)")
 
-        self.console.print(summary_table)
-
-        # Show failures by severity if any
-        failures_by_sev = context.failures_by_severity()
-        if failures_by_sev:
-            self.console.print()
-            severity_table = Table(title="Failures by Severity", box=box.ROUNDED)
-            severity_table.add_column("Severity", style="bold")
-            severity_table.add_column("Count", justify="right")
-
-            # Color code by severity
-            severity_colors = {"P0": "red bold", "P1": "orange1", "P2": "yellow", "P3": "blue", "P4": "grey50"}
-
-            for severity, count in sorted(failures_by_sev.items()):
-                color = severity_colors.get(severity, "white")
-                severity_table.add_row(f"[{color}]{severity}[/{color}]", f"[{color}]{count}[/{color}]")
-
-            self.console.print(severity_table)
-
-        # Show symbol statistics if any
+        # Symbols line (only if symbols exist)
         if context.symbols:
             successful_symbols = context.total_symbols() - context.failed_symbols()
             failed_symbols = context.failed_symbols()
+            self.console.print(
+                f"  Symbols: {context.total_symbols()} total, {successful_symbols} successful, {failed_symbols} failed"
+            )
 
-            self.console.print()
-            symbol_table = Table(title="Symbol Statistics", box=box.ROUNDED)
-            symbol_table.add_column("Metric", style="cyan")
-            symbol_table.add_column("Count", justify="right")
-
-            symbol_table.add_row("Total Symbols", str(context.total_symbols()))
-            symbol_table.add_row("[green]Successful[/green]", f"[green]{successful_symbols}[/green]")
-            symbol_table.add_row("[red]Failed[/red]", f"[red]{failed_symbols}[/red]")
-
-            self.console.print(symbol_table)
-
-        self.console.print()
         self.console.print("[bold blue]══════════════════════[/bold blue]")
         self.console.print()
