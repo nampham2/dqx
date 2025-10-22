@@ -80,6 +80,7 @@ src/dqx/
 ├── analyzer.py          # SQL analysis engine
 ├── common.py            # Shared types and protocols
 ├── compute.py           # Computation utilities
+├── datasource.py        # Data source implementations
 ├── dialect.py           # SQL dialect implementations
 ├── display.py           # Result visualization
 ├── evaluator.py         # Assertion evaluation
@@ -93,7 +94,6 @@ src/dqx/
 ├── timer.py             # Performance timing
 ├── utils.py             # Utility functions
 ├── validator.py         # Suite validation
-├── extensions/          # Data source extensions
 ├── graph/              # Graph implementation
 ├── orm/                # Database persistence
 └── plugins/            # Built-in plugins
@@ -326,6 +326,7 @@ plugin.process(context)
 - Batch processing support (simplified architecture)
 - Threading infrastructure (no longer needed)
 - Parallel execution capabilities
+- Extensions directory (consolidated into datasource.py)
 
 ### Added Tools
 - yamllint for YAML validation
@@ -337,3 +338,4 @@ plugin.process(context)
 - Rich moved from dev to core dependencies
 - Added sqlparse as core dependency
 - Updated pre-commit hooks configuration
+- Consolidated data sources from extensions/ to datasource.py module

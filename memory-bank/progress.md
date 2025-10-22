@@ -47,12 +47,13 @@
 - **PostgreSQL/SQLite**: Via SQLAlchemy
 
 ### Infrastructure ✅
-- **100% test coverage** maintained
+- **100% test coverage** maintained (731 tests passing)
 - **Type hints** throughout codebase
 - **Pre-commit hooks** enforcing quality (now with yamllint, shfmt, shellcheck)
 - **TDD workflow** established
 - **uv package manager** integration
 - **CI/CD ready** structure
+- **Clean module structure** with datasource.py at top level
 
 ### Plugin System ✅
 - **PluginManager**: Centralized plugin lifecycle management
@@ -83,6 +84,11 @@
 - **sqlparse Integration**: Automatic SQL formatting
 - **Readable Queries**: Formatted output for debugging
 - **CTE Formatting**: Clean common table expressions
+
+### API Simplification ✅
+- **@check decorator**: Simplified to only require name and severity
+- **Removed unused tags**: Cleaner decorator interface
+- **Clear requirements**: Enforces good naming practices
 
 ## What's Left to Build
 
@@ -161,7 +167,7 @@
 5. **Error Recovery**: Limited options
 
 ### Test Coverage
-- **Unit Tests**: 100% coverage
+- **Unit Tests**: 100% coverage (731 tests)
 - **Integration Tests**: Major workflows covered
 - **E2E Tests**: Basic scenarios tested
 - **Plugin Tests**: Core plugin functionality tested
@@ -200,6 +206,16 @@
    - No longer accepts None
    - Defaults to P1
    - Breaking change for clarity
+
+7. **Simplified @check Decorator** (Oct 2025)
+   - Removed unused tags parameter
+   - Cleaner API with just name and severity
+   - Simplified CheckNode implementation
+
+8. **Consolidated DataSource Module** (Oct 2025)
+   - Moved data sources from extensions/ to datasource.py
+   - Removed unnecessary directory structure
+   - Improved import clarity
 
 ### API Evolution
 1. **Initial**: Direct assertion methods

@@ -2,61 +2,55 @@
 
 ## Current Work Focus
 
-### Extended Metric Symbol Display Fix (Completed - 2025-10-22)
+### Tags Parameter Removal from @check Decorator (Completed - 2025-10-22)
+- Successfully removed the unused tags parameter from @check decorator
+- Simplified the decorator signature to only require name and severity
+- Updated all tests and examples to remove tags usage
+- Maintained backward compatibility is not needed as tags were never used
+- Branch feat/remove-check-tags merged into main
+
+### DataSource Module Refactoring (Completed - 2025-10-22)
+- Moved data source implementations from extensions/ to datasource.py module
+- Removed the extensions/ directory entirely after migration
+- Updated all imports throughout the codebase
+- All 731 tests passing successfully
+- Cleaner module structure with data sources at top level
+
+## Recent Changes
+
+### Check Decorator Simplification (2025-10-22)
+- Removed tags parameter from @check decorator in api.py
+- Updated CheckNode to remove tags field
+- Cleaned up all references to tags in tests
+- Decorator now only accepts name and severity parameters
+
+### DataSource Consolidation (2025-10-22)
+- Created new datasource.py module containing:
+  - ArrowDataSource
+  - DuckDataSource
+  - InMemoryMetricDB
+- Removed src/dqx/extensions/ directory
+- Updated all imports from `dqx.extensions` to `dqx.datasource`
+- Maintained all functionality with cleaner structure
+
+### Extended Metric Symbol Display Fix (2025-10-22)
 - Fixed bug where extended metrics (day_over_day, stddev) displayed only base metric names
 - Issue: SymbolInfo was using `str(symbolic_metric.metric_spec)` instead of `symbolic_metric.name`
 - Fix: Changed line 573 in api.py to use `metric=symbolic_metric.name`
 - Added test_extended_metric_symbol_info.py to verify correct behavior
-- Now day_over_day(maximum(tax)) displays correctly instead of just "maximum(tax)"
 
-### Plugin Instance Registration Implementation (Completed - 2025-10-21)
+### Plugin Instance Registration Implementation (2025-10-21)
 - Successfully implemented PostProcessor instance support in register_plugin method
-- Working on feat/register-plugin-instances branch
-- Completed all 5 task groups following strict TDD approach:
-  1. Test Infrastructure & Type Stubs
-  2. First Working Test + Minimal Implementation
-  3. Comprehensive Validation Tests + Implementation
-  4. Edge Case and Integration Tests
-  5. Type Checking Test File
-- Each task group committed separately with full test/mypy/ruff compliance
-- Maintains backward compatibility with string-based registration
 - Added overloaded register_plugin method supporting both str and PostProcessor
 - Implemented thorough validation including protocol checking and metadata validation
 
-### Pre-commit Configuration Improvements (Completed)
-- Fixed duplicate pre-commit hook output by adding explicit `stages: [pre-commit]` to all file-checking hooks
-- This ensures hooks only run during their intended stage, eliminating the duplicate "(no files to check)" messages
-- Commit message validation continues to run separately at the commit-msg stage
-- Solution implemented in commit 6e34bad
-
-## Recent Changes
-
-### Symbol Display Fix (2025-10-22)
-- Fixed SymbolInfo creation in api.py to use symbolic_metric.name
-- Extended metrics now show full names (e.g., "day_over_day(maximum(tax))")
-- Added comprehensive test coverage for extended metric symbol names
-
-### Pre-commit Hooks (2025-10-19)
-- Added explicit stages to all hooks in `.pre-commit-config.yaml`
-- File-checking hooks now only run at pre-commit stage
-- Commit message validation runs only at commit-msg stage
-- Eliminates duplicate output during commits
-
-### Test Coverage Improvements (2025-10-19)
-- Fixed test_api_coverage.py by updating to use MetricProvider methods
-- Added test_api_timer_fallback.py for timer error handling
-- Achieved 100% test coverage for src/dqx/api.py
-
-### Graph Module Refactoring (2025-10-18)
-- Successfully implemented strongly-typed parent hierarchy
-- All parent references now use specific node types
-- Graph traversal maintains type safety throughout
-
 ## Next Steps
 
-1. Continue with graph_built parameter removal on feature branch
-2. Update any remaining tests affected by the changes
-3. Ensure all functionality works without graph_built parameter
+1. Consider implementing PostgreSQL dialect support (planned for v0.4.0)
+2. Add performance profiling tools to identify bottlenecks
+3. Implement graph visualization capabilities
+4. Create CLI interface for running checks from command line
+5. Explore additional built-in plugins for the ecosystem
 
 ## Important Patterns and Preferences
 
@@ -68,23 +62,34 @@
   - Type checking (mypy)
   - Security checks
   - File quality checks
-- Hooks are configured to run at specific stages to avoid duplication
+  - YAML validation (yamllint)
+  - Shell script formatting (shfmt) and validation (shellcheck)
 
 ### Testing Standards
-- Maintain 100% test coverage
+- Maintain 100% test coverage (currently at 731 passing tests)
 - Use timer fallback patterns for resilient plugin execution
 - Follow TDD approach for new features
+- All changes must pass ruff and mypy checks
+
+### Code Organization
+- Data sources now live in datasource.py at top level
+- Extensions directory removed for cleaner structure
+- Plugins remain in their own module with protocol-based design
+- Graph functionality organized under graph/ subdirectory
 
 ## Learnings and Insights
 
-### Pre-commit Hook Stages
-- Hooks without explicit `stages` defined will run at all installed hook stages
-- Adding `stages: [pre-commit]` restricts hooks to only run during pre-commit
-- The commit-msg stage should only run commit message validation hooks
-- This prevents duplicate output and improves developer experience
+### Module Organization
+- Moving data sources to top level improves discoverability
+- Removing unnecessary directory structure (extensions/) simplifies imports
+- Protocol-based design allows clean separation without deep hierarchies
 
-### Timer Error Handling
-- VerificationSuite._process_plugins has fallback logic for timer failures
-- Falls back to _execution_start time if available
-- Returns 0.0 if neither timer nor execution start is available
-- Important for plugin execution context reliability
+### API Design
+- Removing unused parameters (like tags) simplifies the API
+- Required parameters (name, severity) enforce good practices
+- Two-stage assertion building pattern works well for ensuring names
+
+### Testing Strategy
+- Comprehensive test coverage catches refactoring issues early
+- Pre-commit hooks prevent bad code from entering the repository
+- Running tests with -v flag helps track progress during large test suites
