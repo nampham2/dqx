@@ -16,7 +16,7 @@ pip install dqx
 import pyarrow as pa
 
 from dqx.api import check, VerificationSuite, MetricProvider, Context
-from dqx.extensions.pyarrow_ds import ArrowDataSource
+from dqx.extensions.duckds import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.common import ResultKey
 
@@ -32,7 +32,7 @@ data = pa.Table.from_pydict({"price": [10.5, 24.99, 5.0, 100.0]})
 # Run it
 db = InMemoryMetricDB()
 suite = VerificationSuite([validate_orders], db, "Quick validation")
-suite.run({"orders": ArrowDataSource(data)}, ResultKey())
+suite.run({"orders": DuckRelationDataSource.from_arrow(data)}, ResultKey())
 # ✓ Orders have prices: OK
 ```
 
@@ -119,7 +119,7 @@ import sympy as sp
 from dqx.api import check, VerificationSuite, MetricProvider, Context
 from dqx.common import ResultKey
 from dqx.display import print_assertion_results
-from dqx.extensions.pyarrow_ds import ArrowDataSource
+from dqx.extensions.duckds import DuckRelationDataSource
 from dqx.orm.repositories import MetricDB
 
 
@@ -158,7 +158,7 @@ data = pa.Table.from_pydict(
         "revenue": [(10.0 + i * 2.5) * (1 + i % 5) for i in range(50)],
     }
 )
-datasource = ArrowDataSource(data)
+datasource = DuckRelationDataSource.from_arrow(data)
 
 # Run validation
 db = MetricDB("postgresql://localhost/metrics")
@@ -260,16 +260,16 @@ Your Checks → Dependency Graph → Optimized SQL → DuckDB → Results
 ### Built-in Support
 ```python
 # PyArrow Tables
-from dqx.extensions.pyarrow_ds import ArrowDataSource
+from dqx.extensions.duckds import DuckRelationDataSource
 import pyarrow as pa
 
 # From dict
 data = pa.Table.from_pydict({"col": [1, 2, 3]})
-ds = ArrowDataSource(data)
+ds = DuckRelationDataSource.from_arrow(data)
 
 # From parquet file
 data = pa.parquet.read_table("file.parquet")
-ds = ArrowDataSource(data)
+ds = DuckRelationDataSource.from_arrow(data)
 
 # DuckDB
 from dqx.extensions.duck_ds import DuckDataSource
