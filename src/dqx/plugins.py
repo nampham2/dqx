@@ -106,7 +106,6 @@ class PluginManager:
         if isinstance(plugin, str):
             self._register_from_class(plugin)
         else:
-            # Note: Minimal implementation - full validation in Task Group 3
             self._register_from_instance(plugin)
 
     def unregister_plugin(self, name: str) -> None:
@@ -146,21 +145,8 @@ class PluginManager:
             # Instantiate the plugin
             plugin = plugin_class()
 
-            # Use isinstance to check protocol implementation (KISS principle)
-            if not isinstance(plugin, PostProcessor):
-                raise ValueError(f"Plugin class {class_name} doesn't implement PostProcessor protocol")
-
-            # Validate metadata returns correct type
-            metadata = plugin.metadata()
-            if not isinstance(metadata, PluginMetadata):
-                raise ValueError(f"Plugin class {class_name}'s metadata() must return a PluginMetadata instance")
-
-            plugin_name = metadata.name
-
-            # Store the plugin
-            self._plugins[plugin_name] = plugin
-            logger.info(f"Registered plugin: {plugin_name} (from {class_name})")
-
+            # Register the instance
+            self._register_from_instance(plugin)
         except Exception as e:
             # Re-raise ValueError, let other exceptions propagate
             if not isinstance(e, ValueError):
@@ -169,7 +155,7 @@ class PluginManager:
 
     def _register_from_instance(self, plugin: PostProcessor) -> None:
         """Register a PostProcessor instance directly."""
-        # Use isinstance to check protocol implementation (KISS principle)
+        # Use isinstance to check protocol implementation
         if not isinstance(plugin, PostProcessor):
             raise ValueError(f"Plugin instance {type(plugin).__name__} doesn't implement PostProcessor protocol")
 
