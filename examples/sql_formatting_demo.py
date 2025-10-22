@@ -9,7 +9,7 @@ from rich.console import Console
 
 from dqx.analyzer import Analyzer
 from dqx.common import ResultKey
-from dqx.extensions.duckds import DuckRelationDataSource
+from dqx.datasource import DuckRelationDataSource
 from dqx.specs import Average, DuplicateCount, Maximum, MetricSpec, Minimum, NullCount, NumRows, Sum
 
 # Enable debug logging to see SQL queries

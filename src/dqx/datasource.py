@@ -1,30 +1,10 @@
-"""DuckDB data source adapter for DQX framework.
+"""Data source implementations for DQX framework.
 
-This module provides an adapter that enables DuckDB relations to be used as data sources
-within the DQX data quality analysis framework. It implements the SqlDataSource protocol,
-allowing DuckDB relations to be analyzed for various data quality metrics.
+This module provides data source adapters that implement the SqlDataSource protocol,
+enabling various data formats to be analyzed within the DQX data quality framework.
 
-The primary use case is when you already have data loaded in DuckDB and want to analyze
-it using DQX without converting to other formats. This adapter wraps DuckDB relations
+The primary implementation is DuckRelationDataSource, which wraps DuckDB relations
 and provides the necessary interface for the DQX analyzer to execute SQL queries.
-
-Example:
-    >>> import duckdb
-    >>> from dqx.extensions.duck_ds import DuckRelationDataSource
-    >>> from dqx.analyzer import Analyzer
-    >>> from dqx.specs import MetricSpec
-    >>>
-    >>> # Create a DuckDB relation
-    >>> conn = duckdb.connect()
-    >>> relation = conn.sql("SELECT * FROM 'data.parquet'")
-    >>>
-    >>> # Wrap it as a DQX data source
-    >>> ds = DuckRelationDataSource(relation)
-    >>>
-    >>> # Analyze with DQX
-    >>> analyzer = Analyzer()
-    >>> metrics = [MetricSpec.num_rows(), MetricSpec.average("price")]
-    >>> report = analyzer.analyze_single(ds, metrics, key)
 """
 
 from __future__ import annotations
@@ -130,7 +110,7 @@ class DuckRelationDataSource:
 
         Example:
             >>> import pyarrow as pa
-            >>> from dqx.extensions.duck_ds import DuckRelationDataSource
+            >>> from dqx.datasource import DuckRelationDataSource
             >>>
             >>> # From a PyArrow Table
             >>> arrow_table = pa.table({

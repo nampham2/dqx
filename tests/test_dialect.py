@@ -11,6 +11,7 @@ import pytest
 from dqx import specs
 from dqx.analyzer import Analyzer, analyze_sql_ops
 from dqx.common import DQXError, ResultKey
+from dqx.datasource import DuckRelationDataSource
 from dqx.dialect import (
     _DIALECT_REGISTRY,
     Dialect,
@@ -19,7 +20,6 @@ from dqx.dialect import (
     get_dialect,
     register_dialect,
 )
-from dqx.extensions.duckds import DuckRelationDataSource
 from dqx.ops import Average, First, Maximum, Minimum, NegativeCount, NullCount, NumRows, SqlOp, Sum, Variance
 
 

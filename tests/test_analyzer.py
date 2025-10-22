@@ -11,7 +11,7 @@ import pytest
 from dqx import models, specs
 from dqx.analyzer import AnalysisReport, Analyzer, analyze_sql_ops
 from dqx.common import DQXError, ResultKey
-from dqx.extensions.duckds import DuckRelationDataSource
+from dqx.datasource import DuckRelationDataSource
 from dqx.ops import SqlOp
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.orm.repositories import Metric as MetricTable

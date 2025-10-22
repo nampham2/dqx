@@ -7,7 +7,7 @@ import pytest
 
 from dqx.api import Context, VerificationSuite, check
 from dqx.common import DQXError, ResultKey
-from dqx.extensions.duckds import DuckRelationDataSource
+from dqx.datasource import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
 

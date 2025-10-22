@@ -8,8 +8,8 @@ from returns.result import Success
 
 from dqx import ops, specs, states
 from dqx.analyzer import Analyzer
+from dqx.datasource import DuckRelationDataSource
 from dqx.dialect import DuckDBDialect
-from dqx.extensions.duckds import DuckRelationDataSource
 from dqx.orm.repositories import MetricDB
 from dqx.provider import MetricProvider
 
@@ -127,7 +127,7 @@ class TestDuplicateCountIntegration:
 
         import pyarrow as pa
 
-        from dqx.extensions.duckds import DuckRelationDataSource
+        from dqx.datasource import DuckRelationDataSource
 
         data = pa.table({"order_id": [1, 2, 3]})
         suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)

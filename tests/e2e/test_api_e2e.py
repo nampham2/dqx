@@ -6,8 +6,8 @@ import sympy as sp
 from dqx import specs
 from dqx.api import VerificationSuite, check
 from dqx.common import Context, ResultKey
+from dqx.datasource import DuckRelationDataSource
 from dqx.display import print_assertion_results, print_symbols
-from dqx.extensions.duckds import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
 

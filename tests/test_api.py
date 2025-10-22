@@ -411,7 +411,7 @@ def test_verification_suite_graph_property() -> None:
     # Need to provide a mock data source for run
     import pyarrow as pa
 
-    from dqx.extensions.duckds import DuckRelationDataSource
+    from dqx.datasource import DuckRelationDataSource
 
     data = pa.table({"x": [1, 2, 3]})
     suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
@@ -446,7 +446,7 @@ def test_verification_suite_build_graph_method() -> None:
     # Run suite which will call build_graph internally
     import pyarrow as pa
 
-    from dqx.extensions.duckds import DuckRelationDataSource
+    from dqx.datasource import DuckRelationDataSource
 
     data = pa.table({"x": [1, 2, 3]})
     suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)

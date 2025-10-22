@@ -2,9 +2,9 @@ import datetime
 
 import duckdb
 import pyarrow as pa
+from dqx.datasource import DuckRelationDataSource
 
 from dqx.common import SqlDataSource
-from dqx.extensions.duckds import DuckRelationDataSource
 
 
 def test_duck_relation_datasource_init(commerce_data_c1: pa.Table) -> None:
