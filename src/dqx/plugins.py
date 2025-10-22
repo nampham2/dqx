@@ -6,7 +6,6 @@ import logging
 from typing import Protocol, overload, runtime_checkable
 
 from rich.console import Console
-from rich.markup import escape
 
 from dqx.common import (
     PluginExecutionContext,
@@ -199,7 +198,7 @@ class PluginManager:
                 with TimeLimiting(int(self.timeout_seconds)) as timer:
                     plugin.process(context)
 
-                logger.info(f"Plugin {name} processed results in {timer.elapsed_ms():.2f}ms")
+                logger.info(f"Plugin {name} processed results in {timer.elapsed_ms():.2f} ms")
 
             except TimeLimitExceededError:
                 logger.error(f"Plugin {name} exceeded {self.timeout_seconds}s time limit")
@@ -253,7 +252,7 @@ class AuditPlugin:
         else:
             self.console.print("[cyan]Tags:[/cyan] none")
 
-        self.console.print(f"[cyan]Duration:[/cyan] {escape(f'{context.duration_ms:.2f}ms')}")
+        self.console.print(f"[cyan]Duration:[/cyan] {f'{context.duration_ms:.2f}ms'}", highlight=False)
 
         if context.datasources:
             self.console.print(f"[cyan]Datasets:[/cyan] {', '.join(context.datasources)}")
