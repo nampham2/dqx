@@ -6,6 +6,7 @@ import logging
 from typing import Protocol, overload, runtime_checkable
 
 from rich.console import Console
+from rich.markup import escape
 
 from dqx.common import (
     PluginExecutionContext,
@@ -252,7 +253,7 @@ class AuditPlugin:
         else:
             self.console.print("[cyan]Tags:[/cyan] none")
 
-        self.console.print(f"[cyan]Duration:[/cyan] {context.duration_ms:.2f}ms")
+        self.console.print(f"[cyan]Duration:[/cyan] {escape(f'{context.duration_ms:.2f}ms')}")
 
         if context.datasources:
             self.console.print(f"[cyan]Datasets:[/cyan] {', '.join(context.datasources)}")
