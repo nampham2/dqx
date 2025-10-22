@@ -9,10 +9,7 @@ from pathlib import Path
 
 
 def run_coverage() -> None:
-    """Run pytest with coverage reporting.
-
-    This replicates the behavior of bin/coverage.sh using Python subprocess calls.
-    """
+    """Run pytest with coverage reporting."""
     # Get command line arguments
     args = sys.argv[1:]  # Skip the script name
     # Setup coverage directory
