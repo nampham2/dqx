@@ -752,7 +752,6 @@ def _create_check(
     context: Context,
     _check: CheckProducer,
     name: str,
-    tags: list[str] = [],
     datasets: list[str] | None = None,
 ) -> None:
     """
@@ -762,8 +761,7 @@ def _create_check(
         provider: Metric provider for the check
         context: Execution context
         _check: Check function to execute
-        tags: Optional tags for the check
-        display_name: Optional human-readable name
+        name: Name for the check
         datasets: Optional list of datasets the check applies to
 
     Raises:
@@ -771,7 +769,7 @@ def _create_check(
     """
     # Create the check node using root's factory method
     # This will automatically add it to the root and set the parent
-    node = context._graph.root.add_check(name=name, tags=tags, datasets=datasets)
+    node = context._graph.root.add_check(name=name, datasets=datasets)
 
     # Call the symbolic check to collect assertions for this check node
     with context.check_context(node):
@@ -781,7 +779,6 @@ def _create_check(
 def check(
     *,
     name: str,
-    tags: list[str] = [],
     datasets: list[str] | None = None,
 ) -> Callable[[CheckProducer], DecoratedCheck]:
     """
@@ -789,13 +786,12 @@ def check(
 
     Must be used with parentheses and a name:
 
-    @check(name="Important Check", tags=["critical"], datasets=["ds1"])
+    @check(name="Important Check", datasets=["ds1"])
     def my_labeled_check(mp: MetricProvider, ctx: Context) -> None:
         # check logic
 
     Args:
         name: Human-readable name for the check (required)
-        tags: Optional tags for categorizing the check
         datasets: Optional list of datasets the check applies to
 
     Returns:
@@ -806,9 +802,7 @@ def check(
     """
 
     def decorator(fn: CheckProducer) -> DecoratedCheck:
-        wrapped = functools.wraps(fn)(
-            functools.partial(_create_check, _check=fn, name=name, tags=tags, datasets=datasets)
-        )
+        wrapped = functools.wraps(fn)(functools.partial(_create_check, _check=fn, name=name, datasets=datasets))
         # No metadata storage needed anymore
         return cast(DecoratedCheck, wrapped)
 

@@ -51,7 +51,6 @@ class RootNode(CompositeNode[None, "CheckNode"]):
     def add_check(
         self,
         name: str,
-        tags: list[str] | None = None,
         datasets: list[str] | None = None,
     ) -> CheckNode:
         """Factory method to create and add a check node.
@@ -60,13 +59,12 @@ class RootNode(CompositeNode[None, "CheckNode"]):
 
         Args:
             name: Name for the check
-            tags: Optional tags for categorizing the check
             datasets: Optional list of datasets this check applies to
 
         Returns:
             The newly created CheckNode
         """
-        check = CheckNode(parent=self, name=name, tags=tags, datasets=datasets)
+        check = CheckNode(parent=self, name=name, datasets=datasets)
         self.add_child(check)
         return check
 
@@ -82,7 +80,6 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
         self,
         parent: RootNode,
         name: str,
-        tags: list[str] | None = None,
         datasets: list[str] | None = None,
     ) -> None:
         """Initialize a check node.
@@ -90,12 +87,10 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
         Args:
             parent: The RootNode parent (required)
             name: Name for the check
-            tags: Optional tags for categorizing the check
             datasets: Optional list of datasets this check applies to
         """
         super().__init__(parent)
         self.name = name
-        self.tags = tags or []
         self.datasets = datasets or []
 
     def add_assertion(

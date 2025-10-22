@@ -49,7 +49,7 @@ def test_factory_methods_create_proper_hierarchy() -> None:
     root = RootNode("test_suite")
 
     # Use factory method to create check
-    check = root.add_check("my_check", tags=["important"])
+    check = root.add_check("my_check")
     assert check.parent is root
     assert check in root.children
 

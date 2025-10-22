@@ -255,12 +255,12 @@ class Graph:
             >>> # Get all checks for reporting
             >>> all_checks = graph.checks()
             >>> for check in all_checks:
-            ...     print(f"Check: {check.name}, Tags: {check.tags}")
+            ...     print(f"Check: {check.name}")
             >>>
-            >>> # Count checks by tag
+            >>> # Count checks by dataset
             >>> from collections import Counter
-            >>> tag_counts = Counter(
-            ...     tag for check in all_checks for tag in check.tags
+            >>> dataset_counts = Counter(
+            ...     dataset for check in all_checks for dataset in check.datasets
             ... )
 
         Note:
