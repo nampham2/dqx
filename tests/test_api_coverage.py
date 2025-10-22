@@ -168,7 +168,7 @@ def test_verification_suite_multiple_checks() -> None:
     # Run suite which will build graph internally
     import pyarrow as pa
 
-    from dqx.extensions.duckds import DuckRelationDataSource
+    from dqx.datasource import DuckRelationDataSource
 
     data = pa.table({"price": [10, 20, 30], "quantity": [100, 200, 300]})
     suite.run({"orders": DuckRelationDataSource.from_arrow(data)}, key)
@@ -362,7 +362,7 @@ def test_is_leq_assertion() -> None:
     # Run suite which will build graph internally
     import pyarrow as pa
 
-    from dqx.extensions.duckds import DuckRelationDataSource
+    from dqx.datasource import DuckRelationDataSource
 
     data = pa.table({"x": [1, 2, 3], "y": [10, 15, 20]})
     suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
@@ -390,7 +390,7 @@ def test_is_lt_assertion() -> None:
     # Run suite which will build graph internally
     import pyarrow as pa
 
-    from dqx.extensions.duckds import DuckRelationDataSource
+    from dqx.datasource import DuckRelationDataSource
 
     data = pa.table({"x": [5, 10, 15], "y": [18, 19, 20]})
     suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
@@ -418,7 +418,7 @@ def test_is_eq_assertion() -> None:
     # Run suite which will build graph internally
     import pyarrow as pa
 
-    from dqx.extensions.duckds import DuckRelationDataSource
+    from dqx.datasource import DuckRelationDataSource
 
     data = pa.table({"x": [10, 10, 10], "y": [20, 20, 20]})
     suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
@@ -462,7 +462,7 @@ def test_is_between_valid_assertion() -> None:
     # Run suite which will build graph internally
     import pyarrow as pa
 
-    from dqx.extensions.duckds import DuckRelationDataSource
+    from dqx.datasource import DuckRelationDataSource
 
     data = pa.table({"x": [5, 7, 9], "y": [-3, 0, 3]})
     suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
