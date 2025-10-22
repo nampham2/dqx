@@ -16,7 +16,7 @@ from returns.result import Failure, Success
 
 from dqx.api import VerificationSuite, check
 from dqx.common import ResultKey, SqlDataSource
-from dqx.extensions.duckds import DuckRelationDataSource
+from dqx.datasource import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
 

@@ -15,7 +15,7 @@ import pyarrow as pa
 
 from dqx.api import Context, MetricProvider, VerificationSuite, check
 from dqx.common import ResultKey
-from dqx.extensions.duckds import DuckRelationDataSource
+from dqx.datasource import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 
 
