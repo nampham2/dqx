@@ -265,7 +265,7 @@ class TestValidationExpressions:
         key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
         import pyarrow as pa
 
-        from dqx.extensions.duckds import DuckRelationDataSource
+        from dqx.datasource import DuckRelationDataSource
 
         data = pa.table({"price": [75.0]})
         suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
