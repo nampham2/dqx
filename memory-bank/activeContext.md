@@ -2,6 +2,13 @@
 
 ## Current Work Focus
 
+### Extended Metric Symbol Display Fix (Completed - 2025-10-22)
+- Fixed bug where extended metrics (day_over_day, stddev) displayed only base metric names
+- Issue: SymbolInfo was using `str(symbolic_metric.metric_spec)` instead of `symbolic_metric.name`
+- Fix: Changed line 573 in api.py to use `metric=symbolic_metric.name`
+- Added test_extended_metric_symbol_info.py to verify correct behavior
+- Now day_over_day(maximum(tax)) displays correctly instead of just "maximum(tax)"
+
 ### Plugin Instance Registration Implementation (Completed - 2025-10-21)
 - Successfully implemented PostProcessor instance support in register_plugin method
 - Working on feat/register-plugin-instances branch
@@ -23,6 +30,11 @@
 - Solution implemented in commit 6e34bad
 
 ## Recent Changes
+
+### Symbol Display Fix (2025-10-22)
+- Fixed SymbolInfo creation in api.py to use symbolic_metric.name
+- Extended metrics now show full names (e.g., "day_over_day(maximum(tax))")
+- Added comprehensive test coverage for extended metric symbol names
 
 ### Pre-commit Hooks (2025-10-19)
 - Added explicit stages to all hooks in `.pre-commit-config.yaml`

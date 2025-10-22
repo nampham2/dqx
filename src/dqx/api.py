@@ -668,7 +668,7 @@ class VerificationSuite:
             # Create SymbolInfo with all fields
             symbol_info = SymbolInfo(
                 name=str(symbolic_metric.symbol),
-                metric=str(symbolic_metric.metric_spec),
+                metric=symbolic_metric.name,
                 dataset=symbolic_metric.dataset,
                 value=value,
                 yyyy_mm_dd=effective_key.yyyy_mm_dd,  # Use effective date!
