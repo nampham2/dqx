@@ -258,7 +258,7 @@ class TestPluginValidation:
         """Test plugin with metadata as attribute is rejected."""
         manager = PluginManager()
 
-        with pytest.raises(ValueError, match="Failed to register plugin.*not callable"):
+        with pytest.raises(ValueError, match="Failed to get metadata from plugin instance.*not callable"):
             manager.register_plugin("tests.test_plugin_public_api.BadPluginMetadataAttribute")
 
     def test_plugin_process_not_callable(self) -> None:
