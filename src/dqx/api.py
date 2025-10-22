@@ -348,6 +348,10 @@ class VerificationSuite:
         # Lazy-loaded plugin manager
         self._plugin_manager: PluginManager | None = None
 
+        # Caching for collect_results and collect_symbols
+        self._cached_results: list[AssertionResult] | None = None
+        self._cached_symbols: list[SymbolInfo] | None = None
+
         # Timer for analyzing phase
         self._analyze_ms = timer_registry.timer("analyzing.time_ms")
 
@@ -557,6 +561,9 @@ class VerificationSuite:
         for persistence or reporting. The ResultKey used during run() is
         automatically applied to all results.
 
+        Results are cached after the first call, so subsequent calls return
+        the same object reference for efficiency.
+
         Returns:
             List of AssertionResult instances, one for each assertion in the suite.
             Results are returned in graph traversal order (breadth-first).
@@ -577,6 +584,11 @@ class VerificationSuite:
         """
         # Only collect results after evaluation
         self.assert_is_evaluated()
+
+        # Return cached results if available
+        if self._cached_results is not None:
+            return self._cached_results
+
         key = self.key
         results = []
 
@@ -598,7 +610,9 @@ class VerificationSuite:
             )
             results.append(result)
 
-        return results
+        # Cache the results
+        self._cached_results = results
+        return self._cached_results
 
     def collect_symbols(self) -> list[SymbolInfo]:
         """
@@ -607,6 +621,9 @@ class VerificationSuite:
         This method retrieves information about all symbols (metrics) that were
         registered during suite setup, evaluates them, and returns their values
         along with metadata. Symbols are sorted by name for consistent ordering.
+
+        Results are cached after the first call, so subsequent calls return
+        the same object reference for efficiency.
 
         Returns:
             List of SymbolInfo instances, sorted by symbol name in natural numeric
@@ -627,6 +644,11 @@ class VerificationSuite:
         """
         # Only collect symbols after evaluation
         self.assert_is_evaluated()
+
+        # Return cached symbols if available
+        if self._cached_symbols is not None:
+            return self._cached_symbols
+
         symbols = []
 
         # Iterate through all registered symbols
@@ -657,7 +679,47 @@ class VerificationSuite:
 
         # Sort by symbol numeric suffix for natural ordering (x_1, x_2, ..., x_10)
         # instead of lexicographic ordering (x_1, x_10, x_2)
-        return sorted(symbols, key=lambda s: int(s.name.split("_")[1]))
+        sorted_symbols = sorted(symbols, key=lambda s: int(s.name.split("_")[1]))
+
+        # Cache the sorted symbols
+        self._cached_symbols = sorted_symbols
+        return self._cached_symbols
+
+    def is_critical(self) -> bool:
+        """
+        Determine if the suite has critical failures (P0 severity).
+
+        A suite is considered critical if it contains at least one assertion
+        with P0 severity that has failed.
+
+        This method uses the cached collect_results() for efficiency.
+
+        Returns:
+            True if any P0 assertion failed, False otherwise.
+
+        Raises:
+            DQXError: If called before run() has been executed successfully.
+
+        Example:
+            >>> suite = VerificationSuite(checks, db, "My Suite")
+            >>> suite.run(datasources, key)
+            >>> if suite.is_critical():
+            ...     print("CRITICAL: P0 failures detected!")
+            ...     send_alert()
+        """
+        # Ensure suite has been evaluated
+        self.assert_is_evaluated()
+
+        # Use collect_results to get all assertion results
+        # This will use cached results if available
+        results = self.collect_results()
+
+        # Check if any P0 assertion has failed
+        for result in results:
+            if result.severity == "P0" and result.status == "FAILURE":
+                return True
+
+        return False
 
     def _process_plugins(self, datasources: dict[str, SqlDataSource]) -> None:
         """
