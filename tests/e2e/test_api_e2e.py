@@ -66,7 +66,6 @@ def test_e2e_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> No
     # Run once for yesterday
     suite = VerificationSuite(checks, db, name="Simple test suite")
     suite.run({"ds1": ds1, "ds2": ds2}, key.lag(1))
-    print_symbols(suite.collect_symbols())
 
     # Run for today
     suite = VerificationSuite(checks, db, name="Simple test suite")

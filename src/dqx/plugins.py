@@ -276,10 +276,12 @@ class AuditPlugin:
 
         # Symbols line (only if symbols exist)
         if context.symbols:
-            successful_symbols = context.total_symbols() - context.failed_symbols()
+            total_symbols = context.total_symbols()
+            successful_symbols = total_symbols - context.failed_symbols()
             failed_symbols = context.failed_symbols()
+            success_rate = (successful_symbols / total_symbols * 100) if total_symbols > 0 else 0.0
             self.console.print(
-                f"  Symbols: {context.total_symbols()} total, {successful_symbols} successful, {failed_symbols} failed"
+                f"  Symbols: {total_symbols} total, [green]{successful_symbols} successful ({success_rate:.1f}%)[/green], [red]{failed_symbols} failed ({100 - success_rate:.1f}%)[/red]"
             )
 
         self.console.print("[bold blue]══════════════════════[/bold blue]")

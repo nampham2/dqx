@@ -661,7 +661,9 @@ class TestAuditPlugin:
         assert "Assertions: 2 total" in captured_output
         assert "1 passed (50.0%)" in captured_output
         assert "1 failed (50.0%)" in captured_output
-        assert "Symbols: 1 total, 1 successful, 0 failed" in captured_output
+        assert "Symbols: 1 total" in captured_output
+        assert "1 successful (100.0%)" in captured_output
+        assert "0 failed (0.0%)" in captured_output
 
         # Check footer
         assert "══════════════════════" in captured_output
@@ -898,7 +900,9 @@ class TestAuditPlugin:
         assert "Assertions: 5 total" in captured_output
         assert "3 passed (60.0%)" in captured_output
         assert "2 failed (40.0%)" in captured_output
-        assert "Symbols: 3 total, 2 successful, 1 failed" in captured_output
+        assert "Symbols: 3 total" in captured_output
+        assert "2 successful (66.7%)" in captured_output
+        assert "1 failed (33.3%)" in captured_output
 
         # Check footer
         assert "══════════════════════" in captured_output
