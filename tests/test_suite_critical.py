@@ -7,7 +7,7 @@ import pytest
 
 from dqx.api import Context, VerificationSuite, check
 from dqx.common import DQXError, ResultKey
-from dqx.extensions.pyarrow_ds import ArrowDataSource
+from dqx.extensions.duckds import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
 
@@ -27,7 +27,7 @@ class TestSuiteCritical:
 
         suite = VerificationSuite([critical_check], db, "Test Suite")
         data = pa.table({"value": [25, 25, 25, 25]})
-        ds = ArrowDataSource(data)
+        ds = DuckRelationDataSource.from_arrow(data)
         key = ResultKey(date.today(), {"env": "test"})
 
         suite.run({"test": ds}, key)
@@ -49,7 +49,7 @@ class TestSuiteCritical:
 
         suite = VerificationSuite([non_critical_checks], db, "Test Suite")
         data = pa.table({"value": [25, 25, 25, 25]})
-        ds = ArrowDataSource(data)
+        ds = DuckRelationDataSource.from_arrow(data)
         key = ResultKey(date.today(), {"env": "test"})
 
         suite.run({"test": ds}, key)
@@ -73,7 +73,7 @@ class TestSuiteCritical:
 
         suite = VerificationSuite([mixed_check], db, "Test Suite")
         data = pa.table({"value": [25, 25, 25, 25]})
-        ds = ArrowDataSource(data)
+        ds = DuckRelationDataSource.from_arrow(data)
         key = ResultKey(date.today(), {"env": "test"})
 
         suite.run({"test": ds}, key)
@@ -105,7 +105,7 @@ class TestSuiteCritical:
 
         suite = VerificationSuite([empty_check], db, "Test Suite")
         data = pa.table({"value": [1, 2, 3]})
-        ds = ArrowDataSource(data)
+        ds = DuckRelationDataSource.from_arrow(data)
         key = ResultKey(date.today(), {"env": "test"})
 
         suite.run({"test": ds}, key)
@@ -124,7 +124,7 @@ class TestSuiteCritical:
 
         suite = VerificationSuite([p0_failure], db, "Test Suite")
         data = pa.table({"value": [1, 2, 3]})
-        ds = ArrowDataSource(data)
+        ds = DuckRelationDataSource.from_arrow(data)
         key = ResultKey(date.today(), {"env": "test"})
 
         suite.run({"test": ds}, key)

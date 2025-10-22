@@ -19,7 +19,7 @@ from dqx.dialect import (
     get_dialect,
     register_dialect,
 )
-from dqx.extensions.pyarrow_ds import ArrowDataSource
+from dqx.extensions.duckds import DuckRelationDataSource
 from dqx.ops import Average, First, Maximum, Minimum, NegativeCount, NullCount, NumRows, SqlOp, Sum, Variance
 
 
@@ -489,12 +489,12 @@ class TestDataSourceDialectIntegration:
     """Test dialect integration with data sources."""
 
     def test_datasource_with_duckdb_dialect(self) -> None:
-        """Test that ArrowDataSource uses DuckDB dialect by default."""
+        """Test that DuckRelationDataSource uses DuckDB dialect by default."""
         # Create test data
         table = pa.table({"value": [10, 20, 30, None, 50], "category": ["A", "B", "A", "B", "A"]})
 
         # Create data source - should use DuckDB dialect by default
-        ds = ArrowDataSource(table)
+        ds = DuckRelationDataSource.from_arrow(table)
 
         assert ds.dialect == "duckdb"
 
@@ -517,7 +517,7 @@ class TestAnalyzerDialectIntegration:
         sum_metric = specs.Sum("value")
 
         # Test with DuckDB dialect (default)
-        ds_duckdb = ArrowDataSource(table)
+        ds_duckdb = DuckRelationDataSource.from_arrow(table)
         analyzer = Analyzer()
 
         key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})

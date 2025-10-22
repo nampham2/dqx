@@ -15,7 +15,7 @@ import pyarrow as pa
 
 from dqx.api import Context, MetricProvider, VerificationSuite, check
 from dqx.common import ResultKey
-from dqx.extensions.pyarrow_ds import ArrowDataSource
+from dqx.extensions.duckds import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 
 
@@ -60,7 +60,7 @@ def demo_caching(db: InMemoryMetricDB) -> None:
             "request_count": [150, 200, 175, 225, 180, 195, 160, 210, 190, 205],
         }
     )
-    ds = ArrowDataSource(data)
+    ds = DuckRelationDataSource.from_arrow(data)
     key = ResultKey(date.today(), {"env": "prod", "region": "us-east-1"})
 
     # Run the suite
@@ -129,7 +129,7 @@ def demo_critical_level(db: InMemoryMetricDB) -> None:
     print("\nTest Case 1: All assertions pass")
     suite1 = VerificationSuite([quality_check], db, "Quality Suite")
     data1 = pa.table({"user_id": ["u1", "u2", "u3", "u4", "u5"], "days_since_update": [1, 2, 1, 3, 2]})
-    ds1 = ArrowDataSource(data1)
+    ds1 = DuckRelationDataSource.from_arrow(data1)
     key1 = ResultKey(date.today(), {"dataset": "clean"})
 
     suite1.run({"users": ds1}, key1)
@@ -144,7 +144,7 @@ def demo_critical_level(db: InMemoryMetricDB) -> None:
             "days_since_update": [1, 2, 1, 3, 2],
         }
     )
-    ds2 = ArrowDataSource(data2)
+    ds2 = DuckRelationDataSource.from_arrow(data2)
     key2 = ResultKey(date.today(), {"dataset": "corrupted"})
 
     suite2.run({"users": ds2}, key2)
@@ -210,7 +210,7 @@ def demo_alert_system(db: InMemoryMetricDB) -> None:
         print(f"Tags: {scenario['tags']}")
 
         suite = VerificationSuite([revenue_monitor], db, "Revenue Monitor")
-        ds = ArrowDataSource(scenario["data"])
+        ds = DuckRelationDataSource.from_arrow(scenario["data"])
         key = ResultKey(date.today(), scenario["tags"])
 
         suite.run({"transactions": ds}, key)

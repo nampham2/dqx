@@ -265,10 +265,10 @@ class TestValidationExpressions:
         key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
         import pyarrow as pa
 
-        from dqx.extensions.pyarrow_ds import ArrowDataSource
+        from dqx.extensions.duckds import DuckRelationDataSource
 
         data = pa.table({"price": [75.0]})
-        suite.run({"data": ArrowDataSource(data)}, key)
+        suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
 
         # Get the assertion node
         assertions = list(suite.graph.assertions())

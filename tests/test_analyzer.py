@@ -11,7 +11,7 @@ import pytest
 from dqx import models, specs
 from dqx.analyzer import AnalysisReport, Analyzer, analyze_sql_ops
 from dqx.common import DQXError, ResultKey
-from dqx.extensions.pyarrow_ds import ArrowDataSource
+from dqx.extensions.duckds import DuckRelationDataSource
 from dqx.ops import SqlOp
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.orm.repositories import Metric as MetricTable
@@ -28,9 +28,9 @@ def sample_data() -> pa.Table:
 
 
 @pytest.fixture
-def arrow_data_source(sample_data: pa.Table) -> ArrowDataSource:
-    """Create an ArrowDataSource with sample data."""
-    return ArrowDataSource(sample_data)
+def arrow_data_source(sample_data: pa.Table) -> DuckRelationDataSource:
+    """Create a DuckRelationDataSource with sample data."""
+    return DuckRelationDataSource.from_arrow(sample_data)
 
 
 @pytest.fixture
@@ -63,7 +63,7 @@ class TestAnalyzer:
         assert isinstance(analyzer.report, AnalysisReport)
 
     def test_analyzer_single_analysis(
-        self, arrow_data_source: ArrowDataSource, test_metrics: list[specs.MetricSpec], result_key: ResultKey
+        self, arrow_data_source: DuckRelationDataSource, test_metrics: list[specs.MetricSpec], result_key: ResultKey
     ) -> None:
         """Test analyzing a single data source."""
         analyzer = Analyzer()
@@ -79,7 +79,7 @@ class TestAnalyzer:
         assert report[(test_metrics[3], result_key)].value == pytest.approx(9)  # Maximum
 
     def test_analyzer_accumulation(
-        self, arrow_data_source: ArrowDataSource, test_metrics: list[specs.MetricSpec], result_key: ResultKey
+        self, arrow_data_source: DuckRelationDataSource, test_metrics: list[specs.MetricSpec], result_key: ResultKey
     ) -> None:
         """Test that multiple analyses accumulate properly."""
         analyzer = Analyzer()
@@ -93,7 +93,7 @@ class TestAnalyzer:
         assert report2[(test_metrics[0], result_key)].value == pytest.approx(20)
 
     def test_analyzer_multiple_keys(
-        self, arrow_data_source: ArrowDataSource, test_metrics: list[specs.MetricSpec], result_key: ResultKey
+        self, arrow_data_source: DuckRelationDataSource, test_metrics: list[specs.MetricSpec], result_key: ResultKey
     ) -> None:
         """Test analyzing with different result keys."""
         analyzer = Analyzer()
@@ -111,7 +111,9 @@ class TestAnalyzer:
         assert (test_metrics[0], result_key) in report2
         assert (test_metrics[0], prev_key) in report2
 
-    def test_analyzer_empty_metrics_error(self, arrow_data_source: ArrowDataSource, result_key: ResultKey) -> None:
+    def test_analyzer_empty_metrics_error(
+        self, arrow_data_source: DuckRelationDataSource, result_key: ResultKey
+    ) -> None:
         """Test that analyzing with empty metrics raises error."""
         analyzer = Analyzer()
 
@@ -308,7 +310,7 @@ class TestBatchAnalysis:
     """Test batch data source analysis."""
 
     def test_analyze_sql_data_source_directly(
-        self, arrow_data_source: ArrowDataSource, test_metrics: list[specs.MetricSpec], result_key: ResultKey
+        self, arrow_data_source: DuckRelationDataSource, test_metrics: list[specs.MetricSpec], result_key: ResultKey
     ) -> None:
         """Test that analyze method works with SqlDataSource."""
         analyzer = Analyzer()
@@ -388,7 +390,7 @@ class TestAnalyzeFunctions:
     def test_analyze_sql_ops_empty(self) -> None:
         """Test analyze_sql_ops with empty ops list."""
         data = pa.Table.from_pydict({"col": [1, 2, 3]})
-        ds = ArrowDataSource(data)
+        ds = DuckRelationDataSource.from_arrow(data)
         nominal_date = datetime.date(2024, 1, 1)
         analyze_sql_ops(ds, [], nominal_date)
         # Should return without errors
@@ -411,9 +413,9 @@ class TestAnalyzeFunctions:
 
     def test_analyze_sql_ops(self) -> None:
         """Test analyze_sql_ops with actual ops."""
-        # Use ArrowDataSource
+        # Use DuckRelationDataSource
         data = pa.Table.from_pydict({"test_col": [42.0]})
-        ds = ArrowDataSource(data)
+        ds = DuckRelationDataSource.from_arrow(data)
         nominal_date = datetime.date(2024, 1, 1)
 
         # Use real SQL ops
@@ -431,7 +433,7 @@ class TestAnalyzeFunctions:
         """Test that duplicate SQL ops are only executed once."""
         # Create test data
         data = pa.Table.from_pydict({"value": [1, 2, 3, 4, 5]})
-        ds = ArrowDataSource(data)
+        ds = DuckRelationDataSource.from_arrow(data)
         nominal_date = datetime.date(2024, 1, 1)
 
         # Create duplicate ops
@@ -454,7 +456,7 @@ class TestAnalyzeFunctions:
     def test_sql_ops_order_preservation(self) -> None:
         """Test that deduplication preserves order of first occurrence."""
         data = pa.Table.from_pydict({"a": [1, 2, 3], "b": [4, 5, 6]})
-        ds = ArrowDataSource(data)
+        ds = DuckRelationDataSource.from_arrow(data)
         nominal_date = datetime.date(2024, 1, 1)
 
         # Create ops in specific order
@@ -478,7 +480,7 @@ class TestAnalyzeFunctions:
     def test_mixed_column_deduplication(self) -> None:
         """Test deduplication with ops on different columns."""
         data = pa.Table.from_pydict({"price": [10.0, 20.0, 30.0], "quantity": [1, 2, 3], "tax": [1.0, 2.0, 3.0]})
-        ds = ArrowDataSource(data)
+        ds = DuckRelationDataSource.from_arrow(data)
         nominal_date = datetime.date(2024, 1, 1)
 
         # Create ops on different columns with some duplicates
@@ -514,7 +516,7 @@ class TestDuckDBSetup:
             mock_execute.assert_called_once_with("SET enable_progress_bar = false")
 
     def test_setup_called_during_analyze(
-        self, arrow_data_source: ArrowDataSource, test_metrics: list[specs.MetricSpec], result_key: ResultKey
+        self, arrow_data_source: DuckRelationDataSource, test_metrics: list[specs.MetricSpec], result_key: ResultKey
     ) -> None:
         """Test that _setup_duckdb is called during analysis."""
         analyzer = Analyzer()

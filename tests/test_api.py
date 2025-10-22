@@ -411,10 +411,10 @@ def test_verification_suite_graph_property() -> None:
     # Need to provide a mock data source for run
     import pyarrow as pa
 
-    from dqx.extensions.pyarrow_ds import ArrowDataSource
+    from dqx.extensions.duckds import DuckRelationDataSource
 
     data = pa.table({"x": [1, 2, 3]})
-    suite.run({"data": ArrowDataSource(data)}, key)
+    suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
 
     # Should return a Graph instance
     from dqx.graph.traversal import Graph
@@ -446,10 +446,10 @@ def test_verification_suite_build_graph_method() -> None:
     # Run suite which will call build_graph internally
     import pyarrow as pa
 
-    from dqx.extensions.pyarrow_ds import ArrowDataSource
+    from dqx.extensions.duckds import DuckRelationDataSource
 
     data = pa.table({"x": [1, 2, 3]})
-    suite.run({"data": ArrowDataSource(data)}, key)
+    suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
 
     # After run, graph should be populated
     assert len(suite.graph.root.children) > 0

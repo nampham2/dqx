@@ -34,7 +34,6 @@ import datetime
 import duckdb
 import pyarrow as pa
 
-from dqx.common import SqlDataSource
 from dqx.utils import random_prefix
 
 
@@ -108,29 +107,48 @@ class DuckRelationDataSource:
         return self._relation.query(self._table_name, query)
 
     @classmethod
-    def from_arrow(cls, table: pa.RecordBatch | pa.Table) -> SqlDataSource:
-        """Create a data source from PyArrow data.
+    def from_arrow(cls, table: pa.RecordBatch | pa.Table) -> DuckRelationDataSource:
+        """Create a DuckRelationDataSource from PyArrow data structures.
 
-        This factory method delegates to ArrowDataSource, which is better
-        suited for handling PyArrow data structures. This ensures that
-        PyArrow data is processed using the most appropriate adapter.
+        This factory method provides a convenient way to create a DuckDB data source
+        directly from PyArrow Tables or RecordBatches. It leverages DuckDB's native
+        Arrow integration to create a relation from the Arrow data, then wraps it
+        in a DuckRelationDataSource for use with the DQX analyzer.
+
+        This method is particularly useful when you have data in Arrow format
+        (e.g., from Parquet files, Arrow IPC, or computational results) and want
+        to analyze it using DQX without intermediate conversions.
 
         Args:
-            table: PyArrow Table or RecordBatch to create a data source from.
+            table: A PyArrow Table or RecordBatch containing the data to analyze.
+                   Both types are supported and will be converted to a DuckDB
+                   relation automatically.
 
         Returns:
-            ArrowDataSource instance wrapping the provided PyArrow data.
+            A new DuckRelationDataSource instance wrapping the Arrow data.
 
         Example:
             >>> import pyarrow as pa
-            >>> table = pa.table({'col1': [1, 2, 3], 'col2': [4, 5, 6]})
-            >>> ds = DuckRelationDataSource.from_arrow(table)
-            >>> # ds is actually an ArrowDataSource instance
-
-        Note:
-            This method exists for API consistency but always returns an
-            ArrowDataSource rather than a DuckRelationDataSource.
+            >>> from dqx.extensions.duck_ds import DuckRelationDataSource
+            >>>
+            >>> # From a PyArrow Table
+            >>> arrow_table = pa.table({
+            ...     'id': [1, 2, 3, 4],
+            ...     'value': [10.5, 20.3, 30.1, 40.7]
+            ... })
+            >>> ds = DuckRelationDataSource.from_arrow(arrow_table)
+            >>>
+            >>> # From a RecordBatch
+            >>> batch = pa.record_batch([
+            ...     pa.array([1, 2, 3]),
+            ...     pa.array(['a', 'b', 'c'])
+            ... ], names=['id', 'category'])
+            >>> ds = DuckRelationDataSource.from_arrow(batch)
+            >>>
+            >>> # Use with analyzer
+            >>> analyzer = Analyzer()
+            >>> metrics = [MetricSpec.num_rows(), MetricSpec.cardinality('category')]
+            >>> report = analyzer.analyze_single(ds, metrics, key)
         """
-        from dqx.extensions.pyarrow_ds import ArrowDataSource
-
-        return ArrowDataSource(table)
+        relation: duckdb.DuckDBPyRelation = duckdb.arrow(table)
+        return cls(relation)

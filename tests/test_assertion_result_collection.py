@@ -8,7 +8,7 @@ from returns.result import Failure, Success
 
 from dqx.api import Context, MetricProvider, VerificationSuite, check
 from dqx.common import AssertionResult, DQXError, EvaluationFailure, ResultKey
-from dqx.extensions.pyarrow_ds import ArrowDataSource
+from dqx.extensions.duckds import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 
 
@@ -46,7 +46,7 @@ class TestAssertionResultCollection:
 
         # Create test data
         data = pa.table({"x": [1, 2, 3]})
-        datasource = ArrowDataSource(data)
+        datasource = DuckRelationDataSource.from_arrow(data)
         key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
         # First run should succeed
@@ -72,7 +72,7 @@ class TestAssertionResultCollection:
         # Run with specific key
         data = pa.table({"x": [1, 2, 3]})
         key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 15), tags={"env": "test", "version": "1.0"})
-        suite.run({"data": ArrowDataSource(data)}, key)
+        suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
 
         # Collect results without passing key
         results = suite.collect_results()  # No key parameter!
@@ -88,7 +88,7 @@ class TestAssertionResultCollection:
         data = pa.table(
             {"id": [1, 2, 3, 4, 5], "value": [10.0, 20.0, 30.0, 40.0, 50.0], "category": ["A", "B", "A", "B", "A"]}
         )
-        datasource = ArrowDataSource(data)
+        datasource = DuckRelationDataSource.from_arrow(data)
 
         # Define checks with multiple assertions
         @check(name="data validation")
@@ -178,7 +178,7 @@ class TestAssertionResultCollection:
 
         # This should raise an exception
         with pytest.raises(RuntimeError):
-            suite.run({"data": ArrowDataSource(data)}, key)
+            suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
 
         # Flag should NOT be set on failure
         assert suite.is_evaluated is False
@@ -191,7 +191,7 @@ class TestAssertionResultCollection:
     def test_collect_results_preserves_result_object(self) -> None:
         """Should preserve the full Result object for advanced usage."""
         data = pa.table({"x": [1, 2, 3]})
-        datasource = ArrowDataSource(data)
+        datasource = DuckRelationDataSource.from_arrow(data)
 
         @check(name="result preservation")
         def check_results(mp: MetricProvider, ctx: Context) -> None:
@@ -234,7 +234,7 @@ class TestAssertionResultCollection:
         # Empty checks will raise a warning but not fail
         # The suite will not run analyzer since there are no metrics
         try:
-            suite.run({"data": ArrowDataSource(data)}, key)
+            suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
         except DQXError as e:
             # Expected - no metrics to analyze
             assert "No metrics provided for analysis" in str(e)
@@ -249,7 +249,7 @@ class TestAssertionResultCollection:
     def test_failure_details_accessible_from_result(self) -> None:
         """Should be able to access failure details directly from Result object."""
         data = pa.table({"x": [5]})
-        datasource = ArrowDataSource(data)
+        datasource = DuckRelationDataSource.from_arrow(data)
 
         @check(name="failure test")
         def failure_check(mp: MetricProvider, ctx: Context) -> None:

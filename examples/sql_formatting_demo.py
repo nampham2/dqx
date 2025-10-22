@@ -9,7 +9,7 @@ from rich.console import Console
 
 from dqx.analyzer import Analyzer
 from dqx.common import ResultKey
-from dqx.extensions.pyarrow_ds import ArrowDataSource
+from dqx.extensions.duckds import DuckRelationDataSource
 from dqx.specs import Average, DuplicateCount, Maximum, MetricSpec, Minimum, NullCount, NumRows, Sum
 
 # Enable debug logging to see SQL queries
@@ -34,7 +34,7 @@ def main() -> None:
     )
 
     # Create data source
-    ds = ArrowDataSource(table)
+    ds = DuckRelationDataSource.from_arrow(table)
 
     # Define metrics to analyze
     metrics: list[MetricSpec] = [

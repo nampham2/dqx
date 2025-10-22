@@ -33,7 +33,7 @@ def simple_metric(
 ) -> Result[float, str]:
     key = key_provider.create(nominal_key)
     value = db.get_metric_value(metric, key)
-    return maybe_to_result(value, f"Metric {metric.name} not found")
+    return maybe_to_result(value, f"Metric {metric.name} not found!")
 
 
 def day_over_day(

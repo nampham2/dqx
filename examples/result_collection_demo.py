@@ -9,7 +9,7 @@ from returns.result import Failure, Success
 
 from dqx.api import Context, MetricProvider, VerificationSuite, check
 from dqx.common import ResultKey
-from dqx.extensions.pyarrow_ds import ArrowDataSource
+from dqx.extensions.duckds import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 
 # Create sample e-commerce data
@@ -206,7 +206,7 @@ def main() -> None:
             )
 
     # Create data sources
-    orders_datasource = ArrowDataSource(orders_data)
+    orders_datasource = DuckRelationDataSource.from_arrow(orders_data)
 
     # Run validation
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={"environment": "production", "version": "1.0"})

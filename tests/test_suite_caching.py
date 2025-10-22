@@ -7,7 +7,7 @@ import pytest
 
 from dqx.api import Context, VerificationSuite, check
 from dqx.common import DQXError, ResultKey
-from dqx.extensions.pyarrow_ds import ArrowDataSource
+from dqx.extensions.duckds import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
 
@@ -26,7 +26,7 @@ class TestSuiteCaching:
 
         suite = VerificationSuite([price_check], db, "Test Suite")
         data = pa.table({"price": [10, 20, 30]})
-        ds = ArrowDataSource(data)
+        ds = DuckRelationDataSource.from_arrow(data)
         key = ResultKey(date.today(), {"env": "test"})
 
         suite.run({"test": ds}, key)
@@ -50,7 +50,7 @@ class TestSuiteCaching:
 
         suite = VerificationSuite([metric_check], db, "Test Suite")
         data = pa.table({"price": [10, 20], "quantity": [5, 15]})
-        ds = ArrowDataSource(data)
+        ds = DuckRelationDataSource.from_arrow(data)
         key = ResultKey(date.today(), {"env": "test"})
 
         suite.run({"test": ds}, key)
@@ -73,7 +73,7 @@ class TestSuiteCaching:
 
         suite = VerificationSuite([simple_check], db, "Test Suite")
         data = pa.table({"value": [25, 25, 25, 25]})
-        ds = ArrowDataSource(data)
+        ds = DuckRelationDataSource.from_arrow(data)
         key = ResultKey(date.today(), {"env": "test"})
 
         suite.run({"test": ds}, key)

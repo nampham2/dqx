@@ -6,7 +6,7 @@ import pyarrow as pa
 
 from dqx.api import Context, MetricProvider, VerificationSuite, check
 from dqx.common import ResultKey
-from dqx.extensions.pyarrow_ds import ArrowDataSource
+from dqx.extensions.duckds import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 
 
@@ -39,7 +39,7 @@ def test_collect_symbols_natural_ordering() -> None:
     # Create test data with all columns (2 rows to satisfy variance calculation)
     data = {f"col_{i}": [float(i), float(i)] for i in range(1, 16)}
     table = pa.table(data)
-    datasource = ArrowDataSource(table)
+    datasource = DuckRelationDataSource.from_arrow(table)
 
     key = ResultKey(yyyy_mm_dd=date.today(), tags={})
     suite.run({"test": datasource}, key)
@@ -77,7 +77,7 @@ def test_collect_symbols_large_numbers() -> None:
     # Create test data (2 rows to satisfy variance calculation)
     data = {f"col_{i}": [float(i), float(i)] for i in range(105)}
     table = pa.table(data)
-    datasource = ArrowDataSource(table)
+    datasource = DuckRelationDataSource.from_arrow(table)
 
     key = ResultKey(yyyy_mm_dd=date.today(), tags={})
     suite.run({"test": datasource}, key)

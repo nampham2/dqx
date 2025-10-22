@@ -7,7 +7,7 @@ from dqx import specs
 from dqx.api import VerificationSuite, check
 from dqx.common import Context, ResultKey
 from dqx.display import print_assertion_results, print_symbols
-from dqx.extensions.pyarrow_ds import ArrowDataSource
+from dqx.extensions.duckds import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
 
@@ -40,8 +40,8 @@ def manual_day_over_day(mp: MetricProvider, ctx: Context) -> None:
 
 @check(name="Rate of change", datasets=["ds2"])
 def rate_of_change(mp: MetricProvider, ctx: Context) -> None:
-    tax_avg = mp.ext.day_over_day(specs.Maximum("tax"))
-    rate = sp.Abs(tax_avg - 1.0)
+    tax_dod = mp.ext.day_over_day(specs.Maximum("tax"))
+    rate = sp.Abs(tax_dod - 1.0)
     ctx.assert_that(rate).where(name="Maximum tax rate change is less than 20%").is_leq(0.2)
 
 
@@ -57,8 +57,8 @@ def cross_dataset_check(mp: MetricProvider, ctx: Context) -> None:
 
 def test_e2e_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> None:
     db = InMemoryMetricDB()
-    ds1 = ArrowDataSource(commerce_data_c1)
-    ds2 = ArrowDataSource(commerce_data_c2)
+    ds1 = DuckRelationDataSource.from_arrow(commerce_data_c1)
+    ds2 = DuckRelationDataSource.from_arrow(commerce_data_c2)
 
     key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={})
     checks = [simple_checks, manual_day_over_day, rate_of_change, null_percentage, cross_dataset_check]
@@ -66,6 +66,7 @@ def test_e2e_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> No
     # Run once for yesterday
     suite = VerificationSuite(checks, db, name="Simple test suite")
     suite.run({"ds1": ds1, "ds2": ds2}, key.lag(1))
+    print_symbols(suite.collect_symbols())
 
     # Run for today
     suite = VerificationSuite(checks, db, name="Simple test suite")

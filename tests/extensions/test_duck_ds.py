@@ -4,8 +4,7 @@ import duckdb
 import pyarrow as pa
 
 from dqx.common import SqlDataSource
-from dqx.extensions.duck_ds import DuckRelationDataSource
-from dqx.extensions.pyarrow_ds import ArrowDataSource
+from dqx.extensions.duckds import DuckRelationDataSource
 
 
 def test_duck_relation_datasource_init(commerce_data_c1: pa.Table) -> None:
@@ -52,6 +51,8 @@ def test_duck_relation_datasource_from_arrow(commerce_data_c1: pa.Table) -> None
     """Test DuckRelationDataSource.from_arrow classmethod."""
     ds = DuckRelationDataSource.from_arrow(commerce_data_c1)
 
-    # Should return an ArrowDataSource instance
-    assert isinstance(ds, ArrowDataSource)
+    # Should return a DuckRelationDataSource instance
+    assert isinstance(ds, DuckRelationDataSource)
     assert isinstance(ds, SqlDataSource)
+    assert ds.name == "duckdb"
+    assert ds.dialect == "duckdb"

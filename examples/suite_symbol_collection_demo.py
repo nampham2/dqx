@@ -16,7 +16,7 @@ from returns.result import Failure, Success
 
 from dqx.api import VerificationSuite, check
 from dqx.common import ResultKey, SqlDataSource
-from dqx.extensions.pyarrow_ds import ArrowDataSource
+from dqx.extensions.duckds import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
 
@@ -117,7 +117,9 @@ def main() -> None:
 
     # Create data sources
     tables = create_sample_data()
-    datasources: dict[str, SqlDataSource] = {name: ArrowDataSource(table) for name, table in tables.items()}
+    datasources: dict[str, SqlDataSource] = {
+        name: DuckRelationDataSource.from_arrow(table) for name, table in tables.items()
+    }
 
     # Run the suite
     suite.run(datasources, key)
