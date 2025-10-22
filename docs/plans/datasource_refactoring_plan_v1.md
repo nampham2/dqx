@@ -12,19 +12,19 @@ This plan details the migration of `DuckRelationDataSource` from `dqx.extensions
 
 ## Approach
 
-Following Test-Driven Development (TDD) principles:
-1. Update test imports first (Red phase)
-2. Create new module with minimal changes (Green phase)
-3. Systematically update all imports (Refactor phase)
-4. Verify and clean up
+Following Test-Driven Development (TDD) principles with committable task groups:
+1. Each task group completes a full Red-Green-Refactor cycle
+2. No failing tests are committed - each group ends with all tests passing
+3. Each commit represents a working state of the codebase
+4. Systematic migration minimizes risk
 
 ## Implementation Plan
 
-### Task Group 1: TDD Setup - Update Test Imports (Red Phase)
+### Task Group 1: Core Migration with TDD
 
-**Objective**: Update test imports to expect the new location, ensuring they fail first
+**Objective**: Migrate DuckRelationDataSource to new location following TDD within a single committable group
 
-#### Task 1.1: Update primary test file import
+#### Task 1.1: Update primary test file import (Red Phase)
 **File**: `tests/extensions/test_duck_ds.py`
 
 Change:
@@ -39,37 +39,13 @@ from dqx.datasource import DuckRelationDataSource
 
 **Verification**: Run `uv run pytest tests/extensions/test_duck_ds.py -v`
 - Expected: ImportError - cannot import name 'DuckRelationDataSource' from 'dqx.datasource'
+- This confirms our test is properly checking the import (Red phase)
 
-#### Task 1.2: Update one integration test
-**File**: `tests/test_analyzer.py`
-
-Change all occurrences of:
-```python
-from dqx.extensions.duckds import DuckRelationDataSource
-```
-
-To:
-```python
-from dqx.datasource import DuckRelationDataSource
-```
-
-**Verification**: Run `uv run pytest tests/test_analyzer.py -v`
-- Expected: ImportError
-
-#### Task 1.3: Commit the failing tests
-```bash
-git add tests/extensions/test_duck_ds.py tests/test_analyzer.py
-git commit -m "test: update imports to expect DuckRelationDataSource in datasource module"
-```
-
-### Task Group 2: Create New Module (Green Phase)
-
-**Objective**: Create the new datasource.py module to make tests pass
-
-#### Task 2.1: Create datasource.py with DuckRelationDataSource
+#### Task 1.2: Create datasource.py module (Green Phase)
 **File**: `src/dqx/datasource.py`
 
-Create new file with complete content from `src/dqx/extensions/duckds.py`, updating only the module docstring:
+Create new file with complete content from `src/dqx/extensions/duckds.py`, updating only the module docstring and import references in docstrings:
+
 
 ```python
 """Data source implementations for DQX framework.
@@ -209,33 +185,46 @@ class DuckRelationDataSource:
         return cls(relation)
 ```
 
-#### Task 2.2: Verify tests now pass
+#### Task 1.3: Verify test now passes
 ```bash
-uv run pytest tests/extensions/test_duck_ds.py tests/test_analyzer.py -v
+uv run pytest tests/extensions/test_duck_ds.py -v
 ```
-- Expected: All tests should pass
+- Expected: All tests should pass (Green phase achieved)
 
-#### Task 2.3: Run type checking
+#### Task 1.4: Run all quality checks
 ```bash
-uv run mypy src/dqx/datasource.py
-```
-- Expected: No type errors
+# Type checking
+uv run mypy src/dqx/datasource.py tests/extensions/test_duck_ds.py
 
-#### Task 2.4: Commit the new module
+# Linting
+uv run ruff check src/dqx/datasource.py tests/extensions/test_duck_ds.py
+
+# Ensure no regression in other tests that still use old import
+uv run pytest tests/test_analyzer.py -v
+```
+- Expected: mypy and ruff pass, analyzer tests still pass with old import
+
+#### Task 1.5: Commit the working migration
 ```bash
-git add src/dqx/datasource.py
-git commit -m "feat: create datasource module with DuckRelationDataSource"
+git add src/dqx/datasource.py tests/extensions/test_duck_ds.py
+git commit -m "feat: migrate DuckRelationDataSource to datasource module with TDD"
 ```
 
-### Task Group 3: Update Test Imports
+**Important**: At this point we have:
+- A working test that imports from the new location
+- The new module with DuckRelationDataSource
+- All tests passing (both updated and non-updated)
+- Clean linting and type checking
 
-**Objective**: Systematically update all test file imports
+### Task Group 2: Update Analyzer and Related Tests
 
-#### Task 3.1: Update remaining analyzer-related tests
+**Objective**: Update analyzer and related test imports as a cohesive group
+
+#### Task 2.1: Update analyzer and coverage tests
+#### Task 2.1: Update analyzer and coverage tests
 **Files**:
+- `tests/test_analyzer.py`
 - `tests/test_analyzer_coverage.py`
-- `tests/test_evaluator_validation.py`
-- `tests/test_lag_date_handling.py`
 
 Change all imports from:
 ```python
@@ -247,21 +236,79 @@ To:
 from dqx.datasource import DuckRelationDataSource
 ```
 
-**Verification**: Run each test file individually to ensure they pass
+#### Task 2.2: Verify tests pass
+```bash
+uv run pytest tests/test_analyzer.py tests/test_analyzer_coverage.py -v
+```
 
-#### Task 3.2: Update API and integration tests
+#### Task 2.3: Run quality checks
+```bash
+uv run mypy tests/test_analyzer.py tests/test_analyzer_coverage.py
+uv run ruff check tests/test_analyzer.py tests/test_analyzer_coverage.py
+```
+
+#### Task 2.4: Commit analyzer test updates
+```bash
+git add tests/test_analyzer.py tests/test_analyzer_coverage.py
+git commit -m "test: update analyzer test imports to use datasource module"
+```
+
+### Task Group 3: Update Validation and Integration Tests
+
+**Objective**: Update validation-related test imports
+
+#### Task 3.1: Update evaluator and lag tests
+**Files**:
+- `tests/test_evaluator_validation.py`
+- `tests/test_lag_date_handling.py`
+- `tests/test_duplicate_count_integration.py`
+
+Same import change as previous groups.
+
+#### Task 3.2: Verify tests pass
+```bash
+uv run pytest tests/test_evaluator_validation.py tests/test_lag_date_handling.py tests/test_duplicate_count_integration.py -v
+```
+
+#### Task 3.3: Run quality checks and commit
+```bash
+uv run mypy tests/test_evaluator_validation.py tests/test_lag_date_handling.py tests/test_duplicate_count_integration.py
+uv run ruff check tests/test_evaluator_validation.py tests/test_lag_date_handling.py tests/test_duplicate_count_integration.py
+
+git add tests/test_evaluator_validation.py tests/test_lag_date_handling.py tests/test_duplicate_count_integration.py
+git commit -m "test: update validation and integration test imports"
+```
+
+### Task Group 4: Update API Tests
+
+**Objective**: Update all API-related test imports
+
+#### Task 4.1: Update API tests
+#### Task 4.1: Update API tests
 **Files**:
 - `tests/test_api.py`
 - `tests/test_api_coverage.py`
 - `tests/e2e/test_api_e2e.py`
-- `tests/test_duplicate_count_integration.py`
 - `tests/test_assertion_result_collection.py`
 
 Same import change as above.
 
-**Verification**: `uv run pytest tests/test_api*.py tests/e2e/test_api_e2e.py -v`
+#### Task 4.2: Verify and commit
+```bash
+uv run pytest tests/test_api.py tests/test_api_coverage.py tests/e2e/test_api_e2e.py tests/test_assertion_result_collection.py -v
+uv run mypy tests/test_api*.py tests/e2e/test_api_e2e.py tests/test_assertion_result_collection.py
+uv run ruff check tests/test_api*.py tests/e2e/test_api_e2e.py tests/test_assertion_result_collection.py
 
-#### Task 3.3: Update remaining tests
+git add tests/test_api.py tests/test_api_coverage.py tests/e2e/test_api_e2e.py tests/test_assertion_result_collection.py
+git commit -m "test: update API test imports to use datasource module"
+```
+
+### Task Group 5: Update Suite and Remaining Tests
+
+**Objective**: Update remaining test imports and move test file
+
+#### Task 5.1: Update suite tests
+#### Task 5.1: Update suite tests
 **Files**:
 - `tests/test_suite_critical.py`
 - `tests/test_suite_caching.py`
@@ -271,29 +318,38 @@ Same import change as above.
 
 Same import change as above.
 
-#### Task 3.4: Move and update test file
-Move `tests/extensions/test_duck_ds.py` to `tests/test_datasource.py` and update its imports.
-
+#### Task 5.2: Move test file
 ```bash
 mv tests/extensions/test_duck_ds.py tests/test_datasource.py
 ```
 
-Update import in the file and also update the docstring:
+Update the docstring in `tests/test_datasource.py`:
 ```python
 """Tests for data source implementations."""
 ```
 
-#### Task 3.5: Commit test updates
+#### Task 5.3: Remove empty extensions test directory
 ```bash
-git add tests/
-git commit -m "test: update all test imports for datasource module"
+rmdir tests/extensions/
 ```
 
-### Task Group 4: Update Example Files
+#### Task 5.4: Verify and commit
+```bash
+uv run pytest tests/test_suite_critical.py tests/test_suite_caching.py tests/test_symbol_ordering.py tests/test_extended_metric_symbol_info.py tests/test_dialect.py tests/test_datasource.py -v
+
+uv run mypy tests/test_suite_*.py tests/test_symbol_ordering.py tests/test_extended_metric_symbol_info.py tests/test_dialect.py tests/test_datasource.py
+uv run ruff check tests/test_suite_*.py tests/test_symbol_ordering.py tests/test_extended_metric_symbol_info.py tests/test_dialect.py tests/test_datasource.py
+
+git add tests/test_suite_critical.py tests/test_suite_caching.py tests/test_symbol_ordering.py tests/test_extended_metric_symbol_info.py tests/test_dialect.py tests/test_datasource.py
+git rm -r tests/extensions/
+git commit -m "test: complete test migration and relocate datasource tests"
+```
+
+### Task Group 6: Update Example Files
 
 **Objective**: Update all example files to use the new import
 
-#### Task 4.1: Update example imports
+#### Task 6.1: Update example imports
 **Files**:
 - `examples/suite_symbol_collection_demo.py`
 - `examples/result_collection_demo.py`
@@ -312,36 +368,37 @@ from dqx.datasource import DuckRelationDataSource
 
 Also update any docstring references from `dqx.extensions.duck_ds` to `dqx.datasource`.
 
-#### Task 4.2: Verify examples still work
-Run one example to verify:
+#### Task 6.2: Verify examples still work
 ```bash
+# Run a couple of examples to verify
 uv run python examples/sql_formatting_demo.py
+uv run python examples/result_collection_demo.py
 ```
 
-#### Task 4.3: Commit example updates
+#### Task 6.3: Commit example updates
 ```bash
 git add examples/
 git commit -m "docs: update example imports for datasource module"
 ```
 
-### Task Group 5: Clean Up Old Structure
+### Task Group 7: Clean Up Old Structure
 
 **Objective**: Remove the now-empty extensions module
 
-#### Task 5.1: Remove extensions directory
+#### Task 7.1: Remove extensions source directory
 ```bash
 rm -rf src/dqx/extensions/
-rm -rf tests/extensions/
 ```
 
-#### Task 5.2: Update source file docstrings
-In `src/dqx/datasource.py`, update any remaining references in docstrings from:
-- `from dqx.extensions.duck_ds import DuckRelationDataSource`
+#### Task 7.2: Search for any remaining references
+```bash
+# Ensure no references remain
+grep -r "extensions.duckds" src/ tests/ examples/ || echo "No references found"
+grep -r "extensions.duck_ds" src/ tests/ examples/ || echo "No references found"
+grep -r "from dqx.extensions" src/ tests/ examples/ || echo "No references found"
+```
 
-To:
-- `from dqx.datasource import DuckRelationDataSource`
-
-#### Task 5.3: Final verification
+#### Task 7.3: Final verification before commit
 ```bash
 # Run all tests
 uv run pytest tests/ -v
@@ -356,31 +413,32 @@ uv run mypy src/dqx tests/
 uv run ruff check src/dqx tests/
 ```
 
-#### Task 5.4: Commit cleanup
+#### Task 7.4: Commit cleanup
 ```bash
 git add -A
-git commit -m "refactor: remove extensions module after datasource migration"
+git commit -m "refactor: remove extensions module after completing datasource migration"
 ```
 
-### Task Group 6: Final Verification
+### Task Group 8: Final Verification
 
 **Objective**: Ensure everything works correctly
 
-#### Task 6.1: Run pre-commit hooks
+#### Task 8.1: Run pre-commit hooks
 ```bash
 bin/run-hooks.sh
 ```
 
-#### Task 6.2: Run full test suite with coverage
+#### Task 8.2: Run full test suite with coverage
 ```bash
 uv run pytest tests/ -v --cov=dqx --cov-report=term-missing
 ```
 - Expected: 100% coverage
 
-#### Task 6.3: Search for any remaining references
+#### Task 8.3: Final commit (if any fixes were needed)
+If any issues were found and fixed during verification, commit them:
 ```bash
-grep -r "extensions.duckds" src/ tests/ examples/ docs/ || echo "No references found"
-grep -r "extensions.duck_ds" src/ tests/ examples/ docs/ || echo "No references found"
+git add -A
+git commit -m "fix: final adjustments after datasource migration"
 ```
 
 ## Success Criteria
