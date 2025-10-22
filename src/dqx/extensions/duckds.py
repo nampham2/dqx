@@ -30,6 +30,7 @@ Example:
 from __future__ import annotations
 
 import datetime
+from typing import Self
 
 import duckdb
 import pyarrow as pa
@@ -107,7 +108,7 @@ class DuckRelationDataSource:
         return self._relation.query(self._table_name, query)
 
     @classmethod
-    def from_arrow(cls, table: pa.RecordBatch | pa.Table) -> DuckRelationDataSource:
+    def from_arrow(cls, table: pa.RecordBatch | pa.Table) -> Self:
         """Create a DuckRelationDataSource from PyArrow data structures.
 
         This factory method provides a convenient way to create a DuckDB data source
