@@ -120,7 +120,7 @@ def test_simple_check_uses_function_name() -> None:
 def test_parametrized_check_uses_provided_name() -> None:
     """Test that @check with name parameter uses that name."""
 
-    @check(name="Order Validation Check", tags=["critical"])
+    @check(name="Order Validation Check")
     def validate_orders(mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
 

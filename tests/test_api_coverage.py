@@ -154,7 +154,7 @@ def test_verification_suite_multiple_checks() -> None:
     def check1(mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
 
-    @check(name="Check 2", tags=["important"])
+    @check(name="Check 2")
     def check2(mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(mp.average("price")).where(name="Price is positive").is_positive()
 
@@ -178,10 +178,7 @@ def test_verification_suite_multiple_checks() -> None:
     assert len(checks) == 3
     assert {c.name for c in checks} == {"Check 1", "Check 2", "Check 3"}
 
-    # Verify tags and datasets
-    check2_node = next(c for c in checks if c.name == "Check 2")
-    assert check2_node.tags == ["important"]
-
+    # Verify datasets (tags have been removed)
     check3_node = next(c for c in checks if c.name == "Check 3")
     assert check3_node.datasets == ["orders"]
 
