@@ -190,8 +190,8 @@ Execution Summary:
 - **Command**: `git add -A && git commit -m "feat: implement text-based audit plugin output"`
 - **Command**: `git add -A && git commit -m "refactor: clean up audit plugin implementation"`
 
-### Task Group 4: Documentation and Examples
-**Goal**: Update documentation and create examples
+### Task Group 4: Documentation Updates
+**Goal**: Update documentation to reflect the new text-based format
 
 #### Task 4.1: Update plugin docstrings
 - **File**: `src/dqx/plugins.py`
@@ -201,38 +201,17 @@ Execution Summary:
   - Update `process()` method docstring
   - Update metadata description
 
-#### Task 4.2: Create example demonstrating new format
-- **File**: `examples/audit_plugin_demo.py`
-- **Content**:
-  ```python
-  """Demonstration of the AuditPlugin text-based output format."""
-
-  from dqx import VerificationSuite, ResultKey
-  from dqx.plugins import PluginManager
-
-  # Example with tags
-  key_with_tags = ResultKey(
-      yyyy_mm_dd="2025-01-15",
-      tags={"env": "prod", "region": "us-east"}
-  )
-
-  # Example without tags
-  key_no_tags = ResultKey(yyyy_mm_dd="2025-01-15")
-
-  # Create and run suite demonstrations...
-  ```
-
-#### Task 4.3: Search for other examples using AuditPlugin
+#### Task 4.2: Search for existing examples using AuditPlugin
 - **Command**: `uv run grep -r "AuditPlugin" examples/`
 - **Action**: Update any found examples to work with new format
 
-#### Task 4.4: Run all examples to verify
-- **Commands**:
-  ```bash
-  uv run python examples/audit_plugin_demo.py
-  uv run python examples/plugin_demo.py  # if it uses AuditPlugin
-  ```
+#### Task 4.3: Verify existing examples still work
+- **Command**: `uv run python examples/plugin_demo.py`  # if it uses AuditPlugin
 - **Expected**: Examples should run without errors
+- **Action**: Fix any compatibility issues with the new text format
+
+#### Task 4.4: Commit documentation updates
+- **Command**: `git add -A && git commit -m "docs: update audit plugin documentation for text-based format"`
 
 ### Task Group 5: Integration Testing
 **Goal**: Ensure the plugin works correctly in real scenarios
@@ -278,7 +257,7 @@ Execution Summary:
 - **Action**: Fix any failures
 
 #### Task 6.3: Final commit
-- **Command**: `git add -A && git commit -m "docs: update documentation and examples for simplified audit plugin"`
+- **Command**: `git add -A && git commit -m "docs: finalize audit plugin simplification"`
 
 ## Success Criteria
 1. All tests pass (100% pass rate)
