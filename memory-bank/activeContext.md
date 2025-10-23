@@ -2,21 +2,21 @@
 
 ## Current Work Focus
 
-### Tags Parameter Removal from @check Decorator (Completed - 2025-10-22)
-- Successfully removed the unused tags parameter from @check decorator
-- Simplified the decorator signature to only require name and severity
-- Updated all tests and examples to remove tags usage
-- Maintained backward compatibility is not needed as tags were never used
-- Branch feat/remove-check-tags merged into main
-
-### DataSource Module Refactoring (Completed - 2025-10-22)
-- Moved data source implementations from extensions/ to datasource.py module
-- Removed the extensions/ directory entirely after migration
-- Updated all imports throughout the codebase
-- All 731 tests passing successfully
-- Cleaner module structure with data sources at top level
+### Batch Analysis Lag Fix (Completed - 2025-10-23)
+- Fixed critical bug where metrics with lagged dates were incorrectly deduplicated
+- Root cause: SqlOp equality doesn't consider date context, causing value propagation issues
+- Solution: Changed deduplication to group by (date, SqlOp) pairs instead of just SqlOp
+- All 746 tests now passing with the fix
+- Maintains batch SQL efficiency while ensuring correctness
 
 ## Recent Changes
+
+### Batch Analysis with Lag Fix (2025-10-23)
+- Modified analyzer.py deduplication logic to be date-aware
+- Changed equivalence grouping from SqlOp-only to (date, SqlOp) pairs
+- Fixed value assignment to respect date boundaries
+- Added check in api.py to skip datasets with no metrics
+- Verified fix with end-to-end tests and batch analysis demo
 
 ### Check Decorator Simplification (2025-10-22)
 - Removed tags parameter from @check decorator in api.py
@@ -52,6 +52,18 @@
 4. Create CLI interface for running checks from command line
 5. Explore additional built-in plugins for the ecosystem
 
+### Tags Parameter Removal from @check Decorator (2025-10-22)
+- Successfully removed the unused tags parameter from @check decorator
+- Simplified the decorator signature to only require name and severity
+- Updated all tests and examples to remove tags usage
+- Maintained backward compatibility is not needed as tags were never used
+
+### DataSource Module Refactoring (2025-10-22)
+- Moved data source implementations from extensions/ to datasource.py module
+- Removed the extensions/ directory entirely after migration
+- Updated all imports throughout the codebase
+- Cleaner module structure with data sources at top level
+
 ## Important Patterns and Preferences
 
 ### Git Workflow
@@ -79,6 +91,12 @@
 
 ## Learnings and Insights
 
+### Batch Analysis
+- SqlOp equality is operation-based, not context-based (doesn't consider dates)
+- Deduplication must consider the full context (date + operation) for correctness
+- Batch SQL can still deduplicate across dates for efficiency, but value assignment must respect boundaries
+- Empty metric handling is important to avoid unnecessary batch analysis calls
+
 ### Module Organization
 - Moving data sources to top level improves discoverability
 - Removing unnecessary directory structure (extensions/) simplifies imports
@@ -93,3 +111,4 @@
 - Comprehensive test coverage catches refactoring issues early
 - Pre-commit hooks prevent bad code from entering the repository
 - Running tests with -v flag helps track progress during large test suites
+- End-to-end tests are crucial for catching integration issues

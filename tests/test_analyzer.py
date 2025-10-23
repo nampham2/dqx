@@ -69,7 +69,7 @@ class TestAnalyzer:
         analyzer = Analyzer()
 
         # Analyze the data
-        report = analyzer.analyze(arrow_data_source, test_metrics, result_key)
+        report = analyzer.analyze(arrow_data_source, {result_key: test_metrics})
 
         # Check results
         assert len(report) == len(test_metrics)
@@ -85,11 +85,11 @@ class TestAnalyzer:
         analyzer = Analyzer()
 
         # First analysis
-        report1 = analyzer.analyze(arrow_data_source, test_metrics, result_key)
+        report1 = analyzer.analyze(arrow_data_source, {result_key: test_metrics})
         assert report1[(test_metrics[0], result_key)].value == pytest.approx(10)
 
         # Second analysis should accumulate
-        report2 = analyzer.analyze(arrow_data_source, test_metrics, result_key)
+        report2 = analyzer.analyze(arrow_data_source, {result_key: test_metrics})
         assert report2[(test_metrics[0], result_key)].value == pytest.approx(20)
 
     def test_analyzer_multiple_keys(
@@ -99,12 +99,12 @@ class TestAnalyzer:
         analyzer = Analyzer()
 
         # Analyze with first key
-        report1 = analyzer.analyze(arrow_data_source, test_metrics, result_key)
+        report1 = analyzer.analyze(arrow_data_source, {result_key: test_metrics})
         assert len(report1) == len(test_metrics)
 
         # Analyze with different key (previous day)
         prev_key = result_key.lag(1)
-        report2 = analyzer.analyze(arrow_data_source, test_metrics, prev_key)
+        report2 = analyzer.analyze(arrow_data_source, {prev_key: test_metrics})
         assert len(report2) == 2 * len(test_metrics)  # Both days
 
         # Check that both keys have their data
@@ -118,7 +118,7 @@ class TestAnalyzer:
         analyzer = Analyzer()
 
         with pytest.raises(DQXError, match="No metrics provided"):
-            analyzer.analyze(arrow_data_source, [], result_key)
+            analyzer.analyze(arrow_data_source, {})
 
     def test_analyzer_protocol_implementation(self) -> None:
         """Test that Analyzer implements the protocol."""
@@ -316,7 +316,7 @@ class TestBatchAnalysis:
         analyzer = Analyzer()
 
         # Should delegate to analyze_single
-        result = analyzer.analyze(arrow_data_source, test_metrics, result_key)
+        result = analyzer.analyze(arrow_data_source, {result_key: test_metrics})
         assert len(result) == len(test_metrics)
 
 
@@ -502,25 +502,3 @@ class TestAnalyzeFunctions:
         assert avg_qty2.value() == 2.0  # Duplicate should have same value
         assert max_tax.value() == 3.0  # Max tax
         assert min_price.value() == 10.0  # Min price
-
-
-class TestDuckDBSetup:
-    """Test DuckDB setup functionality."""
-
-    def test_setup_duckdb(self) -> None:
-        """Test that _setup_duckdb calls duckdb.execute correctly."""
-        analyzer = Analyzer()
-
-        with patch("duckdb.execute") as mock_execute:
-            analyzer._setup_duckdb()
-            mock_execute.assert_called_once_with("SET enable_progress_bar = false")
-
-    def test_setup_called_during_analyze(
-        self, arrow_data_source: DuckRelationDataSource, test_metrics: list[specs.MetricSpec], result_key: ResultKey
-    ) -> None:
-        """Test that _setup_duckdb is called during analysis."""
-        analyzer = Analyzer()
-
-        with patch.object(analyzer, "_setup_duckdb") as mock_setup:
-            analyzer.analyze(arrow_data_source, test_metrics, result_key)
-            mock_setup.assert_called_once()

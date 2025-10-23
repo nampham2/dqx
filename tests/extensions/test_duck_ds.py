@@ -2,9 +2,9 @@ import datetime
 
 import duckdb
 import pyarrow as pa
-from dqx.datasource import DuckRelationDataSource
 
 from dqx.common import SqlDataSource
+from dqx.datasource import DuckRelationDataSource
 
 
 def test_duck_relation_datasource_init(commerce_data_c1: pa.Table) -> None:
@@ -37,9 +37,8 @@ def test_duck_relation_datasource_query(commerce_data_c1: pa.Table) -> None:
     ds = DuckRelationDataSource(relation)
 
     # Test a simple query
-    nominal_date = datetime.date(2024, 1, 1)
     query = f"SELECT COUNT(*) as count FROM {ds._table_name}"
-    result = ds.query(query, nominal_date)
+    result = ds.query(query)
 
     assert isinstance(result, duckdb.DuckDBPyRelation)
     # Fetch the result to verify it works

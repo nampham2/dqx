@@ -4,11 +4,23 @@ import functools
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 from dqx import specs
 from dqx.common import DQXError, ResultKey
 from dqx.states import State
+
+if TYPE_CHECKING:
+    from dqx.ops import SqlOp
+
+
+@dataclass
+class BatchCTEData:
+    """Data for building a batch CTE query."""
+
+    key: ResultKey
+    cte_sql: str
+    ops: Sequence[SqlOp]
 
 
 @dataclass

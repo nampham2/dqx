@@ -80,10 +80,13 @@ This allows the same DQX code to work across different databases.
 
 from __future__ import annotations
 
-from typing import Protocol, Type, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, Type, runtime_checkable
 
 from dqx import ops
 from dqx.common import DQXError
+
+if TYPE_CHECKING:
+    from dqx.models import BatchCTEData
 
 
 def build_cte_query(cte_sql: str, select_expressions: list[str]) -> str:
@@ -142,6 +145,28 @@ class Dialect(Protocol):
 
         Returns:
             SQL query string
+        """
+        ...
+
+    def build_batch_cte_query(self, cte_data: list["BatchCTEData"]) -> str:
+        """Build a batch CTE query for multiple dates.
+
+        Args:
+            cte_data: List of BatchCTEData objects containing:
+                - key: ResultKey with the date
+                - cte_sql: CTE SQL for this date
+                - ops: List of SqlOp objects to translate
+
+        Returns:
+            Complete SQL query with CTEs and UNION ALL
+
+        Example output:
+            WITH
+              source_2024_01_01 AS (...),
+              metrics_2024_01_01 AS (SELECT ... FROM source_2024_01_01)
+            SELECT '2024-01-01' as date, 'x_1' as symbol, x_1 as value FROM metrics_2024_01_01
+            UNION ALL
+            SELECT '2024-01-01' as date, 'x_2' as symbol, x_2 as value FROM metrics_2024_01_01
         """
         ...
 
@@ -206,6 +231,49 @@ class DuckDBDialect:
         used by other dialects as well.
         """
         return build_cte_query(cte_sql, select_expressions)
+
+    def build_batch_cte_query(self, cte_data: list["BatchCTEData"]) -> str:
+        """Build batch query with date-suffixed CTEs and unpivot."""
+        if not cte_data:
+            raise ValueError("No CTE data provided")
+
+        cte_parts = []
+        unpivot_parts = []
+
+        for i, data in enumerate(cte_data):
+            # Format date for CTE names (yyyy_mm_dd)
+            # Include index to ensure unique names even for same date with different tags
+            date_suffix = data.key.yyyy_mm_dd.strftime("%Y_%m_%d")
+            source_cte = f"source_{date_suffix}_{i}"
+            metrics_cte = f"metrics_{date_suffix}_{i}"
+
+            # Add source CTE
+            cte_parts.append(f"{source_cte} AS ({data.cte_sql})")
+
+            # Build metrics CTE with all expressions if ops exist
+            if data.ops:
+                # Translate ops to expressions
+                expressions = [self.translate_sql_op(op) for op in data.ops]
+                metrics_select = ", ".join(expressions)
+                cte_parts.append(f"{metrics_cte} AS (SELECT {metrics_select} FROM {source_cte})")
+
+                # Create unpivot SELECT statements
+                date_str = data.key.yyyy_mm_dd.isoformat()
+                for op in data.ops:
+                    # Use op.sql_col directly for symbol name
+                    unpivot_parts.append(
+                        f"SELECT '{date_str}' as date, '{op.sql_col}' as symbol, "
+                        f'"{op.sql_col}" as value FROM {metrics_cte}'
+                    )
+
+        # Build final query
+        if not unpivot_parts:
+            raise ValueError("No metrics to compute")
+
+        cte_clause = "WITH\n  " + ",\n  ".join(cte_parts)
+        union_clause = "\n".join(f"{'UNION ALL' if i > 0 else ''}\n{part}" for i, part in enumerate(unpivot_parts))
+
+        return f"{cte_clause}\n{union_clause}"
 
 
 # Dialect Registry

@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import datetime
-import itertools
 import logging
 from collections import UserDict
-from collections.abc import Sequence
-from typing import TypeVar
+from collections.abc import Mapping, Sequence
+from typing import Any, TypeVar
 
-import duckdb
 import numpy as np
 import sqlparse
 from rich.console import Console
@@ -23,11 +21,54 @@ from dqx.ops import SqlOp
 from dqx.orm.repositories import MetricDB
 from dqx.specs import MetricSpec
 
-logger = logging.getLogger(__name__)
+DEFAULT_BATCH_SIZE = 7  # Maximum dates per analysis SQL query
+
 ColumnName = str
 MetricKey = tuple[MetricSpec, ResultKey]
 
 T = TypeVar("T", bound=SqlDataSource)
+
+
+logger = logging.getLogger(__name__)
+
+
+def _validate_value(value: Any, date_str: str, symbol: str) -> float:
+    """Validate a value from SQL query results.
+
+    Args:
+        value: The value to validate
+        date_str: Date string for error context
+        symbol: Symbol/column name for error context
+
+    Returns:
+        The validated float value
+
+    Raises:
+        DQXError: If value is masked, nan, null, or cannot be converted to float
+    """
+    # Check for numpy masked value
+    if np.ma.is_masked(value):
+        raise DQXError(
+            f"Masked value encountered for symbol '{symbol}' on date {date_str}. "
+            f"This typically means no data was found for the requested date."
+        )
+
+    # Check for None/null
+    if value is None:
+        raise DQXError(f"Null value encountered for symbol '{symbol}' on date {date_str}")
+
+    # Try to convert to float and check for NaN
+    try:
+        float_value = float(value)
+    except (ValueError, TypeError) as e:
+        raise DQXError(
+            f"Cannot convert value to float for symbol '{symbol}' on date {date_str}. Value: {value!r}, Error: {e}"
+        )
+
+    if np.isnan(float_value):
+        raise DQXError(f"NaN value encountered for symbol '{symbol}' on date {date_str}")
+
+    return float_value
 
 
 class AnalysisReport(UserDict[MetricKey, models.Metric]):
@@ -142,7 +183,7 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp], nominal_date: datetime.date) ->
 
     # Execute the query
     logger.debug(f"SQL Query:\n{sql}")
-    result: dict[str, np.ndarray] = ds.query(sql, nominal_date).fetchnumpy()
+    result: dict[str, np.ndarray] = ds.query(sql).fetchnumpy()
 
     # Assign the collected values to the ops
     # Create a mapping from all ops to their sql_col (duplicates will map to same col)
@@ -157,6 +198,70 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp], nominal_date: datetime.date) ->
     # Now assign values to all ops
     for op in ops:
         op.assign(result[cols[op]][0])
+
+
+def analyze_batch_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> None:
+    """Analyze SQL ops for multiple dates in one query.
+
+    Args:
+        ds: Data source
+        ops_by_key: Dict mapping ResultKey to list of deduplicated SqlOps
+
+    Raises:
+        DQXError: If SQL execution fails
+    """
+    if not ops_by_key:
+        return
+
+    # Get dialect
+    dialect_instance = get_dialect(ds.dialect)
+
+    # Build CTE data using dataclass
+    from dqx.models import BatchCTEData
+
+    cte_data = [BatchCTEData(key=key, cte_sql=ds.cte(key.yyyy_mm_dd), ops=ops) for key, ops in ops_by_key.items()]
+
+    # Generate and execute SQL
+    sql = dialect_instance.build_batch_cte_query(cte_data)
+
+    # Format SQL for readability
+    sql = sqlparse.format(
+        sql,
+        reindent=True,
+        keyword_case="upper",
+        identifier_case="lower",
+        indent_width=2,
+        wrap_after=120,
+        comma_first=False,
+    )
+
+    logger.debug(f"Batch SQL Query:\n{sql}")
+
+    # Execute query - will raise DQXError on failure
+    result: dict[str, np.ndarray] = ds.query(sql).fetchnumpy()
+
+    # Parse results - expecting columns: date, symbol, value
+    date_col = result["date"]
+    symbol_col = result["symbol"]
+    value_col = result["value"]
+
+    # Build lookup map
+    value_map: dict[tuple[str, str], float] = {}
+    for i in range(len(date_col)):
+        date_str = date_col[i]
+        symbol = symbol_col[i]
+        value = value_col[i]
+        # Validate before adding to map
+        validated_value = _validate_value(value, date_str, symbol)
+        value_map[(date_str, symbol)] = validated_value
+
+    # Assign values back to ops
+    for key, ops in ops_by_key.items():
+        date_str = key.yyyy_mm_dd.isoformat()
+        for op in ops:
+            value = value_map.get((date_str, op.sql_col))
+            if value is not None:
+                op.assign(value)
 
 
 class Analyzer:
@@ -178,38 +283,147 @@ class Analyzer:
     def analyze(
         self,
         ds: SqlDataSource,
-        metrics: Sequence[MetricSpec],
-        key: ResultKey,
+        metrics: Mapping[ResultKey, Sequence[MetricSpec]],
     ) -> AnalysisReport:
-        """Analyze a data source using specified metrics.
+        """Analyze multiple dates with different metrics in batch.
+
+        This method processes multiple ResultKeys efficiently by batching SQL
+        operations. When the number of keys exceeds DEFAULT_BATCH_SIZE (7),
+        the analysis is automatically split into smaller batches to optimize
+        query performance and avoid excessively large SQL queries.
 
         Args:
             ds: The SQL data source to analyze
-            metrics: Sequence of metrics to compute
-            key: Result key for the analysis
+            metrics_by_key: Dictionary mapping ResultKeys to their metrics
 
         Returns:
-            AnalysisReport containing computed metrics
+            AnalysisReport containing all computed metrics for all dates
+
+        Raises:
+            DQXError: If no metrics provided or SQL execution fails
+
+        Note:
+            Large date ranges are automatically processed in batches of
+            DEFAULT_BATCH_SIZE to maintain optimal performance. This limit
+            can be adjusted by modifying the DEFAULT_BATCH_SIZE constant.
         """
-        logger.info(f"Analyzing report with key {key}...")
-        self._setup_duckdb()
+        if not metrics:
+            raise DQXError("No metrics provided for batch analysis!")
 
-        if len(metrics) == 0:
-            raise DQXError("No metrics provided for analysis!")
+        # Log entry point with explicit dates
+        dates = sorted([key.yyyy_mm_dd for key in metrics.keys()])
+        if len(dates) <= 4:
+            date_strs = [d.isoformat() for d in dates]
+            logger.info(f"Analyzing batch of {len(metrics)} dates: {date_strs}")
+        else:
+            first_dates = [d.isoformat() for d in dates[:2]]
+            last_dates = [d.isoformat() for d in dates[-2:]]
+            logger.info(f"Analyzing batch of {len(metrics)} dates: {first_dates} ... {last_dates}")
 
-        # All ops for the metrics
-        all_ops = list(itertools.chain.from_iterable(m.analyzers for m in metrics))
-        if len(all_ops) == 0:
-            return AnalysisReport()
+        # Log batch processing info for large date ranges
+        keys = list(metrics.keys())
+        if len(keys) > DEFAULT_BATCH_SIZE:
+            logger.debug(
+                f"Processing {len(keys)} dates in batches of {DEFAULT_BATCH_SIZE}. "
+                f"Date range: {keys[0].yyyy_mm_dd} to {keys[-1].yyyy_mm_dd}"
+            )
 
-        # Analyze sql ops - pass the date from key
-        sql_ops = [op for op in all_ops if isinstance(op, SqlOp)]
-        analyze_sql_ops(ds, sql_ops, key.yyyy_mm_dd)
+        # Create final report at the beginning
+        final_report = AnalysisReport()
 
-        # Build the analysis report and merge with the current one
-        report = AnalysisReport(data={(metric, key): models.Metric.build(metric, key) for metric in metrics})
-        self._report = self._report.merge(report)
+        # Process in batches if needed
+        items = list(metrics.items())
+
+        for i in range(0, len(items), DEFAULT_BATCH_SIZE):
+            batch_items = items[i : i + DEFAULT_BATCH_SIZE]
+            batch = dict(batch_items)
+
+            # Log batch boundaries
+            if len(keys) > DEFAULT_BATCH_SIZE:
+                batch_keys = [key for key, _ in batch_items]
+                logger.debug(
+                    f"Processing batch {i // DEFAULT_BATCH_SIZE + 1}: "
+                    f"{batch_keys[0].yyyy_mm_dd} to {batch_keys[-1].yyyy_mm_dd} "
+                    f"({len(batch_keys)} dates)"
+                )
+
+            report = self._analyze_internal(ds, batch)
+            # Merge directly into final report
+            final_report = final_report.merge(report)
+
+        self._report = self._report.merge(final_report)
+
+        # Log result summary
+        logger.info(f"Batch analysis complete: {len(final_report)} metrics computed")
+
         return self._report
 
-    def _setup_duckdb(self) -> None:
-        duckdb.execute("SET enable_progress_bar = false")
+    def _analyze_internal(
+        self,
+        ds: SqlDataSource,
+        metrics_by_key: dict[ResultKey, Sequence[MetricSpec]],
+    ) -> AnalysisReport:
+        """Process a single batch of dates.
+
+        This method handles deduplication of SQL operations while ensuring
+        all analyzer instances receive their computed values, even if they
+        were deduplicated during SQL execution.
+
+        Args:
+            ds: Data source
+            metrics_by_key: Batch of dates to process
+
+        Returns:
+            AnalysisReport for this batch
+        """
+        from collections import defaultdict
+
+        # Maps (ResultKey, SqlOp) to all equivalent analyzer instances for that date
+        analyzer_equivalence_map: defaultdict[tuple[ResultKey, SqlOp], list[SqlOp]] = defaultdict(list)
+
+        # Phase 1: Collect all analyzers per date and build equivalence mapping
+        for key, metrics in metrics_by_key.items():
+            if not metrics:
+                logger.warning(f"No metrics to analyze for date {key.yyyy_mm_dd}")
+            for metric in metrics:
+                for analyzer in metric.analyzers:
+                    if isinstance(analyzer, SqlOp):
+                        # Group by (date, analyzer) - same type on same date are equivalent
+                        analyzer_equivalence_map[(key, analyzer)].append(analyzer)
+
+        # Phase 2: Build ops_by_key from analyzer_equivalence_map keys
+        ops_by_key: defaultdict[ResultKey, list[SqlOp]] = defaultdict(list)
+        for key, analyzer in analyzer_equivalence_map.keys():
+            ops_by_key[key].append(analyzer)
+
+        # Log deduplication statistics
+        if analyzer_equivalence_map:
+            total_ops = sum(len(instances) for instances in analyzer_equivalence_map.values())
+            actual_ops = len(analyzer_equivalence_map)
+            reduction_pct = (1 - actual_ops / total_ops) * 100 if total_ops > 0 else 0
+            logger.info(
+                f"Batch deduplication: {actual_ops} unique ops out of {total_ops} total ({reduction_pct:.1f}% reduction)"
+            )
+
+        # Phase 3: Execute SQL with deduplicated ops
+        if ops_by_key:
+            analyze_batch_sql_ops(ds, dict(ops_by_key))
+
+            # Phase 4: Propagate values to all equivalent analyzer instances
+            for (key, representative), equivalent_instances in analyzer_equivalence_map.items():
+                # Check if representative has a value by trying to get it
+                try:
+                    value = representative.value()
+                    # Propagate to all instances for this specific date
+                    for instance in equivalent_instances:
+                        instance.assign(value)
+                except DQXError:
+                    raise DQXError(f"Failed to retrieve value for analyzer {representative} on date {key.yyyy_mm_dd}")
+
+        # Phase 5: Build report
+        report_data = {}
+        for key, metrics in metrics_by_key.items():
+            for metric in metrics:
+                report_data[(metric, key)] = models.Metric.build(metric, key)
+
+        return AnalysisReport(data=report_data)

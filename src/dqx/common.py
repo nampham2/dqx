@@ -174,15 +174,12 @@ class SqlDataSource(Protocol):
         """
         ...
 
-    def query(self, query: str, nominal_date: datetime.date) -> duckdb.DuckDBPyRelation:
+    def query(self, query: str) -> duckdb.DuckDBPyRelation:
         """
         Execute a query against this data source.
 
         Args:
             query: The SQL query to execute
-            nominal_date: The date for which data should be filtered.
-                         Implementations may ignore this parameter if date
-                         filtering is not needed.
 
         Returns:
             Query results as a DuckDB relation
@@ -206,36 +203,39 @@ class Analyzer(Protocol):
     Protocol for data analysis engines that process SQL data sources.
 
     This protocol defines the minimal interface for analyzers that can process
-    individual SqlDataSource instances, generating analysis reports based on
-    specified metrics.
+    SqlDataSource instances, generating analysis reports based on specified
+    metrics across multiple dates/keys.
     """
 
     def analyze(
         self,
         ds: SqlDataSource,
-        metrics: Sequence[MetricSpec],
-        key: ResultKey,
+        metrics: dict[ResultKey, Sequence[MetricSpec]],
     ) -> AnalysisReport:
         """
-        Analyze a data source using the specified metrics.
+        Analyze a data source using the specified metrics across multiple dates.
 
         This is the main entry point for analysis operations. It processes
-        a single data source and generates an analysis report.
+        a data source and generates an analysis report by executing metrics
+        in an optimized batch query.
 
         Args:
             ds: The data source to analyze
-            metrics: Sequence of metric specifications to compute
-            key: Result key for organizing and retrieving analysis results
+            metrics: Dictionary mapping ResultKeys to their metrics
 
         Returns:
             AnalysisReport: Report containing computed metrics and their values
 
         Raises:
-            DQXError: If the data source type is unsupported or analysis fails
+            DQXError: If the metrics dict is empty or analysis fails
 
         Example:
             >>> analyzer = MyAnalyzer()
-            >>> report = analyzer.analyze(data_source, [metric1, metric2], result_key)
+            >>> metrics_by_key = {
+            ...     ResultKey(date(2024, 1, 1), {}): [Sum("revenue"), Average("price")],
+            ...     ResultKey(date(2024, 1, 2), {}): [Sum("revenue"), Average("price")]
+            ... }
+            >>> report = analyzer.analyze(data_source, metrics_by_key)
             >>> print(f"Found {len(report)} computed metrics")
         """
         ...
