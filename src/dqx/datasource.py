@@ -75,12 +75,11 @@ class DuckRelationDataSource:
         """
         return f"SELECT * FROM {self._table_name}"
 
-    def query(self, query: str, nominal_date: datetime.date) -> duckdb.DuckDBPyRelation:
+    def query(self, query: str) -> duckdb.DuckDBPyRelation:
         """Execute a query against the DuckDB relation.
 
         Args:
             query: The SQL query to execute
-            nominal_date: The date for filtering (currently ignored)
 
         Returns:
             Query results as a DuckDB relation

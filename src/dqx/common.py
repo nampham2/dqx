@@ -174,15 +174,12 @@ class SqlDataSource(Protocol):
         """
         ...
 
-    def query(self, query: str, nominal_date: datetime.date) -> duckdb.DuckDBPyRelation:
+    def query(self, query: str) -> duckdb.DuckDBPyRelation:
         """
         Execute a query against this data source.
 
         Args:
             query: The SQL query to execute
-            nominal_date: The date for which data should be filtered.
-                         Implementations may ignore this parameter if date
-                         filtering is not needed.
 
         Returns:
             Query results as a DuckDB relation

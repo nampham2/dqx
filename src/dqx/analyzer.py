@@ -148,7 +148,7 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp], nominal_date: datetime.date) ->
 
     # Execute the query
     logger.debug(f"SQL Query:\n{sql}")
-    result: dict[str, np.ndarray] = ds.query(sql, nominal_date).fetchnumpy()
+    result: dict[str, np.ndarray] = ds.query(sql).fetchnumpy()
 
     # Assign the collected values to the ops
     # Create a mapping from all ops to their sql_col (duplicates will map to same col)
@@ -165,13 +165,12 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp], nominal_date: datetime.date) ->
         op.assign(result[cols[op]][0])
 
 
-def analyze_batch_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]], nominal_date: datetime.date) -> None:
+def analyze_batch_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> None:
     """Analyze SQL ops for multiple dates in one query.
 
     Args:
         ds: Data source
         ops_by_key: Dict mapping ResultKey to list of deduplicated SqlOps
-        nominal_date: Reference date for query execution
 
     Raises:
         DQXError: If SQL execution fails
@@ -204,7 +203,7 @@ def analyze_batch_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]], nomin
     logger.debug(f"Batch SQL Query:\n{sql}")
 
     # Execute query - will raise DQXError on failure
-    result: dict[str, np.ndarray] = ds.query(sql, nominal_date).fetchnumpy()
+    result: dict[str, np.ndarray] = ds.query(sql).fetchnumpy()
 
     # Parse results - expecting columns: date, symbol, value
     date_col = result["date"]
@@ -412,8 +411,7 @@ class Analyzer:
 
         # Phase 3: Execute SQL with deduplicated ops
         if ops_by_key:
-            nominal_date = datetime.date.today()
-            analyze_batch_sql_ops(ds, dict(ops_by_key), nominal_date)
+            analyze_batch_sql_ops(ds, dict(ops_by_key))
 
             # Phase 4: Propagate values to all equivalent analyzer instances
             for (key, representative), equivalent_instances in analyzer_equivalence_map.items():

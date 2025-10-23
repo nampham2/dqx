@@ -29,7 +29,7 @@ class DateFilteredDataSource:
         date_str = nominal_date.strftime("%Y-%m-%d")
         return f"SELECT * FROM {self._table_name} WHERE {self._date_column} = '{date_str}'"
 
-    def query(self, query: str, nominal_date: datetime.date) -> Any:
+    def query(self, query: str) -> Any:
         """Execute a query against the DuckDB relation."""
         return self._relation.query(self._table_name, query)
 
