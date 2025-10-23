@@ -418,8 +418,7 @@ class Analyzer:
                     for instance in equivalent_instances:
                         instance.assign(value)
                 except DQXError:
-                    # No value assigned yet, skip propagation
-                    pass
+                    raise DQXError(f"Failed to retrieve value for analyzer {representative} on date {key.yyyy_mm_dd}")
 
         # Phase 5: Build report
         report_data = {}
