@@ -681,11 +681,10 @@ class TestBatchCTEQuery:
         assert "WITH" in sql
         assert "source_2024_01_01_0 AS (" in sql  # Index suffix added
         assert "metrics_2024_01_01_0 AS (" in sql  # Index suffix added
-        # Check that we have the right number of SELECT statements
-        assert sql.count("SELECT '2024-01-01' as date") == 2
-        assert "as symbol" in sql
-        assert "as value FROM metrics_2024_01_01_0" in sql  # Index suffix added
-        assert "UNION ALL" in sql
+        # Check MAP structure - should have only 1 SELECT statement with MAP
+        assert sql.count("SELECT '2024-01-01' as date") == 1
+        assert "MAP {" in sql
+        assert "} as values" in sql
         # Verify that Sum and Average operations are in the metrics CTE
         assert "SUM(revenue)" in sql
         assert "AVG(price)" in sql
@@ -715,7 +714,10 @@ class TestBatchCTEQuery:
         assert "source_2024_01_01" in sql
         assert "source_2024_01_02" in sql
         assert "source_2024_01_03" in sql
-        assert sql.count("UNION ALL") == 2  # 3 selects, 2 unions
+        # With MAP approach, we have UNION ALL connecting the dates
+        assert sql.count("UNION ALL") == 2  # 3 dates = 2 UNION ALLs
+        # Should have 3 final SELECT statements (one per date)
+        assert sql.count("SELECT '2024-01-0") == 3
 
     def test_build_batch_cte_query_empty(self) -> None:
         """Test error handling for empty CTE data."""
