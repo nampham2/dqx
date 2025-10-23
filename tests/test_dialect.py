@@ -28,13 +28,17 @@ class MockDialect:
 
     name = "mock"
 
-    def translate_sql_op(self, op: SqlOp) -> str:
+    def translate_sql_op(self, op: SqlOp[Any]) -> str:
         """Translate ops to SQL."""
         return f"MOCK({op.column if hasattr(op, 'column') else '*'}) AS {op.sql_col}"
 
     def build_cte_query(self, cte_sql: str, select_expressions: list[str]) -> str:
         """Build CTE query."""
         return f"WITH source AS ({cte_sql}) SELECT {', '.join(select_expressions)} FROM source"
+
+    def build_batch_cte_query(self, cte_data: list[Any]) -> str:
+        """Build batch CTE query."""
+        return "WITH batch AS (SELECT 1) SELECT * FROM batch"
 
 
 class NotADialect:
@@ -49,7 +53,7 @@ class MockPostgreSQLDialect:
 
     name = "postgresql"
 
-    def translate_sql_op(self, op: SqlOp) -> str:
+    def translate_sql_op(self, op: SqlOp[Any]) -> str:
         """Translate ops to PostgreSQL-compatible SQL."""
         match op:
             case NumRows():
@@ -71,6 +75,10 @@ class MockPostgreSQLDialect:
     def build_cte_query(self, cte_sql: str, select_expressions: list[str]) -> str:
         """Build PostgreSQL-compatible CTE query."""
         return build_cte_query(cte_sql, select_expressions)
+
+    def build_batch_cte_query(self, cte_data: list[Any]) -> str:
+        """Build batch CTE query."""
+        return "WITH batch AS (SELECT 1) SELECT * FROM batch"
 
 
 # =============================================================================
@@ -639,3 +647,98 @@ class TestDialectQueryFormatting:
 
         expected = "WITH source AS (SELECT id, name, price FROM products) SELECT COUNT(*) AS total, AVG(price) AS average_price, MAX(price) AS max_price FROM source"
         assert query == expected
+
+
+# =============================================================================
+# Batch CTE Query Tests
+# =============================================================================
+
+
+class TestBatchCTEQuery:
+    """Test batch CTE query functionality."""
+
+    def test_build_batch_cte_query_single_date(self) -> None:
+        """Test building batch CTE query for single date."""
+        from datetime import date
+
+        from dqx.models import BatchCTEData
+        from dqx.ops import Average, Sum
+
+        dialect = DuckDBDialect()
+
+        # Create test data
+        key = ResultKey(date(2024, 1, 1), {})
+        ops: list[SqlOp[Any]] = [
+            Sum("revenue"),  # Should be x_1
+            Average("price"),  # Should be x_2
+        ]
+
+        cte_data = [BatchCTEData(key=key, cte_sql="SELECT * FROM sales WHERE yyyy_mm_dd = '2024-01-01'", ops=ops)]
+
+        sql = dialect.build_batch_cte_query(cte_data)
+
+        # Verify structure
+        assert "WITH" in sql
+        assert "source_2024_01_01_0 AS (" in sql  # Index suffix added
+        assert "metrics_2024_01_01_0 AS (" in sql  # Index suffix added
+        # Check that we have the right number of SELECT statements
+        assert sql.count("SELECT '2024-01-01' as date") == 2
+        assert "as symbol" in sql
+        assert "as value FROM metrics_2024_01_01_0" in sql  # Index suffix added
+        assert "UNION ALL" in sql
+        # Verify that Sum and Average operations are in the metrics CTE
+        assert "SUM(revenue)" in sql
+        assert "AVG(price)" in sql
+
+    def test_build_batch_cte_query_multiple_dates(self) -> None:
+        """Test building batch CTE query for multiple dates."""
+        from datetime import date
+
+        from dqx.models import BatchCTEData
+        from dqx.ops import Sum
+
+        dialect = DuckDBDialect()
+
+        # Create test data for 3 dates
+        cte_data = []
+        for day in [1, 2, 3]:
+            key = ResultKey(date(2024, 1, day), {})
+            ops = [Sum("revenue")]  # x_1, x_2, x_3
+
+            cte_data.append(
+                BatchCTEData(key=key, cte_sql=f"SELECT * FROM sales WHERE yyyy_mm_dd = '2024-01-0{day}'", ops=ops)
+            )
+
+        sql = dialect.build_batch_cte_query(cte_data)
+
+        # Verify all dates are included
+        assert "source_2024_01_01" in sql
+        assert "source_2024_01_02" in sql
+        assert "source_2024_01_03" in sql
+        assert sql.count("UNION ALL") == 2  # 3 selects, 2 unions
+
+    def test_build_batch_cte_query_empty(self) -> None:
+        """Test error handling for empty CTE data."""
+        dialect = DuckDBDialect()
+
+        with pytest.raises(ValueError, match="No CTE data provided"):
+            dialect.build_batch_cte_query([])
+
+    def test_build_batch_cte_query_no_ops(self) -> None:
+        """Test error handling when no ops provided."""
+        from datetime import date
+
+        from dqx.models import BatchCTEData
+
+        dialect = DuckDBDialect()
+
+        cte_data = [
+            BatchCTEData(
+                key=ResultKey(date(2024, 1, 1), {}),
+                cte_sql="SELECT * FROM sales",
+                ops=[],  # No ops
+            )
+        ]
+
+        with pytest.raises(ValueError, match="No metrics to compute"):
+            dialect.build_batch_cte_query(cte_data)

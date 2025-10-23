@@ -240,6 +240,26 @@ class Analyzer(Protocol):
         """
         ...
 
+    def analyze_batch(
+        self,
+        ds: SqlDataSource,
+        metrics_by_key: dict[ResultKey, Sequence[MetricSpec]],
+    ) -> AnalysisReport:
+        """
+        Analyze multiple dates with different metrics in a single SQL query.
+
+        Args:
+            ds: The data source to analyze
+            metrics_by_key: Dictionary mapping ResultKeys to their metrics
+
+        Returns:
+            AnalysisReport containing all computed metrics
+
+        Raises:
+            DQXError: If batch is empty or SQL execution fails
+        """
+        ...
+
 
 @runtime_checkable
 class Context(Protocol):

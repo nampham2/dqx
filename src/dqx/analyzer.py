@@ -4,7 +4,7 @@ import datetime
 import itertools
 import logging
 from collections import UserDict
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import TypeVar
 
 import duckdb
@@ -28,6 +28,12 @@ ColumnName = str
 MetricKey = tuple[MetricSpec, ResultKey]
 
 T = TypeVar("T", bound=SqlDataSource)
+
+# Note: This design supports future enhancements such as:
+# - Parallel batch processing (each batch can be processed independently)
+# - Adaptive batch sizing based on query complexity or data volume
+# - Custom batching strategies via subclassing or configuration
+DEFAULT_BATCH_SIZE = 7  # Maximum dates per SQL query for optimal performance
 
 
 class AnalysisReport(UserDict[MetricKey, models.Metric]):
@@ -159,6 +165,69 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp], nominal_date: datetime.date) ->
         op.assign(result[cols[op]][0])
 
 
+def analyze_batch_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]], nominal_date: datetime.date) -> None:
+    """Analyze SQL ops for multiple dates in one query.
+
+    Args:
+        ds: Data source
+        ops_by_key: Dict mapping ResultKey to list of deduplicated SqlOps
+        nominal_date: Reference date for query execution
+
+    Raises:
+        DQXError: If SQL execution fails
+    """
+    if not ops_by_key:
+        return
+
+    # Get dialect
+    dialect_instance = get_dialect(ds.dialect)
+
+    # Build CTE data using dataclass
+    from dqx.models import BatchCTEData
+
+    cte_data = [BatchCTEData(key=key, cte_sql=ds.cte(key.yyyy_mm_dd), ops=ops) for key, ops in ops_by_key.items()]
+
+    # Generate and execute SQL
+    sql = dialect_instance.build_batch_cte_query(cte_data)
+
+    # Format SQL for readability
+    sql = sqlparse.format(
+        sql,
+        reindent=True,
+        keyword_case="upper",
+        identifier_case="lower",
+        indent_width=2,
+        wrap_after=120,
+        comma_first=False,
+    )
+
+    logger.debug(f"Batch SQL Query:\n{sql}")
+
+    # Execute query - will raise DQXError on failure
+    result: dict[str, np.ndarray] = ds.query(sql, nominal_date).fetchnumpy()
+
+    # Parse results - expecting columns: date, symbol, value
+    date_col = result["date"]
+    symbol_col = result["symbol"]
+    value_col = result["value"]
+
+    # Build lookup map
+    value_map: dict[tuple[str, str], float] = {}
+    for i in range(len(date_col)):
+        date_str = date_col[i]
+        symbol = symbol_col[i]
+        value = value_col[i]
+        value_map[(date_str, symbol)] = value
+
+    # Assign values back to ops
+    for key, ops in ops_by_key.items():
+        date_str = key.yyyy_mm_dd.isoformat()
+        for op in ops:
+            value = value_map.get((date_str, op.sql_col))
+            if value is not None:
+                op.assign(value)
+
+
 class Analyzer:
     """
     The Analyzer class is responsible for analyzing data from SqlDataSource
@@ -213,3 +282,116 @@ class Analyzer:
 
     def _setup_duckdb(self) -> None:
         duckdb.execute("SET enable_progress_bar = false")
+
+    def analyze_batch(
+        self,
+        ds: SqlDataSource,
+        metrics_by_key: Mapping[ResultKey, Sequence[MetricSpec]],
+    ) -> AnalysisReport:
+        """Analyze multiple dates with different metrics in batch.
+
+        This method processes multiple ResultKeys efficiently by batching SQL
+        operations. When the number of keys exceeds DEFAULT_BATCH_SIZE (7),
+        the analysis is automatically split into smaller batches to optimize
+        query performance and avoid excessively large SQL queries.
+
+        Args:
+            ds: The SQL data source to analyze
+            metrics_by_key: Dictionary mapping ResultKeys to their metrics
+
+        Returns:
+            AnalysisReport containing all computed metrics for all dates
+
+        Raises:
+            DQXError: If no metrics provided or SQL execution fails
+
+        Note:
+            Large date ranges are automatically processed in batches of
+            DEFAULT_BATCH_SIZE to maintain optimal performance. This limit
+            can be adjusted by modifying the DEFAULT_BATCH_SIZE constant.
+        """
+        logger.info(f"Analyzing batch of {len(metrics_by_key)} keys...")
+        self._setup_duckdb()
+
+        if not metrics_by_key:
+            raise DQXError("No metrics provided for batch analysis!")
+
+        # Log batch processing info for large date ranges
+        keys = list(metrics_by_key.keys())
+        if len(keys) > DEFAULT_BATCH_SIZE:
+            logger.debug(
+                f"Processing {len(keys)} dates in batches of {DEFAULT_BATCH_SIZE}. "
+                f"Date range: {keys[0].yyyy_mm_dd} to {keys[-1].yyyy_mm_dd}"
+            )
+
+        # Create final report at the beginning
+        final_report = AnalysisReport()
+
+        # Process in batches if needed
+        items = list(metrics_by_key.items())
+
+        for i in range(0, len(items), DEFAULT_BATCH_SIZE):
+            batch_items = items[i : i + DEFAULT_BATCH_SIZE]
+            batch = dict(batch_items)
+
+            # Log batch boundaries
+            if len(keys) > DEFAULT_BATCH_SIZE:
+                batch_keys = [key for key, _ in batch_items]
+                logger.debug(
+                    f"Processing batch {i // DEFAULT_BATCH_SIZE + 1}: "
+                    f"{batch_keys[0].yyyy_mm_dd} to {batch_keys[-1].yyyy_mm_dd} "
+                    f"({len(batch_keys)} dates)"
+                )
+
+            report = self._analyze_batch_internal(ds, batch)
+            # Merge directly into final report
+            final_report = final_report.merge(report)
+
+        self._report = self._report.merge(final_report)
+        return self._report
+
+    def _analyze_batch_internal(
+        self,
+        ds: SqlDataSource,
+        metrics_by_key: dict[ResultKey, Sequence[MetricSpec]],
+    ) -> AnalysisReport:
+        """Process a single batch of dates.
+
+        Args:
+            ds: Data source
+            metrics_by_key: Batch of dates to process
+
+        Returns:
+            AnalysisReport for this batch
+        """
+        # Use set for automatic deduplication
+        ops_by_key: dict[ResultKey, set[SqlOp]] = {}
+
+        for key, metrics in metrics_by_key.items():
+            sql_ops: set[SqlOp] = set()
+            for metric in metrics:
+                for analyzer in metric.analyzers:
+                    if isinstance(analyzer, SqlOp):
+                        sql_ops.add(analyzer)
+
+            if sql_ops:
+                ops_by_key[key] = sql_ops
+
+        # Get nominal date for query execution if needed
+        if ops_by_key:
+            nominal_date = datetime.date.today()
+
+            # Convert sets to lists for analyze_batch_sql_ops
+            ops_lists_by_key = {key: list(ops) for key, ops in ops_by_key.items()}
+
+            # Batch analyze SQL ops
+            analyze_batch_sql_ops(ds, ops_lists_by_key, nominal_date)
+
+        # Build report (using all metrics including duplicates)
+        # This happens regardless of whether there are SQL ops
+        report_data = {}
+        for key, metrics in metrics_by_key.items():
+            for metric in metrics:
+                report_data[(metric, key)] = models.Metric.build(metric, key)
+
+        return AnalysisReport(data=report_data)
