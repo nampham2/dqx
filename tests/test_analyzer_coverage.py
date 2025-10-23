@@ -91,7 +91,7 @@ def test_analyze_batch_with_more_than_4_dates(capsys: pytest.CaptureFixture[str]
     analyzer = Analyzer()
 
     # Analyze and capture output
-    analyzer.analyze(ds, metrics)
+    _ = analyzer.analyze(ds, metrics)
 
     # Check that the special log message was generated
     captured = capsys.readouterr()
@@ -128,7 +128,7 @@ def test_analyze_batch_with_large_date_range(capsys: pytest.CaptureFixture[str])
     analyzer = Analyzer()
 
     # Analyze and capture output
-    analyzer.analyze(ds, metrics)
+    _ = analyzer.analyze(ds, metrics)
 
     # Check debug logs for batch processing
     captured = capsys.readouterr()
@@ -154,7 +154,7 @@ def test_analyze_internal_with_empty_metrics_for_date(capsys: pytest.CaptureFixt
     key = ResultKey(yyyy_mm_dd=date(2024, 1, 1), tags={})
 
     # Call _analyze_internal with empty metrics
-    analyzer._analyze_internal(ds, {key: []})
+    _ = analyzer._analyze_internal(ds, {key: []})
 
     # Should log warning
     captured = capsys.readouterr()
