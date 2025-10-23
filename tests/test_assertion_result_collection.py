@@ -236,8 +236,8 @@ class TestAssertionResultCollection:
         try:
             suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
         except DQXError as e:
-            # Expected - no metrics to analyze
-            assert "No metrics provided for analysis" in str(e)
+            # Expected - no metrics to analyze (batch analysis now)
+            assert "No metrics provided for batch analysis" in str(e)
             # Suite should still be marked as evaluated after error
             assert suite.is_evaluated is False
             return

@@ -357,6 +357,10 @@ class Analyzer:
     ) -> AnalysisReport:
         """Process a single batch of dates.
 
+        This method handles deduplication of SQL operations while ensuring
+        all analyzer instances receive their computed values, even if they
+        were deduplicated during SQL execution.
+
         Args:
             ds: Data source
             metrics_by_key: Batch of dates to process
@@ -364,31 +368,42 @@ class Analyzer:
         Returns:
             AnalysisReport for this batch
         """
-        # Use set for automatic deduplication
-        ops_by_key: dict[ResultKey, set[SqlOp]] = {}
+        from collections import defaultdict
 
+        # Maps (ResultKey, SqlOp) to all equivalent analyzer instances for that date
+        analyzer_equivalence_map: defaultdict[tuple[ResultKey, SqlOp], list[SqlOp]] = defaultdict(list)
+
+        # Phase 1: Collect all analyzers per date and build equivalence mapping
         for key, metrics in metrics_by_key.items():
-            sql_ops: set[SqlOp] = set()
             for metric in metrics:
                 for analyzer in metric.analyzers:
                     if isinstance(analyzer, SqlOp):
-                        sql_ops.add(analyzer)
+                        # Group by (date, analyzer) - same type on same date are equivalent
+                        analyzer_equivalence_map[(key, analyzer)].append(analyzer)
 
-            if sql_ops:
-                ops_by_key[key] = sql_ops
+        # Phase 2: Build ops_by_key from analyzer_equivalence_map keys
+        ops_by_key: defaultdict[ResultKey, list[SqlOp]] = defaultdict(list)
+        for key, analyzer in analyzer_equivalence_map.keys():
+            ops_by_key[key].append(analyzer)
 
-        # Get nominal date for query execution if needed
+        # Phase 3: Execute SQL with deduplicated ops
         if ops_by_key:
             nominal_date = datetime.date.today()
+            analyze_batch_sql_ops(ds, dict(ops_by_key), nominal_date)
 
-            # Convert sets to lists for analyze_batch_sql_ops
-            ops_lists_by_key = {key: list(ops) for key, ops in ops_by_key.items()}
+            # Phase 4: Propagate values to all equivalent analyzer instances
+            for (key, representative), equivalent_instances in analyzer_equivalence_map.items():
+                # Check if representative has a value by trying to get it
+                try:
+                    value = representative.value()
+                    # Propagate to all instances for this specific date
+                    for instance in equivalent_instances:
+                        instance.assign(value)
+                except DQXError:
+                    # No value assigned yet, skip propagation
+                    pass
 
-            # Batch analyze SQL ops
-            analyze_batch_sql_ops(ds, ops_lists_by_key, nominal_date)
-
-        # Build report (using all metrics including duplicates)
-        # This happens regardless of whether there are SQL ops
+        # Phase 5: Build report
         report_data = {}
         for key, metrics in metrics_by_key.items():
             for metric in metrics:

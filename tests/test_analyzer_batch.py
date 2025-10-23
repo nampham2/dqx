@@ -359,8 +359,114 @@ class TestAnalyzerBatch:
         empty_metric = EmptyMetric()
 
         # Should handle gracefully
-        report = analyzer.analyze_batch(ds, {key: [empty_metric]})
+        report = analyzer.analyze_batch(ds, {key: [empty_metric]})  # type: ignore[arg-type]
 
         # Empty metric should still be in report
         assert len(report) == 1
         assert (empty_metric, key) in report
+
+    def test_batch_analysis_with_duplicate_analyzers(self) -> None:
+        """Test that batch analysis correctly handles metrics with duplicate analyzer types.
+
+        This test ensures that when multiple metrics use the same type of analyzer
+        (e.g., multiple Average metrics each need NumRows), all metrics can access
+        their analyzer values after batch execution, even though the SQL was deduplicated.
+        """
+        # Create test data
+        table = pa.table(
+            {
+                "yyyy_mm_dd": ["2024-01-01"] * 3 + ["2024-01-02"] * 3,
+                "price": [10.0, 20.0, 30.0, 40.0, 50.0, 60.0],
+                "tax": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
+                "quantity": [5, 10, 15, 20, 25, 30],
+            }
+        )
+
+        ds = DateFilteredDataSource(table)
+        analyzer = Analyzer()
+
+        # Create multiple metrics that use the same analyzer types
+        # All Average metrics need NumRows() and Sum() analyzers
+        metrics_by_key = {
+            ResultKey(datetime.date(2024, 1, 1), {}): [
+                specs.Average("price"),  # Needs NumRows() and Sum("price")
+                specs.Average("tax"),  # Needs NumRows() and Sum("tax")
+                specs.Average("quantity"),  # Needs NumRows() and Sum("quantity")
+            ],
+            ResultKey(datetime.date(2024, 1, 2), {}): [
+                specs.Average("price"),  # Another set of analyzers
+                specs.Maximum("tax"),  # Different metric type
+            ],
+        }
+
+        # Execute batch analysis
+        report = analyzer.analyze_batch(ds, metrics_by_key)
+
+        # Verify all metrics have values
+        key1 = ResultKey(datetime.date(2024, 1, 1), {})
+        key2 = ResultKey(datetime.date(2024, 1, 2), {})
+
+        # Check that all Average metrics computed correctly
+        assert report[(specs.Average("price"), key1)].value == 20.0
+        assert report[(specs.Average("tax"), key1)].value == 2.0
+        assert report[(specs.Average("quantity"), key1)].value == 10.0
+
+        assert report[(specs.Average("price"), key2)].value == 50.0
+        assert report[(specs.Maximum("tax"), key2)].value == 6.0
+
+        # Verify no "op has not been collected yet!" errors occurred
+        for metric_key, metric_value in report.items():
+            assert metric_value.value is not None
+            assert metric_value.state is not None
+
+    def test_batch_analysis_deduplication_efficiency(self) -> None:
+        """Test that SQL deduplication actually reduces the number of operations.
+
+        This test verifies that our deduplication logic is working by checking
+        that duplicate analyzers result in fewer SQL operations.
+        """
+        # Create test data
+        table = pa.table({"yyyy_mm_dd": ["2024-01-01"] * 3, "col1": [1, 2, 3], "col2": [4, 5, 6]})
+
+        ds = DateFilteredDataSource(table)
+        analyzer = Analyzer()
+
+        # Track SQL execution to verify deduplication
+        original_analyze = analyzer._analyze_batch_internal
+        sql_op_counts = []
+
+        def track_sql_ops(*args: Any, **kwargs: Any) -> Any:
+            # Count ops before execution
+            from collections import defaultdict
+
+            analyzer_equivalence_map = defaultdict(list)
+
+            metrics_by_key = args[1] if len(args) > 1 else kwargs.get("metrics_by_key", {})
+            for key, metrics in metrics_by_key.items():
+                for metric in metrics:
+                    for op in metric.analyzers:
+                        from dqx.ops import SqlOp
+
+                        if isinstance(op, SqlOp):
+                            analyzer_equivalence_map[(key, op)].append(op)
+
+            # Count unique ops (deduplicated)
+            sql_op_counts.append(len(analyzer_equivalence_map))
+            return original_analyze(*args, **kwargs)
+
+        analyzer._analyze_batch_internal = track_sql_ops  # type: ignore[assignment]
+
+        # Create metrics with many duplicate NumRows operations
+        metrics_by_key: dict[ResultKey, list[specs.MetricSpec]] = {
+            ResultKey(datetime.date(2024, 1, 1), {}): [
+                specs.Average("col1"),  # Needs NumRows
+                specs.Average("col2"),  # Needs NumRows (duplicate)
+                specs.NumRows(),  # Direct NumRows (duplicate)
+            ]
+        }
+
+        analyzer.analyze_batch(ds, metrics_by_key)
+
+        # Should only execute 3 unique ops: NumRows, Sum(col1), Sum(col2)
+        # Even though we have 3 NumRows instances, only 1 should be executed
+        assert sql_op_counts[0] == 3

@@ -40,19 +40,19 @@ def test_suite_analyzes_metrics_with_correct_dates(monkeypatch: Any) -> None:
         lagged = mp.average("value", key=ctx.key.lag(1))
         ctx.assert_that(current / lagged).where(name="Ratio check").is_eq(1.0)
 
-    # Track analyzer calls
+    # Track analyzer batch calls
     from dqx.analyzer import Analyzer
 
-    analyze_calls = []
-    original_analyze = Analyzer.analyze
+    batch_calls = []
+    original_analyze_batch = Analyzer.analyze_batch
 
-    def track_analyze(self: Any, ds: Any, metrics: Any, key: ResultKey) -> Any:
-        # The API now calls analyze without nominal_date
-        nominal_date = key.yyyy_mm_dd
-        analyze_calls.append((key, nominal_date))
-        return original_analyze(self, ds, metrics, key)
+    def track_analyze_batch(self: Any, ds: Any, metrics_by_key: Any) -> Any:
+        # Track all the keys used in the batch
+        for key, metrics in metrics_by_key.items():
+            batch_calls.append((key, key.yyyy_mm_dd, len(metrics)))
+        return original_analyze_batch(self, ds, metrics_by_key)
 
-    monkeypatch.setattr(Analyzer, "analyze", track_analyze)
+    monkeypatch.setattr(Analyzer, "analyze_batch", track_analyze_batch)
 
     suite = VerificationSuite([test_check], db, "Test Suite")
     key = ResultKey(datetime.date(2025, 1, 15), {})
@@ -63,14 +63,18 @@ def test_suite_analyzes_metrics_with_correct_dates(monkeypatch: Any) -> None:
 
     suite.run({"ds1": ds}, key)
 
-    # Verify analyzer was called with different dates
-    assert len(analyze_calls) == 2
+    # Verify batch was called with metrics for different dates
+    assert len(batch_calls) == 2
 
     # Extract the dates from the calls
-    dates_used = {call[0].yyyy_mm_dd for call in analyze_calls}
+    dates_used = {call[1] for call in batch_calls}
 
     assert datetime.date(2025, 1, 15) in dates_used
     assert datetime.date(2025, 1, 14) in dates_used
+
+    # Verify each date has metrics
+    for call in batch_calls:
+        assert call[2] > 0  # Each date should have at least one metric
 
 
 def test_collect_symbols_with_lagged_dates() -> None:

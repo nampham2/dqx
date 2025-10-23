@@ -481,6 +481,10 @@ class VerificationSuite:
             # Get all symbolic metrics for this dataset
             symbolic_metrics = self._context.pending_metrics(ds_name)
 
+            # Skip if no metrics for this dataset
+            if not symbolic_metrics:
+                continue
+
             # Group metrics by their effective date
             metrics_by_date: dict[ResultKey, list[MetricSpec]] = defaultdict(list)
             for sym_metric in symbolic_metrics:
@@ -489,9 +493,7 @@ class VerificationSuite:
 
             # Analyze each date group separately
             analyzer = Analyzer()
-            for effective_key, metrics in metrics_by_date.items():
-                logger.info(f"Analyzing {ds_name}: {len(metrics)} metrics for {effective_key.yyyy_mm_dd}")
-                analyzer.analyze(datasources[ds_name], metrics, effective_key)
+            analyzer.analyze_batch(datasources[ds_name], metrics_by_date)
 
             # Persist the combined report
             analyzer.report.persist(self.provider._db)
