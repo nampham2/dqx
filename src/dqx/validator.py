@@ -3,6 +3,13 @@
 This module provides validators that check for common configuration errors
 in verification suites before they run, catching issues like duplicate names
 and empty checks early.
+
+Available Validators:
+    - DuplicateCheckNameValidator: Detects duplicate check names (error)
+    - EmptyCheckValidator: Detects checks with no assertions (warning)
+    - DuplicateAssertionNameValidator: Detects duplicate assertion names within checks (error)
+    - DatasetValidator: Detects dataset mismatches between checks and symbols (error)
+    - UnusedSymbolValidator: Detects symbols that are defined but never used (warning)
 """
 
 from __future__ import annotations
@@ -271,6 +278,52 @@ class DatasetValidator(BaseValidator):
                 )
 
 
+class UnusedSymbolValidator(BaseValidator):
+    """Detects symbols that are defined but not used in any assertion."""
+
+    name = "unused_symbols"
+    is_error = False  # This produces warnings
+
+    def __init__(self, provider: "MetricProvider") -> None:
+        """Initialize validator with provider."""
+        super().__init__()
+        self._provider = provider
+        self._used_symbols: set[Any] = set()  # Using Any to avoid import issues with sp.Symbol
+
+    def process_node(self, node: BaseNode) -> None:
+        """Collect symbols used in assertions."""
+        if isinstance(node, AssertionNode):
+            # Extract all symbols from the assertion expression
+            self._used_symbols.update(node.actual.free_symbols)
+
+    def finalize(self) -> None:
+        """Compare defined vs used symbols and generate warnings."""
+        # Get all defined symbols from provider
+        defined_symbols = set(self._provider.symbols())
+
+        # Find unused symbols
+        unused_symbols = defined_symbols - self._used_symbols
+
+        # Generate warnings for each unused symbol
+        for symbol in unused_symbols:
+            metric = self._provider.get_symbol(symbol)
+            # Format: symbol_name ← metric_name
+            symbol_repr = f"{symbol} ← {metric.name}"
+
+            self._issues.append(
+                ValidationIssue(
+                    rule=self.name,
+                    message=f"Unused symbol: {symbol_repr}",
+                    node_path=["root", symbol_repr],
+                )
+            )
+
+    def reset(self) -> None:
+        """Reset validator state."""
+        super().reset()
+        self._used_symbols.clear()
+
+
 class CompositeValidationVisitor:
     """Runs multiple validators in a single graph traversal for performance."""
 
@@ -343,6 +396,7 @@ class SuiteValidator:
             EmptyCheckValidator(),
             DuplicateAssertionNameValidator(),
             DatasetValidator(provider),
+            UnusedSymbolValidator(provider),
         ]
 
     def validate(self, graph: Graph, provider: MetricProvider) -> ValidationReport:
