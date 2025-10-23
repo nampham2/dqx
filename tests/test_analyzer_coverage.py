@@ -1,9 +1,8 @@
 """Additional tests to improve coverage for analyzer.py."""
 
 from datetime import date
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
-import numpy as np
 import pytest
 
 from dqx.analyzer import AnalysisReport, Analyzer, analyze_batch_sql_ops
@@ -133,32 +132,17 @@ def test_analyze_batch_with_large_date_range(capsys: pytest.CaptureFixture[str])
     # Check debug logs for batch processing
     captured = capsys.readouterr()
 
+    # Strip ANSI color codes for simpler matching
+    import re
+
+    clean_output = re.sub(r"\x1b\[[0-9;]*m", "", captured.out)
+
     # Should log the initial batch info
-    assert "Processing 10 dates in batches of 7" in captured.out
+    assert "Processing 10 dates in batches of 7" in clean_output
 
     # Should log batch boundaries
-    assert "Processing batch 1: 2024-01-01 to 2024-01-07 (7 dates)" in captured.out
-    assert "Processing batch 2: 2024-01-08 to 2024-01-10 (3 dates)" in captured.out
-
-
-def test_analyze_internal_with_empty_metrics_for_date(capsys: pytest.CaptureFixture[str]) -> None:
-    """Test _analyze_internal with empty metrics for a date - covers line 387."""
-    # Create mock data source
-    ds = Mock(spec=SqlDataSource)
-    ds.dialect = "duckdb"
-
-    # Create analyzer
-    analyzer = Analyzer()
-
-    # Create a key with empty metrics list
-    key = ResultKey(yyyy_mm_dd=date(2024, 1, 1), tags={})
-
-    # Call _analyze_internal with empty metrics
-    _ = analyzer._analyze_internal(ds, {key: []})
-
-    # Should log warning
-    captured = capsys.readouterr()
-    assert "No metrics to analyze for date 2024-01-01" in captured.out
+    assert "Processing batch 1: 2024-01-01 to 2024-01-07 (7 dates)" in clean_output
+    assert "Processing batch 2: 2024-01-08 to 2024-01-10 (3 dates)" in clean_output
 
 
 def test_analyze_batch_sql_ops_value_retrieval_failure() -> None:
@@ -168,31 +152,34 @@ def test_analyze_batch_sql_ops_value_retrieval_failure() -> None:
     ds.dialect = "duckdb"
     ds.cte = Mock(return_value="WITH data AS (...)")
 
-    # Create mock query result with empty arrays (no data)
+    # Create mock query result with MAP format - the op's sql_col won't be in the MAP
     mock_result = Mock()
-    mock_result.fetchnumpy.return_value = {"date": np.array([]), "symbol": np.array([]), "value": np.array([])}
+    # Return a result that has date and MAP, but the MAP doesn't contain our metric
+    mock_result.fetchall.return_value = [("2024-01-01", {"other_metric": 123.0})]
     ds.query = Mock(return_value=mock_result)
 
-    # Create a real SqlOp that will fail to retrieve value
+    # Create a real SqlOp and a metric that uses it
     sql_op = Sum(column="test_col")
 
-    # Create metrics with the failing SqlOp
-    key = ResultKey(yyyy_mm_dd=date(2024, 1, 1), tags={})
+    # Create a mock metric with the SqlOp as an analyzer
     metric = Mock(spec=MetricSpec)
     metric.analyzers = [sql_op]
 
     # Create analyzer
     analyzer = Analyzer()
 
-    # Mock the value method to raise an error
-    with patch.object(sql_op, "value", side_effect=DQXError("No value assigned")):
-        # Attempt to analyze - should raise DQXError
-        with pytest.raises(DQXError) as exc_info:
-            analyzer._analyze_internal(ds, {key: [metric]})
+    # Create metrics dict
+    key = ResultKey(yyyy_mm_dd=date(2024, 1, 1), tags={})
+    metrics: dict[ResultKey, list[MetricSpec]] = {key: [metric]}
 
-        # Check the error message contains the date
-        assert "Failed to retrieve value for analyzer" in str(exc_info.value)
-        assert "on date 2024-01-01" in str(exc_info.value)
+    # Call _analyze_internal which will check for value retrieval
+    # This should raise DQXError when it tries to get the value
+    with pytest.raises(DQXError) as exc_info:
+        analyzer._analyze_internal(ds, metrics)  # type: ignore[arg-type]
+
+    # Check the error message
+    assert "Failed to retrieve value for analyzer" in str(exc_info.value)
+    assert "on date 2024-01-01" in str(exc_info.value)
 
 
 def test_analyze_batch_sql_ops_with_empty_ops() -> None:

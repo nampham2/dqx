@@ -180,6 +180,59 @@ class DuckDBDialect:
 
     name = "duckdb"
 
+    def _build_cte_parts(self, cte_data: list["BatchCTEData"]) -> tuple[list[str], list[tuple[str, list[ops.SqlOp]]]]:
+        """Build CTE parts for batch query.
+
+        Args:
+            cte_data: List of BatchCTEData objects
+
+        Returns:
+            Tuple of (cte_parts, metrics_info)
+            where metrics_info contains (metrics_cte_name, ops) for each CTE with ops
+
+        Raises:
+            ValueError: If no CTE data provided
+        """
+        if not cte_data:
+            raise ValueError("No CTE data provided")
+
+        cte_parts = []
+        metrics_info: list[tuple[str, list[ops.SqlOp]]] = []
+
+        for i, data in enumerate(cte_data):
+            # Format date for CTE names (yyyy_mm_dd)
+            # Include index to ensure unique names even for same date with different tags
+            date_suffix = data.key.yyyy_mm_dd.strftime("%Y_%m_%d")
+            source_cte = f"source_{date_suffix}_{i}"
+            metrics_cte = f"metrics_{date_suffix}_{i}"
+
+            # Add source CTE
+            cte_parts.append(f"{source_cte} AS ({data.cte_sql})")
+
+            # Build metrics CTE with all expressions if ops exist
+            if data.ops:
+                # Translate ops to expressions
+                expressions = [self.translate_sql_op(op) for op in data.ops]
+                metrics_select = ", ".join(expressions)
+                cte_parts.append(f"{metrics_cte} AS (SELECT {metrics_select} FROM {source_cte})")
+
+                # Store metrics info for later use
+                metrics_info.append((metrics_cte, list(data.ops)))
+
+        return cte_parts, metrics_info
+
+    def _validate_metrics(self, metrics_info: list[tuple[str, list[ops.SqlOp]]]) -> None:
+        """Validate that metrics exist to compute.
+
+        Args:
+            metrics_info: List of (metrics_cte_name, ops) tuples
+
+        Raises:
+            ValueError: If no metrics to compute
+        """
+        if not metrics_info:
+            raise ValueError("No metrics to compute")
+
     def translate_sql_op(self, op: ops.SqlOp) -> str:
         """Translate SqlOp to DuckDB SQL syntax."""
 
@@ -233,45 +286,47 @@ class DuckDBDialect:
         return build_cte_query(cte_sql, select_expressions)
 
     def build_batch_cte_query(self, cte_data: list["BatchCTEData"]) -> str:
-        """Build batch query with date-suffixed CTEs and unpivot."""
-        if not cte_data:
-            raise ValueError("No CTE data provided")
+        """Build batch CTE query using MAP for DuckDB.
 
-        cte_parts = []
-        unpivot_parts = []
+        This method uses DuckDB's MAP feature to return all metrics as a single
+        MAP per date, reducing the result from N*M rows to just N rows.
 
-        for i, data in enumerate(cte_data):
-            # Format date for CTE names (yyyy_mm_dd)
-            # Include index to ensure unique names even for same date with different tags
-            date_suffix = data.key.yyyy_mm_dd.strftime("%Y_%m_%d")
-            source_cte = f"source_{date_suffix}_{i}"
-            metrics_cte = f"metrics_{date_suffix}_{i}"
+        Args:
+            cte_data: List of BatchCTEData objects containing:
+                - key: ResultKey with the date
+                - cte_sql: CTE SQL for this date
+                - ops: List of SqlOp objects to translate
 
-            # Add source CTE
-            cte_parts.append(f"{source_cte} AS ({data.cte_sql})")
+        Returns:
+            Complete SQL query with CTEs and MAP-based results
 
-            # Build metrics CTE with all expressions if ops exist
-            if data.ops:
-                # Translate ops to expressions
-                expressions = [self.translate_sql_op(op) for op in data.ops]
-                metrics_select = ", ".join(expressions)
-                cte_parts.append(f"{metrics_cte} AS (SELECT {metrics_select} FROM {source_cte})")
+        Example output:
+            WITH
+              source_2024_01_01_0 AS (...),
+              metrics_2024_01_01_0 AS (SELECT ... FROM source_2024_01_01_0)
+            SELECT '2024-01-01' as date, MAP {'x_1': "x_1", 'x_2': "x_2"} as values
+            FROM metrics_2024_01_01_0
+        """
+        # Use helper to build CTE parts
+        cte_parts, metrics_info = self._build_cte_parts(cte_data)
 
-                # Create unpivot SELECT statements
-                date_str = data.key.yyyy_mm_dd.isoformat()
-                for op in data.ops:
-                    # Use op.sql_col directly for symbol name
-                    unpivot_parts.append(
-                        f"SELECT '{date_str}' as date, '{op.sql_col}' as symbol, "
-                        f'"{op.sql_col}" as value FROM {metrics_cte}'
-                    )
+        # Validate metrics
+        self._validate_metrics(metrics_info)
+
+        # Build MAP-based SELECT statements
+        map_selects = []
+        for i, (data, (metrics_cte, data_ops)) in enumerate(zip(cte_data, metrics_info)):
+            date_str = data.key.yyyy_mm_dd.isoformat()
+
+            # Build MAP entries
+            map_entries = [f"'{op.sql_col}': \"{op.sql_col}\"" for op in data_ops]
+            map_expr = "MAP {\n" + ", \n".join(map_entries) + "\n}"
+
+            map_selects.append(f"SELECT '{date_str}' as date, {map_expr} as values FROM {metrics_cte}")
 
         # Build final query
-        if not unpivot_parts:
-            raise ValueError("No metrics to compute")
-
         cte_clause = "WITH\n  " + ",\n  ".join(cte_parts)
-        union_clause = "\n".join(f"{'UNION ALL' if i > 0 else ''}\n{part}" for i, part in enumerate(unpivot_parts))
+        union_clause = "\n".join(f"{'UNION ALL' if i > 0 else ''}\n{select}" for i, select in enumerate(map_selects))
 
         return f"{cte_clause}\n{union_clause}"
 

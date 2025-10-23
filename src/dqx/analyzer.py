@@ -227,41 +227,29 @@ def analyze_batch_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> No
     # Format SQL for readability
     sql = sqlparse.format(
         sql,
-        reindent=True,
+        # reindent=,
+        reindent_aligned=True,
         keyword_case="upper",
         identifier_case="lower",
         indent_width=2,
         wrap_after=120,
         comma_first=False,
+        compact=True,
     )
 
     logger.debug(f"Batch SQL Query:\n{sql}")
 
-    # Execute query - will raise DQXError on failure
-    result: dict[str, np.ndarray] = ds.query(sql).fetchnumpy()
+    # Execute query and process MAP results
+    result = ds.query(sql).fetchall()
 
-    # Parse results - expecting columns: date, symbol, value
-    date_col = result["date"]
-    symbol_col = result["symbol"]
-    value_col = result["value"]
-
-    # Build lookup map
-    value_map: dict[tuple[str, str], float] = {}
-    for i in range(len(date_col)):
-        date_str = date_col[i]
-        symbol = symbol_col[i]
-        value = value_col[i]
-        # Validate before adding to map
-        validated_value = _validate_value(value, date_str, symbol)
-        value_map[(date_str, symbol)] = validated_value
-
-    # Assign values back to ops
-    for key, ops in ops_by_key.items():
-        date_str = key.yyyy_mm_dd.isoformat()
+    # Process results - expecting (date, values_map) tuples
+    for (date_str, values_map), (key, ops) in zip(result, ops_by_key.items()):
+        # values_map is a dict returned by DuckDB's MAP type
         for op in ops:
-            value = value_map.get((date_str, op.sql_col))
-            if value is not None:
-                op.assign(value)
+            if op.sql_col in values_map:
+                # Validate and assign the value
+                validated_value = _validate_value(values_map[op.sql_col], date_str, op.sql_col)
+                op.assign(validated_value)
 
 
 class Analyzer:

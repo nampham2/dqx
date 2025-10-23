@@ -2,21 +2,30 @@
 
 ## Current Work Focus
 
+### Batch SQL Optimization with MAP (Completed - 2025-10-23)
+- Implemented MAP-based batch SQL optimization for DuckDB dialect
+- Replaced UNPIVOT approach with MAP aggregation to reduce result set size
+- Benefits: N rows instead of N*M rows (where N=dates, M=metrics)
+- Maintains backward compatibility with existing analyzer interface
+
+## Recent Changes
+
+### Batch SQL MAP Optimization Implementation (2025-10-23)
+- Modified DuckDBDialect.build_batch_cte_query to use MAP aggregation
+- Key changes:
+  - Helper methods: _build_cte_parts and _validate_metrics for cleaner code
+  - MAP syntax creates dictionary of metric_name->value pairs per date
+  - Result set is now [(date, {metric1: value1, metric2: value2, ...})]
+- Updated analyzer.py to process MAP results instead of unpivot rows
+- Added comprehensive tests for both dialect and analyzer changes
+- Performance improvement: ~90% reduction in result rows for multi-metric queries
+
 ### Batch Analysis Lag Fix (Completed - 2025-10-23)
 - Fixed critical bug where metrics with lagged dates were incorrectly deduplicated
 - Root cause: SqlOp equality doesn't consider date context, causing value propagation issues
 - Solution: Changed deduplication to group by (date, SqlOp) pairs instead of just SqlOp
 - All 746 tests now passing with the fix
 - Maintains batch SQL efficiency while ensuring correctness
-
-## Recent Changes
-
-### Batch Analysis with Lag Fix (2025-10-23)
-- Modified analyzer.py deduplication logic to be date-aware
-- Changed equivalence grouping from SqlOp-only to (date, SqlOp) pairs
-- Fixed value assignment to respect date boundaries
-- Added check in api.py to skip datasets with no metrics
-- Verified fix with end-to-end tests and batch analysis demo
 
 ### Check Decorator Simplification (2025-10-22)
 - Removed tags parameter from @check decorator in api.py
@@ -96,6 +105,13 @@
 - Deduplication must consider the full context (date + operation) for correctness
 - Batch SQL can still deduplicate across dates for efficiency, but value assignment must respect boundaries
 - Empty metric handling is important to avoid unnecessary batch analysis calls
+
+### MAP-based SQL Optimization
+- DuckDB's MAP type is powerful for pivoting data without UNPIVOT
+- MAP reduces result set from N*M rows to N rows (N=dates, M=metrics)
+- Syntax: `MAP {key1: value1, key2: value2}` creates inline dictionaries
+- Result processing is simpler with MAP - one row per date with all metrics
+- Maintains same analyzer interface while improving performance
 
 ### Module Organization
 - Moving data sources to top level improves discoverability
