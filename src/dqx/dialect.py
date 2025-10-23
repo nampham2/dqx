@@ -89,6 +89,9 @@ from dqx.common import DQXError
 if TYPE_CHECKING:
     from dqx.models import BatchCTEData
 
+# Dialect Registry
+_DIALECT_REGISTRY: dict[str, Type[Dialect]] = {}
+
 
 def build_cte_query(cte_sql: str, select_expressions: list[str]) -> str:
     """Build CTE query without formatting.
@@ -249,10 +252,6 @@ class Dialect(Protocol):
             SELECT '2024-01-01' as date, 'x_2' as symbol, x_2 as value FROM metrics_2024_01_01
         """
         ...
-
-
-# Dialect Registry
-_DIALECT_REGISTRY: dict[str, Type[Dialect]] = {}
 
 
 def register_dialect(name: str, dialect_class: Type[Dialect]) -> None:
@@ -490,6 +489,3 @@ class BigQueryDialect:
             return "STRUCT(" + ", ".join(struct_entries) + ")"
 
         return _build_batch_query_with_values(self, cte_data, format_struct_values)
-
-
-# Built-in dialects are automatically registered via @auto_register decorator
