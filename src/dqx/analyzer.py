@@ -6,7 +6,6 @@ from collections import UserDict
 from collections.abc import Mapping, Sequence
 from typing import Any, TypeVar
 
-import duckdb
 import numpy as np
 import sqlparse
 from rich.console import Console
@@ -22,17 +21,15 @@ from dqx.ops import SqlOp
 from dqx.orm.repositories import MetricDB
 from dqx.specs import MetricSpec
 
-logger = logging.getLogger(__name__)
+DEFAULT_BATCH_SIZE = 7  # Maximum dates per analysis SQL query
+
 ColumnName = str
 MetricKey = tuple[MetricSpec, ResultKey]
 
 T = TypeVar("T", bound=SqlDataSource)
 
-# Note: This design supports future enhancements such as:
-# - Parallel batch processing (each batch can be processed independently)
-# - Adaptive batch sizing based on query complexity or data volume
-# - Custom batching strategies via subclassing or configuration
-DEFAULT_BATCH_SIZE = 7  # Maximum dates per SQL query for optimal performance
+
+logger = logging.getLogger(__name__)
 
 
 def _validate_value(value: Any, date_str: str, symbol: str) -> float:
@@ -283,13 +280,10 @@ class Analyzer:
     def report(self) -> AnalysisReport:
         return self._report
 
-    def _setup_duckdb(self) -> None:
-        duckdb.execute("SET enable_progress_bar = false")
-
     def analyze(
         self,
         ds: SqlDataSource,
-        metrics_by_key: Mapping[ResultKey, Sequence[MetricSpec]],
+        metrics: Mapping[ResultKey, Sequence[MetricSpec]],
     ) -> AnalysisReport:
         """Analyze multiple dates with different metrics in batch.
 
@@ -313,23 +307,21 @@ class Analyzer:
             DEFAULT_BATCH_SIZE to maintain optimal performance. This limit
             can be adjusted by modifying the DEFAULT_BATCH_SIZE constant.
         """
-        self._setup_duckdb()
-
-        if not metrics_by_key:
+        if not metrics:
             raise DQXError("No metrics provided for batch analysis!")
 
         # Log entry point with explicit dates
-        dates = sorted([key.yyyy_mm_dd for key in metrics_by_key.keys()])
+        dates = sorted([key.yyyy_mm_dd for key in metrics.keys()])
         if len(dates) <= 4:
             date_strs = [d.isoformat() for d in dates]
-            logger.info(f"Analyzing batch of {len(metrics_by_key)} dates: {date_strs}")
+            logger.info(f"Analyzing batch of {len(metrics)} dates: {date_strs}")
         else:
             first_dates = [d.isoformat() for d in dates[:2]]
             last_dates = [d.isoformat() for d in dates[-2:]]
-            logger.info(f"Analyzing batch of {len(metrics_by_key)} dates: {first_dates} ... {last_dates}")
+            logger.info(f"Analyzing batch of {len(metrics)} dates: {first_dates} ... {last_dates}")
 
         # Log batch processing info for large date ranges
-        keys = list(metrics_by_key.keys())
+        keys = list(metrics.keys())
         if len(keys) > DEFAULT_BATCH_SIZE:
             logger.debug(
                 f"Processing {len(keys)} dates in batches of {DEFAULT_BATCH_SIZE}. "
@@ -340,7 +332,7 @@ class Analyzer:
         final_report = AnalysisReport()
 
         # Process in batches if needed
-        items = list(metrics_by_key.items())
+        items = list(metrics.items())
 
         for i in range(0, len(items), DEFAULT_BATCH_SIZE):
             batch_items = items[i : i + DEFAULT_BATCH_SIZE]

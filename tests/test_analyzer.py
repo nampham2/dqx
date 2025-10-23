@@ -502,25 +502,3 @@ class TestAnalyzeFunctions:
         assert avg_qty2.value() == 2.0  # Duplicate should have same value
         assert max_tax.value() == 3.0  # Max tax
         assert min_price.value() == 10.0  # Min price
-
-
-class TestDuckDBSetup:
-    """Test DuckDB setup functionality."""
-
-    def test_setup_duckdb(self) -> None:
-        """Test that _setup_duckdb calls duckdb.execute correctly."""
-        analyzer = Analyzer()
-
-        with patch("duckdb.execute") as mock_execute:
-            analyzer._setup_duckdb()
-            mock_execute.assert_called_once_with("SET enable_progress_bar = false")
-
-    def test_setup_called_during_analyze(
-        self, arrow_data_source: DuckRelationDataSource, test_metrics: list[specs.MetricSpec], result_key: ResultKey
-    ) -> None:
-        """Test that _setup_duckdb is called during analysis."""
-        analyzer = Analyzer()
-
-        with patch.object(analyzer, "_setup_duckdb") as mock_setup:
-            analyzer.analyze(arrow_data_source, {result_key: test_metrics})
-            mock_setup.assert_called_once()

@@ -64,6 +64,12 @@ class DuckRelationDataSource:
         self._relation = relation
         self._table_name = random_prefix(k=6)
 
+        # Initialize DuckDB settings
+        self._setup_duckdb()
+
+    def _setup_duckdb(self) -> None:
+        duckdb.execute("SET enable_progress_bar = false")
+
     def cte(self, nominal_date: datetime.date) -> str:
         """Get the CTE for this data source.
 
