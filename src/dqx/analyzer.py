@@ -5,7 +5,7 @@ import itertools
 import logging
 from collections import UserDict
 from collections.abc import Mapping, Sequence
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import duckdb
 import numpy as np
@@ -34,6 +34,45 @@ T = TypeVar("T", bound=SqlDataSource)
 # - Adaptive batch sizing based on query complexity or data volume
 # - Custom batching strategies via subclassing or configuration
 DEFAULT_BATCH_SIZE = 7  # Maximum dates per SQL query for optimal performance
+
+
+def _validate_value(value: Any, date_str: str, symbol: str) -> float:
+    """Validate a value from SQL query results.
+
+    Args:
+        value: The value to validate
+        date_str: Date string for error context
+        symbol: Symbol/column name for error context
+
+    Returns:
+        The validated float value
+
+    Raises:
+        DQXError: If value is masked, nan, null, or cannot be converted to float
+    """
+    # Check for numpy masked value
+    if np.ma.is_masked(value):
+        raise DQXError(
+            f"Masked value encountered for symbol '{symbol}' on date {date_str}. "
+            f"This typically means no data was found for the requested date."
+        )
+
+    # Check for None/null
+    if value is None:
+        raise DQXError(f"Null value encountered for symbol '{symbol}' on date {date_str}")
+
+    # Try to convert to float and check for NaN
+    try:
+        float_value = float(value)
+    except (ValueError, TypeError) as e:
+        raise DQXError(
+            f"Cannot convert value to float for symbol '{symbol}' on date {date_str}. Value: {value!r}, Error: {e}"
+        )
+
+    if np.isnan(float_value):
+        raise DQXError(f"NaN value encountered for symbol '{symbol}' on date {date_str}")
+
+    return float_value
 
 
 class AnalysisReport(UserDict[MetricKey, models.Metric]):
@@ -216,7 +255,9 @@ def analyze_batch_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> No
         date_str = date_col[i]
         symbol = symbol_col[i]
         value = value_col[i]
-        value_map[(date_str, symbol)] = value
+        # Validate before adding to map
+        validated_value = _validate_value(value, date_str, symbol)
+        value_map[(date_str, symbol)] = validated_value
 
     # Assign values back to ops
     for key, ops in ops_by_key.items():
