@@ -69,6 +69,21 @@ Implemented BigQuery-specific SQL translations for all SqlOp types:
 2. `tests/test_bigquery_dialect.py` - Comprehensive test suite
 3. `examples/bigquery_dialect_demo.py` - Usage demonstration
 
+## Refactoring Update
+After initial implementation, refactored the batch CTE query logic to eliminate code duplication:
+
+### Utility Functions Added:
+1. `_build_cte_parts()` - Shared logic for building CTEs from BatchCTEData
+2. `_build_batch_query_with_values()` - Orchestrates batch query construction
+
+### Benefits:
+- Removed ~40 lines of duplicated code between dialects
+- Each dialect now only defines its value formatter (4-5 lines):
+  - DuckDB: `MAP {'col': "col"}`
+  - BigQuery: `STRUCT(col AS \`col\`)`
+- Makes adding new dialects much simpler
+- Maintains full backward compatibility
+
 ## Future Considerations
 The implementation is complete and ready for use. Future enhancements could include:
 - Support for BigQuery-specific features (e.g., ARRAY operations)
