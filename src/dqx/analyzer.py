@@ -227,12 +227,14 @@ def analyze_batch_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> No
     # Format SQL for readability
     sql = sqlparse.format(
         sql,
-        reindent=True,
+        # reindent=,
+        reindent_aligned=True,
         keyword_case="upper",
         identifier_case="lower",
         indent_width=2,
         wrap_after=120,
         comma_first=False,
+        compact=True,
     )
 
     logger.debug(f"Batch SQL Query:\n{sql}")

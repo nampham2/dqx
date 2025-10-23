@@ -320,7 +320,7 @@ class DuckDBDialect:
 
             # Build MAP entries
             map_entries = [f"'{op.sql_col}': \"{op.sql_col}\"" for op in data_ops]
-            map_expr = "MAP {" + ", ".join(map_entries) + "}"
+            map_expr = "MAP {\n" + ", \n".join(map_entries) + "\n}"
 
             map_selects.append(f"SELECT '{date_str}' as date, {map_expr} as values FROM {metrics_cte}")
 
