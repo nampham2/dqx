@@ -310,11 +310,20 @@ class Analyzer:
             DEFAULT_BATCH_SIZE to maintain optimal performance. This limit
             can be adjusted by modifying the DEFAULT_BATCH_SIZE constant.
         """
-        logger.info(f"Analyzing batch of {len(metrics_by_key)} keys...")
         self._setup_duckdb()
 
         if not metrics_by_key:
             raise DQXError("No metrics provided for batch analysis!")
+
+        # Log entry point with explicit dates
+        dates = sorted([key.yyyy_mm_dd for key in metrics_by_key.keys()])
+        if len(dates) <= 4:
+            date_strs = [d.isoformat() for d in dates]
+            logger.info(f"Analyzing batch of {len(metrics_by_key)} dates: {date_strs}")
+        else:
+            first_dates = [d.isoformat() for d in dates[:2]]
+            last_dates = [d.isoformat() for d in dates[-2:]]
+            logger.info(f"Analyzing batch of {len(metrics_by_key)} dates: {first_dates} ... {last_dates}")
 
         # Log batch processing info for large date ranges
         keys = list(metrics_by_key.keys())
@@ -348,6 +357,10 @@ class Analyzer:
             final_report = final_report.merge(report)
 
         self._report = self._report.merge(final_report)
+
+        # Log result summary
+        logger.info(f"Batch analysis complete: {len(final_report)} metrics computed")
+
         return self._report
 
     def _analyze_batch_internal(
@@ -375,6 +388,8 @@ class Analyzer:
 
         # Phase 1: Collect all analyzers per date and build equivalence mapping
         for key, metrics in metrics_by_key.items():
+            if not metrics:
+                logger.warning(f"No metrics to analyze for date {key.yyyy_mm_dd}")
             for metric in metrics:
                 for analyzer in metric.analyzers:
                     if isinstance(analyzer, SqlOp):
@@ -385,6 +400,15 @@ class Analyzer:
         ops_by_key: defaultdict[ResultKey, list[SqlOp]] = defaultdict(list)
         for key, analyzer in analyzer_equivalence_map.keys():
             ops_by_key[key].append(analyzer)
+
+        # Log deduplication statistics
+        if analyzer_equivalence_map:
+            total_ops = sum(len(instances) for instances in analyzer_equivalence_map.values())
+            actual_ops = len(analyzer_equivalence_map)
+            reduction_pct = (1 - actual_ops / total_ops) * 100 if total_ops > 0 else 0
+            logger.info(
+                f"Batch deduplication: {actual_ops} unique ops out of {total_ops} total ({reduction_pct:.1f}% reduction)"
+            )
 
         # Phase 3: Execute SQL with deduplicated ops
         if ops_by_key:

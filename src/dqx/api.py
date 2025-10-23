@@ -492,6 +492,7 @@ class VerificationSuite:
                 metrics_by_date[effective_key].append(sym_metric.metric_spec)
 
             # Analyze each date group separately
+            logger.info(f"Analyzing dataset '{ds_name}'...")
             analyzer = Analyzer()
             analyzer.analyze_batch(datasources[ds_name], metrics_by_date)
 
