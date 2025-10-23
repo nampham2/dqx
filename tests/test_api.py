@@ -236,7 +236,8 @@ def test_assertion_ready_has_all_methods() -> None:
     assert hasattr(ready, "is_eq")
     assert hasattr(ready, "is_positive")
     assert hasattr(ready, "is_negative")
-    assert hasattr(ready, "is_between")  # ADD THIS LINE
+    assert hasattr(ready, "is_between")
+    assert hasattr(ready, "noop")
 
     # Should NOT have where method
     assert not hasattr(ready, "where")
@@ -492,3 +493,35 @@ def test_is_between_invalid_bounds() -> None:
 
     # Execute the check to verify the error is raised
     invalid_check(context.provider, context)
+
+
+def test_assertion_ready_has_noop_method() -> None:
+    """AssertionReady should have noop method."""
+    from dqx.api import AssertionReady
+
+    expr = sp.Symbol("x")
+    ready = AssertionReady(actual=expr, name="Test assertion", context=None)
+
+    # Should have noop method
+    assert hasattr(ready, "noop")
+
+
+def test_noop_assertion_workflow() -> None:
+    """Test complete noop assertion workflow."""
+    db = InMemoryMetricDB()
+    context = Context("test", db)
+
+    @check(name="Metric Collection Check")
+    def collection_check(mp: MetricProvider, ctx: Context) -> None:
+        # Test noop on various metrics
+        ctx.assert_that(mp.num_rows()).where(name="Collect row count").noop()
+        ctx.assert_that(mp.average("price")).where(name="Collect average price").noop()
+        ctx.assert_that(mp.sum("amount") + mp.sum("tax")).where(name="Collect total revenue").noop()
+
+        # Verify assertions were created
+        assert ctx.current_check is not None
+        assert len(ctx.current_check.children) == 3
+
+    suite = VerificationSuite([collection_check], db, "test")
+    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+    suite.build_graph(context, key=key)

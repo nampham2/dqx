@@ -53,6 +53,7 @@ def cross_dataset_check(mp: MetricProvider, ctx: Context) -> None:
     ctx.assert_that(sp.Abs(tax_avg_1 / tax_avg_2 - 1)).where(name="Tax average ratio between datasets").is_lt(
         0.2, tol=0.01
     )
+    ctx.assert_that(mp.first("tax", dataset="ds1")).where(name="random tax value").noop()
 
 
 def test_e2e_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> None:

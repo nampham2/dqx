@@ -158,6 +158,11 @@ class AssertionReady:
         validator = SymbolicValidator("> 0", lambda x: functions.is_positive(x, tol))
         self._create_assertion_node(validator)
 
+    def noop(self) -> None:
+        """Assert that does nothing - only collects the metric value."""
+        validator = SymbolicValidator("", lambda x: True)
+        self._create_assertion_node(validator)
+
     def _create_assertion_node(self, validator: SymbolicValidator) -> None:
         """Create a new assertion node and attach it to the current check."""
         if self._context is None:

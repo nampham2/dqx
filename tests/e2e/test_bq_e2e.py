@@ -59,10 +59,6 @@ def commission(mp: MetricProvider, ctx: Context) -> None:
         severity="P0",
     ).is_leq(0.05)
 
-    # Data collection
-    mp.sum("commission_amount_euro")  # total
-    mp.sum("commission_amount_euro_bsb_corrected")  # total
-
 
 @check(name="bookings")
 def bookings(mp: MetricProvider, ctx: Context) -> None:
@@ -71,14 +67,13 @@ def bookings(mp: MetricProvider, ctx: Context) -> None:
         severity="P0",
     ).is_leq(0.2)
 
-    # Data collection
-    mp.sum("bookings")  # total
 
-
-@check(name="roomnights")
-def roomnights(mp: MetricProvider, ctx: Context) -> None:
-    # Data collection
-    mp.sum("roomnights")  # total
+@check(name="metric collection")
+def metric_collection(mp: MetricProvider, ctx: Context) -> None:
+    ctx.assert_that(mp.sum("roomnights")).where(name="total roomnights").noop()
+    ctx.assert_that(mp.sum("commission_amount_euro")).where(name="total commission").noop()
+    ctx.assert_that(mp.sum("commission_amount_euro_bsb_corrected")).where(name="total commission bsb corrected").noop()
+    ctx.assert_that(mp.sum("bookings")).where(name="total bookings").noop()
 
 
 @pytest.mark.skip(reason="BigQuery tests are disabled temporarily")

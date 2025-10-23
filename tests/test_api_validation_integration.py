@@ -84,3 +84,31 @@ def test_validation_warnings_during_build_graph() -> None:
 
     # The test passes if no exception was raised
     # Warnings are logged but don't prevent execution
+
+
+def test_noop_assertion_always_succeeds() -> None:
+    """Test that noop assertions always return SUCCESS."""
+    import pyarrow as pa
+
+    from dqx.datasource import DuckRelationDataSource
+
+    db = InMemoryMetricDB()
+
+    @check(name="Noop Test")
+    def noop_test(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(mp.average("value")).where(name="Collect average without validation").noop()
+
+    suite = VerificationSuite([noop_test], db, "Noop Suite")
+
+    # Create test data
+    data = pa.table({"value": [1, 2, 3, 4, 5]})
+    datasource = DuckRelationDataSource.from_arrow(data)
+
+    # Run suite
+    key = ResultKey(yyyy_mm_dd=date.today(), tags={})
+    suite.run({"test": datasource}, key)
+
+    # Verify noop always succeeds
+    results = suite.collect_results()
+    assert len(results) == 1
+    assert results[0].status == "OK"
