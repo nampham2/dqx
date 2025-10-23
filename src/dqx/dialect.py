@@ -48,8 +48,9 @@ database systems. Each dialect handles:
 
 To add support for a new database (e.g., PostgreSQL):
 
-    from dqx.dialect import build_cte_query
+    from dqx.dialect import build_cte_query, auto_register
 
+    @auto_register  # Automatically registers the dialect on import
     class PostgreSQLDialect:
         name = "postgresql"
 
@@ -80,13 +81,16 @@ This allows the same DQX code to work across different databases.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, Type, runtime_checkable
+from typing import TYPE_CHECKING, Callable, Protocol, Type, runtime_checkable
 
 from dqx import ops
 from dqx.common import DQXError
 
 if TYPE_CHECKING:
     from dqx.models import BatchCTEData
+
+# Dialect Registry
+_DIALECT_REGISTRY: dict[str, Type[Dialect]] = {}
 
 
 def build_cte_query(cte_sql: str, select_expressions: list[str]) -> str:
@@ -107,6 +111,85 @@ def build_cte_query(cte_sql: str, select_expressions: list[str]) -> str:
 
     select_clause = ", ".join(select_expressions)
     return f"WITH source AS ({cte_sql}) SELECT {select_clause} FROM source"
+
+
+def _build_cte_parts(
+    dialect: "Dialect", cte_data: list["BatchCTEData"]
+) -> tuple[list[str], list[tuple[str, list[ops.SqlOp]]]]:
+    """Build CTE parts for batch query - shared between dialects.
+
+    Args:
+        dialect: The dialect instance to use for SQL translation
+        cte_data: List of BatchCTEData objects
+
+    Returns:
+        Tuple of (cte_parts, metrics_info)
+        where metrics_info contains (metrics_cte_name, ops) for each CTE with ops
+
+    Raises:
+        ValueError: If no CTE data provided
+    """
+    if not cte_data:
+        raise ValueError("No CTE data provided")
+
+    cte_parts = []
+    metrics_info: list[tuple[str, list[ops.SqlOp]]] = []
+
+    for i, data in enumerate(cte_data):
+        # Format date for CTE names (yyyy_mm_dd)
+        # Include index to ensure unique names even for same date with different tags
+        date_suffix = data.key.yyyy_mm_dd.strftime("%Y_%m_%d")
+        source_cte = f"source_{date_suffix}_{i}"
+        metrics_cte = f"metrics_{date_suffix}_{i}"
+
+        # Add source CTE
+        cte_parts.append(f"{source_cte} AS ({data.cte_sql})")
+
+        # Build metrics CTE with all expressions if ops exist
+        if data.ops:
+            # Translate ops to expressions
+            expressions = [dialect.translate_sql_op(op) for op in data.ops]
+            metrics_select = ", ".join(expressions)
+            cte_parts.append(f"{metrics_cte} AS (SELECT {metrics_select} FROM {source_cte})")
+
+            # Store metrics info for later use
+            metrics_info.append((metrics_cte, list(data.ops)))
+
+    return cte_parts, metrics_info
+
+
+def _build_batch_query_with_values(
+    dialect: "Dialect", cte_data: list["BatchCTEData"], value_formatter: Callable[[list[ops.SqlOp]], str]
+) -> str:
+    """Build batch query with custom value formatting.
+
+    Args:
+        dialect: The dialect instance to use for SQL translation
+        cte_data: List of BatchCTEData objects
+        value_formatter: Function that formats ops into a value expression (MAP, STRUCT, etc.)
+
+    Returns:
+        Complete SQL query with CTEs and formatted values
+
+    Raises:
+        ValueError: If no CTE data provided or no metrics to compute
+    """
+    cte_parts, metrics_info = _build_cte_parts(dialect, cte_data)
+
+    # Simple validation inline
+    if not metrics_info:
+        raise ValueError("No metrics to compute")
+
+    value_selects = []
+    for data, (metrics_cte, data_ops) in zip(cte_data, metrics_info):
+        date_str = data.key.yyyy_mm_dd.isoformat()
+        values_expr = value_formatter(data_ops)
+        value_selects.append(f"SELECT '{date_str}' as date, {values_expr} as values FROM {metrics_cte}")
+
+    cte_clause = "WITH\n  " + ",\n  ".join(cte_parts)
+    union_clause = "\n".join(f"{'UNION ALL' if i > 0 else ''}\n{select}" for i, select in enumerate(value_selects))
+
+    return f"{cte_clause}\n{union_clause}"
 
 
 @runtime_checkable
@@ -171,6 +254,63 @@ class Dialect(Protocol):
         ...
 
 
+def register_dialect(name: str, dialect_class: Type[Dialect]) -> None:
+    """Register a dialect in the global registry.
+
+    Args:
+        name: The name to register the dialect under
+        dialect_class: The dialect class to register
+
+    Raises:
+        ValueError: If a dialect with this name is already registered
+    """
+    if name in _DIALECT_REGISTRY:
+        raise ValueError(f"Dialect '{name}' is already registered")
+    _DIALECT_REGISTRY[name] = dialect_class
+
+
+def get_dialect(name: str) -> Dialect:
+    """Get a dialect instance by name from the registry.
+
+    Args:
+        name: The name of the dialect to retrieve
+
+    Returns:
+        An instance of the requested dialect
+
+    Raises:
+        DQXError: If the dialect is not found in the registry
+    """
+    if name not in _DIALECT_REGISTRY:
+        available = ", ".join(sorted(_DIALECT_REGISTRY.keys()))
+        raise DQXError(f"Dialect '{name}' not found in registry. Available dialects: {available}")
+
+    dialect_class = _DIALECT_REGISTRY[name]
+    return dialect_class()
+
+
+def auto_register(cls: Type[Dialect]) -> Type[Dialect]:
+    """Decorator to automatically register a dialect class.
+
+    Usage:
+        @auto_register
+        class MyDialect:
+            name = "mydialect"
+            ...
+
+    Args:
+        cls: The dialect class to register
+
+    Returns:
+        The same class (unchanged)
+    """
+    # Create instance to get the dialect name
+    instance = cls()
+    register_dialect(instance.name, cls)
+    return cls
+
+
+@auto_register
 class DuckDBDialect:
     """DuckDB SQL dialect implementation.
 
@@ -179,59 +319,6 @@ class DuckDBDialect:
     """
 
     name = "duckdb"
-
-    def _build_cte_parts(self, cte_data: list["BatchCTEData"]) -> tuple[list[str], list[tuple[str, list[ops.SqlOp]]]]:
-        """Build CTE parts for batch query.
-
-        Args:
-            cte_data: List of BatchCTEData objects
-
-        Returns:
-            Tuple of (cte_parts, metrics_info)
-            where metrics_info contains (metrics_cte_name, ops) for each CTE with ops
-
-        Raises:
-            ValueError: If no CTE data provided
-        """
-        if not cte_data:
-            raise ValueError("No CTE data provided")
-
-        cte_parts = []
-        metrics_info: list[tuple[str, list[ops.SqlOp]]] = []
-
-        for i, data in enumerate(cte_data):
-            # Format date for CTE names (yyyy_mm_dd)
-            # Include index to ensure unique names even for same date with different tags
-            date_suffix = data.key.yyyy_mm_dd.strftime("%Y_%m_%d")
-            source_cte = f"source_{date_suffix}_{i}"
-            metrics_cte = f"metrics_{date_suffix}_{i}"
-
-            # Add source CTE
-            cte_parts.append(f"{source_cte} AS ({data.cte_sql})")
-
-            # Build metrics CTE with all expressions if ops exist
-            if data.ops:
-                # Translate ops to expressions
-                expressions = [self.translate_sql_op(op) for op in data.ops]
-                metrics_select = ", ".join(expressions)
-                cte_parts.append(f"{metrics_cte} AS (SELECT {metrics_select} FROM {source_cte})")
-
-                # Store metrics info for later use
-                metrics_info.append((metrics_cte, list(data.ops)))
-
-        return cte_parts, metrics_info
-
-    def _validate_metrics(self, metrics_info: list[tuple[str, list[ops.SqlOp]]]) -> None:
-        """Validate that metrics exist to compute.
-
-        Args:
-            metrics_info: List of (metrics_cte_name, ops) tuples
-
-        Raises:
-            ValueError: If no metrics to compute
-        """
-        if not metrics_info:
-            raise ValueError("No metrics to compute")
 
     def translate_sql_op(self, op: ops.SqlOp) -> str:
         """Translate SqlOp to DuckDB SQL syntax."""
@@ -307,68 +394,98 @@ class DuckDBDialect:
             SELECT '2024-01-01' as date, MAP {'x_1': "x_1", 'x_2': "x_2"} as values
             FROM metrics_2024_01_01_0
         """
-        # Use helper to build CTE parts
-        cte_parts, metrics_info = self._build_cte_parts(cte_data)
 
-        # Validate metrics
-        self._validate_metrics(metrics_info)
+        def format_map_values(ops: list[ops.SqlOp]) -> str:
+            map_entries = [f"'{op.sql_col}': \"{op.sql_col}\"" for op in ops]
+            return "MAP {\n" + ", \n".join(map_entries) + "\n}"
 
-        # Build MAP-based SELECT statements
-        map_selects = []
-        for i, (data, (metrics_cte, data_ops)) in enumerate(zip(cte_data, metrics_info)):
-            date_str = data.key.yyyy_mm_dd.isoformat()
-
-            # Build MAP entries
-            map_entries = [f"'{op.sql_col}': \"{op.sql_col}\"" for op in data_ops]
-            map_expr = "MAP {\n" + ", \n".join(map_entries) + "\n}"
-
-            map_selects.append(f"SELECT '{date_str}' as date, {map_expr} as values FROM {metrics_cte}")
-
-        # Build final query
-        cte_clause = "WITH\n  " + ",\n  ".join(cte_parts)
-        union_clause = "\n".join(f"{'UNION ALL' if i > 0 else ''}\n{select}" for i, select in enumerate(map_selects))
-
-        return f"{cte_clause}\n{union_clause}"
+        return _build_batch_query_with_values(self, cte_data, format_map_values)
 
 
-# Dialect Registry
-_DIALECT_REGISTRY: dict[str, Type[Dialect]] = {}
+@auto_register
+class BigQueryDialect:
+    """BigQuery SQL dialect implementation.
 
-
-def register_dialect(name: str, dialect_class: Type[Dialect]) -> None:
-    """Register a dialect in the global registry.
-
-    Args:
-        name: The name to register the dialect under
-        dialect_class: The dialect class to register
-
-    Raises:
-        ValueError: If a dialect with this name is already registered
+    This dialect generates SQL compatible with BigQuery's syntax,
+    including COUNTIF, VAR_SAMP, and STRUCT-based batch queries.
     """
-    if name in _DIALECT_REGISTRY:
-        raise ValueError(f"Dialect '{name}' is already registered")
-    _DIALECT_REGISTRY[name] = dialect_class
 
+    name = "bigquery"
 
-def get_dialect(name: str) -> Dialect:
-    """Get a dialect instance by name from the registry.
+    def translate_sql_op(self, op: ops.SqlOp) -> str:
+        """Translate SqlOp to BigQuery SQL syntax."""
+        match op:
+            case ops.NumRows():
+                return f"CAST(COUNT(*) AS FLOAT64) AS `{op.sql_col}`"
 
-    Args:
-        name: The name of the dialect to retrieve
+            case ops.Average(column=col):
+                return f"CAST(AVG({col}) AS FLOAT64) AS `{op.sql_col}`"
 
-    Returns:
-        An instance of the requested dialect
+            case ops.Minimum(column=col):
+                return f"CAST(MIN({col}) AS FLOAT64) AS `{op.sql_col}`"
 
-    Raises:
-        DQXError: If the dialect is not found in the registry
-    """
-    if name not in _DIALECT_REGISTRY:
-        available = ", ".join(sorted(_DIALECT_REGISTRY.keys()))
-        raise DQXError(f"Dialect '{name}' not found in registry. Available dialects: {available}")
+            case ops.Maximum(column=col):
+                return f"CAST(MAX({col}) AS FLOAT64) AS `{op.sql_col}`"
 
-    dialect_class = _DIALECT_REGISTRY[name]
-    return dialect_class()
+            case ops.Sum(column=col):
+                return f"CAST(SUM({col}) AS FLOAT64) AS `{op.sql_col}`"
 
+            case ops.Variance(column=col):
+                return f"CAST(VAR_SAMP({col}) AS FLOAT64) AS `{op.sql_col}`"
 
-# Register built-in dialects
-register_dialect("duckdb", DuckDBDialect)
+            case ops.First(column=col):
+                # Using MIN for deterministic "first" value
+                return f"CAST(MIN({col}) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.NullCount(column=col):
+                return f"CAST(COUNTIF({col} IS NULL) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.NegativeCount(column=col):
+                return f"CAST(COUNTIF({col} < 0) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.DuplicateCount(columns=cols):
+                # For duplicate count: COUNT(*) - COUNT(DISTINCT (col1, col2, ...))
+                # Columns are already sorted in the op
+                if len(cols) == 1:
+                    distinct_expr = cols[0]
+                else:
+                    distinct_expr = f"({', '.join(cols)})"
+                return f"CAST(COUNT(*) - COUNT(DISTINCT {distinct_expr}) AS FLOAT64) AS `{op.sql_col}`"
+
+            case _:
+                raise ValueError(f"Unsupported SqlOp type: {type(op).__name__}")
+
+    def build_cte_query(self, cte_sql: str, select_expressions: list[str]) -> str:
+        """Build CTE query using the common helper."""
+        return build_cte_query(cte_sql, select_expressions)
+
+    def build_batch_cte_query(self, cte_data: list["BatchCTEData"]) -> str:
+        """Build batch CTE query using STRUCT for BigQuery.
+
+        This method generates a query that returns results as:
+        - date: The date string
+        - values: A STRUCT containing all metric values
+
+        The STRUCT approach reduces the result set size compared to UNPIVOT,
+        similar to DuckDB's MAP feature.
+
+        Args:
+            cte_data: List of BatchCTEData objects
+
+        Returns:
+            Complete SQL query with CTEs and STRUCT-based results
+
+        Example output:
+            WITH
+              source_2024_01_01_0 AS (...),
+              metrics_2024_01_01_0 AS (SELECT ... FROM source_2024_01_01_0)
+            SELECT '2024-01-01' as date,
+                   STRUCT(x_1 AS `x_1`, x_2 AS `x_2`) as values
+            FROM metrics_2024_01_01_0
+        """
+
+        def format_struct_values(ops: list[ops.SqlOp]) -> str:
+            struct_entries = [f"`{op.sql_col}` AS `{op.sql_col}`" for op in ops]
+            return "STRUCT(" + ", ".join(struct_entries) + ")"
+
+        return _build_batch_query_with_values(self, cte_data, format_struct_values)
