@@ -48,8 +48,9 @@ database systems. Each dialect handles:
 
 To add support for a new database (e.g., PostgreSQL):
 
-    from dqx.dialect import build_cte_query
+    from dqx.dialect import build_cte_query, auto_register
 
+    @auto_register  # Automatically registers the dialect on import
     class PostgreSQLDialect:
         name = "postgresql"
 
@@ -250,6 +251,67 @@ class Dialect(Protocol):
         ...
 
 
+# Dialect Registry
+_DIALECT_REGISTRY: dict[str, Type[Dialect]] = {}
+
+
+def register_dialect(name: str, dialect_class: Type[Dialect]) -> None:
+    """Register a dialect in the global registry.
+
+    Args:
+        name: The name to register the dialect under
+        dialect_class: The dialect class to register
+
+    Raises:
+        ValueError: If a dialect with this name is already registered
+    """
+    if name in _DIALECT_REGISTRY:
+        raise ValueError(f"Dialect '{name}' is already registered")
+    _DIALECT_REGISTRY[name] = dialect_class
+
+
+def get_dialect(name: str) -> Dialect:
+    """Get a dialect instance by name from the registry.
+
+    Args:
+        name: The name of the dialect to retrieve
+
+    Returns:
+        An instance of the requested dialect
+
+    Raises:
+        DQXError: If the dialect is not found in the registry
+    """
+    if name not in _DIALECT_REGISTRY:
+        available = ", ".join(sorted(_DIALECT_REGISTRY.keys()))
+        raise DQXError(f"Dialect '{name}' not found in registry. Available dialects: {available}")
+
+    dialect_class = _DIALECT_REGISTRY[name]
+    return dialect_class()
+
+
+def auto_register(cls: Type[Dialect]) -> Type[Dialect]:
+    """Decorator to automatically register a dialect class.
+
+    Usage:
+        @auto_register
+        class MyDialect:
+            name = "mydialect"
+            ...
+
+    Args:
+        cls: The dialect class to register
+
+    Returns:
+        The same class (unchanged)
+    """
+    # Create instance to get the dialect name
+    instance = cls()
+    register_dialect(instance.name, cls)
+    return cls
+
+
+@auto_register
 class DuckDBDialect:
     """DuckDB SQL dialect implementation.
 
@@ -341,45 +403,7 @@ class DuckDBDialect:
         return _build_batch_query_with_values(self, cte_data, format_map_values)
 
 
-# Dialect Registry
-_DIALECT_REGISTRY: dict[str, Type[Dialect]] = {}
-
-
-def register_dialect(name: str, dialect_class: Type[Dialect]) -> None:
-    """Register a dialect in the global registry.
-
-    Args:
-        name: The name to register the dialect under
-        dialect_class: The dialect class to register
-
-    Raises:
-        ValueError: If a dialect with this name is already registered
-    """
-    if name in _DIALECT_REGISTRY:
-        raise ValueError(f"Dialect '{name}' is already registered")
-    _DIALECT_REGISTRY[name] = dialect_class
-
-
-def get_dialect(name: str) -> Dialect:
-    """Get a dialect instance by name from the registry.
-
-    Args:
-        name: The name of the dialect to retrieve
-
-    Returns:
-        An instance of the requested dialect
-
-    Raises:
-        DQXError: If the dialect is not found in the registry
-    """
-    if name not in _DIALECT_REGISTRY:
-        available = ", ".join(sorted(_DIALECT_REGISTRY.keys()))
-        raise DQXError(f"Dialect '{name}' not found in registry. Available dialects: {available}")
-
-    dialect_class = _DIALECT_REGISTRY[name]
-    return dialect_class()
-
-
+@auto_register
 class BigQueryDialect:
     """BigQuery SQL dialect implementation.
 
@@ -468,6 +492,4 @@ class BigQueryDialect:
         return _build_batch_query_with_values(self, cte_data, format_struct_values)
 
 
-# Register built-in dialects
-register_dialect("duckdb", DuckDBDialect)
-register_dialect("bigquery", BigQueryDialect)
+# Built-in dialects are automatically registered via @auto_register decorator
