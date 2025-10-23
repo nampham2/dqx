@@ -356,10 +356,10 @@ class TestAnalyzerBatch:
                 return self.name
 
         key = ResultKey(datetime.date(2024, 1, 1), {})
-        empty_metric = EmptyMetric()
+        empty_metric: Any = EmptyMetric()
 
         # Should handle gracefully
-        report = analyzer.analyze_batch(ds, {key: [empty_metric]})  # type: ignore[arg-type]
+        report = analyzer.analyze_batch(ds, {key: [empty_metric]})
 
         # Empty metric should still be in report
         assert len(report) == 1
@@ -387,7 +387,7 @@ class TestAnalyzerBatch:
 
         # Create multiple metrics that use the same analyzer types
         # All Average metrics need NumRows() and Sum() analyzers
-        metrics_by_key = {
+        metrics_by_key: dict[ResultKey, list[specs.MetricSpec]] = {
             ResultKey(datetime.date(2024, 1, 1), {}): [
                 specs.Average("price"),  # Needs NumRows() and Sum("price")
                 specs.Average("tax"),  # Needs NumRows() and Sum("tax")
