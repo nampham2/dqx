@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import datetime
-import itertools
 import logging
 from collections import UserDict
 from collections.abc import Mapping, Sequence
@@ -284,46 +283,10 @@ class Analyzer:
     def report(self) -> AnalysisReport:
         return self._report
 
-    def analyze(
-        self,
-        ds: SqlDataSource,
-        metrics: Sequence[MetricSpec],
-        key: ResultKey,
-    ) -> AnalysisReport:
-        """Analyze a data source using specified metrics.
-
-        Args:
-            ds: The SQL data source to analyze
-            metrics: Sequence of metrics to compute
-            key: Result key for the analysis
-
-        Returns:
-            AnalysisReport containing computed metrics
-        """
-        logger.info(f"Analyzing report with key {key}...")
-        self._setup_duckdb()
-
-        if len(metrics) == 0:
-            raise DQXError("No metrics provided for analysis!")
-
-        # All ops for the metrics
-        all_ops = list(itertools.chain.from_iterable(m.analyzers for m in metrics))
-        if len(all_ops) == 0:
-            return AnalysisReport()
-
-        # Analyze sql ops - pass the date from key
-        sql_ops = [op for op in all_ops if isinstance(op, SqlOp)]
-        analyze_sql_ops(ds, sql_ops, key.yyyy_mm_dd)
-
-        # Build the analysis report and merge with the current one
-        report = AnalysisReport(data={(metric, key): models.Metric.build(metric, key) for metric in metrics})
-        self._report = self._report.merge(report)
-        return self._report
-
     def _setup_duckdb(self) -> None:
         duckdb.execute("SET enable_progress_bar = false")
 
-    def analyze_batch(
+    def analyze(
         self,
         ds: SqlDataSource,
         metrics_by_key: Mapping[ResultKey, Sequence[MetricSpec]],
@@ -392,7 +355,7 @@ class Analyzer:
                     f"({len(batch_keys)} dates)"
                 )
 
-            report = self._analyze_batch_internal(ds, batch)
+            report = self._analyze_internal(ds, batch)
             # Merge directly into final report
             final_report = final_report.merge(report)
 
@@ -403,7 +366,7 @@ class Analyzer:
 
         return self._report
 
-    def _analyze_batch_internal(
+    def _analyze_internal(
         self,
         ds: SqlDataSource,
         metrics_by_key: dict[ResultKey, Sequence[MetricSpec]],

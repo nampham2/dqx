@@ -529,7 +529,7 @@ class TestAnalyzerDialectIntegration:
         analyzer = Analyzer()
 
         key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
-        report = analyzer.analyze(ds_duckdb, [avg_metric, sum_metric], key)
+        report = analyzer.analyze(ds_duckdb, {key: [avg_metric, sum_metric]})
 
         # Results should be computed correctly
         # Check that our specific metrics are in the report with correct values

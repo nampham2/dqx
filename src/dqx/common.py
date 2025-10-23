@@ -203,57 +203,40 @@ class Analyzer(Protocol):
     Protocol for data analysis engines that process SQL data sources.
 
     This protocol defines the minimal interface for analyzers that can process
-    individual SqlDataSource instances, generating analysis reports based on
-    specified metrics.
+    SqlDataSource instances, generating analysis reports based on specified
+    metrics across multiple dates/keys.
     """
 
     def analyze(
         self,
         ds: SqlDataSource,
-        metrics: Sequence[MetricSpec],
-        key: ResultKey,
+        metrics: dict[ResultKey, Sequence[MetricSpec]],
     ) -> AnalysisReport:
         """
-        Analyze a data source using the specified metrics.
+        Analyze a data source using the specified metrics across multiple dates.
 
         This is the main entry point for analysis operations. It processes
-        a single data source and generates an analysis report.
+        a data source and generates an analysis report by executing metrics
+        in an optimized batch query.
 
         Args:
             ds: The data source to analyze
-            metrics: Sequence of metric specifications to compute
-            key: Result key for organizing and retrieving analysis results
+            metrics: Dictionary mapping ResultKeys to their metrics
 
         Returns:
             AnalysisReport: Report containing computed metrics and their values
 
         Raises:
-            DQXError: If the data source type is unsupported or analysis fails
+            DQXError: If the metrics dict is empty or analysis fails
 
         Example:
             >>> analyzer = MyAnalyzer()
-            >>> report = analyzer.analyze(data_source, [metric1, metric2], result_key)
+            >>> metrics_by_key = {
+            ...     ResultKey(date(2024, 1, 1), {}): [Sum("revenue"), Average("price")],
+            ...     ResultKey(date(2024, 1, 2), {}): [Sum("revenue"), Average("price")]
+            ... }
+            >>> report = analyzer.analyze(data_source, metrics_by_key)
             >>> print(f"Found {len(report)} computed metrics")
-        """
-        ...
-
-    def analyze_batch(
-        self,
-        ds: SqlDataSource,
-        metrics_by_key: dict[ResultKey, Sequence[MetricSpec]],
-    ) -> AnalysisReport:
-        """
-        Analyze multiple dates with different metrics in a single SQL query.
-
-        Args:
-            ds: The data source to analyze
-            metrics_by_key: Dictionary mapping ResultKeys to their metrics
-
-        Returns:
-            AnalysisReport containing all computed metrics
-
-        Raises:
-            DQXError: If batch is empty or SQL execution fails
         """
         ...
 

@@ -494,7 +494,7 @@ class VerificationSuite:
             # Analyze each date group separately
             logger.info(f"Analyzing dataset '{ds_name}'...")
             analyzer = Analyzer()
-            analyzer.analyze_batch(datasources[ds_name], metrics_by_date)
+            analyzer.analyze(datasources[ds_name], metrics_by_date)
 
             # Persist the combined report
             analyzer.report.persist(self.provider._db)

@@ -63,7 +63,8 @@ def single_date_analysis(ds: SqlDataSource, metrics: Sequence[specs.MetricSpec],
         key = ResultKey(date, {})
         # Create fresh metric instances for each date
         fresh_metrics = create_metrics(metrics)
-        analyzer.analyze(ds, fresh_metrics, key)
+        # Analyze one date at a time
+        analyzer.analyze(ds, {key: fresh_metrics})
 
     elapsed = time.time() - start_time
     return elapsed
@@ -78,7 +79,7 @@ def batch_analysis(ds: SqlDataSource, metrics: Sequence[specs.MetricSpec], dates
     metrics_by_key = {ResultKey(date, {}): create_metrics(metrics) for date in dates}
 
     # Single batch call
-    analyzer.analyze_batch(ds, metrics_by_key)
+    analyzer.analyze(ds, metrics_by_key)
 
     elapsed = time.time() - start_time
     return elapsed
@@ -178,7 +179,7 @@ def main() -> None:
     print("The analyzer will automatically split this into multiple batches.")
 
     start_time = time.time()
-    report = analyzer.analyze_batch(large_ds, metrics_by_key)
+    report = analyzer.analyze(large_ds, metrics_by_key)
     elapsed = time.time() - start_time
 
     print(f"\nCompleted in {elapsed:.3f} seconds")

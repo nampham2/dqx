@@ -608,19 +608,18 @@ def test_verification_suite_run_full_execution() -> None:
     # Mock the Analyzer to track calls
     mock_analyzer = MagicMock()
     mock_report = MagicMock()
-    mock_analyzer.analyze = MagicMock()
     mock_analyzer.report = mock_report
 
-    # Track analyze_batch calls
-    batch_calls = []
+    # Track analyze calls
+    analyze_calls = []
 
-    def track_analyze_batch(ds: Any, metrics_by_key: Any) -> Any:
+    def track_analyze(ds: Any, metrics_by_key: Any) -> Any:
         # Track which datasource was analyzed and what keys were used
         for key, metrics in metrics_by_key.items():
-            batch_calls.append((ds.name, len(metrics), key.yyyy_mm_dd))
+            analyze_calls.append((ds.name, len(metrics), key.yyyy_mm_dd))
         return MagicMock()  # Return a mock report
 
-    mock_analyzer.analyze_batch.side_effect = track_analyze_batch
+    mock_analyzer.analyze.side_effect = track_analyze
 
     # Mock the Evaluator
     mock_evaluator = MagicMock()
@@ -636,24 +635,24 @@ def test_verification_suite_run_full_execution() -> None:
     assert suite._is_evaluated is True
     assert suite._key == key
 
-    # Verify analyzer was called correctly via batch
-    # The batch calls contain all the metrics grouped by key
-    assert len(batch_calls) == 3  # Total of 3 key/datasource combinations
+    # Verify analyzer was called correctly
+    # The analyze calls contain all the metrics grouped by key
+    assert len(analyze_calls) == 3  # Total of 3 key/datasource combinations
 
     # Check ds1 was analyzed - with metrics for two different dates (current and lag)
-    ds1_calls = [c for c in batch_calls if c[0] == "ds1"]
+    ds1_calls = [c for c in analyze_calls if c[0] == "ds1"]
     assert len(ds1_calls) == 2  # Two different dates for ds1
     # One call should be for current date, one for lagged date
     dates = {c[2] for c in ds1_calls}
     assert len(dates) == 2  # Two different dates
 
     # Check ds2 was analyzed with 1 metric
-    ds2_calls = [c for c in batch_calls if c[0] == "ds2"]
+    ds2_calls = [c for c in analyze_calls if c[0] == "ds2"]
     assert len(ds2_calls) == 1
     assert ds2_calls[0][1] == 1  # 1 metric
 
-    # Verify analyze_batch was called once per datasource
-    assert mock_analyzer.analyze_batch.call_count == 2  # Once for ds1, once for ds2
+    # Verify analyze was called once per datasource
+    assert mock_analyzer.analyze.call_count == 2  # Once for ds1, once for ds2
 
     # Verify evaluator was used
     assert mock_evaluator.visit.called

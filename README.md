@@ -230,14 +230,14 @@ dates = [date(2024, 1, 1), date(2024, 1, 2), date(2024, 1, 3)]
 metrics_by_key = {ResultKey(d): metrics for d in dates}
 
 # Single batch operation instead of multiple analyze() calls
-report = analyzer.analyze_batch(datasource, metrics_by_key)
+report = analyzer.analyze(datasource, metrics_by_key)
 
 # Different metrics per date
 custom_metrics = {
     ResultKey(date(2024, 1, 1)): [specs.Sum("revenue"), specs.Average("price")],
     ResultKey(date(2024, 1, 2)): [specs.Maximum("quantity"), specs.NumRows()],
 }
-report = analyzer.analyze_batch(datasource, custom_metrics)
+report = analyzer.analyze(datasource, custom_metrics)
 ```
 
 Large date ranges are automatically split into optimal batches for performance.
