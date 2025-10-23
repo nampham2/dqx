@@ -370,5 +370,134 @@ def get_dialect(name: str) -> Dialect:
     return dialect_class()
 
 
+class BigQueryDialect:
+    """BigQuery SQL dialect implementation.
+
+    This dialect generates SQL compatible with BigQuery's syntax,
+    including COUNTIF, VAR_SAMP, and STRUCT-based batch queries.
+    """
+
+    name = "bigquery"
+
+    def translate_sql_op(self, op: ops.SqlOp) -> str:
+        """Translate SqlOp to BigQuery SQL syntax."""
+        match op:
+            case ops.NumRows():
+                return f"CAST(COUNT(*) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.Average(column=col):
+                return f"CAST(AVG({col}) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.Minimum(column=col):
+                return f"CAST(MIN({col}) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.Maximum(column=col):
+                return f"CAST(MAX({col}) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.Sum(column=col):
+                return f"CAST(SUM({col}) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.Variance(column=col):
+                return f"CAST(VAR_SAMP({col}) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.First(column=col):
+                # Using MIN for deterministic "first" value
+                return f"CAST(MIN({col}) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.NullCount(column=col):
+                return f"CAST(COUNTIF({col} IS NULL) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.NegativeCount(column=col):
+                return f"CAST(COUNTIF({col} < 0) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.DuplicateCount(columns=cols):
+                # For duplicate count: COUNT(*) - COUNT(DISTINCT (col1, col2, ...))
+                # Columns are already sorted in the op
+                if len(cols) == 1:
+                    distinct_expr = cols[0]
+                else:
+                    distinct_expr = f"({', '.join(cols)})"
+                return f"CAST(COUNT(*) - COUNT(DISTINCT {distinct_expr}) AS FLOAT64) AS `{op.sql_col}`"
+
+            case _:
+                raise ValueError(f"Unsupported SqlOp type: {type(op).__name__}")
+
+    def build_cte_query(self, cte_sql: str, select_expressions: list[str]) -> str:
+        """Build CTE query using the common helper."""
+        return build_cte_query(cte_sql, select_expressions)
+
+    def build_batch_cte_query(self, cte_data: list["BatchCTEData"]) -> str:
+        """Build batch CTE query using STRUCT for BigQuery.
+
+        This method generates a query that returns results as:
+        - date: The date string
+        - values: A STRUCT containing all metric values
+
+        The STRUCT approach reduces the result set size compared to UNPIVOT,
+        similar to DuckDB's MAP feature.
+
+        Args:
+            cte_data: List of BatchCTEData objects
+
+        Returns:
+            Complete SQL query with CTEs and STRUCT-based results
+
+        Example output:
+            WITH
+              source_2024_01_01_0 AS (...),
+              metrics_2024_01_01_0 AS (SELECT ... FROM source_2024_01_01_0)
+            SELECT '2024-01-01' as date,
+                   STRUCT(x_1 AS `x_1`, x_2 AS `x_2`) as values
+            FROM metrics_2024_01_01_0
+        """
+        if not cte_data:
+            raise ValueError("No CTE data provided")
+
+        cte_parts = []
+        metrics_info: list[tuple[str, list[ops.SqlOp]]] = []
+
+        # Build CTE parts (similar to DuckDB)
+        for i, data in enumerate(cte_data):
+            # Format date for CTE names (yyyy_mm_dd)
+            date_suffix = data.key.yyyy_mm_dd.strftime("%Y_%m_%d")
+            source_cte = f"source_{date_suffix}_{i}"
+            metrics_cte = f"metrics_{date_suffix}_{i}"
+
+            # Add source CTE
+            cte_parts.append(f"{source_cte} AS ({data.cte_sql})")
+
+            # Build metrics CTE with all expressions if ops exist
+            if data.ops:
+                # Translate ops to expressions
+                expressions = [self.translate_sql_op(op) for op in data.ops]
+                metrics_select = ", ".join(expressions)
+                cte_parts.append(f"{metrics_cte} AS (SELECT {metrics_select} FROM {source_cte})")
+
+                # Store metrics info for later use
+                metrics_info.append((metrics_cte, list(data.ops)))
+
+        # Validate that we have metrics to compute
+        if not metrics_info:
+            raise ValueError("No metrics to compute")
+
+        # Build STRUCT-based SELECT statements
+        struct_selects = []
+        for i, (data, (metrics_cte, data_ops)) in enumerate(zip(cte_data, metrics_info)):
+            date_str = data.key.yyyy_mm_dd.isoformat()
+
+            # Build STRUCT entries
+            struct_entries = [f"`{op.sql_col}` AS `{op.sql_col}`" for op in data_ops]
+            struct_expr = "STRUCT(" + ", ".join(struct_entries) + ")"
+
+            struct_selects.append(f"SELECT '{date_str}' as date, {struct_expr} as values FROM {metrics_cte}")
+
+        # Build final query
+        cte_clause = "WITH\n  " + ",\n  ".join(cte_parts)
+        union_clause = "\n".join(f"{'UNION ALL' if i > 0 else ''}\n{select}" for i, select in enumerate(struct_selects))
+
+        return f"{cte_clause}\n{union_clause}"
+
+
 # Register built-in dialects
 register_dialect("duckdb", DuckDBDialect)
+register_dialect("bigquery", BigQueryDialect)
