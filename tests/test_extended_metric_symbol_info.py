@@ -14,10 +14,14 @@ from dqx.provider import MetricProvider
 
 @check(name="Extended Metric Test", datasets=["test_ds"])
 def extended_metric_check(mp: MetricProvider, ctx: Context) -> None:
-    """Test check using day_over_day and stddev metrics."""
+    """Test check using day_over_day, week_over_week, and stddev metrics."""
     # Create day_over_day metric
     dod_metric = mp.ext.day_over_day(specs.Maximum("tax"))
     ctx.assert_that(dod_metric).where(name="Day over day check").is_geq(0.5)
+
+    # Create week_over_week metric
+    wow_metric = mp.ext.week_over_week(specs.Sum("price"))
+    ctx.assert_that(wow_metric).where(name="Week over week check").is_geq(0.8)
 
     # Create stddev metric
     stddev_metric = mp.ext.stddev(specs.Average("price"), lag=1, n=7)
@@ -45,6 +49,11 @@ def test_extended_metrics_symbol_info_names(commerce_data_c1: pa.Table) -> None:
         f"Expected 'day_over_day(maximum(tax))' in symbol metrics, but got: {symbol_metrics}"
     )
 
+    # Verify week_over_week metric name is correct
+    assert any("week_over_week(sum(price))" in metric for metric in symbol_metrics), (
+        f"Expected 'week_over_week(sum(price))' in symbol metrics, but got: {symbol_metrics}"
+    )
+
     # Verify stddev metric name is correct
     assert any("stddev(average(price))" in metric for metric in symbol_metrics), (
         f"Expected 'stddev(average(price))' in symbol metrics, but got: {symbol_metrics}"
@@ -62,4 +71,15 @@ def test_extended_metrics_symbol_info_names(commerce_data_c1: pa.Table) -> None:
             # Specifically check for the bug case
             assert symbol.metric != "maximum(tax)", (
                 "Bug reproduced: day_over_day(maximum(tax)) is showing as just 'maximum(tax)'"
+            )
+
+        # Check that week_over_week metrics are named correctly
+        if "week_over_week" in symbol.metric and "price" in symbol.metric:
+            assert symbol.metric == "week_over_week(sum(price))", (
+                f"Unexpected week_over_week metric name: {symbol.metric}"
+            )
+
+            # Ensure it doesn't show as just the base metric
+            assert symbol.metric != "sum(price)", (
+                "Bug reproduced: week_over_week(sum(price)) is showing as just 'sum(price)'"
             )

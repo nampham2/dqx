@@ -506,6 +506,37 @@ class TestExtendedMetricProvider:
         assert isinstance(registered_metric.key_provider, ResultKeyProvider)
         assert registered_metric.dataset is None
 
+    @patch("dqx.provider.compute.week_over_week")
+    def test_week_over_week(self, mock_week_over_week: Mock, ext_provider: ExtendedMetricProvider) -> None:
+        """Test week_over_week() method."""
+        mock_metric = Mock(spec=specs.MetricSpec)
+        mock_metric.name = "test_metric"
+        mock_key_provider = Mock(spec=ResultKeyProvider)
+        dataset = "dataset1"
+
+        symbol = ext_provider.week_over_week(mock_metric, mock_key_provider, dataset)
+
+        assert isinstance(symbol, sp.Symbol)
+        assert symbol.name == "x_1"
+
+        # Check that the symbol was registered
+        registered_metric = ext_provider._provider.get_symbol(symbol)
+        assert registered_metric.name == "week_over_week(test_metric)"
+        assert registered_metric.key_provider == mock_key_provider
+        assert registered_metric.dataset == dataset
+        assert registered_metric.metric_spec == mock_metric
+
+    def test_week_over_week_defaults(self, ext_provider: ExtendedMetricProvider) -> None:
+        """Test week_over_week() method with default parameters."""
+        mock_metric = Mock(spec=specs.MetricSpec)
+        mock_metric.name = "test_metric"
+
+        symbol = ext_provider.week_over_week(mock_metric)
+
+        registered_metric = ext_provider._provider.get_symbol(symbol)
+        assert isinstance(registered_metric.key_provider, ResultKeyProvider)
+        assert registered_metric.dataset is None
+
 
 class TestTypeAliases:
     """Test type aliases and imports."""

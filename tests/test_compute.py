@@ -363,6 +363,100 @@ def test_constants() -> None:
     assert compute.METRIC_NOT_FOUND == "Metric not found in the metric database"
 
 
+def test_sparse_timeseries_check_success() -> None:
+    """Test _sparse_timeseries_check with all required dates present."""
+    ts = {
+        dt.date(2023, 1, 15): 140.0,
+        dt.date(2023, 1, 8): 100.0,
+        dt.date(2023, 1, 10): 110.0,  # Extra date that's not required
+    }
+    base_date = dt.date(2023, 1, 15)
+    lag_points = [0, 7]
+
+    result = compute._sparse_timeseries_check(ts, base_date, lag_points)
+
+    assert isinstance(result, Success)
+    assert result.unwrap() == ts
+
+
+def test_sparse_timeseries_check_missing_dates() -> None:
+    """Test _sparse_timeseries_check with missing required dates."""
+    ts = {
+        dt.date(2023, 1, 15): 140.0,
+        # Missing dt.date(2023, 1, 8) which is lag_7
+    }
+    base_date = dt.date(2023, 1, 15)
+    lag_points = [0, 7]
+
+    result = compute._sparse_timeseries_check(ts, base_date, lag_points)
+
+    assert isinstance(result, Failure)
+    error_msg = result.failure()
+    assert "There are 1 dates with missing metrics" in error_msg
+    assert "2023-01-08" in error_msg
+
+
+def test_sparse_timeseries_check_multiple_missing() -> None:
+    """Test _sparse_timeseries_check with multiple missing dates."""
+    ts: dict[dt.date, float] = {}  # Empty timeseries
+    base_date = dt.date(2023, 1, 15)
+    lag_points = [0, 3, 7, 14, 30]  # Multiple lag points
+
+    result = compute._sparse_timeseries_check(ts, base_date, lag_points)
+
+    assert isinstance(result, Failure)
+    error_msg = result.failure()
+    assert "There are 5 dates with missing metrics" in error_msg
+
+
+def test_sparse_timeseries_check_limit() -> None:
+    """Test _sparse_timeseries_check respects the limit parameter."""
+    ts: dict[dt.date, float] = {}  # Empty timeseries
+    base_date = dt.date(2023, 1, 15)
+    lag_points = [0, 1, 2, 3, 4, 5, 6, 7]  # Many lag points
+    limit = 3
+
+    result = compute._sparse_timeseries_check(ts, base_date, lag_points, limit=limit)
+
+    assert isinstance(result, Failure)
+    error_msg = result.failure()
+    assert "There are 8 dates with missing metrics" in error_msg
+    # Should only show first 3 dates due to limit
+    dates_part = error_msg.split(": ")[1].split(".")[0]
+    listed_dates = dates_part.split(", ")
+    assert len(listed_dates) == limit
+
+
+def test_sparse_timeseries_check_single_point() -> None:
+    """Test _sparse_timeseries_check with a single lag point."""
+    ts = {
+        dt.date(2023, 1, 15): 140.0,
+    }
+    base_date = dt.date(2023, 1, 15)
+    lag_points = [0]  # Only checking lag_0
+
+    result = compute._sparse_timeseries_check(ts, base_date, lag_points)
+
+    assert isinstance(result, Success)
+    assert result.unwrap() == ts
+
+
+def test_sparse_timeseries_check_negative_lag() -> None:
+    """Test _sparse_timeseries_check with negative lag values (future dates)."""
+    ts = {
+        dt.date(2023, 1, 15): 140.0,
+        dt.date(2023, 1, 16): 145.0,  # Future date (lag -1)
+        dt.date(2023, 1, 8): 100.0,
+    }
+    base_date = dt.date(2023, 1, 15)
+    lag_points = [-1, 0, 7]  # Including a negative lag
+
+    result = compute._sparse_timeseries_check(ts, base_date, lag_points)
+
+    assert isinstance(result, Success)
+    assert result.unwrap() == ts
+
+
 def test_timeseries_check_with_different_limits() -> None:
     """Test _timeseries_check with different limit values."""
     ts: dict[dt.date, float] = {}  # Empty timeseries
@@ -440,3 +534,177 @@ def test_stddev_with_identical_values(
     assert isinstance(result, Success)
     # Standard deviation of identical values should be 0
     assert result.unwrap() == 0.0
+
+
+def test_week_over_week_success(
+    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
+) -> None:
+    """Test week_over_week with successful calculation."""
+    # Setup
+    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
+    week_ts = {
+        dt.date(2023, 1, 15): 140.0,  # lag_0 (today)
+        dt.date(2023, 1, 14): 135.0,  # lag_1
+        dt.date(2023, 1, 13): 130.0,  # lag_2
+        dt.date(2023, 1, 12): 125.0,  # lag_3
+        dt.date(2023, 1, 11): 120.0,  # lag_4
+        dt.date(2023, 1, 10): 115.0,  # lag_5
+        dt.date(2023, 1, 9): 110.0,  # lag_6
+        dt.date(2023, 1, 8): 100.0,  # lag_7 (a week ago)
+    }
+    mock_db.get_metric_window.return_value = Some(week_ts)  # type: ignore[attr-defined]
+
+    # Mock the lag method
+    lag_key = MagicMock()
+    lag_key.yyyy_mm_dd = dt.date(2023, 1, 8)
+    mock_result_key.lag.return_value = lag_key  # type: ignore[attr-defined]
+    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 15)  # type: ignore[misc]
+
+    result = compute.week_over_week(mock_db, mock_metric, mock_key_provider, mock_result_key)
+
+    assert isinstance(result, Success)
+    # Expected: 140.0 / 100.0 = 1.4
+    assert abs(result.unwrap() - 1.4) < 1e-6
+    mock_db.get_metric_window.assert_called_once_with(mock_metric, mock_result_key, lag=0, window=8)  # type: ignore[attr-defined]
+
+
+def test_week_over_week_no_data(
+    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
+) -> None:
+    """Test week_over_week when no data is available."""
+    # Setup
+    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
+    mock_db.get_metric_window.return_value = Nothing  # type: ignore[attr-defined]
+
+    result = compute.week_over_week(mock_db, mock_metric, mock_key_provider, mock_result_key)
+
+    assert isinstance(result, Failure)
+    assert result.failure() == compute.METRIC_NOT_FOUND
+
+
+def test_week_over_week_missing_dates(
+    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
+) -> None:
+    """Test week_over_week with missing dates."""
+    # Setup
+    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
+    incomplete_ts = {
+        dt.date(2023, 1, 15): 140.0,  # lag_0 (today)
+        dt.date(2023, 1, 13): 130.0,  # lag_2
+        # Missing several dates including lag_7
+    }
+    mock_db.get_metric_window.return_value = Some(incomplete_ts)  # type: ignore[attr-defined]
+
+    # Mock the lag method
+    lag_key = MagicMock()
+    lag_key.yyyy_mm_dd = dt.date(2023, 1, 8)
+    mock_result_key.lag.return_value = lag_key  # type: ignore[attr-defined]
+
+    result = compute.week_over_week(mock_db, mock_metric, mock_key_provider, mock_result_key)
+
+    assert isinstance(result, Failure)
+    error_msg = result.failure()
+    assert "dates with missing metrics" in error_msg
+
+
+def test_week_over_week_divide_by_zero(
+    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
+) -> None:
+    """Test week_over_week when lag_7 value is zero."""
+    # Setup
+    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
+    zero_ts = {
+        dt.date(2023, 1, 15): 140.0,  # lag_0 (today)
+        dt.date(2023, 1, 14): 135.0,  # lag_1
+        dt.date(2023, 1, 13): 130.0,  # lag_2
+        dt.date(2023, 1, 12): 125.0,  # lag_3
+        dt.date(2023, 1, 11): 120.0,  # lag_4
+        dt.date(2023, 1, 10): 115.0,  # lag_5
+        dt.date(2023, 1, 9): 110.0,  # lag_6
+        dt.date(2023, 1, 8): 0.0,  # lag_7 (zero value)
+    }
+    mock_db.get_metric_window.return_value = Some(zero_ts)  # type: ignore[attr-defined]
+
+    # Mock the lag method
+    lag_key = MagicMock()
+    lag_key.yyyy_mm_dd = dt.date(2023, 1, 8)
+    mock_result_key.lag.return_value = lag_key  # type: ignore[attr-defined]
+    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 15)  # type: ignore[misc]
+
+    result = compute.week_over_week(mock_db, mock_metric, mock_key_provider, mock_result_key)
+
+    assert isinstance(result, Failure)
+    error_msg = result.failure()
+    assert "is zero" in error_msg
+    assert "2023-01-08" in error_msg
+
+
+def test_week_over_week_edge_cases(
+    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
+) -> None:
+    """Test week_over_week with various edge cases."""
+    # Setup
+    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
+
+    # Test with negative values
+    negative_ts = {
+        dt.date(2023, 1, 15): -140.0,  # lag_0 (today)
+        dt.date(2023, 1, 14): -135.0,  # lag_1
+        dt.date(2023, 1, 13): -130.0,  # lag_2
+        dt.date(2023, 1, 12): -125.0,  # lag_3
+        dt.date(2023, 1, 11): -120.0,  # lag_4
+        dt.date(2023, 1, 10): -115.0,  # lag_5
+        dt.date(2023, 1, 9): -110.0,  # lag_6
+        dt.date(2023, 1, 8): -100.0,  # lag_7 (a week ago)
+    }
+    mock_db.get_metric_window.return_value = Some(negative_ts)  # type: ignore[attr-defined]
+
+    # Mock the lag method
+    lag_key = MagicMock()
+    lag_key.yyyy_mm_dd = dt.date(2023, 1, 8)
+    mock_result_key.lag.return_value = lag_key  # type: ignore[attr-defined]
+    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 15)  # type: ignore[misc]
+
+    result = compute.week_over_week(mock_db, mock_metric, mock_key_provider, mock_result_key)
+
+    assert isinstance(result, Success)
+    # Expected: -140.0 / -100.0 = 1.4
+    assert abs(result.unwrap() - 1.4) < 1e-6
+
+    # Test with very small numbers (near zero but not zero)
+    small_ts = {
+        dt.date(2023, 1, 15): 0.007,  # lag_0 (today)
+        dt.date(2023, 1, 14): 0.006,  # lag_1
+        dt.date(2023, 1, 13): 0.005,  # lag_2
+        dt.date(2023, 1, 12): 0.004,  # lag_3
+        dt.date(2023, 1, 11): 0.003,  # lag_4
+        dt.date(2023, 1, 10): 0.002,  # lag_5
+        dt.date(2023, 1, 9): 0.001,  # lag_6
+        dt.date(2023, 1, 8): 0.0001,  # lag_7 (a week ago)
+    }
+    mock_db.get_metric_window.return_value = Some(small_ts)  # type: ignore[attr-defined]
+
+    result = compute.week_over_week(mock_db, mock_metric, mock_key_provider, mock_result_key)
+
+    assert isinstance(result, Success)
+    # Should be 0.007 / 0.0001 = 70.0
+    assert abs(result.unwrap() - 70.0) < 1e-6
+
+    # Test with identical values (no change week over week)
+    identical_ts = {
+        dt.date(2023, 1, 15): 100.0,  # lag_0 (today)
+        dt.date(2023, 1, 14): 100.0,  # lag_1
+        dt.date(2023, 1, 13): 100.0,  # lag_2
+        dt.date(2023, 1, 12): 100.0,  # lag_3
+        dt.date(2023, 1, 11): 100.0,  # lag_4
+        dt.date(2023, 1, 10): 100.0,  # lag_5
+        dt.date(2023, 1, 9): 100.0,  # lag_6
+        dt.date(2023, 1, 8): 100.0,  # lag_7 (a week ago)
+    }
+    mock_db.get_metric_window.return_value = Some(identical_ts)  # type: ignore[attr-defined]
+
+    result = compute.week_over_week(mock_db, mock_metric, mock_key_provider, mock_result_key)
+
+    assert isinstance(result, Success)
+    # Should be 100.0 / 100.0 = 1.0
+    assert result.unwrap() == 1.0

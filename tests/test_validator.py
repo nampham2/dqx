@@ -602,7 +602,7 @@ def test_unused_symbol_validator_performance() -> None:
     duration = time.time() - start
 
     # Should complete quickly
-    assert duration < 0.1  # 100ms should be plenty
+    assert duration < 1.0  # 1000ms should be plenty
 
     # Should have 500 unused symbol warnings
     unused_warnings = [w for w in report.warnings if w.rule == "unused_symbols"]

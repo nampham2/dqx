@@ -41,8 +41,10 @@ def manual_day_over_day(mp: MetricProvider, ctx: Context) -> None:
 @check(name="Rate of change", datasets=["ds2"])
 def rate_of_change(mp: MetricProvider, ctx: Context) -> None:
     tax_dod = mp.ext.day_over_day(specs.Maximum("tax"))
+    tax_wow = mp.ext.week_over_week(specs.Average("tax"))
     rate = sp.Abs(tax_dod - 1.0)
     ctx.assert_that(rate).where(name="Maximum tax rate change is less than 20%").is_leq(0.2)
+    ctx.assert_that(tax_wow).where(name="Average tax week-over-week change is less than 30%").is_leq(0.3)
 
 
 @check(name="Cross Dataset Check", datasets=["ds1", "ds2"])

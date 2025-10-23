@@ -135,6 +135,19 @@ class ExtendedMetricProvider:
         )
         return sym
 
+    def week_over_week(
+        self, metric: MetricSpec, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
+    ) -> sp.Symbol:
+        self._provider._register(
+            sym := self._next_symbol(),
+            name=f"week_over_week({metric.name})",
+            fn=partial(compute.week_over_week, self._db, metric, key),
+            key=key,
+            metric_spec=metric,
+            dataset=dataset,
+        )
+        return sym
+
 
 class MetricProvider(SymbolicMetricBase):
     def __init__(self, db: MetricDB) -> None:

@@ -28,6 +28,36 @@ def _timeseries_check(ts: TimeSeries, from_date: dt.date, window: int, limit: in
     return Failure(f"There are {len(missings)} dates with missing metrics: {missing_dates_str}.")
 
 
+def _sparse_timeseries_check(
+    ts: TimeSeries, base_date: dt.date, lag_points: list[int], limit: int = 5
+) -> Result[TimeSeries, str]:
+    """Check if specific lag points exist in the timeseries.
+
+    Args:
+        ts: The timeseries to check
+        base_date: The base date to calculate lags from
+        lag_points: List of lag values to check (e.g., [0, 7] for lag_0 and lag_7)
+        limit: Maximum number of missing dates to show in error message
+
+    Returns:
+        Success with the timeseries if all required dates exist,
+        Failure with error message listing missing dates (up to limit)
+    """
+    missings: list[dt.date] = []
+    for lag in lag_points:
+        # lag_0 is base_date, lag_1 is base_date - 1 day, etc.
+        current = base_date - dt.timedelta(days=lag)
+        if current not in ts:
+            missings.append(current)
+
+    if not missings:
+        return Success(ts)
+
+    # Apply limit to the error message
+    missing_dates_str = ", ".join(m.isoformat() for m in missings[:limit])
+    return Failure(f"There are {len(missings)} dates with missing metrics: {missing_dates_str}.")
+
+
 def simple_metric(
     db: MetricDB, metric: MetricSpec, key_provider: ResultKeyProvider, nominal_key: ResultKey
 ) -> Result[float, str]:
@@ -54,7 +84,7 @@ def day_over_day(
     return flow(
         db.get_metric_window(metric, key, lag=0, window=2),
         lambda ts: maybe_to_result(ts, METRIC_NOT_FOUND),
-        bind(lambda ts: _timeseries_check(ts, key.lag(1).yyyy_mm_dd, 2)),
+        bind(lambda ts: _sparse_timeseries_check(ts, key.yyyy_mm_dd, [0, 1])),
         bind(_dod),
     )
 
@@ -72,4 +102,27 @@ def stddev(
         lambda ts: maybe_to_result(ts, METRIC_NOT_FOUND),
         bind(lambda ts: _timeseries_check(ts, key.lag(lag).yyyy_mm_dd, size)),
         bind(_stddev),
+    )
+
+
+def week_over_week(
+    db: MetricDB, metric: MetricSpec, key_provider: ResultKeyProvider, nominal_key: ResultKey
+) -> Result[float, str]:
+    key = key_provider.create(nominal_key)
+
+    def _wow(ts: TimeSeries) -> Result[float, str]:
+        """Calculate the week over week metric."""
+        lag_0 = ts[key.yyyy_mm_dd]
+        lag_7 = ts[key.lag(7).yyyy_mm_dd]
+
+        # Checking for divide by zero
+        if lag_7 == 0:
+            return Failure(f"Metric for {key.lag(7).yyyy_mm_dd.isoformat()} is zero.")
+        return Success(lag_0 / lag_7)
+
+    return flow(
+        db.get_metric_window(metric, key, lag=0, window=8),
+        lambda ts: maybe_to_result(ts, METRIC_NOT_FOUND),
+        bind(lambda ts: _sparse_timeseries_check(ts, key.yyyy_mm_dd, [0, 7])),
+        bind(_wow),
     )
