@@ -1,74 +1,42 @@
 # Progress
 
 ## What Works
-
-### Core Features
-- Basic metric collection (average, sum, min, max, variance, etc.)
-- Null and negative value counting
-- Duplicate detection across single or multiple columns
-- **NEW: CountValues operation for counting specific values**
-- Analyzer with SQL generation
-- Multiple SQL dialect support (DuckDB, BigQuery)
-- Batch analysis with optimized queries
-- Result caching and persistence
+- Core DQX framework for data quality checks
+- Metric computation and assertion system
+- Extended metrics (week_over_week, day_over_day, stddev, etc.)
+- Dataset validation and imputation
+- Recursive dataset imputation for child dependencies (NEW)
+- Graph traversal using visitor pattern
 - Plugin system for extensibility
-- Comprehensive test coverage
+- Batch analysis and optimization
+- Multiple SQL dialect support (DuckDB, BigQuery, etc.)
+- Rich logging and display capabilities
+- Suite caching and critical check levels
+- Symbol collection and validation
 
-### API Features
-- Fluent API for building data quality checks
-- Method chaining for intuitive usage
-- Clear error messages and validation
-- Type safety with full mypy compliance
-
-### Recent Additions (2024-10-24)
-- **CountValues Operation**: Count occurrences of specific values in columns
-  - Single value counting: `api.count_values("status", "active")`
-  - Multiple value counting: `api.count_values("category", ["A", "B", "C"])`
-  - Support for both string and integer values
-  - Proper SQL escaping for security
-  - Full integration with existing dialect system
+## Recent Fixes
+- Fixed recursive dataset imputation in DatasetImputationVisitor (2025-01-24)
+  - Child metrics created by extended metrics now properly inherit datasets
+  - Ensures metrics like lag(7) created by week_over_week get correct dataset assignment
+  - Added comprehensive integration tests for extended metric scenarios
 
 ## What's Left to Build
-
-### High Priority
-- Additional statistical operations (percentiles, standard deviation)
-- Pattern matching operations (regex support)
-- Date/time specific validations
-- Cross-column validations and correlations
-
-### Medium Priority
-- Performance optimizations for very large datasets
-- Streaming support for real-time data
-- More SQL dialect support (PostgreSQL, Snowflake)
-- Advanced reporting and visualization
-
-### Low Priority
-- GUI for building checks
-- Integration with popular data orchestration tools
-- Machine learning based anomaly detection
+- Performance monitoring for large metric graphs with recursive processing
+- Additional extended metric types and their tests
+- Further optimization of batch SQL queries
+- Enhanced error reporting and debugging tools
 
 ## Current Status
-
-The project is production-ready for core data quality validation tasks. The recent addition of CountValues extends the capability to handle categorical data validation more effectively.
+- All tests passing (including new recursive imputation tests)
+- Pre-commit hooks passing
+- Code committed with conventional commit message
+- Ready for next feature or bug fix
 
 ## Known Issues
-
-- None currently reported for CountValues implementation
-- Batch queries can be memory intensive for very large result sets
-- Some edge cases in date handling for batch analysis (being addressed)
+- None currently identified with the recursive imputation implementation
 
 ## Evolution of Project Decisions
-
-### CountValues Implementation (2024-10-24)
-- Decided to support both single values and lists for flexibility
-- Chose homogeneous type enforcement to prevent confusion
-- Implemented proper SQL escaping from the start
-- Used MD5 hashing for unique SQL column names
-- Separated int/str handling in constructor for type safety
-
-### Previous Decisions
-- Moved from simple validation to comprehensive metric collection
-- Adopted plugin architecture for extensibility
-- Implemented dialect system for multi-database support
-- Added batch analysis for performance optimization
-- Introduced caching for improved performance
+- Adopted visitor pattern for graph traversal operations
+- Implemented recursive processing to handle nested metric dependencies
+- Maintained backward compatibility while adding new functionality
+- Focused on comprehensive integration testing for complex scenarios
