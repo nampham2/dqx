@@ -665,6 +665,7 @@ class TestBuildRegistry:
             "NullCount",
             "Variance",
             "DuplicateCount",
+            "CountValues",
         }
         assert set(result.keys()) == expected_types
 
@@ -708,6 +709,10 @@ class TestBuildRegistry:
         for metric_type, spec_class in result.items():
             if metric_type == "NumRows":
                 instance = spec_class()
+            elif metric_type == "DuplicateCount":
+                instance = spec_class(["test_column"])  # type: ignore[call-arg]
+            elif metric_type == "CountValues":
+                instance = spec_class("test_column", "test_value")  # type: ignore[call-arg]
             else:
                 # Other classes require a column parameter
                 instance = spec_class("test_column")  # type: ignore[call-arg]
@@ -761,6 +766,7 @@ class TestRegistry:
             "NullCount",
             "Variance",
             "DuplicateCount",
+            "CountValues",
         }
         assert set(specs.registry.keys()) == expected_types
 
@@ -779,6 +785,10 @@ class TestRegistry:
         for metric_type, spec_class in specs.registry.items():
             if metric_type == "NumRows":
                 instance = spec_class()
+            elif metric_type == "DuplicateCount":
+                instance = spec_class(["test_column"])  # type: ignore[call-arg]
+            elif metric_type == "CountValues":
+                instance = spec_class("test_column", "test_value")  # type: ignore[call-arg]
             else:
                 instance = spec_class("test_column")  # type: ignore[call-arg]
             assert isinstance(instance, specs.MetricSpec)
