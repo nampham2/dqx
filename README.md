@@ -66,6 +66,30 @@ ctx.assert_that(metric).where(name="Exact match").is_eq(expected)
 
 ## Common Patterns
 
+### Validate Categorical Data
+```python
+from dqx.api import check, MetricProvider, Context
+
+
+@check("Order status validation")
+def validate_statuses(mp: MetricProvider, ctx: Context) -> None:
+    # Ensure most orders are completed
+    completed = mp.count_values("status", "completed")
+    total = mp.num_rows()
+
+    ctx.assert_that(completed / total).where(
+        name="Completion rate", severity="P1"
+    ).is_geq(
+        0.95
+    )  # 95%+
+
+    # Check for unexpected statuses
+    known_statuses = mp.count_values(
+        "status", ["pending", "processing", "completed", "cancelled"]
+    )
+    ctx.assert_that(known_statuses).where(name="Known statuses only").is_eq(total)
+```
+
 ### Monitor Daily Changes
 ```python
 from dqx.api import check, MetricProvider, Context
@@ -204,6 +228,10 @@ mp.maximum("column")  # Max
 mp.variance("column")  # Variance
 mp.stddev("column")  # Standard deviation
 
+# Categorical
+mp.count_values("status", "active")  # Count specific value
+mp.count_values("region", ["US", "EU"])  # Count multiple values
+
 # Time-based
 mp.sum("revenue", key=ctx.key.lag(1))  # Yesterday
 mp.sum("revenue", key=ctx.key.lag(7))  # Last week
@@ -238,6 +266,12 @@ custom_metrics = {
     ResultKey(date(2024, 1, 2)): [specs.Maximum("quantity"), specs.NumRows()],
 }
 report = analyzer.analyze(datasource, custom_metrics)
+
+# Count categorical values
+status_metrics = [
+    specs.CountValues("status", "active"),
+    specs.CountValues("priority", [1, 2]),  # High priority
+]
 ```
 
 Large date ranges are automatically split into optimal batches for performance.

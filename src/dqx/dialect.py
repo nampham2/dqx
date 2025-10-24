@@ -361,6 +361,32 @@ class DuckDBDialect:
                     distinct_expr = f"({', '.join(cols)})"
                 return f"CAST(COUNT(*) - COUNT(DISTINCT {distinct_expr}) AS DOUBLE) AS '{op.sql_col}'"
 
+            case ops.CountValues(column=col, _values=vals, _is_single=is_single):
+                # Build the condition for COUNT_IF
+                if is_single:
+                    val = vals[0]
+                    if isinstance(val, str):
+                        # Escape single quotes and backslashes
+                        escaped_val = val.replace("\\", "\\\\").replace("'", "''")
+                        condition = f"{col} = '{escaped_val}'"
+                    elif isinstance(val, bool):
+                        # Handle boolean values - DuckDB uses TRUE/FALSE
+                        condition = f"{col} = {'TRUE' if val else 'FALSE'}"
+                    else:
+                        condition = f"{col} = {val}"
+                else:
+                    # Multiple values - use IN operator
+                    if isinstance(vals[0], str):
+                        # String values - escape and quote each
+                        # Type narrowing for mypy: if first element is str, all are str
+                        escaped_vals = [str(v).replace("\\", "\\\\").replace("'", "''") for v in vals]
+                        values_list = ", ".join(f"'{v}'" for v in escaped_vals)
+                    else:
+                        # Integer values
+                        values_list = ", ".join(str(v) for v in vals)
+                    condition = f"{col} IN ({values_list})"
+                return f"CAST(COUNT_IF({condition}) AS DOUBLE) AS '{op.sql_col}'"
+
             case _:
                 raise ValueError(f"Unsupported SqlOp type: {type(op).__name__}")
 
@@ -451,6 +477,32 @@ class BigQueryDialect:
                 else:
                     distinct_expr = f"({', '.join(cols)})"
                 return f"CAST(COUNT(*) - COUNT(DISTINCT {distinct_expr}) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.CountValues(column=col, _values=vals, _is_single=is_single):
+                # Build the condition for COUNTIF
+                if is_single:
+                    val = vals[0]
+                    if isinstance(val, str):
+                        # Escape single quotes and backslashes
+                        escaped_val = val.replace("\\", "\\\\").replace("'", "''")
+                        condition = f"{col} = '{escaped_val}'"
+                    elif isinstance(val, bool):
+                        # Handle boolean values - BigQuery uses TRUE/FALSE
+                        condition = f"{col} = {'TRUE' if val else 'FALSE'}"
+                    else:
+                        condition = f"{col} = {val}"
+                else:
+                    # Multiple values - use IN operator
+                    if isinstance(vals[0], str):
+                        # String values - escape and quote each
+                        # Type narrowing for mypy: if first element is str, all are str
+                        escaped_vals = [str(v).replace("\\", "\\\\").replace("'", "''") for v in vals]
+                        values_list = ", ".join(f"'{v}'" for v in escaped_vals)
+                    else:
+                        # Integer values
+                        values_list = ", ".join(str(v) for v in vals)
+                    condition = f"{col} IN ({values_list})"
+                return f"CAST(COUNTIF({condition}) AS FLOAT64) AS `{op.sql_col}`"
 
             case _:
                 raise ValueError(f"Unsupported SqlOp type: {type(op).__name__}")

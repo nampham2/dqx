@@ -24,7 +24,10 @@ def simple_checks(mp: MetricProvider, ctx: Context) -> None:
 @check(name="booking basic")
 def booking_basic(mp: MetricProvider, ctx: Context) -> None:
     nr = mp.num_rows()
+    bbasic_count = mp.count_values("id_source", "bbasic")
+
     ctx.assert_that(nr).where(name="booking basic percentage is less than 5%").is_leq(0.05)
+    ctx.assert_that(bbasic_count / nr).where(name="booking basic percentage is less than 5%").is_leq(0.05)
 
 
 @check(name="nits")

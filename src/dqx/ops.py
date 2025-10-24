@@ -395,3 +395,85 @@ class DuplicateCount(OpValueMixin[float], SqlOp[float]):
 
     def __str__(self) -> str:
         return self.__repr__()
+
+
+class CountValues(OpValueMixin[float], SqlOp[float]):
+    """Count occurrences of specific value(s) in a column.
+
+    Accepts single values (int, str, or bool) or lists of values (list[int] or list[str]).
+    Lists must be homogeneous - all integers or all strings, not mixed.
+    Boolean values are supported as single values only, not in lists.
+    String values will be properly escaped in SQL generation to prevent injection.
+    """
+
+    __match_args__ = ("column", "values")
+
+    def __init__(self, column: str, values: int | str | bool | list[int] | list[str]) -> None:
+        OpValueMixin.__init__(self)
+
+        # Normalize to list for internal consistency
+        # Declare _values with the broadest type first
+        self._values: list[Any]
+
+        if isinstance(values, (bool, int, str)):
+            self._values = [values]
+            self._is_single = True
+        elif isinstance(values, list):
+            if not values:
+                raise ValueError("CountValues requires at least one value")
+
+            # Check homogeneous types (also reject bools in lists)
+            if any(isinstance(v, bool) for v in values):
+                raise ValueError("CountValues list must contain all integers or all strings, not mixed")
+            if not (all(isinstance(v, int) for v in values) or all(isinstance(v, str) for v in values)):
+                raise ValueError("CountValues list must contain all integers or all strings, not mixed")
+
+            self._values = values
+            self._is_single = False
+        else:
+            raise ValueError(
+                f"CountValues accepts int, str, bool, list[int], or list[str], got {type(values).__name__}"
+            )
+
+        self.column = column
+        self.values = values  # Store original format for equality checks
+        self._prefix = random_prefix()
+
+    @property
+    def name(self) -> str:
+        if self._is_single:
+            return f"count_values({self.column},{self._values[0]})"
+        else:
+            # Format as [val1,val2,...] without quotes
+            values_str = "[" + ",".join(str(v) for v in self._values) + "]"
+            return f"count_values({self.column},{values_str})"
+
+    @property
+    def prefix(self) -> str:
+        return self._prefix
+
+    @property
+    def sql_col(self) -> str:
+        # For sql_col, we need a safe column name without special characters
+        # Use the column name and a hash of the values to make it unique
+        import hashlib
+
+        values_hash = hashlib.md5(str(self.values).encode()).hexdigest()[:8]
+        return f"{self.prefix}_count_values_{self.column}_{values_hash}"
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, CountValues):
+            return NotImplemented
+        # Need to check both value and type to distinguish True from 1, False from 0
+        return self.column == other.column and self.values == other.values and type(self.values) is type(other.values)
+
+    def __hash__(self) -> int:
+        # Convert lists to tuples for hashing
+        hashable_values = self.values if not isinstance(self.values, list) else tuple(self.values)
+        return hash((self.name, self.column, hashable_values))
+
+    def __repr__(self) -> str:
+        return self.name
+
+    def __str__(self) -> str:
+        return self.__repr__()

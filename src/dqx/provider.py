@@ -209,3 +209,47 @@ class MetricProvider(SymbolicMetricBase):
         self, columns: list[str], key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
         return self.metric(specs.DuplicateCount(columns), key, dataset)
+
+    def count_values(
+        self,
+        column: str,
+        values: int | str | bool | list[int] | list[str],
+        key: ResultKeyProvider = ResultKeyProvider(),
+        dataset: str | None = None,
+    ) -> sp.Symbol:
+        """Count occurrences of specific value(s) in a column.
+
+        This operation counts only the specified values, never NULLs.
+        Empty strings are counted as values, not as NULLs.
+
+        Args:
+            column: Column name to count values in
+            values: Value(s) to count - single int/str/bool or list of int/str
+            key: Result key provider
+            dataset: Optional dataset name
+
+        Returns:
+            Symbol representing the count
+
+        Examples:
+            >>> from dqx import ValidationSuite
+            >>> suite = ValidationSuite("test")
+
+            >>> # Count single value
+            >>> suite.count_values("status", "active")
+
+            >>> # Count multiple values efficiently in one query
+            >>> suite.count_values("status", ["active", "pending"])
+
+            >>> # Count integer values
+            >>> suite.count_values("type_id", [1, 2, 3])
+
+            >>> # Count boolean values
+            >>> suite.count_values("is_active", True)
+            >>> suite.count_values("is_deleted", False)
+
+        Performance Note:
+            Counting multiple values with a list is more efficient than
+            making multiple separate count_values calls.
+        """
+        return self.metric(specs.CountValues(column, values), key, dataset)
