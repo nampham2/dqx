@@ -486,37 +486,94 @@ uv run pytest tests/test_specs.py::test_count_value_state -v
 
 **Objective**: Add user-facing API method and comprehensive examples.
 
-#### Task 4.1: Add count_value method to provider.py
+#### Task 4.1: Add count_value method to provider.py with type overloads
 
-In `src/dqx/provider.py`, add the method:
+In `src/dqx/provider.py`, first add the import and then the overloaded method:
 
 ```python
-def count_value(
-    self, column: str, value: int | str,
-    key: ResultKeyProvider = ResultKeyProvider(),
-    dataset: str | None = None
-) -> sp.Symbol:
-    """Count occurrences of a specific value in a column.
+from typing import overload
 
-    Args:
-        column: Column name to count values in
-        value: The value to count (int or str)
-        key: Result key provider
-        dataset: Optional dataset name
+class MetricProvider(SymbolicMetricBase):
+    # ... existing code ...
 
-    Returns:
-        Symbol representing the count
+    @overload
+    def count_value(
+        self, column: str, value: int,
+        key: ResultKeyProvider = ResultKeyProvider(),
+        dataset: str | None = None
+    ) -> sp.Symbol:
+        """Count occurrences of a specific integer value in a column.
 
-    Example:
-        >>> from dqx import ValidationSuite
-        >>> suite = ValidationSuite("test")
-        >>> # Count how many users have status = 'active'
-        >>> suite.count_value("status", "active")
-        >>> # Count how many orders have type_id = 1
-        >>> suite.count_value("type_id", 1)
-    """
-    return self.metric(specs.CountValue(column, value), key, dataset)
+        Args:
+            column: Column name to count values in
+            value: The integer value to count
+            key: Result key provider
+            dataset: Optional dataset name
+
+        Returns:
+            Symbol representing the count
+
+        Example:
+            >>> suite.count_value("user_id", 123)
+            >>> suite.count_value("type_id", 1)
+        """
+        ...
+
+    @overload
+    def count_value(
+        self, column: str, value: str,
+        key: ResultKeyProvider = ResultKeyProvider(),
+        dataset: str | None = None
+    ) -> sp.Symbol:
+        """Count occurrences of a specific string value in a column.
+
+        Args:
+            column: Column name to count values in
+            value: The string value to count
+            key: Result key provider
+            dataset: Optional dataset name
+
+        Returns:
+            Symbol representing the count
+
+        Example:
+            >>> suite.count_value("status", "active")
+            >>> suite.count_value("category", "electronics")
+        """
+        ...
+
+    def count_value(
+        self, column: str, value: int | str,
+        key: ResultKeyProvider = ResultKeyProvider(),
+        dataset: str | None = None
+    ) -> sp.Symbol:
+        """Count occurrences of a specific value in a column.
+
+        Args:
+            column: Column name to count values in
+            value: The value to count (int or str)
+            key: Result key provider
+            dataset: Optional dataset name
+
+        Returns:
+            Symbol representing the count
+
+        Example:
+            >>> from dqx import ValidationSuite
+            >>> suite = ValidationSuite("test")
+            >>> # Count how many users have status = 'active'
+            >>> suite.count_value("status", "active")
+            >>> # Count how many orders have type_id = 1
+            >>> suite.count_value("type_id", 1)
+        """
+        return self.metric(specs.CountValue(column, value), key, dataset)
 ```
+
+This approach provides:
+- **Better IDE support**: IDEs will show separate signatures for int and str values
+- **Clearer documentation**: Each overload has specific examples
+- **Type narrowing**: Better static type checking for downstream code
+- **Improved code completion**: Developers see exactly which types are accepted
 
 #### Task 4.2: Write provider tests
 
