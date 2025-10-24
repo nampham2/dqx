@@ -133,11 +133,6 @@ class ExtendedMetricProvider:
         self._next_symbol = self._provider._next_symbol
         self._register = self._provider._register
 
-    def _resolve_metric_spec(self, metric: sp.Symbol) -> MetricSpec:
-        """Resolve a symbol to its underlying MetricSpec."""
-        symbolic_metric = self._provider.get_symbol(metric)
-        return symbolic_metric.metric_spec
-
     def _create_lag_dependency(
         self, base_metric: sp.Symbol, lag_days: int, parent_metric: sp.Symbol | None = None
     ) -> sp.Symbol:
@@ -151,8 +146,8 @@ class ExtendedMetricProvider:
         Returns:
             Symbol representing the lag dependency
         """
-        metric_spec = self._resolve_metric_spec(base_metric)
-        base_metric_info = self._provider.get_symbol(base_metric)
+        symbolic_metric = self._provider.get_symbol(base_metric)
+        metric_spec = symbolic_metric.metric_spec
 
         # Create lag function that applies the lag to the key
         def lag_metric(
@@ -168,10 +163,10 @@ class ExtendedMetricProvider:
         self._provider._register(
             sym := self._next_symbol(),
             name=f"lag({lag_days})({base_metric})",
-            fn=partial(lag_metric, self._db, metric_spec, lag_days, base_metric_info.key_provider),
-            key=base_metric_info.key_provider,
+            fn=partial(lag_metric, self._db, metric_spec, lag_days, symbolic_metric.key_provider),
+            key=symbolic_metric.key_provider,
             metric_spec=metric_spec,
-            dataset=base_metric_info.dataset,
+            dataset=symbolic_metric.dataset,
             parent=parent_metric,  # Now the parent is the derived metric
         )
         return sym
@@ -179,7 +174,9 @@ class ExtendedMetricProvider:
     def day_over_day(
         self, metric: sp.Symbol, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
-        metric_spec = self._resolve_metric_spec(metric)
+        # Get the full SymbolicMetric object
+        symbolic_metric = self._provider.get_symbol(metric)
+        metric_spec = symbolic_metric.metric_spec
 
         # First register the day_over_day metric
         self._provider._register(
@@ -191,6 +188,9 @@ class ExtendedMetricProvider:
             dataset=dataset,
             parent=None,  # day_over_day is now the parent
         )
+
+        # Update the base metric's parent to point to this extended metric
+        symbolic_metric.parent_symbol = sym
 
         # Create lag(1) dependency with day_over_day as parent
         self._create_lag_dependency(metric, 1, parent_metric=sym)
@@ -209,7 +209,9 @@ class ExtendedMetricProvider:
         key: ResultKeyProvider = ResultKeyProvider(),
         dataset: str | None = None,
     ) -> sp.Symbol:
-        metric_spec = self._resolve_metric_spec(metric)
+        # Get the full SymbolicMetric object
+        symbolic_metric = self._provider.get_symbol(metric)
+        metric_spec = symbolic_metric.metric_spec
 
         # First register the stddev metric
         self._provider._register(
@@ -221,6 +223,9 @@ class ExtendedMetricProvider:
             dataset=dataset,
             parent=None,  # stddev is now the parent
         )
+
+        # Update the base metric's parent to point to this extended metric
+        symbolic_metric.parent_symbol = sym
 
         # Create lag dependencies for the window with stddev as parent
         # stddev needs lag values from lag to lag+n-1
@@ -236,7 +241,9 @@ class ExtendedMetricProvider:
     def week_over_week(
         self, metric: sp.Symbol, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
-        metric_spec = self._resolve_metric_spec(metric)
+        # Get the full SymbolicMetric object
+        symbolic_metric = self._provider.get_symbol(metric)
+        metric_spec = symbolic_metric.metric_spec
 
         # First register the week_over_week metric
         self._provider._register(
@@ -248,6 +255,9 @@ class ExtendedMetricProvider:
             dataset=dataset,
             parent=None,  # week_over_week is now the parent
         )
+
+        # Update the base metric's parent to point to this extended metric
+        symbolic_metric.parent_symbol = sym
 
         # Create lag(7) dependency with week_over_week as parent
         self._create_lag_dependency(metric, 7, parent_metric=sym)
