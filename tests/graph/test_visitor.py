@@ -547,6 +547,253 @@ class TestDatasetImputationParentChild:
         assert not visitor.has_errors()
 
 
+class TestDatasetImputationRecursiveProcessing:
+    """Test suite for recursive processing of child dependencies."""
+
+    def test_processes_children_recursively(self) -> None:
+        """Test that DatasetImputationVisitor processes child dependencies recursively."""
+        # Arrange
+        root = RootNode("test_suite")
+        check = root.add_check("test_check", datasets=["prod"])
+        validator = SymbolicValidator("> 0", lambda x: x > 0)
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test", validator=validator)
+
+        # Mock provider with parent-child-grandchild relationship
+        provider = Mock(spec=MetricProvider)
+
+        # x_1: week_over_week metric (appears in assertion)
+        parent_metric = Mock(spec=SymbolicMetric)
+        parent_metric.name = "week_over_week(average(tax))"
+        parent_metric.dataset = None  # Will be imputed
+
+        # x_2: lag(7) metric (child of x_1, created by week_over_week)
+        child_metric = Mock(spec=SymbolicMetric)
+        child_metric.name = "lag(7)(x_3)"
+        child_metric.dataset = None  # Should be imputed through recursive processing
+
+        # x_3: average(tax) metric (grandchild - base metric for lag)
+        grandchild_metric = Mock(spec=SymbolicMetric)
+        grandchild_metric.name = "average(tax)"
+        grandchild_metric.dataset = None  # Should also be imputed
+
+        def get_symbol_mock(s: sp.Symbol) -> Mock:
+            s_str = str(s)
+            if s_str == "x_1":
+                return parent_metric
+            elif s_str == "x_2":
+                return child_metric
+            elif s_str == "x_3":
+                return grandchild_metric
+            return Mock()
+
+        provider.get_symbol.side_effect = get_symbol_mock
+
+        # x_1 has child x_2, x_2 has child x_3
+        def get_children_mock(s: sp.Symbol) -> list[sp.Symbol]:
+            s_str = str(s)
+            if s_str == "x_1":
+                return [sp.Symbol("x_2")]
+            elif s_str == "x_2":
+                return [sp.Symbol("x_3")]
+            return []
+
+        provider.get_children.side_effect = get_children_mock
+
+        visitor = DatasetImputationVisitor(["prod"], provider=provider)
+
+        # Act
+        visitor.visit(assertion)
+
+        # Assert - All metrics should have dataset imputed
+        assert parent_metric.dataset == "prod"  # Direct imputation
+        assert child_metric.dataset == "prod"  # Recursive imputation
+        assert grandchild_metric.dataset == "prod"  # Deep recursive imputation
+        assert not visitor.has_errors()
+
+    def test_avoids_infinite_loops_with_circular_dependencies(self) -> None:
+        """Test that circular dependencies don't cause infinite loops."""
+        # Arrange
+        root = RootNode("test_suite")
+        check = root.add_check("test_check", datasets=["prod"])
+        validator = SymbolicValidator("> 0", lambda x: x > 0)
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test", validator=validator)
+
+        # Mock provider with circular dependency
+        provider = Mock(spec=MetricProvider)
+
+        metric1 = Mock(spec=SymbolicMetric)
+        metric1.name = "metric1"
+        metric1.dataset = None
+
+        metric2 = Mock(spec=SymbolicMetric)
+        metric2.name = "metric2"
+        metric2.dataset = None
+
+        provider.get_symbol.side_effect = lambda s: metric1 if str(s) == "x_1" else metric2
+
+        # Create circular dependency: x_1 -> x_2 -> x_1
+        def get_children_mock(s: sp.Symbol) -> list[sp.Symbol]:
+            s_str = str(s)
+            if s_str == "x_1":
+                return [sp.Symbol("x_2")]
+            elif s_str == "x_2":
+                return [sp.Symbol("x_1")]  # Circular!
+            return []
+
+        provider.get_children.side_effect = get_children_mock
+
+        visitor = DatasetImputationVisitor(["prod"], provider=provider)
+
+        # Act - Should complete without hanging
+        visitor.visit(assertion)
+
+        # Assert
+        assert metric1.dataset == "prod"
+        assert metric2.dataset == "prod"
+        assert not visitor.has_errors()
+
+    def test_processes_multiple_branches_of_children(self) -> None:
+        """Test processing when a metric has multiple child branches."""
+        # Arrange
+        root = RootNode("test_suite")
+        check = root.add_check("test_check", datasets=["staging"])
+        validator = SymbolicValidator("> 0", lambda x: x > 0)
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test", validator=validator)
+
+        # Mock provider
+        provider = Mock(spec=MetricProvider)
+
+        # Create metrics
+        metrics = {}
+        for i in range(1, 6):
+            metric = Mock(spec=SymbolicMetric)
+            metric.name = f"metric_{i}"
+            metric.dataset = None
+            metrics[f"x_{i}"] = metric
+
+        provider.get_symbol.side_effect = lambda s: metrics.get(str(s), Mock())
+
+        # Tree structure:
+        #     x_1
+        #    /   \
+        #   x_2   x_3
+        #   |     |
+        #   x_4   x_5
+        def get_children_mock(s: sp.Symbol) -> list[sp.Symbol]:
+            s_str = str(s)
+            if s_str == "x_1":
+                return [sp.Symbol("x_2"), sp.Symbol("x_3")]
+            elif s_str == "x_2":
+                return [sp.Symbol("x_4")]
+            elif s_str == "x_3":
+                return [sp.Symbol("x_5")]
+            return []
+
+        provider.get_children.side_effect = get_children_mock
+
+        visitor = DatasetImputationVisitor(["staging"], provider=provider)
+
+        # Act
+        visitor.visit(assertion)
+
+        # Assert - All metrics in the tree should have dataset
+        for metric in metrics.values():
+            assert metric.dataset == "staging"
+        assert not visitor.has_errors()
+
+    def test_child_dataset_mismatch_with_recursive_processing(self) -> None:
+        """Test error detection when child has conflicting dataset during recursive processing."""
+        # Arrange
+        root = RootNode("test_suite")
+        check = root.add_check("test_check", datasets=["prod"])
+        validator = SymbolicValidator("> 0", lambda x: x > 0)
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test", validator=validator)
+
+        # Mock provider
+        provider = Mock(spec=MetricProvider)
+
+        parent_metric = Mock(spec=SymbolicMetric)
+        parent_metric.name = "week_over_week(sum(revenue))"
+        parent_metric.dataset = None  # Will be imputed to "prod"
+
+        # Child with conflicting dataset
+        child_metric = Mock(spec=SymbolicMetric)
+        child_metric.name = "lag(7)(sum(revenue))"
+        child_metric.dataset = "staging"  # Conflicts with parent's "prod"
+
+        provider.get_symbol.side_effect = lambda s: parent_metric if str(s) == "x_1" else child_metric
+        provider.get_children.return_value = [sp.Symbol("x_2")]
+
+        visitor = DatasetImputationVisitor(["prod", "staging"], provider=provider)
+
+        # Act
+        visitor.visit(assertion)
+
+        # Assert
+        assert parent_metric.dataset == "prod"  # Parent imputed
+        assert visitor.has_errors()
+        errors = visitor.get_errors()
+        # We get 2 errors: one for child-parent mismatch, one for check-symbol mismatch
+        assert len(errors) == 2
+
+        # Check that we have both types of errors
+        error_messages = " ".join(errors)
+        assert "Child symbol" in error_messages  # Parent-child mismatch error
+        assert "lag(7)" in error_messages
+        assert "staging" in error_messages
+        assert "prod" in error_messages
+
+    def test_only_processes_each_symbol_once(self) -> None:
+        """Test that each symbol is processed only once even if referenced multiple times."""
+        # Arrange
+        root = RootNode("test_suite")
+        check = root.add_check("test_check", datasets=["prod"])
+        validator = SymbolicValidator("> 0", lambda x: x > 0)
+        # Assertion uses sum of two metrics that share a common dependency
+        assertion = check.add_assertion(actual=sp.Symbol("x_1") + sp.Symbol("x_2"), name="test", validator=validator)
+
+        # Mock provider
+        provider = Mock(spec=MetricProvider)
+
+        metric1 = Mock(spec=SymbolicMetric)
+        metric1.name = "day_over_day(sum(revenue))"
+        metric1.dataset = None
+
+        metric2 = Mock(spec=SymbolicMetric)
+        metric2.name = "week_over_week(sum(revenue))"
+        metric2.dataset = None
+
+        metric3 = Mock(spec=SymbolicMetric)
+        metric3.name = "sum(revenue)"
+        metric3.dataset = None
+
+        # Create a mapping of symbols to metrics
+        symbol_to_metric = {"x_1": metric1, "x_2": metric2, "x_3": metric3}
+
+        provider.get_symbol.side_effect = lambda s: symbol_to_metric.get(str(s), Mock())
+
+        # Both x_1 and x_2 depend on x_3
+        def get_children_mock(s: sp.Symbol) -> list[sp.Symbol]:
+            s_str = str(s)
+            if s_str in ["x_1", "x_2"]:
+                return [sp.Symbol("x_3")]
+            return []
+
+        provider.get_children.side_effect = get_children_mock
+
+        visitor = DatasetImputationVisitor(["prod"], provider=provider)
+
+        # Act
+        visitor.visit(assertion)
+
+        # Assert
+        # All metrics should have datasets (each processed only once due to processed_symbols set)
+        assert metric1.dataset == "prod"
+        assert metric2.dataset == "prod"
+        assert metric3.dataset == "prod"  # Should be processed only once, not twice!
+        assert not visitor.has_errors()
+
+
 class TestDatasetImputationIntegration:
     """Integration tests for dataset imputation across the full graph."""
 

@@ -88,9 +88,10 @@ class DatasetImputationVisitor:
                     )
 
     def _visit_assertion_node(self, node: AssertionNode) -> None:
-        """Process SymbolicMetrics in an AssertionNode.
+        """Process SymbolicMetrics in an AssertionNode and their dependencies.
 
-        For each symbol in the assertion expression:
+        For each symbol in the assertion expression and all their transitive
+        dependencies:
         1. Get its SymbolicMetric from the provider
         2. Validate dataset consistency
         3. Impute dataset if needed
@@ -105,7 +106,20 @@ class DatasetImputationVisitor:
         # Extract symbols from the assertion's actual expression
         symbols = node.actual.free_symbols
 
-        for symbol in symbols:
+        # Process all symbols and their transitive dependencies
+        processed_symbols = set()
+        symbols_to_process = list(symbols)
+
+        while symbols_to_process:
+            symbol = symbols_to_process.pop()  # O(1) operation - removes from end
+
+            # Skip if already processed
+            if symbol in processed_symbols:
+                continue
+
+            processed_symbols.add(symbol)
+
+            # Process this symbol
             metric = self.provider.get_symbol(symbol)
 
             # Get parent check's datasets
@@ -129,8 +143,10 @@ class DatasetImputationVisitor:
                         f"parent check has multiple datasets: {parent_datasets}"
                     )
 
-            # Now propagate to children and validate consistency
+            # Get children of this symbol
             children = self.provider.get_children(symbol)
+
+            # Process each child
             for child_symbol in children:
                 child_metric = self.provider.get_symbol(child_symbol)
 
@@ -144,6 +160,10 @@ class DatasetImputationVisitor:
                     elif not child_metric.dataset:
                         # Propagate dataset from parent to child
                         child_metric.dataset = metric.dataset
+
+                # Add child to processing queue if not already processed
+                if child_symbol not in processed_symbols:
+                    symbols_to_process.append(child_symbol)
 
     def get_errors(self) -> list[str]:
         """Get the list of collected errors.
