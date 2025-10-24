@@ -104,46 +104,54 @@ class ExtendedMetricProvider:
         self._next_symbol = self._provider._next_symbol
         self._register = self._provider._register
 
+    def _resolve_metric_spec(self, metric: sp.Symbol) -> MetricSpec:
+        """Resolve a symbol to its underlying MetricSpec."""
+        symbolic_metric = self._provider.get_symbol(metric)
+        return symbolic_metric.metric_spec
+
     def day_over_day(
-        self, metric: MetricSpec, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
+        self, metric: sp.Symbol, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
+        metric_spec = self._resolve_metric_spec(metric)
         self._provider._register(
             sym := self._next_symbol(),
-            name=f"day_over_day({metric.name})",
-            fn=partial(compute.day_over_day, self._db, metric, key),
+            name=f"day_over_day({metric_spec.name})",
+            fn=partial(compute.day_over_day, self._db, metric_spec, key),
             key=key,
-            metric_spec=metric,
+            metric_spec=metric_spec,
             dataset=dataset,
         )
         return sym
 
     def stddev(
         self,
-        metric: MetricSpec,
+        metric: sp.Symbol,
         lag: int,
         n: int,
         key: ResultKeyProvider = ResultKeyProvider(),
         dataset: str | None = None,
     ) -> sp.Symbol:
+        metric_spec = self._resolve_metric_spec(metric)
         self._provider._register(
             sym := self._next_symbol(),
-            name=f"stddev({metric.name})",
-            fn=partial(compute.stddev, self._db, metric, lag, n, key),
+            name=f"stddev({metric_spec.name})",
+            fn=partial(compute.stddev, self._db, metric_spec, lag, n, key),
             key=key,
-            metric_spec=metric,
+            metric_spec=metric_spec,
             dataset=dataset,
         )
         return sym
 
     def week_over_week(
-        self, metric: MetricSpec, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
+        self, metric: sp.Symbol, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
+        metric_spec = self._resolve_metric_spec(metric)
         self._provider._register(
             sym := self._next_symbol(),
-            name=f"week_over_week({metric.name})",
-            fn=partial(compute.week_over_week, self._db, metric, key),
+            name=f"week_over_week({metric_spec.name})",
+            fn=partial(compute.week_over_week, self._db, metric_spec, key),
             key=key,
-            metric_spec=metric,
+            metric_spec=metric_spec,
             dataset=dataset,
         )
         return sym

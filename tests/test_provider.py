@@ -443,95 +443,114 @@ class TestExtendedMetricProvider:
         assert ext_provider._register == provider._register
 
     @patch("dqx.provider.compute.day_over_day")
-    def test_day_over_day(self, mock_day_over_day: Mock, ext_provider: ExtendedMetricProvider) -> None:
+    def test_day_over_day(
+        self, mock_day_over_day: Mock, provider: MetricProvider, ext_provider: ExtendedMetricProvider
+    ) -> None:
         """Test day_over_day() method."""
-        mock_metric = Mock(spec=specs.MetricSpec)
-        mock_metric.name = "test_metric"
+        # First create a symbol using the provider
+        mock_metric_spec = Mock(spec=specs.MetricSpec)
+        mock_metric_spec.name = "test_metric"
+        base_symbol = provider.metric(mock_metric_spec)
+
         mock_key_provider = Mock(spec=ResultKeyProvider)
         dataset = "dataset1"
 
-        symbol = ext_provider.day_over_day(mock_metric, mock_key_provider, dataset)
+        symbol = ext_provider.day_over_day(base_symbol, mock_key_provider, dataset)
 
         assert isinstance(symbol, sp.Symbol)
-        assert symbol.name == "x_1"
+        assert symbol.name == "x_2"
 
         # Check that the symbol was registered
         registered_metric = ext_provider._provider.get_symbol(symbol)
         assert registered_metric.name == "day_over_day(test_metric)"
         assert registered_metric.key_provider == mock_key_provider
         assert registered_metric.dataset == dataset
-        assert registered_metric.metric_spec == mock_metric
+        assert registered_metric.metric_spec == mock_metric_spec
 
-    def test_day_over_day_defaults(self, ext_provider: ExtendedMetricProvider) -> None:
+    def test_day_over_day_defaults(self, provider: MetricProvider, ext_provider: ExtendedMetricProvider) -> None:
         """Test day_over_day() method with default parameters."""
-        mock_metric = Mock(spec=specs.MetricSpec)
-        mock_metric.name = "test_metric"
+        # First create a symbol using the provider
+        mock_metric_spec = Mock(spec=specs.MetricSpec)
+        mock_metric_spec.name = "test_metric"
+        base_symbol = provider.metric(mock_metric_spec)
 
-        symbol = ext_provider.day_over_day(mock_metric)
+        symbol = ext_provider.day_over_day(base_symbol)
 
         registered_metric = ext_provider._provider.get_symbol(symbol)
         assert isinstance(registered_metric.key_provider, ResultKeyProvider)
         assert registered_metric.dataset is None
 
     @patch("dqx.provider.compute.stddev")
-    def test_stddev(self, mock_stddev: Mock, ext_provider: ExtendedMetricProvider) -> None:
+    def test_stddev(self, mock_stddev: Mock, provider: MetricProvider, ext_provider: ExtendedMetricProvider) -> None:
         """Test stddev() method."""
-        mock_metric = Mock(spec=specs.MetricSpec)
-        mock_metric.name = "test_metric"
+        # First create a symbol using the provider
+        mock_metric_spec = Mock(spec=specs.MetricSpec)
+        mock_metric_spec.name = "test_metric"
+        base_symbol = provider.metric(mock_metric_spec)
+
         mock_key_provider = Mock(spec=ResultKeyProvider)
         dataset = "dataset1"
         lag = 5
         n = 10
 
-        symbol = ext_provider.stddev(mock_metric, lag, n, mock_key_provider, dataset)
+        symbol = ext_provider.stddev(base_symbol, lag, n, mock_key_provider, dataset)
 
         assert isinstance(symbol, sp.Symbol)
-        assert symbol.name == "x_1"
+        assert symbol.name == "x_2"
 
         # Check that the symbol was registered
         registered_metric = ext_provider._provider.get_symbol(symbol)
         assert registered_metric.name == "stddev(test_metric)"
         assert registered_metric.key_provider == mock_key_provider
         assert registered_metric.dataset == dataset
-        assert registered_metric.metric_spec == mock_metric
+        assert registered_metric.metric_spec == mock_metric_spec
 
-    def test_stddev_defaults(self, ext_provider: ExtendedMetricProvider) -> None:
+    def test_stddev_defaults(self, provider: MetricProvider, ext_provider: ExtendedMetricProvider) -> None:
         """Test stddev() method with default parameters."""
-        mock_metric = Mock(spec=specs.MetricSpec)
-        mock_metric.name = "test_metric"
+        # First create a symbol using the provider
+        mock_metric_spec = Mock(spec=specs.MetricSpec)
+        mock_metric_spec.name = "test_metric"
+        base_symbol = provider.metric(mock_metric_spec)
 
-        symbol = ext_provider.stddev(mock_metric, 3, 7)
+        symbol = ext_provider.stddev(base_symbol, 3, 7)
 
         registered_metric = ext_provider._provider.get_symbol(symbol)
         assert isinstance(registered_metric.key_provider, ResultKeyProvider)
         assert registered_metric.dataset is None
 
     @patch("dqx.provider.compute.week_over_week")
-    def test_week_over_week(self, mock_week_over_week: Mock, ext_provider: ExtendedMetricProvider) -> None:
+    def test_week_over_week(
+        self, mock_week_over_week: Mock, provider: MetricProvider, ext_provider: ExtendedMetricProvider
+    ) -> None:
         """Test week_over_week() method."""
-        mock_metric = Mock(spec=specs.MetricSpec)
-        mock_metric.name = "test_metric"
+        # First create a symbol using the provider
+        mock_metric_spec = Mock(spec=specs.MetricSpec)
+        mock_metric_spec.name = "test_metric"
+        base_symbol = provider.metric(mock_metric_spec)
+
         mock_key_provider = Mock(spec=ResultKeyProvider)
         dataset = "dataset1"
 
-        symbol = ext_provider.week_over_week(mock_metric, mock_key_provider, dataset)
+        symbol = ext_provider.week_over_week(base_symbol, mock_key_provider, dataset)
 
         assert isinstance(symbol, sp.Symbol)
-        assert symbol.name == "x_1"
+        assert symbol.name == "x_2"
 
         # Check that the symbol was registered
         registered_metric = ext_provider._provider.get_symbol(symbol)
         assert registered_metric.name == "week_over_week(test_metric)"
         assert registered_metric.key_provider == mock_key_provider
         assert registered_metric.dataset == dataset
-        assert registered_metric.metric_spec == mock_metric
+        assert registered_metric.metric_spec == mock_metric_spec
 
-    def test_week_over_week_defaults(self, ext_provider: ExtendedMetricProvider) -> None:
+    def test_week_over_week_defaults(self, provider: MetricProvider, ext_provider: ExtendedMetricProvider) -> None:
         """Test week_over_week() method with default parameters."""
-        mock_metric = Mock(spec=specs.MetricSpec)
-        mock_metric.name = "test_metric"
+        # First create a symbol using the provider
+        mock_metric_spec = Mock(spec=specs.MetricSpec)
+        mock_metric_spec.name = "test_metric"
+        base_symbol = provider.metric(mock_metric_spec)
 
-        symbol = ext_provider.week_over_week(mock_metric)
+        symbol = ext_provider.week_over_week(base_symbol)
 
         registered_metric = ext_provider._provider.get_symbol(symbol)
         assert isinstance(registered_metric.key_provider, ResultKeyProvider)

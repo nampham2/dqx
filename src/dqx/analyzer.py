@@ -373,6 +373,7 @@ class Analyzer:
         for key, metrics in metrics_by_key.items():
             if not metrics:
                 logger.warning(f"No metrics to analyze for date {key.yyyy_mm_dd}")
+
             for metric in metrics:
                 for analyzer in metric.analyzers:
                     if isinstance(analyzer, SqlOp):

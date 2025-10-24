@@ -54,19 +54,20 @@ class ExtendedMetricProvider:
     _register: Callable[..., None]
 
     def __init__(self, provider: MetricProvider) -> None: ...
+    def _resolve_metric_spec(self, metric: sp.Symbol) -> MetricSpec: ...
     def day_over_day(
-        self, metric: MetricSpec, key: ResultKeyProvider = ..., dataset: str | None = None
+        self, metric: sp.Symbol, key: ResultKeyProvider = ..., dataset: str | None = None
     ) -> sp.Symbol: ...
     def stddev(
         self,
-        metric: MetricSpec,
+        metric: sp.Symbol,
         lag: int,
         n: int,
         key: ResultKeyProvider = ...,
         dataset: str | None = None,
     ) -> sp.Symbol: ...
     def week_over_week(
-        self, metric: MetricSpec, key: ResultKeyProvider = ..., dataset: str | None = None
+        self, metric: sp.Symbol, key: ResultKeyProvider = ..., dataset: str | None = None
     ) -> sp.Symbol: ...
 
 class MetricProvider(SymbolicMetricBase):

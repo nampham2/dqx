@@ -3,7 +3,6 @@ import datetime as dt
 import pyarrow as pa
 import sympy as sp
 
-from dqx import specs
 from dqx.api import VerificationSuite, check
 from dqx.common import Context, ResultKey
 from dqx.datasource import DuckRelationDataSource
@@ -17,7 +16,7 @@ def simple_checks(mp: MetricProvider, ctx: Context) -> None:
     ctx.assert_that(mp.null_count("delivered")).where(name="Delivered null count is less than 100").is_leq(100)
     ctx.assert_that(mp.minimum("quantity")).where(name="Minimum quantity check").is_leq(2.5)
     ctx.assert_that(mp.average("price")).where(name="Average price check").is_geq(10.0)
-    ctx.assert_that(mp.ext.day_over_day(specs.Average("tax"))).where(name="Tax day-over-day check").is_geq(0.5)
+    ctx.assert_that(mp.ext.day_over_day(mp.average("tax"))).where(name="Tax day-over-day check").is_geq(0.5)
     ctx.assert_that(mp.duplicate_count(["name"], dataset="ds1")).where(name="No duplicates on name").is_eq(0)
     ctx.assert_that(mp.minimum("quantity", dataset="ds1")).where(
         name="Quantity minimum is between 1 and 5",
@@ -41,8 +40,8 @@ def manual_day_over_day(mp: MetricProvider, ctx: Context) -> None:
 
 @check(name="Rate of change", datasets=["ds2"])
 def rate_of_change(mp: MetricProvider, ctx: Context) -> None:
-    tax_dod = mp.ext.day_over_day(specs.Maximum("tax"))
-    tax_wow = mp.ext.week_over_week(specs.Average("tax"))
+    tax_dod = mp.ext.day_over_day(mp.maximum("tax"))
+    tax_wow = mp.ext.week_over_week(mp.average("tax"))
     rate = sp.Abs(tax_dod - 1.0)
     ctx.assert_that(rate).where(name="Maximum tax rate change is less than 20%").is_leq(0.2)
     ctx.assert_that(tax_wow).where(name="Average tax week-over-week change is less than 30%").is_leq(0.3)

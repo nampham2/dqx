@@ -383,13 +383,13 @@ def test_unused_symbol_validator_extended_metrics() -> None:
     provider = MetricProvider(db)
 
     # Define regular and extended metrics
-    from dqx import specs
-
-    x1 = provider.ext.day_over_day(specs.Sum("revenue"))
-    x2 = provider.ext.stddev(specs.Average("latency"), lag=1, n=7)
+    # Note: When creating extended metrics, the base metrics are also registered as symbols
+    x1 = provider.ext.day_over_day(provider.sum("revenue"))
+    x2 = provider.ext.stddev(provider.average("latency"), lag=1, n=7)
     x3 = provider.average("conversion_rate")  # Regular metric, unused  # noqa: F841
 
-    # Only use extended metrics
+    # Only use extended metrics (x1 and x2)
+    # The base metrics (sum("revenue") and average("latency")) are registered but not directly used
     validator_fn = SymbolicValidator("> 0", lambda x: x > 0)
     check.add_assertion(x1 > 0.1, name="DoD check", validator=validator_fn)
     check.add_assertion(x2 < 100, name="Stddev check", validator=validator_fn)
@@ -398,10 +398,17 @@ def test_unused_symbol_validator_extended_metrics() -> None:
     validator = SuiteValidator()
     report = validator.validate(graph, provider)
 
-    # Should only warn about x3
+    # Should warn about:
+    # - x3 (average(conversion_rate)) - explicitly created but unused
+    # - The base metrics for extended metrics (sum(revenue) and average(latency))
     unused_warnings = [w for w in report.warnings if w.rule == "unused_symbols"]
-    assert len(unused_warnings) == 1
-    assert "x_3 ← average(conversion_rate)" in unused_warnings[0].message
+    assert len(unused_warnings) == 3
+
+    warning_messages = [w.message for w in unused_warnings]
+    # Check that all expected unused symbols are warned about
+    assert any("average(conversion_rate)" in msg for msg in warning_messages)
+    assert any("sum(revenue)" in msg for msg in warning_messages)
+    assert any("average(latency)" in msg for msg in warning_messages)
 
 
 def test_unused_symbol_validator_no_symbols_defined() -> None:

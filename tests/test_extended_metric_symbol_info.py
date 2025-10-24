@@ -4,7 +4,6 @@ import datetime as dt
 
 import pyarrow as pa
 
-from dqx import specs
 from dqx.api import VerificationSuite, check
 from dqx.common import Context, ResultKey
 from dqx.datasource import DuckRelationDataSource
@@ -16,15 +15,15 @@ from dqx.provider import MetricProvider
 def extended_metric_check(mp: MetricProvider, ctx: Context) -> None:
     """Test check using day_over_day, week_over_week, and stddev metrics."""
     # Create day_over_day metric
-    dod_metric = mp.ext.day_over_day(specs.Maximum("tax"))
+    dod_metric = mp.ext.day_over_day(mp.maximum("tax"))
     ctx.assert_that(dod_metric).where(name="Day over day check").is_geq(0.5)
 
     # Create week_over_week metric
-    wow_metric = mp.ext.week_over_week(specs.Sum("price"))
+    wow_metric = mp.ext.week_over_week(mp.sum("price"))
     ctx.assert_that(wow_metric).where(name="Week over week check").is_geq(0.8)
 
     # Create stddev metric
-    stddev_metric = mp.ext.stddev(specs.Average("price"), lag=1, n=7)
+    stddev_metric = mp.ext.stddev(mp.average("price"), lag=1, n=7)
     ctx.assert_that(stddev_metric).where(name="Standard deviation check").is_leq(10000.0)
 
 
