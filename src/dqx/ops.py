@@ -415,14 +415,7 @@ class CountValues(OpValueMixin[float], SqlOp[float]):
         # Declare _values with the broadest type first
         self._values: list[Any]
 
-        if isinstance(values, bool):
-            # Handle bool as a single value
-            self._values = [values]
-            self._is_single = True
-        elif isinstance(values, int):
-            self._values = [values]
-            self._is_single = True
-        elif isinstance(values, str):
+        if isinstance(values, (bool, int, str)):
             self._values = [values]
             self._is_single = True
         elif isinstance(values, list):
