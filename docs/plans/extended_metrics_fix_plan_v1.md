@@ -13,9 +13,10 @@ Extended metrics (day_over_day, week_over_week, stddev) have three main issues:
 ## Solution Overview
 
 1. Fix the naming issue in `evaluator.py`
-2. Add `parent_symbol` tracking to `SymbolicMetric`
+2. Add `parent_symbol` tracking to `SymbolicMetric` and efficient children tracking in `MetricProvider`
 3. Implement automatic dependency creation in extended metric methods
 4. Update `UnusedSymbolValidator` to skip symbols with parents
+5. Improve `print_symbols` to show hierarchical relationships efficiently
 
 ## Implementation Tasks
 
@@ -56,7 +57,7 @@ uv run mypy src/dqx/evaluator.py
 uv run ruff check --fix src/dqx/evaluator.py
 ```
 
-### Task Group 2: Add Parent Symbol Tracking (TDD)
+### Task Group 2: Add Parent Symbol Tracking and Efficient Children Map (TDD)
 
 **Task 2.1: Write failing test for parent symbol tracking**
 ```python
@@ -76,7 +77,21 @@ def test_extended_metrics_have_parent_symbols():
     assert dod_metric.parent_symbol == base
 ```
 
-**Task 2.2: Add parent_symbol field to SymbolicMetric**
+**Task 2.2: Add children tracking to MetricProvider**
+```python
+# In src/dqx/provider.py, update MetricProvider.__init__
+from collections import defaultdict
+
+def __init__(self, db: MetricDB) -> None:
+    """Initialize MetricProvider with children tracking."""
+    self.db = db
+    self._symbolic_metrics: dict[sp.Symbol, SymbolicMetric] = {}
+    self._next_symbol_id = 0
+    self._children_map: defaultdict[sp.Symbol, list[sp.Symbol]] = defaultdict(list)
+    self.ext = ExtendedMetricProvider(self, self.db)
+```
+
+**Task 2.3: Add parent_symbol field to SymbolicMetric**
 ```python
 # In src/dqx/provider.py, update the SymbolicMetric dataclass
 @dataclass
@@ -92,7 +107,69 @@ class SymbolicMetric:
     parent_symbol: sp.Symbol | None = None  # Add this field
 ```
 
-**Task 2.3: Update ExtendedMetricProvider to set parent relationships**
+**Task 2.4: Update metric() to accept parent parameter**
+```python
+# In src/dqx/provider.py, update metric method
+def metric(
+    self,
+    metric_spec: MetricSpec,
+    key: ResultKeyProvider = ResultKeyProvider(),
+    dataset: str | None = None,
+    parent: sp.Symbol | None = None  # Add parent parameter
+) -> sp.Symbol:
+    """Create a metric symbol with optional parent relationship."""
+    sym = self._next_symbol()
+    self._register(
+        sym,
+        name=metric_spec.name,
+        fn=partial(compute.metric, self.db, metric_spec, key),
+        key=key,
+        metric_spec=metric_spec,
+        dataset=dataset,
+        parent=parent  # Pass parent through
+    )
+    return sym
+```
+
+**Task 2.5: Update _register to track parent-child relationships**
+```python
+# In src/dqx/provider.py, update _register method
+def _register(
+    self,
+    symbol: sp.Symbol,
+    name: str,
+    fn: RetrievalFn,
+    key: ResultKeyProvider,
+    metric_spec: MetricSpec,
+    dataset: str | None = None,
+    parent: sp.Symbol | None = None  # Add parent parameter
+) -> None:
+    """Register a symbolic metric and track parent-child relationships."""
+    metric = SymbolicMetric(
+        name=name,
+        symbol=symbol,
+        fn=fn,
+        key_provider=key,
+        metric_spec=metric_spec,
+        dataset=dataset,
+        parent_symbol=parent
+    )
+    self._symbolic_metrics[symbol] = metric
+
+    # Update children map internally (defaultdict handles initialization)
+    if parent is not None:
+        self._children_map[parent].append(symbol)
+```
+
+**Task 2.6: Add method to get children of a symbol**
+```python
+# In src/dqx/provider.py, add new method
+def get_children(self, symbol: sp.Symbol) -> list[sp.Symbol]:
+    """Get children of a symbol. Returns empty list if no children."""
+    return self._children_map[symbol]  # defaultdict returns [] if key doesn't exist
+```
+
+**Task 2.7: Update ExtendedMetricProvider to set parent relationships**
 ```python
 # In src/dqx/provider.py, update day_over_day method
 def day_over_day(
@@ -112,16 +189,13 @@ def day_over_day(
         key=key,
         metric_spec=metric_spec,
         dataset=dataset,
+        parent=metric  # Set parent relationship
     )
-
-    # Set parent relationship
-    extended_metric = self._provider.get_symbol(sym)
-    extended_metric.parent_symbol = metric
 
     return sym
 ```
 
-**Task 2.4: Run tests and linting**
+**Task 2.8: Run tests and linting**
 ```bash
 uv run pytest tests/test_provider.py::test_extended_metrics_have_parent_symbols -v
 uv run mypy src/dqx/provider.py
@@ -156,10 +230,10 @@ def test_day_over_day_creates_dependency_symbols():
     assert 1 in lags
 ```
 
-**Task 3.2: Add helper method for creating metric windows**
+**Task 3.2: Add helper method for creating dependency metrics**
 ```python
 # In src/dqx/provider.py, add to ExtendedMetricProvider class
-def _create_metric_window(
+def _create_dependency_metrics(
     self,
     metric: sp.Symbol,
     start_lag: int,
@@ -168,31 +242,26 @@ def _create_metric_window(
     dataset: str | None = None,
     parent_symbol: sp.Symbol | None = None
 ) -> list[sp.Symbol]:
-    """Create metric symbols for a time window.
+    """Create dependency metric symbols for an extended metric.
 
     Args:
-        metric: Base metric symbol to create window for
+        metric: Base metric symbol to create dependencies for
         start_lag: Starting lag (e.g., 0 for current day)
         window_size: Number of days in window
         key: Result key provider
         dataset: Optional dataset name
-        parent_symbol: The extended metric symbol that depends on these
+        parent_symbol: The extended metric that depends on these
 
     Returns:
-        List of symbols for each lag in the window
+        List of created dependency symbols
     """
     metric_spec = self._resolve_metric_spec(metric)
     symbols = []
 
     for lag in range(start_lag, start_lag + window_size):
         lagged_key = key.lag(lag) if lag > 0 else key
-        sym = self._provider.metric(metric_spec, lagged_key, dataset)
-
-        # Set parent if provided
-        if parent_symbol:
-            symbolic_metric = self._provider.get_symbol(sym)
-            symbolic_metric.parent_symbol = parent_symbol
-
+        # Pass parent directly to metric()
+        sym = self._provider.metric(metric_spec, lagged_key, dataset, parent=parent_symbol)
         symbols.append(sym)
 
     return symbols
@@ -226,7 +295,7 @@ def day_over_day(
     extended_metric.parent_symbol = metric
 
     # Now create dependency symbols with extended metric as parent
-    self._create_metric_window(
+    self._create_dependency_metrics(
         metric,
         start_lag=0,
         window_size=2,
@@ -307,10 +376,7 @@ def week_over_week(
     # Create specific dependencies (lag 0 and lag 7)
     for lag in [0, 7]:
         lagged_key = key.lag(lag) if lag > 0 else key
-        dep_sym = self._provider.metric(metric_spec, lagged_key, dataset)
-
-        dep_metric = self._provider.get_symbol(dep_sym)
-        dep_metric.parent_symbol = sym
+        self._provider.metric(metric_spec, lagged_key, dataset, parent=sym)
 
     return sym
 ```
@@ -345,7 +411,7 @@ def stddev(
     extended_metric.parent_symbol = metric
 
     # Create dependency symbols for the window
-    self._create_metric_window(
+    self._create_dependency_metrics(
         metric,
         start_lag=lag,
         window_size=n,
@@ -562,10 +628,52 @@ def test_print_symbols_with_hierarchical_display(capsys):
     assert "└─ x_3" in captured.out
 ```
 
-**Task 7.2: Add parent tracking to SymbolInfo**
-Since SymbolInfo is likely frozen/immutable, we'll need to handle parent-child relationships during display by analyzing the symbols.
+**Task 7.2: Add children tracking to SymbolInfo**
+```python
+# In src/dqx/common.py, update SymbolInfo dataclass
+@dataclass
+class SymbolInfo:
+    """Information about a symbol in an expression."""
+    name: str
+    metric: str
+    dataset: str | None
+    value: Result[float, str]
+    yyyy_mm_dd: datetime.date
+    suite: str
+    tags: Tags = field(default_factory=dict)
+    children_names: list[str] = field(default_factory=list)  # Add this field
+```
 
-**Task 7.3: Update print_symbols to show hierarchy**
+**Task 7.3: Update evaluator to populate children_names**
+```python
+# In src/dqx/evaluator.py, update collect_symbols method
+def collect_symbols(self) -> list[SymbolInfo]:
+    """Collect all symbols and their metadata."""
+    symbol_infos = []
+
+    for sym, value in self._symbol_values.items():
+        sm = self._provider.get_symbol(sym)
+
+        # Get children names
+        children = self._provider.get_children(sym)
+        children_names = [str(child) for child in children]
+
+        symbol_info = SymbolInfo(
+            name=str(sym),
+            metric=sm.name,  # Fixed: was str(sm.metric_spec)
+            dataset=sm.dataset,
+            value=value,
+            yyyy_mm_dd=self._key.yyyy_mm_dd,
+            suite=self._suite_name,
+            tags=self._key.tags,
+            children_names=children_names  # Add children names
+        )
+        symbol_infos.append(symbol_info)
+
+    return symbol_infos
+```
+
+**Task 7.4: Update print_symbols to show hierarchy efficiently**
 ```python
 # In src/dqx/display.py
 def print_symbols(symbols: list[SymbolInfo], show_dependencies: bool = True) -> None:
@@ -602,10 +710,11 @@ def print_symbols(symbols: list[SymbolInfo], show_dependencies: bool = True) -> 
     table.add_column("Value/Error")
     table.add_column("Tags", style="dim")
 
-    # Group symbols by parent-child relationships
-    # Extended metrics contain base metric names in them
+    # Build symbol lookup for O(1) access
+    symbol_map = {s.name: s for s in symbols}
     displayed_symbols = set()
 
+    # Display symbols with their children
     for symbol in symbols:
         if symbol.name in displayed_symbols:
             continue
@@ -614,36 +723,17 @@ def print_symbols(symbols: list[SymbolInfo], show_dependencies: bool = True) -> 
         _add_symbol_row(table, symbol)
         displayed_symbols.add(symbol.name)
 
-        if show_dependencies:
-            # Find child symbols (those whose metric appears in parent metric)
-            children = [
-                s for s in symbols
-                if s.name != symbol.name
-                and s.name not in displayed_symbols
-                and _is_dependency_of(s, symbol)
-            ]
-
-            # Add child rows with indentation
-            for child in children:
-                _add_symbol_row(table, child, indent="  └─ ")
-                displayed_symbols.add(child.name)
+        if show_dependencies and symbol.children_names:
+            # Display children using the efficient children_names list
+            for child_name in symbol.children_names:
+                if child_name in symbol_map and child_name not in displayed_symbols:
+                    child = symbol_map[child_name]
+                    _add_symbol_row(table, child, indent="  └─ ")
+                    displayed_symbols.add(child_name)
 
     # Print table
     console = Console()
     console.print(table)
-
-
-def _is_dependency_of(child: SymbolInfo, parent: SymbolInfo) -> bool:
-    """Check if child symbol is a dependency of parent symbol."""
-    # Extract base metric from child (remove lag info)
-    base_metric = child.metric.split(" [lag=")[0]
-
-    # Check if base metric appears in parent metric
-    return base_metric in parent.metric and (
-        "day_over_day" in parent.metric
-        or "week_over_week" in parent.metric
-        or "stddev" in parent.metric
-    )
 
 
 def _add_symbol_row(
@@ -676,10 +766,11 @@ def _add_symbol_row(
     )
 ```
 
-**Task 7.4: Update metric names to include lag information**
-When creating dependency symbols, include lag information in the metric name for clarity.
+**Task 7.5: Update dependency metric names to include lag information**
+When creating dependency symbols, the metric names should include lag information for clarity.
+This will be handled automatically when creating lagged metrics.
 
-**Task 7.5: Run tests and verify display**
+**Task 7.6: Run tests and verify display**
 ```bash
 uv run pytest tests/test_display.py::test_print_symbols_with_hierarchical_display -v
 uv run mypy src/dqx/display.py
