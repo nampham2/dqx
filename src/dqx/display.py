@@ -208,7 +208,7 @@ def print_assertion_results(results: list[AssertionResult]) -> None:
     console.print(table)
 
 
-def print_symbols(symbols: list[SymbolInfo], show_dependencies: bool = False) -> None:
+def print_symbols(symbols: list[SymbolInfo]) -> None:
     """
     Display symbol values in a formatted table.
 
@@ -217,16 +217,12 @@ def print_symbols(symbols: list[SymbolInfo], show_dependencies: bool = False) ->
 
     Args:
         symbols: List of SymbolInfo objects from collect_symbols()
-        show_dependencies: If True, display parent-child relationships with indentation
 
     Example:
         >>> suite = VerificationSuite(checks, db, "My Suite")
         >>> suite.run(datasources, key)
         >>> symbols = suite.collect_symbols()
         >>> print_symbols(symbols)
-
-        # Show hierarchical relationships
-        >>> print_symbols(symbols, show_dependencies=True)
     """
     from returns.result import Failure, Success
     from rich.table import Table
@@ -243,93 +239,30 @@ def print_symbols(symbols: list[SymbolInfo], show_dependencies: bool = False) ->
     table.add_column("Value/Error")
     table.add_column("Tags", style="dim")
 
-    # Build parent-child map if showing dependencies
-    if show_dependencies:
-        # Create a map of symbol names to their children
-        parent_to_children: dict[str, list[SymbolInfo]] = {}
-        symbol_by_name: dict[str, SymbolInfo] = {s.name: s for s in symbols}
+    # Flat display of symbols
+    for symbol in symbols:
+        # Extract value/error using pattern matching with colors
+        match symbol.value:
+            case Success(value):
+                value_display = f"[green]{value}[/green]"
+            case Failure(error):
+                value_display = f"[red]{error}[/red]"
 
-        for symbol in symbols:
-            for child_name in symbol.children_names:
-                if symbol.name not in parent_to_children:
-                    parent_to_children[symbol.name] = []
-                if child_name in symbol_by_name:
-                    parent_to_children[symbol.name].append(symbol_by_name[child_name])
+        # Format tags as key=value pairs
+        tags_display = ", ".join(f"{k}={v}" for k, v in symbol.tags.items())
+        if not tags_display:
+            tags_display = "-"
 
-        # Find root symbols (those that are not children of any other symbol)
-        all_children: set[str] = set()
-        for children in parent_to_children.values():
-            all_children.update(child.name for child in children)
-        roots = [s for s in symbols if s.name not in all_children]
-
-        # Process symbols hierarchically
-        processed = set()
-
-        def add_symbol_and_children(symbol: SymbolInfo, indent: int = 0) -> None:
-            if symbol.name in processed:
-                return
-            processed.add(symbol.name)
-
-            # Extract value/error using pattern matching with colors
-            match symbol.value:
-                case Success(value):
-                    value_display = f"[green]{value}[/green]"
-                case Failure(error):
-                    value_display = f"[red]{error}[/red]"
-
-            # Format tags as key=value pairs
-            tags_display = ", ".join(f"{k}={v}" for k, v in symbol.tags.items())
-            if not tags_display:
-                tags_display = "-"
-
-            # Add indentation to metric name
-            metric_display = "  " * indent + symbol.metric
-
-            # Add row
-            table.add_row(
-                symbol.yyyy_mm_dd.isoformat(),
-                symbol.suite,
-                symbol.name,
-                metric_display,
-                symbol.dataset or "-",
-                value_display,
-                tags_display,
-            )
-
-            # Add children
-            if symbol.name in parent_to_children:
-                for child in parent_to_children[symbol.name]:
-                    add_symbol_and_children(child, indent + 1)
-
-        # Process all roots and their descendants
-        for root in roots:
-            add_symbol_and_children(root)
-
-    else:
-        # Original flat display
-        for symbol in symbols:
-            # Extract value/error using pattern matching with colors
-            match symbol.value:
-                case Success(value):
-                    value_display = f"[green]{value}[/green]"
-                case Failure(error):
-                    value_display = f"[red]{error}[/red]"
-
-            # Format tags as key=value pairs
-            tags_display = ", ".join(f"{k}={v}" for k, v in symbol.tags.items())
-            if not tags_display:
-                tags_display = "-"
-
-            # Add row
-            table.add_row(
-                symbol.yyyy_mm_dd.isoformat(),
-                symbol.suite,
-                symbol.name,
-                symbol.metric,
-                symbol.dataset or "-",
-                value_display,
-                tags_display,
-            )
+        # Add row
+        table.add_row(
+            symbol.yyyy_mm_dd.isoformat(),
+            symbol.suite,
+            symbol.name,
+            symbol.metric,
+            symbol.dataset or "-",
+            value_display,
+            tags_display,
+        )
 
     # Print table
     console = Console()
