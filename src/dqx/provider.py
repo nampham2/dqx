@@ -149,6 +149,15 @@ class ExtendedMetricProvider:
         symbolic_metric = self._provider.get_symbol(base_metric)
         metric_spec = symbolic_metric.metric_spec
 
+        # Create a new key_provider for the lag metric's symbol table registration
+        # This ensures the symbol table shows the correct lagged date
+        lag_key_provider = ResultKeyProvider()
+        lag_key_provider.lag(lag_days)
+
+        # For the computation function, use a fresh key_provider with lag=0
+        # since lag_metric already applies the lag internally via nominal_key.lag(lag)
+        base_key_provider = ResultKeyProvider()
+
         # Create lag function that applies the lag to the key
         def lag_metric(
             db: MetricDB, metric: MetricSpec, lag: int, key_provider: ResultKeyProvider, nominal_key: ResultKey
@@ -163,8 +172,8 @@ class ExtendedMetricProvider:
         self._provider._register(
             sym := self._next_symbol(),
             name=f"lag({lag_days})({base_metric})",
-            fn=partial(lag_metric, self._db, metric_spec, lag_days, symbolic_metric.key_provider),
-            key=symbolic_metric.key_provider,
+            fn=partial(lag_metric, self._db, metric_spec, lag_days, base_key_provider),
+            key=lag_key_provider,
             metric_spec=metric_spec,
             dataset=symbolic_metric.dataset,
             parent=parent_metric,  # Now the parent is the derived metric
