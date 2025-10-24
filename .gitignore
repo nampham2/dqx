@@ -9,6 +9,9 @@ wheels/
 .tmp/
 .clinerules/
 
+# coverage
+.coverage
+.cov/
+
 # Virtual environments
 .venv
-.coverage
