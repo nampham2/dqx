@@ -277,6 +277,25 @@ class DatasetValidator(BaseValidator):
                     )
                 )
 
+            # Check that children have consistent datasets with their parent
+            children = self._provider.get_children(symbol)
+            for child_symbol in children:
+                child_metric = self._provider.get_symbol(child_symbol)
+
+                # Both parent and child have datasets specified
+                if metric.dataset and child_metric.dataset and metric.dataset != child_metric.dataset:
+                    self._issues.append(
+                        ValidationIssue(
+                            rule=self.name,
+                            message=(
+                                f"Child symbol '{child_metric.name}' has dataset '{child_metric.dataset}' "
+                                f"but its parent symbol '{metric.name}' has dataset '{metric.dataset}'. "
+                                f"Dependent metrics must use the same dataset as their parent."
+                            ),
+                            node_path=["root", f"check:{parent_check.name}", f"assertion:{node.name}"],
+                        )
+                    )
+
 
 class UnusedSymbolValidator(BaseValidator):
     """Detects symbols that are defined but not used in any assertion."""

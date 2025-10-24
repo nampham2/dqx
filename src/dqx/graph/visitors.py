@@ -94,6 +94,7 @@ class DatasetImputationVisitor:
         1. Get its SymbolicMetric from the provider
         2. Validate dataset consistency
         3. Impute dataset if needed
+        4. Propagate datasets to children and validate consistency
 
         Args:
             node: The AssertionNode to process
@@ -127,6 +128,22 @@ class DatasetImputationVisitor:
                         f"Cannot impute dataset for symbol '{metric.name}': "
                         f"parent check has multiple datasets: {parent_datasets}"
                     )
+
+            # Now propagate to children and validate consistency
+            children = self.provider.get_children(symbol)
+            for child_symbol in children:
+                child_metric = self.provider.get_symbol(child_symbol)
+
+                if metric.dataset:  # Parent has a dataset
+                    if child_metric.dataset and child_metric.dataset != metric.dataset:
+                        self._errors.append(
+                            f"Child symbol '{child_metric.name}' has dataset '{child_metric.dataset}' "
+                            f"but its parent symbol '{metric.name}' has dataset '{metric.dataset}'. "
+                            f"Child symbols must use the same dataset as their parent."
+                        )
+                    elif not child_metric.dataset:
+                        # Propagate dataset from parent to child
+                        child_metric.dataset = metric.dataset
 
     def get_errors(self) -> list[str]:
         """Get the list of collected errors.

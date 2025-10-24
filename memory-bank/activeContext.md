@@ -1,67 +1,57 @@
 # Active Context
 
-## Current Work Focus: CountValues Op Implementation Completed
+## Current Work Focus: Parent-Child Dataset Validation
 
 ### Recent Implementation (2024-10-24)
-Successfully implemented the CountValues operation for DQX, allowing users to count occurrences of specific values in columns.
+Successfully enhanced dataset validation to check parent-child symbol relationships, ensuring dataset consistency across hierarchical metric dependencies.
 
 ### Key Implementation Details
 
-#### Core Op Implementation
-- Created `CountValues` class in `ops.py` with:
-  - Support for single values (int/str) and lists of values
-  - Homogeneous type enforcement for lists
-  - Proper string escaping for SQL injection prevention
-  - Clear validation with helpful error messages
-  - Proper hash/equality implementation for deduplication
+#### Enhanced DatasetValidator
+- Extended validation to check child symbols of metrics used in assertions
+- Added recursive validation for parent-child dataset consistency
+- Validates that child symbols either:
+  - Have the same dataset as their parent
+  - Have no dataset (will be imputed from parent)
+  - Are not using a conflicting dataset
 
-#### SQL Dialect Support
-- **DuckDB**: Uses `COUNT_IF` with conditions for single values or IN clause for multiple values
-- **BigQuery**: Uses `COUNTIF` with same conditional logic
-- Both dialects properly escape string values and handle backticks/quotes
+#### Enhanced DatasetImputationVisitor
+- Added parent-child dataset propagation during imputation
+- When a parent symbol has a dataset, propagates it to children with no dataset
+- Validates that children don't have conflicting datasets
+- Maintains consistency across the entire symbol dependency tree
 
-#### API Integration
-- Added `count_values()` helper method to Provider class
-- Works seamlessly with existing DQX patterns
-- Supports method chaining like other operations
-
-#### Type Safety
-- Full mypy compliance with proper type annotations
-- Separated handling for int vs str to satisfy type checker
-- Uses `list[int] | list[str]` for internal storage
+#### Error Reporting
+- Clear error messages for parent-child dataset mismatches
+- Reports specific symbol names and dataset conflicts
+- Example: "Child symbol 'day_over_day(revenue)' has dataset 'staging' but parent 'sum(revenue)' uses 'production'"
 
 ### Test Coverage
-- Comprehensive unit tests for all scenarios
-- Integration tests with dialect translations
-- API-level tests demonstrating usage
-- Edge case handling (empty lists, bools, mixed types)
+- Comprehensive tests for parent-child validation scenarios
+- Tests for dataset propagation from parent to child
+- Tests for multiple children with different datasets
+- Tests for allowing children without datasets (imputation)
 
-### Usage Examples
-```python
-# Count single value
-api.count_values("status", "active")
-
-# Count multiple values
-api.count_values("category", ["electronics", "books", "toys"])
-
-# Count numeric values
-api.count_values("rating", [4, 5])
-```
+### Usage Impact
+This prevents subtle bugs where:
+- A parent metric uses production data
+- Its derived metric (e.g., day_over_day) accidentally uses staging data
+- Results would be incorrect due to dataset mismatch
 
 ### Next Steps
-- Monitor for any user feedback on the implementation
-- Consider extending to support other comparison operators if needed
-- Potentially add support for NULL counting within CountValues
+- Monitor for edge cases in complex symbol hierarchies
+- Consider validation for more complex dependency chains
+- Potentially add visualization of dataset propagation
 
 ### Important Patterns Learned
-1. When implementing new ops, follow the established pattern in other ops
-2. Always handle type validation explicitly, especially for bools
-3. SQL escaping is critical for string values
-4. Maintain consistency in error messages across the codebase
-5. Test coverage should include all edge cases and type combinations
+1. Dataset consistency must be enforced across symbol dependencies
+2. Parent-child relationships in metrics need special validation
+3. Clear error messages are crucial for debugging dataset issues
+4. Recursive validation is necessary for deep hierarchies
 
-### Technical Decisions
-- Chose to normalize single values to lists internally for consistent handling
-- Used MD5 hash for SQL column naming to ensure uniqueness
-- Kept original value format for equality/display purposes
-- Separated int/str handling in __init__ to satisfy mypy
+### Previous Work: CountValues Op Implementation
+Successfully implemented the CountValues operation for DQX, allowing users to count occurrences of specific values in columns. Key features:
+- Support for single values and lists
+- Type safety with mypy compliance
+- SQL injection prevention
+- Integration with Provider API

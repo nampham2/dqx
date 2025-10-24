@@ -77,6 +77,7 @@ class TestDatasetImputationVisitor:
         symbolic_metric.name = "x_1"
         symbolic_metric.dataset = None
         provider.get_symbol.return_value = symbolic_metric
+        provider.get_children.return_value = []  # No children
 
         visitor = DatasetImputationVisitor(["prod"], provider=provider)
 
@@ -111,6 +112,7 @@ class TestDatasetImputationVisitor:
         symbolic_metric.name = "x_1"
         symbolic_metric.dataset = "prod"  # Explicitly set
         provider.get_symbol.return_value = symbolic_metric
+        provider.get_children.return_value = []  # No children
 
         visitor = DatasetImputationVisitor(["prod", "staging"], provider=provider)
 
@@ -135,6 +137,7 @@ class TestDatasetImputationVisitor:
         symbolic_metric.name = "x_1"
         symbolic_metric.dataset = "prod"  # Requires prod but check only has staging
         provider.get_symbol.return_value = symbolic_metric
+        provider.get_children.return_value = []  # No children
 
         visitor = DatasetImputationVisitor(["prod", "staging"], provider=provider)
 
@@ -163,6 +166,7 @@ class TestDatasetImputationVisitor:
         symbolic_metric.name = "x_1"
         symbolic_metric.dataset = None  # No dataset specified
         provider.get_symbol.return_value = symbolic_metric
+        provider.get_children.return_value = []  # No children
 
         visitor = DatasetImputationVisitor(["prod", "staging"], provider=provider)
 
@@ -190,6 +194,7 @@ class TestDatasetImputationVisitor:
         symbolic_metric.name = "x_1"
         symbolic_metric.dataset = None  # Will be imputed
         provider.get_symbol.return_value = symbolic_metric
+        provider.get_children.return_value = []  # No children
 
         visitor = DatasetImputationVisitor(["prod"], provider=provider)
 
@@ -304,6 +309,7 @@ class TestDatasetImputationVisitor:
         metric.name = "x_1"
         metric.dataset = None
         provider.get_symbol.return_value = metric
+        provider.get_children.return_value = []  # No children
 
         visitor = DatasetImputationVisitor(["prod"], provider=provider)
 
@@ -347,6 +353,200 @@ class TestDatasetImputationVisitor:
         assert not visitor.has_errors()
 
 
+class TestDatasetImputationParentChild:
+    """Test suite for parent-child dataset propagation and validation."""
+
+    def test_propagates_dataset_from_parent_to_child(self) -> None:
+        """Test that dataset is propagated from parent symbol to child symbol."""
+        # Arrange
+        root = RootNode("test_suite")
+        check = root.add_check("test_check", datasets=["prod"])
+        validator = SymbolicValidator("> 0", lambda x: x > 0)
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test", validator=validator)
+
+        # Mock provider with parent-child relationship
+        provider = Mock(spec=MetricProvider)
+
+        # Parent metric with dataset
+        parent_metric = Mock(spec=SymbolicMetric)
+        parent_metric.name = "sum(revenue)"
+        parent_metric.dataset = "prod"
+
+        # Child metric without dataset
+        child_metric = Mock(spec=SymbolicMetric)
+        child_metric.name = "day_over_day(sum(revenue))"
+        child_metric.dataset = None  # Will be propagated
+
+        provider.get_symbol.side_effect = lambda s: parent_metric if str(s) == "x_1" else None
+        provider.get_children.return_value = [sp.Symbol("x_2")]  # x_1 has child x_2
+
+        # When getting child symbol
+        provider.get_symbol.side_effect = lambda s: parent_metric if str(s) == "x_1" else child_metric
+
+        visitor = DatasetImputationVisitor(["prod"], provider=provider)
+
+        # Act
+        visitor.visit(assertion)
+
+        # Assert
+        assert child_metric.dataset == "prod"  # Propagated from parent
+        assert not visitor.has_errors()
+
+    def test_error_on_conflicting_parent_child_datasets(self) -> None:
+        """Test error when child has different dataset than parent."""
+        # Arrange
+        root = RootNode("test_suite")
+        check = root.add_check("test_check", datasets=["prod", "staging"])
+        validator = SymbolicValidator("> 0", lambda x: x > 0)
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test", validator=validator)
+
+        # Mock provider with parent-child relationship
+        provider = Mock(spec=MetricProvider)
+
+        # Parent metric with dataset
+        parent_metric = Mock(spec=SymbolicMetric)
+        parent_metric.name = "sum(revenue)"
+        parent_metric.dataset = "prod"
+
+        # Child metric with different dataset
+        child_metric = Mock(spec=SymbolicMetric)
+        child_metric.name = "day_over_day(sum(revenue))"
+        child_metric.dataset = "staging"  # Conflicts with parent
+
+        provider.get_symbol.side_effect = lambda s: parent_metric if str(s) == "x_1" else child_metric
+        provider.get_children.return_value = [sp.Symbol("x_2")]  # x_1 has child x_2
+
+        visitor = DatasetImputationVisitor(["prod", "staging"], provider=provider)
+
+        # Act
+        visitor.visit(assertion)
+
+        # Assert
+        assert visitor.has_errors()
+        errors = visitor.get_errors()
+        assert len(errors) == 1
+        assert "Child symbol" in errors[0]
+        assert "day_over_day" in errors[0]
+        assert "staging" in errors[0]
+        assert "prod" in errors[0]
+
+    def test_multiple_children_propagation(self) -> None:
+        """Test dataset propagation to multiple children."""
+        # Arrange
+        root = RootNode("test_suite")
+        check = root.add_check("test_check", datasets=["prod"])
+        validator = SymbolicValidator("> 0", lambda x: x > 0)
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test", validator=validator)
+
+        # Mock provider with parent and multiple children
+        provider = Mock(spec=MetricProvider)
+
+        # Parent metric
+        parent_metric = Mock(spec=SymbolicMetric)
+        parent_metric.name = "sum(revenue)"
+        parent_metric.dataset = "prod"
+
+        # Child metrics without datasets
+        dod_metric = Mock(spec=SymbolicMetric)
+        dod_metric.name = "day_over_day(sum(revenue))"
+        dod_metric.dataset = None
+
+        wow_metric = Mock(spec=SymbolicMetric)
+        wow_metric.name = "week_over_week(sum(revenue))"
+        wow_metric.dataset = None
+
+        def get_symbol_mock(s: sp.Symbol) -> Mock | None:
+            s_str = str(s)
+            if s_str == "x_1":
+                return parent_metric
+            elif s_str == "x_2":
+                return dod_metric
+            elif s_str == "x_3":
+                return wow_metric
+            return None
+
+        provider.get_symbol.side_effect = get_symbol_mock
+        provider.get_children.return_value = [sp.Symbol("x_2"), sp.Symbol("x_3")]
+
+        visitor = DatasetImputationVisitor(["prod"], provider=provider)
+
+        # Act
+        visitor.visit(assertion)
+
+        # Assert
+        assert dod_metric.dataset == "prod"  # Propagated
+        assert wow_metric.dataset == "prod"  # Propagated
+        assert not visitor.has_errors()
+
+    def test_no_propagation_when_parent_has_no_dataset(self) -> None:
+        """Test that no propagation occurs when parent has no dataset."""
+        # Arrange
+        root = RootNode("test_suite")
+        check = root.add_check("test_check", datasets=["prod"])
+        validator = SymbolicValidator("> 0", lambda x: x > 0)
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test", validator=validator)
+
+        # Mock provider
+        provider = Mock(spec=MetricProvider)
+
+        # Parent metric without dataset
+        parent_metric = Mock(spec=SymbolicMetric)
+        parent_metric.name = "sum(revenue)"
+        parent_metric.dataset = None  # No dataset to propagate
+
+        # Child metric
+        child_metric = Mock(spec=SymbolicMetric)
+        child_metric.name = "day_over_day(sum(revenue))"
+        child_metric.dataset = None
+
+        provider.get_symbol.side_effect = lambda s: parent_metric if str(s) == "x_1" else child_metric
+        provider.get_children.return_value = [sp.Symbol("x_2")]
+
+        visitor = DatasetImputationVisitor(["prod"], provider=provider)
+
+        # Act
+        visitor.visit(assertion)
+
+        # Assert
+        # Parent gets imputed
+        assert parent_metric.dataset == "prod"
+        # Child also gets parent's imputed dataset
+        assert child_metric.dataset == "prod"
+        assert not visitor.has_errors()
+
+    def test_child_with_existing_valid_dataset_preserved(self) -> None:
+        """Test that child's existing valid dataset is preserved when matching parent."""
+        # Arrange
+        root = RootNode("test_suite")
+        check = root.add_check("test_check", datasets=["prod"])
+        validator = SymbolicValidator("> 0", lambda x: x > 0)
+        assertion = check.add_assertion(actual=sp.Symbol("x_1"), name="test", validator=validator)
+
+        # Mock provider
+        provider = Mock(spec=MetricProvider)
+
+        # Parent and child both have same dataset
+        parent_metric = Mock(spec=SymbolicMetric)
+        parent_metric.name = "sum(revenue)"
+        parent_metric.dataset = "prod"
+
+        child_metric = Mock(spec=SymbolicMetric)
+        child_metric.name = "day_over_day(sum(revenue))"
+        child_metric.dataset = "prod"  # Same as parent - OK
+
+        provider.get_symbol.side_effect = lambda s: parent_metric if str(s) == "x_1" else child_metric
+        provider.get_children.return_value = [sp.Symbol("x_2")]
+
+        visitor = DatasetImputationVisitor(["prod"], provider=provider)
+
+        # Act
+        visitor.visit(assertion)
+
+        # Assert
+        assert child_metric.dataset == "prod"  # Preserved
+        assert not visitor.has_errors()
+
+
 class TestDatasetImputationIntegration:
     """Integration tests for dataset imputation across the full graph."""
 
@@ -372,6 +572,7 @@ class TestDatasetImputationIntegration:
         metric2.dataset = None
 
         provider.get_symbol.side_effect = lambda s: metric1 if str(s) == "x_1" else metric2
+        provider.get_children.return_value = []  # No children
 
         visitor = DatasetImputationVisitor(["prod", "staging"], provider=provider)
 
@@ -418,6 +619,7 @@ class TestDatasetImputationIntegration:
         metric2.dataset = "staging"  # Requires staging but check2 only has prod
 
         provider.get_symbol.side_effect = lambda s: metric1 if str(s) == "x_1" else metric2
+        provider.get_children.return_value = []  # No children
 
         visitor = DatasetImputationVisitor(["prod", "staging"], provider=provider)
 
