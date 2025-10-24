@@ -510,14 +510,191 @@ uv run pytest tests/ -v --cov=dqx.provider --cov=dqx.evaluator --cov=dqx.validat
 bin/run-hooks.sh
 ```
 
+### Task Group 7: Improve print_symbols Display (TDD)
+
+**Task 7.1: Write test for hierarchical symbol display**
+```python
+# In tests/test_display.py
+def test_print_symbols_with_hierarchical_display(capsys):
+    """Test that print_symbols shows parent-child relationships with indentation."""
+    from dqx.common import SymbolInfo
+    from dqx.display import print_symbols
+    from returns.result import Success
+    from datetime import date
+
+    # Create symbols with parent-child relationships
+    symbols = [
+        SymbolInfo(
+            name="x_2",
+            metric="day_over_day(maximum(tax))",
+            dataset="sales",
+            value=Success(0.15),
+            yyyy_mm_dd=date(2024, 10, 24),
+            suite="Suite",
+            tags={}
+        ),
+        SymbolInfo(
+            name="x_1",
+            metric="maximum(tax)",
+            dataset="sales",
+            value=Success(100.0),
+            yyyy_mm_dd=date(2024, 10, 24),
+            suite="Suite",
+            tags={}
+        ),
+        SymbolInfo(
+            name="x_3",
+            metric="maximum(tax) [lag=1]",
+            dataset="sales",
+            value=Success(87.0),
+            yyyy_mm_dd=date(2024, 10, 24),
+            suite="Suite",
+            tags={}
+        ),
+    ]
+
+    print_symbols(symbols)
+    captured = capsys.readouterr()
+
+    # Check for indentation in output
+    assert "x_2" in captured.out
+    assert "└─ x_1" in captured.out
+    assert "└─ x_3" in captured.out
+```
+
+**Task 7.2: Add parent tracking to SymbolInfo**
+Since SymbolInfo is likely frozen/immutable, we'll need to handle parent-child relationships during display by analyzing the symbols.
+
+**Task 7.3: Update print_symbols to show hierarchy**
+```python
+# In src/dqx/display.py
+def print_symbols(symbols: list[SymbolInfo], show_dependencies: bool = True) -> None:
+    """
+    Display symbol values in a formatted table with hierarchical grouping.
+
+    Shows all fields from SymbolInfo objects in a table with columns:
+    Date, Suite, Symbol, Metric, Dataset, Value/Error, Tags
+
+    Dependencies are shown indented under their parent symbols.
+
+    Args:
+        symbols: List of SymbolInfo objects from collect_symbols()
+        show_dependencies: Whether to show dependency symbols (default: True)
+
+    Example:
+        >>> suite = VerificationSuite(checks, db, "My Suite")
+        >>> suite.run(datasources, key)
+        >>> symbols = suite.collect_symbols()
+        >>> print_symbols(symbols)
+    """
+    from returns.result import Failure, Success
+    from rich.table import Table
+
+    # Create table with title
+    table = Table(title="Symbol Values", show_lines=True)
+
+    # Add columns in specified order
+    table.add_column("Date", style="cyan", no_wrap=True)
+    table.add_column("Suite", style="blue")
+    table.add_column("Symbol", style="yellow", no_wrap=True)
+    table.add_column("Metric")
+    table.add_column("Dataset", style="magenta")
+    table.add_column("Value/Error")
+    table.add_column("Tags", style="dim")
+
+    # Group symbols by parent-child relationships
+    # Extended metrics contain base metric names in them
+    displayed_symbols = set()
+
+    for symbol in symbols:
+        if symbol.name in displayed_symbols:
+            continue
+
+        # Add parent row
+        _add_symbol_row(table, symbol)
+        displayed_symbols.add(symbol.name)
+
+        if show_dependencies:
+            # Find child symbols (those whose metric appears in parent metric)
+            children = [
+                s for s in symbols
+                if s.name != symbol.name
+                and s.name not in displayed_symbols
+                and _is_dependency_of(s, symbol)
+            ]
+
+            # Add child rows with indentation
+            for child in children:
+                _add_symbol_row(table, child, indent="  └─ ")
+                displayed_symbols.add(child.name)
+
+    # Print table
+    console = Console()
+    console.print(table)
+
+
+def _is_dependency_of(child: SymbolInfo, parent: SymbolInfo) -> bool:
+    """Check if child symbol is a dependency of parent symbol."""
+    # Extract base metric from child (remove lag info)
+    base_metric = child.metric.split(" [lag=")[0]
+
+    # Check if base metric appears in parent metric
+    return base_metric in parent.metric and (
+        "day_over_day" in parent.metric
+        or "week_over_week" in parent.metric
+        or "stddev" in parent.metric
+    )
+
+
+def _add_symbol_row(
+    table: Table,
+    symbol: SymbolInfo,
+    indent: str = ""
+) -> None:
+    """Add a symbol row to the table with optional indentation."""
+    # Extract value/error using pattern matching with colors
+    match symbol.value:
+        case Success(value):
+            value_display = f"[green]{value}[/green]"
+        case Failure(error):
+            value_display = f"[red]{error}[/red]"
+
+    # Format tags as key=value pairs
+    tags_display = ", ".join(f"{k}={v}" for k, v in symbol.tags.items())
+    if not tags_display:
+        tags_display = "-"
+
+    # Add row with optional indentation on symbol
+    table.add_row(
+        symbol.yyyy_mm_dd.isoformat(),
+        symbol.suite,
+        f"{indent}{symbol.name}",
+        symbol.metric,
+        symbol.dataset or "-",
+        value_display,
+        tags_display,
+    )
+```
+
+**Task 7.4: Update metric names to include lag information**
+When creating dependency symbols, include lag information in the metric name for clarity.
+
+**Task 7.5: Run tests and verify display**
+```bash
+uv run pytest tests/test_display.py::test_print_symbols_with_hierarchical_display -v
+uv run mypy src/dqx/display.py
+uv run ruff check --fix src/dqx/display.py
+```
+
 ## Success Criteria
 
 1. Extended metrics display correct names in symbol collection
 2. Extended metrics automatically create their required dependencies
 3. Dependency symbols don't trigger unused warnings
-4. All tests pass with 100% coverage
-5. No linting or type checking errors
-6. Pre-commit hooks pass
+4. Symbol display shows hierarchical relationships clearly
+5. All tests pass with 100% coverage
+6. No linting or type checking errors
+7. Pre-commit hooks pass
 
 ## Notes for Implementation
 
@@ -525,3 +702,4 @@ bin/run-hooks.sh
 - Commit after each task group completion
 - If any test reveals additional issues, add them to the plan
 - The `parent_symbol` field creates a dependency graph that can be used for future enhancements
+- The print_symbols improvement provides better visibility into metric relationships
