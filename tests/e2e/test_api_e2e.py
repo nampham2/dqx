@@ -231,9 +231,37 @@ def test_e2e_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> No
     suite.graph.print_tree()
 
     print_assertion_results(suite.collect_results())
-    print_symbols(suite.collect_symbols())
+    print_symbols(symbols := suite.collect_symbols())
 
     # Create and display ground truth
     print("\n" + "=" * 80 + "\n")
     ground_truth = create_ground_truth(commerce_data_c1, commerce_data_c2)
     print_ground_truth(ground_truth)
+
+    # Simple assertions for each symbol
+    failures = []
+    for symbol_info in symbols:
+        symbol = symbol_info.name
+        if symbol in ground_truth:
+            expected = ground_truth[symbol]
+
+            # Extract actual value from Result type
+            from returns.result import Failure, Success
+
+            match symbol_info.value:
+                case Success(value):
+                    actual = value
+                    # Check for equality (with tolerance for floats)
+                    if isinstance(expected, float) and isinstance(actual, float):
+                        if abs(actual - expected) > 1e-10:
+                            failures.append(f"{symbol}: expected {expected}, got {actual}")
+                    elif actual != expected:
+                        failures.append(f"{symbol}: expected {expected}, got {actual}")
+                case Failure(error):
+                    failures.append(f"{symbol}: computation failed with error: {error}")
+                case _:
+                    failures.append(f"{symbol}: unexpected result type: {symbol_info.value}")
+
+    # Report all failures
+    if failures:
+        assert False, "Symbol validation failed:\n" + "\n".join(failures)
