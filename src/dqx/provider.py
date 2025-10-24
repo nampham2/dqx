@@ -5,6 +5,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import partial
 from threading import Lock
+from typing import overload
 
 import sympy as sp
 from returns.result import Result
@@ -210,6 +211,90 @@ class MetricProvider(SymbolicMetricBase):
     ) -> sp.Symbol:
         return self.metric(specs.DuplicateCount(columns), key, dataset)
 
+    @overload
+    def count_values(
+        self, column: str, values: int, key: ResultKeyProvider = ..., dataset: str | None = ...
+    ) -> sp.Symbol:
+        """Count occurrences of a specific integer value in a column.
+
+        Args:
+            column: Column name to count values in
+            values: The integer value to count
+            key: Result key provider
+            dataset: Optional dataset name
+
+        Returns:
+            Symbol representing the count
+
+        Example:
+            >>> suite.count_values("user_id", 123)
+            >>> suite.count_values("type_id", 1)
+        """
+        ...
+
+    @overload
+    def count_values(
+        self, column: str, values: str, key: ResultKeyProvider = ..., dataset: str | None = ...
+    ) -> sp.Symbol:
+        """Count occurrences of a specific string value in a column.
+
+        Args:
+            column: Column name to count values in
+            values: The string value to count
+            key: Result key provider
+            dataset: Optional dataset name
+
+        Returns:
+            Symbol representing the count
+
+        Example:
+            >>> suite.count_values("status", "active")
+            >>> suite.count_values("category", "electronics")
+        """
+        ...
+
+    @overload
+    def count_values(
+        self, column: str, values: list[int], key: ResultKeyProvider = ..., dataset: str | None = ...
+    ) -> sp.Symbol:
+        """Count occurrences of multiple integer values in a column.
+
+        Args:
+            column: Column name to count values in
+            values: List of integer values to count
+            key: Result key provider
+            dataset: Optional dataset name
+
+        Returns:
+            Symbol representing the count
+
+        Example:
+            >>> suite.count_values("user_id", [123, 456, 789])
+            >>> suite.count_values("type_id", [1, 2, 3])
+        """
+        ...
+
+    @overload
+    def count_values(
+        self, column: str, values: list[str], key: ResultKeyProvider = ..., dataset: str | None = ...
+    ) -> sp.Symbol:
+        """Count occurrences of multiple string values in a column.
+
+        Args:
+            column: Column name to count values in
+            values: List of string values to count
+            key: Result key provider
+            dataset: Optional dataset name
+
+        Returns:
+            Symbol representing the count
+
+        Example:
+            >>> suite.count_values("status", ["active", "pending"])
+            >>> suite.count_values("category", ["electronics", "books", "clothing"])
+        """
+        ...
+
     def count_values(
         self,
         column: str,
@@ -217,4 +302,35 @@ class MetricProvider(SymbolicMetricBase):
         key: ResultKeyProvider = ResultKeyProvider(),
         dataset: str | None = None,
     ) -> sp.Symbol:
+        """Count occurrences of specific value(s) in a column.
+
+        This operation counts only the specified values, never NULLs.
+        Empty strings are counted as values, not as NULLs.
+
+        Args:
+            column: Column name to count values in
+            values: Value(s) to count - single int/str or list of int/str
+            key: Result key provider
+            dataset: Optional dataset name
+
+        Returns:
+            Symbol representing the count
+
+        Examples:
+            >>> from dqx import ValidationSuite
+            >>> suite = ValidationSuite("test")
+
+            >>> # Count single value
+            >>> suite.count_values("status", "active")
+
+            >>> # Count multiple values efficiently in one query
+            >>> suite.count_values("status", ["active", "pending"])
+
+            >>> # Count integer values
+            >>> suite.count_values("type_id", [1, 2, 3])
+
+        Performance Note:
+            Counting multiple values with a list is more efficient than
+            making multiple separate count_values calls.
+        """
         return self.metric(specs.CountValues(column, values), key, dataset)
