@@ -213,6 +213,27 @@ class MetricProvider(SymbolicMetricBase):
 
     @overload
     def count_values(
+        self, column: str, values: bool, key: ResultKeyProvider = ..., dataset: str | None = ...
+    ) -> sp.Symbol:
+        """Count occurrences of a boolean value in a column.
+
+        Args:
+            column: Column name to count values in
+            values: The boolean value to count (True or False)
+            key: Result key provider
+            dataset: Optional dataset name
+
+        Returns:
+            Symbol representing the count
+
+        Example:
+            >>> suite.count_values("is_active", True)
+            >>> suite.count_values("is_deleted", False)
+        """
+        ...
+
+    @overload
+    def count_values(
         self, column: str, values: int, key: ResultKeyProvider = ..., dataset: str | None = ...
     ) -> sp.Symbol:
         """Count occurrences of a specific integer value in a column.
@@ -298,7 +319,7 @@ class MetricProvider(SymbolicMetricBase):
     def count_values(
         self,
         column: str,
-        values: int | str | list[int] | list[str],
+        values: int | str | bool | list[int] | list[str],
         key: ResultKeyProvider = ResultKeyProvider(),
         dataset: str | None = None,
     ) -> sp.Symbol:
@@ -309,7 +330,7 @@ class MetricProvider(SymbolicMetricBase):
 
         Args:
             column: Column name to count values in
-            values: Value(s) to count - single int/str or list of int/str
+            values: Value(s) to count - single int/str/bool or list of int/str
             key: Result key provider
             dataset: Optional dataset name
 
@@ -328,6 +349,10 @@ class MetricProvider(SymbolicMetricBase):
 
             >>> # Count integer values
             >>> suite.count_values("type_id", [1, 2, 3])
+
+            >>> # Count boolean values
+            >>> suite.count_values("is_active", True)
+            >>> suite.count_values("is_deleted", False)
 
         Performance Note:
             Counting multiple values with a list is more efficient than

@@ -400,22 +400,27 @@ class DuplicateCount(OpValueMixin[float], SqlOp[float]):
 class CountValues(OpValueMixin[float], SqlOp[float]):
     """Count occurrences of specific value(s) in a column.
 
-    Accepts single values (int or str) or lists of values (list[int] or list[str]).
+    Accepts single values (int, str, or bool) or lists of values (list[int] or list[str]).
     Lists must be homogeneous - all integers or all strings, not mixed.
+    Boolean values are supported as single values only, not in lists.
     String values will be properly escaped in SQL generation to prevent injection.
     """
 
     __match_args__ = ("column", "values")
 
-    def __init__(self, column: str, values: int | str | list[int] | list[str]) -> None:
+    def __init__(self, column: str, values: int | str | bool | list[int] | list[str]) -> None:
         OpValueMixin.__init__(self)
 
         # Normalize to list for internal consistency
+        # Declare _values with the broadest type first
+        self._values: list[Any]
+
         if isinstance(values, bool):
-            # Reject bool explicitly since bool is a subclass of int
-            raise ValueError(f"CountValues accepts int, str, list[int], or list[str], got {type(values).__name__}")
+            # Handle bool as a single value
+            self._values = [values]
+            self._is_single = True
         elif isinstance(values, int):
-            self._values: list[int] | list[str] = [values]
+            self._values = [values]
             self._is_single = True
         elif isinstance(values, str):
             self._values = [values]
@@ -433,7 +438,9 @@ class CountValues(OpValueMixin[float], SqlOp[float]):
             self._values = values
             self._is_single = False
         else:
-            raise ValueError(f"CountValues accepts int, str, list[int], or list[str], got {type(values).__name__}")
+            raise ValueError(
+                f"CountValues accepts int, str, bool, list[int], or list[str], got {type(values).__name__}"
+            )
 
         self.column = column
         self.values = values  # Store original format for equality checks
@@ -464,7 +471,8 @@ class CountValues(OpValueMixin[float], SqlOp[float]):
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, CountValues):
             return NotImplemented
-        return self.column == other.column and self.values == other.values
+        # Need to check both value and type to distinguish True from 1, False from 0
+        return self.column == other.column and self.values == other.values and type(self.values) is type(other.values)
 
     def __hash__(self) -> int:
         # Convert lists to tuples for hashing
