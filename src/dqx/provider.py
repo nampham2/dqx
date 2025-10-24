@@ -154,7 +154,7 @@ class ExtendedMetricProvider:
         lag_key_provider = ResultKeyProvider()
         lag_key_provider.lag(lag_days)
 
-        # For the computation function, use a fresh key_provider with lag=0
+        # For the computation function, use a fresh key_provider
         # since lag_metric already applies the lag internally via nominal_key.lag(lag)
         base_key_provider = ResultKeyProvider()
 
