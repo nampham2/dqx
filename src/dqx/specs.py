@@ -16,6 +16,7 @@ MetricType = Literal[
     "NullCount",
     "NegativeCount",
     "DuplicateCount",
+    "CountValues",
 ]
 
 
@@ -422,6 +423,49 @@ class DuplicateCount:
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, DuplicateCount):
+            return False
+        return self.name == other.name and self.parameters == other.parameters
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class CountValues:
+    metric_type: MetricType = "CountValues"
+
+    def __init__(self, column: str, values: int | str | list[int] | list[str]) -> None:
+        self._column = column
+        self._values = values
+        self._analyzers = (ops.CountValues(self._column, self._values),)
+
+    @property
+    def name(self) -> str:
+        # Match the op's name format
+        op = self._analyzers[0]
+        return op.name
+
+    @property
+    def parameters(self) -> Parameters:
+        return {"column": self._column, "values": self._values}
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return self._analyzers
+
+    def state(self) -> states.SimpleAdditiveState:
+        return states.SimpleAdditiveState(value=self._analyzers[0].value())
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.SimpleAdditiveState.deserialize(state)
+
+    def __hash__(self) -> int:
+        # Convert lists to tuples for hashing
+        hashable_values = self._values if not isinstance(self._values, list) else tuple(self._values)
+        return hash((self.name, self._column, hashable_values))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, CountValues):
             return False
         return self.name == other.name and self.parameters == other.parameters
 

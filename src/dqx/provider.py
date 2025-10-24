@@ -209,3 +209,12 @@ class MetricProvider(SymbolicMetricBase):
         self, columns: list[str], key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
         return self.metric(specs.DuplicateCount(columns), key, dataset)
+
+    def count_values(
+        self,
+        column: str,
+        values: int | str | list[int] | list[str],
+        key: ResultKeyProvider = ResultKeyProvider(),
+        dataset: str | None = None,
+    ) -> sp.Symbol:
+        return self.metric(specs.CountValues(column, values), key, dataset)

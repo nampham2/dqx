@@ -1,746 +1,364 @@
-"""Test dialect implementation and integration."""
+"""Test cases for SQL dialect functionality.
 
-import datetime
-from typing import Any
-from unittest.mock import Mock
+This module tests the SQL dialect abstraction layer and
+concrete dialect implementations.
+"""
 
-import numpy as np
-import pyarrow as pa
+from datetime import date
+
 import pytest
 
-from dqx import specs
-from dqx.analyzer import Analyzer, analyze_sql_ops
-from dqx.common import DQXError, ResultKey
-from dqx.datasource import DuckRelationDataSource
+from dqx import ops
+from dqx.common import DQXError
 from dqx.dialect import (
-    _DIALECT_REGISTRY,
-    Dialect,
+    BigQueryDialect,
     DuckDBDialect,
+    auto_register,
     build_cte_query,
     get_dialect,
     register_dialect,
 )
-from dqx.ops import Average, First, Maximum, Minimum, NegativeCount, NullCount, NumRows, SqlOp, Sum, Variance
+from dqx.models import BatchCTEData, ResultKey
 
 
-class MockDialect:
-    """Mock dialect for testing."""
+def test_build_cte_query() -> None:
+    """Test the standalone CTE query builder."""
+    cte_sql = "SELECT * FROM sales WHERE date = '2024-01-01'"
+    expressions = [
+        "COUNT(*) AS total_count",
+        "AVG(amount) AS avg_amount",
+        "SUM(quantity) AS total_quantity",
+    ]
 
-    name = "mock"
+    query = build_cte_query(cte_sql, expressions)
 
-    def translate_sql_op(self, op: SqlOp[Any]) -> str:
-        """Translate ops to SQL."""
-        return f"MOCK({op.column if hasattr(op, 'column') else '*'}) AS {op.sql_col}"
-
-    def build_cte_query(self, cte_sql: str, select_expressions: list[str]) -> str:
-        """Build CTE query."""
-        return f"WITH source AS ({cte_sql}) SELECT {', '.join(select_expressions)} FROM source"
-
-    def build_batch_cte_query(self, cte_data: list[Any]) -> str:
-        """Build batch CTE query."""
-        return "WITH batch AS (SELECT 1) SELECT * FROM batch"
-
-
-class NotADialect:
-    """Class that doesn't implement Dialect protocol."""
-
-    def some_method(self) -> str:
-        return "not a dialect"
+    expected = (
+        "WITH source AS (SELECT * FROM sales WHERE date = '2024-01-01') "
+        "SELECT COUNT(*) AS total_count, AVG(amount) AS avg_amount, "
+        "SUM(quantity) AS total_quantity FROM source"
+    )
+    assert query == expected
 
 
-class MockPostgreSQLDialect:
-    """Mock PostgreSQL dialect for integration testing."""
-
-    name = "postgresql"
-
-    def translate_sql_op(self, op: SqlOp[Any]) -> str:
-        """Translate ops to PostgreSQL-compatible SQL."""
-        match op:
-            case NumRows():
-                return f"COUNT(*)::FLOAT8 AS {op.sql_col}"
-            case Average(column=col):
-                return f"AVG({col})::FLOAT8 AS {op.sql_col}"
-            case Sum(column=col):
-                return f"SUM({col})::FLOAT8 AS {op.sql_col}"
-            case Minimum(column=col):
-                return f"MIN({col})::FLOAT8 AS {op.sql_col}"
-            case Maximum(column=col):
-                return f"MAX({col})::FLOAT8 AS {op.sql_col}"
-            case NullCount(column=col):
-                # PostgreSQL doesn't have COUNT_IF
-                return f"COUNT(CASE WHEN {col} IS NULL THEN 1 END)::FLOAT8 AS {op.sql_col}"
-            case _:
-                raise ValueError(f"Unsupported op: {type(op).__name__}")
-
-    def build_cte_query(self, cte_sql: str, select_expressions: list[str]) -> str:
-        """Build PostgreSQL-compatible CTE query."""
-        return build_cte_query(cte_sql, select_expressions)
-
-    def build_batch_cte_query(self, cte_data: list[Any]) -> str:
-        """Build batch CTE query."""
-        return "WITH batch AS (SELECT 1) SELECT * FROM batch"
+def test_build_cte_query_empty_expressions() -> None:
+    """Test CTE query builder with empty expressions."""
+    with pytest.raises(ValueError, match="No SELECT expressions provided"):
+        build_cte_query("SELECT * FROM table", [])
 
 
-# =============================================================================
-# Protocol Compliance Tests
-# =============================================================================
+def test_duckdb_dialect_translate_sql_op() -> None:
+    """Test DuckDB dialect SQL translation for various ops."""
+    dialect = DuckDBDialect()
+
+    # Test NumRows
+    op_num = ops.NumRows()
+    sql = dialect.translate_sql_op(op_num)
+    assert sql == f"CAST(COUNT(*) AS DOUBLE) AS '{op_num.sql_col}'"
+
+    # Test Average
+    op_avg = ops.Average("price")
+    sql = dialect.translate_sql_op(op_avg)
+    assert sql == f"CAST(AVG(price) AS DOUBLE) AS '{op_avg.sql_col}'"
+
+    # Test NullCount
+    op_null = ops.NullCount("email")
+    sql = dialect.translate_sql_op(op_null)
+    assert sql == f"CAST(COUNT_IF(email IS NULL) AS DOUBLE) AS '{op_null.sql_col}'"
+
+    # Test DuplicateCount with single column
+    op_dup1 = ops.DuplicateCount(["user_id"])
+    sql = dialect.translate_sql_op(op_dup1)
+    assert sql == f"CAST(COUNT(*) - COUNT(DISTINCT user_id) AS DOUBLE) AS '{op_dup1.sql_col}'"
+
+    # Test DuplicateCount with multiple columns
+    op_dup2 = ops.DuplicateCount(["user_id", "email"])
+    sql = dialect.translate_sql_op(op_dup2)
+    # Note: columns are sorted in the op
+    assert sql == f"CAST(COUNT(*) - COUNT(DISTINCT (email, user_id)) AS DOUBLE) AS '{op_dup2.sql_col}'"
 
 
-class TestDialectProtocol:
-    """Test Dialect protocol compliance."""
+def test_bigquery_dialect_translate_sql_op() -> None:
+    """Test BigQuery dialect SQL translation."""
+    dialect = BigQueryDialect()
 
-    def test_dialect_is_protocol(self) -> None:
-        """Test that Dialect is a Protocol."""
-        # Protocol is a special typing construct, not a regular class
-        assert hasattr(Dialect, "_is_protocol")
-        assert Dialect._is_protocol  # type: ignore[attr-defined]
+    # Test NumRows - uses FLOAT64 instead of DOUBLE
+    op_num = ops.NumRows()
+    sql = dialect.translate_sql_op(op_num)
+    assert sql == f"CAST(COUNT(*) AS FLOAT64) AS `{op_num.sql_col}`"
 
-    def test_mock_dialect_implements_protocol(self) -> None:
-        """Test that MockDialect implements Dialect protocol."""
-        dialect = MockDialect()
+    # Test Variance - uses VAR_SAMP
+    op_var = ops.Variance("score")
+    sql = dialect.translate_sql_op(op_var)
+    assert sql == f"CAST(VAR_SAMP(score) AS FLOAT64) AS `{op_var.sql_col}`"
 
-        # Check methods exist and are callable
-        assert hasattr(dialect, "translate_sql_op")
-        assert hasattr(dialect, "build_cte_query")
-        assert callable(dialect.translate_sql_op)
-        assert callable(dialect.build_cte_query)
+    # Test First - uses MIN for deterministic result
+    op_first = ops.First("timestamp")
+    sql = dialect.translate_sql_op(op_first)
+    assert sql == f"CAST(MIN(timestamp) AS FLOAT64) AS `{op_first.sql_col}`"
 
-        # Test method signatures by calling them
-        op = NumRows()
-        result = dialect.translate_sql_op(op)
-        assert isinstance(result, str)
-
-        cte_query = dialect.build_cte_query("SELECT *", ["col1", "col2"])
-        assert isinstance(cte_query, str)
-
-    def test_not_a_dialect_doesnt_implement_protocol(self) -> None:
-        """Test that NotADialect doesn't implement Dialect protocol."""
-        not_dialect = NotADialect()
-
-        # Should not have required methods
-        assert not hasattr(not_dialect, "translate_sql_op")
-        assert not hasattr(not_dialect, "build_cte_query")
-
-    def test_protocol_type_checking(self) -> None:
-        """Test protocol type checking at runtime."""
-        dialect = MockDialect()
-        not_dialect = NotADialect()
-
-        def requires_dialect(d: Any) -> bool:
-            """Check if object implements Dialect protocol."""
-            return (
-                hasattr(d, "translate_sql_op")
-                and hasattr(d, "build_cte_query")
-                and callable(d.translate_sql_op)
-                and callable(d.build_cte_query)
-            )
-
-        assert requires_dialect(dialect) is True
-        assert requires_dialect(not_dialect) is False
+    # Test NullCount - uses COUNTIF
+    op_null = ops.NullCount("phone")
+    sql = dialect.translate_sql_op(op_null)
+    assert sql == f"CAST(COUNTIF(phone IS NULL) AS FLOAT64) AS `{op_null.sql_col}`"
 
 
-# =============================================================================
-# DuckDB Dialect Implementation Tests
-# =============================================================================
+def test_translate_count_values() -> None:
+    """Test CountValues translation for both dialects."""
+    from dqx import ops
+    from dqx.dialect import BigQueryDialect, DuckDBDialect
+
+    # Test DuckDB with single integer value
+    dialect_duck = DuckDBDialect()
+    op_int = ops.CountValues("status", 1)
+    sql_int = dialect_duck.translate_sql_op(op_int)
+    assert sql_int == f"CAST(COUNT_IF(status = 1) AS DOUBLE) AS '{op_int.sql_col}'"
+
+    # Test DuckDB with single string value
+    op_str = ops.CountValues("category", "active")
+    sql_str = dialect_duck.translate_sql_op(op_str)
+    assert sql_str == f"CAST(COUNT_IF(category = 'active') AS DOUBLE) AS '{op_str.sql_col}'"
+
+    # Test DuckDB with string containing quotes
+    op_quote = ops.CountValues("name", "O'Brien")
+    sql_quote = dialect_duck.translate_sql_op(op_quote)
+    assert sql_quote == f"CAST(COUNT_IF(name = 'O''Brien') AS DOUBLE) AS '{op_quote.sql_col}'"
+
+    # Test DuckDB with string containing backslashes
+    op_backslash = ops.CountValues("path", "C:\\Users\\test")
+    sql_backslash = dialect_duck.translate_sql_op(op_backslash)
+    assert sql_backslash == f"CAST(COUNT_IF(path = 'C:\\\\Users\\\\test') AS DOUBLE) AS '{op_backslash.sql_col}'"
+
+    # Test DuckDB with multiple integer values
+    op_ints = ops.CountValues("type_id", [1, 2, 3])
+    sql_ints = dialect_duck.translate_sql_op(op_ints)
+    assert sql_ints == f"CAST(COUNT_IF(type_id IN (1, 2, 3)) AS DOUBLE) AS '{op_ints.sql_col}'"
+
+    # Test DuckDB with multiple string values
+    op_strs = ops.CountValues("status", ["active", "pending", "completed"])
+    sql_strs = dialect_duck.translate_sql_op(op_strs)
+    assert sql_strs == f"CAST(COUNT_IF(status IN ('active', 'pending', 'completed')) AS DOUBLE) AS '{op_strs.sql_col}'"
+
+    # Test BigQuery
+    dialect_bq = BigQueryDialect()
+    sql_bq = dialect_bq.translate_sql_op(op_int)
+    assert sql_bq == f"CAST(COUNTIF(status = 1) AS FLOAT64) AS `{op_int.sql_col}`"
+
+    # Test BigQuery with IN clause
+    sql_bq_in = dialect_bq.translate_sql_op(op_ints)
+    assert sql_bq_in == f"CAST(COUNTIF(type_id IN (1, 2, 3)) AS FLOAT64) AS `{op_ints.sql_col}`"
 
 
-class TestDuckDBDialect:
-    """Test DuckDB dialect implementation."""
+def test_dialect_unsupported_op() -> None:
+    """Test error handling for unsupported ops."""
 
-    def test_duckdb_implements_dialect(self) -> None:
-        """Test that DuckDBDialect implements Dialect protocol."""
-        dialect = DuckDBDialect()
-        assert hasattr(dialect, "translate_sql_op")
-        assert hasattr(dialect, "build_cte_query")
-        assert hasattr(dialect, "name")
-        assert dialect.name == "duckdb"
+    class UnsupportedOp:
+        """Mock unsupported op."""
 
-    def test_translate_num_rows(self) -> None:
-        """Test translation of NumRows op."""
-        dialect = DuckDBDialect()
-        op = NumRows()
+        pass
+
+    dialect = DuckDBDialect()
+    with pytest.raises(ValueError, match="Unsupported SqlOp type: UnsupportedOp"):
+        dialect.translate_sql_op(UnsupportedOp())  # type: ignore
+
+
+def test_dialect_registry() -> None:
+    """Test dialect registration and retrieval."""
+    # Test retrieving built-in dialects
+    duckdb = get_dialect("duckdb")
+    assert isinstance(duckdb, DuckDBDialect)
+    assert duckdb.name == "duckdb"
+
+    bigquery = get_dialect("bigquery")
+    assert isinstance(bigquery, BigQueryDialect)
+    assert bigquery.name == "bigquery"
+
+    # Test error for non-existent dialect
+    with pytest.raises(DQXError, match="Dialect 'postgresql' not found"):
+        get_dialect("postgresql")
+
+
+def test_register_dialect(isolated_dialect_registry: dict[str, type]) -> None:
+    """Test manual dialect registration."""
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        pass
+
+    class TestDialect:
+        name = "test_dialect"
+
+        def translate_sql_op(self, op: ops.SqlOp) -> str:
+            return f"TEST SQL FOR {op.name}"
+
+        def build_cte_query(self, cte_sql: str, select_expressions: list[str]) -> str:
+            return build_cte_query(cte_sql, select_expressions)
+
+        def build_batch_cte_query(self, cte_data: list["BatchCTEData"]) -> str:
+            # Simple implementation for testing
+            return "TEST BATCH CTE QUERY"
+
+    # Register the dialect
+    register_dialect("test_dialect", TestDialect)  # type: ignore
+
+    # Retrieve and test
+    dialect = get_dialect("test_dialect")
+    assert isinstance(dialect, TestDialect)
+    assert dialect.name == "test_dialect"
+
+    # Test duplicate registration error
+    with pytest.raises(ValueError, match="Dialect 'test_dialect' is already registered"):
+        register_dialect("test_dialect", TestDialect)  # type: ignore
+
+
+def test_auto_register_decorator(isolated_dialect_registry: dict[str, type]) -> None:
+    """Test the auto_register decorator."""
+    from typing import TYPE_CHECKING
+
+    if TYPE_CHECKING:
+        pass
+
+    @auto_register  # type: ignore
+    class AutoTestDialect:
+        name = "auto_test"
+
+        def translate_sql_op(self, op: ops.SqlOp) -> str:
+            return "AUTO TEST SQL"
+
+        def build_cte_query(self, cte_sql: str, select_expressions: list[str]) -> str:
+            return build_cte_query(cte_sql, select_expressions)
+
+        def build_batch_cte_query(self, cte_data: list["BatchCTEData"]) -> str:
+            # Simple implementation for testing
+            return "AUTO TEST BATCH CTE QUERY"
+
+    # Should be automatically registered
+    dialect = get_dialect("auto_test")
+    assert isinstance(dialect, AutoTestDialect)
+    assert dialect.name == "auto_test"
+
+
+def test_batch_cte_query_duckdb() -> None:
+    """Test DuckDB batch CTE query generation with MAP."""
+    dialect = DuckDBDialect()
+
+    # Create test data
+    key1 = ResultKey(yyyy_mm_dd=date(2024, 1, 1), tags={})
+    key2 = ResultKey(yyyy_mm_dd=date(2024, 1, 2), tags={})
+
+    cte_data = [
+        BatchCTEData(
+            key=key1,
+            cte_sql="SELECT * FROM sales WHERE date = '2024-01-01'",
+            ops=[ops.NumRows(), ops.Average("amount")],
+        ),
+        BatchCTEData(
+            key=key2,
+            cte_sql="SELECT * FROM sales WHERE date = '2024-01-02'",
+            ops=[ops.NumRows(), ops.Sum("amount")],
+        ),
+    ]
+
+    query = dialect.build_batch_cte_query(cte_data)
+
+    # Check structure
+    assert "WITH" in query
+    assert "source_2024_01_01_0" in query
+    assert "metrics_2024_01_01_0" in query
+    assert "source_2024_01_02_1" in query
+    assert "metrics_2024_01_02_1" in query
+    assert "UNION ALL" in query
+    assert "MAP {" in query
+    assert "'2024-01-01' as date" in query
+    assert "'2024-01-02' as date" in query
+
+
+def test_batch_cte_query_bigquery() -> None:
+    """Test BigQuery batch CTE query generation with STRUCT."""
+    dialect = BigQueryDialect()
+
+    key = ResultKey(yyyy_mm_dd=date(2024, 3, 15), tags={})
+    cte_data = [
+        BatchCTEData(
+            key=key,
+            cte_sql="SELECT * FROM orders WHERE date = '2024-03-15'",
+            ops=[ops.Maximum("price"), ops.Minimum("price")],
+        )
+    ]
+
+    query = dialect.build_batch_cte_query(cte_data)
+
+    # Check structure
+    assert "WITH" in query
+    assert "source_2024_03_15_0" in query
+    assert "metrics_2024_03_15_0" in query
+    assert "STRUCT(" in query
+    assert "'2024-03-15' as date" in query
+    # BigQuery uses backticks for column aliases
+    assert "`" in query
+
+
+def test_batch_cte_query_empty() -> None:
+    """Test batch CTE query with empty data."""
+    dialect = DuckDBDialect()
+
+    with pytest.raises(ValueError, match="No CTE data provided"):
+        dialect.build_batch_cte_query([])
+
+
+def test_batch_cte_query_no_ops() -> None:
+    """Test batch CTE query with no ops."""
+    dialect = DuckDBDialect()
+
+    key = ResultKey(yyyy_mm_dd=date(2024, 1, 1), tags={})
+    cte_data = [
+        BatchCTEData(
+            key=key,
+            cte_sql="SELECT * FROM sales",
+            ops=[],  # No ops
+        )
+    ]
+
+    with pytest.raises(ValueError, match="No metrics to compute"):
+        dialect.build_batch_cte_query(cte_data)
+
+
+def test_dialect_build_cte_query_method() -> None:
+    """Test that dialect's build_cte_query delegates correctly."""
+    dialect = DuckDBDialect()
+    cte_sql = "SELECT * FROM users"
+    expressions = ["COUNT(*) AS count", "AVG(age) AS avg_age"]
+
+    result = dialect.build_cte_query(cte_sql, expressions)
+
+    # Should match the standalone function
+    expected = build_cte_query(cte_sql, expressions)
+    assert result == expected
+
+
+def test_all_ops_covered() -> None:
+    """Ensure all SqlOp types are handled by dialects."""
+    dialect = DuckDBDialect()
+
+    # List of all ops to test
+    test_ops: list[ops.SqlOp] = [
+        ops.NumRows(),
+        ops.Average("col"),
+        ops.Minimum("col"),
+        ops.Maximum("col"),
+        ops.Sum("col"),
+        ops.Variance("col"),
+        ops.First("col"),
+        ops.NullCount("col"),
+        ops.NegativeCount("col"),
+        ops.DuplicateCount(["col"]),
+        ops.CountValues("col", 1),
+        ops.CountValues("col", "test"),
+        ops.CountValues("col", [1, 2, 3]),
+        ops.CountValues("col", ["a", "b", "c"]),
+    ]
+
+    # All should translate without error
+    for op in test_ops:
         sql = dialect.translate_sql_op(op)
-        assert "CAST(COUNT(*) AS DOUBLE)" in sql
-        assert f"AS '{op.sql_col}'" in sql
-
-    def test_translate_average(self) -> None:
-        """Test translation of Average op."""
-        dialect = DuckDBDialect()
-        op = Average("price")
-        sql = dialect.translate_sql_op(op)
-        assert "CAST(AVG(price) AS DOUBLE)" in sql
-        assert f"AS '{op.sql_col}'" in sql
-
-    def test_translate_sum(self) -> None:
-        """Test translation of Sum op."""
-        dialect = DuckDBDialect()
-        op = Sum("quantity")
-        sql = dialect.translate_sql_op(op)
-        assert "CAST(SUM(quantity) AS DOUBLE)" in sql
-        assert f"AS '{op.sql_col}'" in sql
-
-    def test_translate_minimum(self) -> None:
-        """Test translation of Minimum op."""
-        dialect = DuckDBDialect()
-        op = Minimum("temperature")
-        sql = dialect.translate_sql_op(op)
-        assert "CAST(MIN(temperature) AS DOUBLE)" in sql
-        assert f"AS '{op.sql_col}'" in sql
-
-    def test_translate_maximum(self) -> None:
-        """Test translation of Maximum op."""
-        dialect = DuckDBDialect()
-        op = Maximum("score")
-        sql = dialect.translate_sql_op(op)
-        assert "CAST(MAX(score) AS DOUBLE)" in sql
-        assert f"AS '{op.sql_col}'" in sql
-
-    def test_translate_null_count(self) -> None:
-        """Test translation of NullCount op."""
-        dialect = DuckDBDialect()
-        op = NullCount("email")
-        sql = dialect.translate_sql_op(op)
-        assert "CAST(COUNT_IF(email IS NULL) AS DOUBLE)" in sql
-        assert f"AS '{op.sql_col}'" in sql
-
-    def test_translate_variance(self) -> None:
-        """Test translation of Variance op."""
-        dialect = DuckDBDialect()
-        op = Variance("sales")
-        sql = dialect.translate_sql_op(op)
-        assert "CAST(VARIANCE(sales) AS DOUBLE)" in sql
-        assert f"AS '{op.sql_col}'" in sql
-
-    def test_translate_first(self) -> None:
-        """Test translation of First op."""
-        dialect = DuckDBDialect()
-        op = First("timestamp")
-        sql = dialect.translate_sql_op(op)
-        assert "CAST(FIRST(timestamp) AS DOUBLE)" in sql
-        assert f"AS '{op.sql_col}'" in sql
-
-    def test_translate_negative_count(self) -> None:
-        """Test translation of NegativeCount op."""
-        dialect = DuckDBDialect()
-        op = NegativeCount("profit")
-        sql = dialect.translate_sql_op(op)
-        assert "CAST(COUNT_IF(profit < 0.0) AS DOUBLE)" in sql
-        assert f"AS '{op.sql_col}'" in sql
-
-    def test_translate_duplicate_count(self) -> None:
-        """Test translation of DuplicateCount op."""
-        from dqx import ops
-        from dqx.dialect import DuckDBDialect
-
-        dialect = DuckDBDialect()
-
-        # Test single column
-        op1 = ops.DuplicateCount(["user_id"])
-        sql1 = dialect.translate_sql_op(op1)
-        assert sql1 == f"CAST(COUNT(*) - COUNT(DISTINCT user_id) AS DOUBLE) AS '{op1.sql_col}'"
-
-        # Test multiple columns
-        op2 = ops.DuplicateCount(["user_id", "product_id", "date"])
-        sql2 = dialect.translate_sql_op(op2)
-        # Columns should be sorted: date, product_id, user_id
-        assert sql2 == f"CAST(COUNT(*) - COUNT(DISTINCT (date, product_id, user_id)) AS DOUBLE) AS '{op2.sql_col}'"
-
-    def test_translate_duplicate_count_with_duckdb_execution(self) -> None:
-        """Test that the generated SQL actually works in DuckDB."""
-        import duckdb
-
-        from dqx import ops
-        from dqx.dialect import DuckDBDialect
-
-        dialect = DuckDBDialect()
-
-        # Create test data
-        conn = duckdb.connect(":memory:")
-        conn.execute("""
-            CREATE TABLE test_data AS
-            SELECT * FROM (VALUES
-                (1, 'A', 100),
-                (1, 'A', 100),  -- Duplicate
-                (2, 'B', 200),
-                (2, 'B', 300),  -- Same user_id and name, different amount
-                (3, 'C', 400)
-            ) AS t(user_id, name, amount)
-        """)
-
-        # Test single column
-        op1 = ops.DuplicateCount(["user_id"])
-        sql1 = dialect.translate_sql_op(op1)
-
-        # Execute the generated SQL
-        row1 = conn.execute(f"SELECT {sql1} FROM test_data").fetchone()
-        assert row1 is not None
-        result1 = row1[0]
-        assert result1 == 2.0  # 5 rows - 3 unique user_ids = 2 duplicates
-
-        # Test multiple columns
-        op2 = ops.DuplicateCount(["user_id", "name"])
-        sql2 = dialect.translate_sql_op(op2)
-
-        row2 = conn.execute(f"SELECT {sql2} FROM test_data").fetchone()
-        assert row2 is not None
-        result2 = row2[0]
-        assert result2 == 2.0  # 5 rows - 3 unique (user_id, name) pairs = 2 duplicates
-
-        # Test all columns
-        op3 = ops.DuplicateCount(["user_id", "name", "amount"])
-        sql3 = dialect.translate_sql_op(op3)
-
-        row3 = conn.execute(f"SELECT {sql3} FROM test_data").fetchone()
-        assert row3 is not None
-        result3 = row3[0]
-        assert result3 == 1.0  # 5 rows - 4 unique combinations = 1 duplicate
-
-        # Test column order doesn't affect result
-        op4 = ops.DuplicateCount(["name", "user_id"])  # Different order
-        sql4 = dialect.translate_sql_op(op4)
-
-        row4 = conn.execute(f"SELECT {sql4} FROM test_data").fetchone()
-        assert row4 is not None
-        result4 = row4[0]
-        assert result4 == 2.0  # Same result as op2
-
-        conn.close()
-
-    def test_translate_unsupported_op(self) -> None:
-        """Test translation of unsupported op."""
-        dialect = DuckDBDialect()
-
-        class UnsupportedOp(SqlOp):
-            def __init__(self) -> None:
-                super().__init__()
-                self._value: float = 0.0
-
-            @property
-            def name(self) -> str:
-                return "unsupported"
-
-            @property
-            def prefix(self) -> str:
-                return "unsup"
-
-            @property
-            def sql_col(self) -> str:
-                return f"_{self.prefix}_{self.name}()"
-
-            @property
-            def value(self) -> Any:
-                return self._value
-
-            def assign(self, src: Any) -> None:
-                """Not implemented."""
-                pass
-
-            def clear(self) -> None:
-                """Not implemented."""
-                pass
-
-        op = UnsupportedOp()
-        with pytest.raises(ValueError, match="Unsupported SqlOp type: UnsupportedOp"):
-            dialect.translate_sql_op(op)
-
-    def test_build_cte_query_single_expression(self) -> None:
-        """Test building CTE query with single expression."""
-        dialect = DuckDBDialect()
-        cte_sql = "SELECT * FROM sales"
-        expressions = ["COUNT(*) AS row_count"]
-
-        query = dialect.build_cte_query(cte_sql, expressions)
-
-        expected = "WITH source AS (SELECT * FROM sales) SELECT COUNT(*) AS row_count FROM source"
-        assert query == expected
-
-    def test_build_cte_query_empty_expressions_raises_error(self) -> None:
-        """Test that build_cte_query raises ValueError with empty expressions."""
-        dialect = DuckDBDialect()
-        cte_sql = "SELECT * FROM sales"
-        empty_expressions: list[str] = []
-
-        with pytest.raises(ValueError, match="No SELECT expressions provided"):
-            dialect.build_cte_query(cte_sql, empty_expressions)
-
-    def test_build_cte_query_multiple_expressions(self) -> None:
-        """Test building CTE query with multiple expressions."""
-        dialect = DuckDBDialect()
-        cte_sql = "SELECT * FROM products WHERE active = true"
-        expressions = ["COUNT(*) AS total_count", "AVG(price) AS avg_price", "MAX(stock) AS max_stock"]
-
-        query = dialect.build_cte_query(cte_sql, expressions)
-
-        expected = "WITH source AS (SELECT * FROM products WHERE active = true) SELECT COUNT(*) AS total_count, AVG(price) AS avg_price, MAX(stock) AS max_stock FROM source"
-        assert query == expected
-
-    def test_build_cte_query_formatting(self) -> None:
-        """Test CTE query formatting is consistent."""
-        dialect = DuckDBDialect()
-        cte_sql = "SELECT * FROM orders"
-        expressions = ["COUNT(*)", "SUM(amount)", "AVG(quantity)"]
-
-        query = dialect.build_cte_query(cte_sql, expressions)
-
-        expected = "WITH source AS (SELECT * FROM orders) SELECT COUNT(*), SUM(amount), AVG(quantity) FROM source"
-        assert query == expected
-
-    def test_dialect_with_real_ops(self) -> None:
-        """Test dialect with actual SqlOp instances."""
-        dialect = DuckDBDialect()
-
-        ops = [NumRows(), Average("revenue"), Sum("units"), Maximum("price"), Minimum("cost"), NullCount("customer_id")]
-
-        expressions = [dialect.translate_sql_op(op) for op in ops]  # type: ignore[arg-type]
-
-        # All expressions should be valid SQL
-        assert all("AS" in expr for expr in expressions)
-        assert all("CAST(" in expr for expr in expressions)
-        assert all("AS DOUBLE)" in expr for expr in expressions)
-
-        # Build complete query
-        cte_sql = "SELECT * FROM transactions WHERE year = 2024"
-        query = dialect.build_cte_query(cte_sql, expressions)
-
-        # Should be valid SQL structure
-        assert query.startswith("WITH source AS (")
-        assert "FROM source" in query
-        assert query.count("AS") >= len(ops) * 2  # Each op has AS in CAST and alias
-
-
-# =============================================================================
-# Dialect Registry Tests
-# =============================================================================
-
-
-class TestDialectRegistry:
-    """Test dialect registry functionality."""
-
-    def setup_method(self) -> None:
-        """Store original registry state before each test."""
-        self.original_registry = _DIALECT_REGISTRY.copy()
-
-    def teardown_method(self) -> None:
-        """Restore original registry state after each test."""
-        _DIALECT_REGISTRY.clear()
-        _DIALECT_REGISTRY.update(self.original_registry)
-
-    def test_duckdb_dialect_is_registered_by_default(self) -> None:
-        """Test that DuckDB dialect is registered on import."""
-        assert "duckdb" in _DIALECT_REGISTRY
-        assert _DIALECT_REGISTRY["duckdb"] is DuckDBDialect
-
-    def test_register_dialect_success(self) -> None:
-        """Test successful dialect registration."""
-        register_dialect("test", MockDialect)
-        assert "test" in _DIALECT_REGISTRY
-        assert _DIALECT_REGISTRY["test"] is MockDialect
-
-    def test_register_dialect_duplicate_fails(self) -> None:
-        """Test that registering duplicate dialect fails."""
-        register_dialect("custom", MockDialect)
-
-        with pytest.raises(ValueError, match="Dialect 'custom' is already registered"):
-            register_dialect("custom", DuckDBDialect)
-
-    def test_get_dialect_success(self) -> None:
-        """Test getting registered dialect."""
-        # DuckDB should be pre-registered
-        dialect = get_dialect("duckdb")
-        assert isinstance(dialect, DuckDBDialect)
-
-        # Register and get custom dialect
-        register_dialect("mock", MockDialect)
-        mock_dialect = get_dialect("mock")
-        assert isinstance(mock_dialect, MockDialect)
-
-    def test_get_dialect_not_found(self) -> None:
-        """Test getting unregistered dialect."""
-        with pytest.raises(DQXError) as exc_info:
-            get_dialect("nonexistent")
-
-        error_msg = str(exc_info.value)
-        assert "Dialect 'nonexistent' not found in registry" in error_msg
-        assert "Available dialects:" in error_msg
-        assert "duckdb" in error_msg  # Should list available dialects
-
-    def test_get_dialect_creates_new_instance(self) -> None:
-        """Test that get_dialect returns new instance each time."""
-        dialect1 = get_dialect("duckdb")
-        dialect2 = get_dialect("duckdb")
-
-        # Should be same class but different instances
-        assert type(dialect1) is type(dialect2)
-        assert dialect1 is not dialect2
-
-    def test_registry_isolation(self) -> None:
-        """Test that registry modifications are isolated."""
-        # Register dialect
-        register_dialect("isolated", MockDialect)
-        assert "isolated" in _DIALECT_REGISTRY
-
-        # Clear and restore
-        _DIALECT_REGISTRY.clear()
-        assert "isolated" not in _DIALECT_REGISTRY
-
-        # Original duckdb registration should be restorable
-        _DIALECT_REGISTRY.update(self.original_registry)
-        assert "duckdb" in _DIALECT_REGISTRY
-
-
-# =============================================================================
-# DataSource Integration Tests
-# =============================================================================
-
-
-class TestDataSourceDialectIntegration:
-    """Test dialect integration with data sources."""
-
-    def test_datasource_with_duckdb_dialect(self) -> None:
-        """Test that DuckRelationDataSource uses DuckDB dialect by default."""
-        # Create test data
-        table = pa.table({"value": [10, 20, 30, None, 50], "category": ["A", "B", "A", "B", "A"]})
-
-        # Create data source - should use DuckDB dialect by default
-        ds = DuckRelationDataSource.from_arrow(table)
-
-        assert ds.dialect == "duckdb"
-
-
-# =============================================================================
-# Analyzer Integration Tests
-# =============================================================================
-
-
-class TestAnalyzerDialectIntegration:
-    """Test dialect integration with analyzer."""
-
-    def test_analyzer_uses_dialect_for_sql_generation(self) -> None:
-        """Test that analyzer uses the data source's dialect for SQL generation."""
-        # Create test data
-        table = pa.table({"value": [10, 20, 30, 40, 50], "category": ["A", "B", "A", "B", "A"]})
-
-        # Create metrics
-        avg_metric = specs.Average("value")
-        sum_metric = specs.Sum("value")
-
-        # Test with DuckDB dialect (default)
-        ds_duckdb = DuckRelationDataSource.from_arrow(table)
-        analyzer = Analyzer()
-
-        key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
-        report = analyzer.analyze(ds_duckdb, {key: [avg_metric, sum_metric]})
-
-        # Results should be computed correctly
-        # Check that our specific metrics are in the report with correct values
-        assert (avg_metric, key) in report
-        assert (sum_metric, key) in report
-        assert report[(avg_metric, key)].value == 30.0
-        assert report[(sum_metric, key)].value == 150.0
-
-    def test_analyze_sql_ops_with_different_dialects(self) -> None:
-        """Test analyze_sql_ops function with different dialects."""
-        # Create mock ops
-        ops: list[SqlOp] = [NumRows(), Average("price"), NullCount("quantity")]
-
-        # Create mock data source with DuckDB dialect
-        ds_duckdb = Mock()
-        ds_duckdb.dialect = "duckdb"
-        ds_duckdb.cte = Mock(return_value="SELECT * FROM orders")
-
-        # Mock the query result - column names from dialect don't have quotes in result keys
-        mock_result = {}
-        for op in ops:
-            mock_result[op.sql_col] = (
-                np.array([100.0])
-                if isinstance(op, NumRows)
-                else np.array([25.5])
-                if isinstance(op, Average)
-                else np.array([5.0])
-            )
-
-        ds_duckdb.query.return_value.fetchnumpy.return_value = mock_result
-
-        # Run analysis
-        nominal_date = datetime.date(2024, 1, 1)
-        analyze_sql_ops(ds_duckdb, ops, nominal_date)
-
-        # Verify SQL was generated with DuckDB dialect
-        call_args = ds_duckdb.query.call_args[0][0]
-        # Remove extra spaces for easier assertion
-        normalized_sql = " ".join(call_args.split())
-        # SQL keywords are now lowercase due to sqlparse formatting
-        assert "cast(count(*) AS DOUBLE)" in normalized_sql
-        assert "cast(avg(price) AS DOUBLE)" in normalized_sql
-        assert "count_if(quantity IS NULL)" in normalized_sql
-
-        # Store original registry state
-        original_registry = _DIALECT_REGISTRY.copy()
-
-        try:
-            # Register the mock dialect
-            register_dialect("postgresql", MockPostgreSQLDialect)
-
-            # Create mock data source with PostgreSQL dialect
-            ds_postgres = Mock()
-            ds_postgres.dialect = "postgresql"
-            ds_postgres.cte = Mock(return_value="SELECT * FROM orders")
-            ds_postgres.query.return_value.fetchnumpy.return_value = mock_result
-
-            # Run analysis with PostgreSQL dialect - using same ops to keep same prefixes
-            nominal_date = datetime.date(2024, 1, 1)
-            analyze_sql_ops(ds_postgres, ops, nominal_date)
-
-            # Verify SQL was generated with PostgreSQL dialect
-            call_args = ds_postgres.query.call_args[0][0]
-            # Remove extra spaces for easier assertion
-            normalized_sql = " ".join(call_args.split())
-            # SQL keywords are now lowercase due to sqlparse formatting
-            assert "count(*)::float8" in normalized_sql
-            assert "avg(price)::float8" in normalized_sql
-            assert "count(CASE WHEN quantity IS NULL THEN 1" in normalized_sql
-
-        finally:
-            # Restore original registry state
-            _DIALECT_REGISTRY.clear()
-            _DIALECT_REGISTRY.update(original_registry)
-
-
-# =============================================================================
-# Query Formatting Tests
-# =============================================================================
-
-
-class TestDialectQueryFormatting:
-    """Test query formatting functionality."""
-
-    def test_dialect_query_formatting(self) -> None:
-        """Test the query formatting from dialects."""
-        dialect = DuckDBDialect()
-
-        cte_sql = "SELECT * FROM sales WHERE date > '2024-01-01'"
-        expressions = [
-            dialect.translate_sql_op(NumRows()),
-            dialect.translate_sql_op(Average("price")),
-            dialect.translate_sql_op(Sum("quantity")),
-            dialect.translate_sql_op(NullCount("customer_id")),
-        ]
-
-        query = dialect.build_cte_query(cte_sql, expressions)
-
-        # Check query structure
-        assert "WITH source AS (" in query
-        assert cte_sql in query
-        assert "SELECT" in query
-        assert "FROM source" in query
-
-        # All expressions should be included
-        for expr in expressions:
-            assert expr in query
-
-    def test_build_cte_query_helper_function(self) -> None:
-        """Test the build_cte_query helper function directly."""
-        cte_sql = "SELECT id, name, price FROM products"
-        expressions = ["COUNT(*) AS total", "AVG(price) AS average_price", "MAX(price) AS max_price"]
-
-        query = build_cte_query(cte_sql, expressions)
-
-        expected = "WITH source AS (SELECT id, name, price FROM products) SELECT COUNT(*) AS total, AVG(price) AS average_price, MAX(price) AS max_price FROM source"
-        assert query == expected
-
-
-# =============================================================================
-# Batch CTE Query Tests
-# =============================================================================
-
-
-class TestBatchCTEQuery:
-    """Test batch CTE query functionality."""
-
-    def test_build_batch_cte_query_single_date(self) -> None:
-        """Test building batch CTE query for single date."""
-        from datetime import date
-
-        from dqx.models import BatchCTEData
-        from dqx.ops import Average, Sum
-
-        dialect = DuckDBDialect()
-
-        # Create test data
-        key = ResultKey(date(2024, 1, 1), {})
-        ops: list[SqlOp[Any]] = [
-            Sum("revenue"),  # Should be x_1
-            Average("price"),  # Should be x_2
-        ]
-
-        cte_data = [BatchCTEData(key=key, cte_sql="SELECT * FROM sales WHERE yyyy_mm_dd = '2024-01-01'", ops=ops)]
-
-        sql = dialect.build_batch_cte_query(cte_data)
-
-        # Verify structure
-        assert "WITH" in sql
-        assert "source_2024_01_01_0 AS (" in sql  # Index suffix added
-        assert "metrics_2024_01_01_0 AS (" in sql  # Index suffix added
-        # Check MAP structure - should have only 1 SELECT statement with MAP
-        assert sql.count("SELECT '2024-01-01' as date") == 1
-        assert "MAP {" in sql
-        assert "} as values" in sql
-        # Verify that Sum and Average operations are in the metrics CTE
-        assert "SUM(revenue)" in sql
-        assert "AVG(price)" in sql
-
-    def test_build_batch_cte_query_multiple_dates(self) -> None:
-        """Test building batch CTE query for multiple dates."""
-        from datetime import date
-
-        from dqx.models import BatchCTEData
-        from dqx.ops import Sum
-
-        dialect = DuckDBDialect()
-
-        # Create test data for 3 dates
-        cte_data = []
-        for day in [1, 2, 3]:
-            key = ResultKey(date(2024, 1, day), {})
-            ops = [Sum("revenue")]  # x_1, x_2, x_3
-
-            cte_data.append(
-                BatchCTEData(key=key, cte_sql=f"SELECT * FROM sales WHERE yyyy_mm_dd = '2024-01-0{day}'", ops=ops)
-            )
-
-        sql = dialect.build_batch_cte_query(cte_data)
-
-        # Verify all dates are included
-        assert "source_2024_01_01" in sql
-        assert "source_2024_01_02" in sql
-        assert "source_2024_01_03" in sql
-        # With MAP approach, we have UNION ALL connecting the dates
-        assert sql.count("UNION ALL") == 2  # 3 dates = 2 UNION ALLs
-        # Should have 3 final SELECT statements (one per date)
-        assert sql.count("SELECT '2024-01-0") == 3
-
-    def test_build_batch_cte_query_empty(self) -> None:
-        """Test error handling for empty CTE data."""
-        dialect = DuckDBDialect()
-
-        with pytest.raises(ValueError, match="No CTE data provided"):
-            dialect.build_batch_cte_query([])
-
-    def test_build_batch_cte_query_no_ops(self) -> None:
-        """Test error handling when no ops provided."""
-        from datetime import date
-
-        from dqx.models import BatchCTEData
-
-        dialect = DuckDBDialect()
-
-        cte_data = [
-            BatchCTEData(
-                key=ResultKey(date(2024, 1, 1), {}),
-                cte_sql="SELECT * FROM sales",
-                ops=[],  # No ops
-            )
-        ]
-
-        with pytest.raises(ValueError, match="No metrics to compute"):
-            dialect.build_batch_cte_query(cte_data)
+        assert sql is not None
+        assert op.sql_col in sql

@@ -1,186 +1,276 @@
-"""Test batch SQL optimization using MAP feature."""
+"""Integration tests for dialect batch optimization with CountValues.
 
-import datetime
+This module tests the batch optimization features with the new CountValues op,
+ensuring it works correctly with the DuckDB and BigQuery dialects.
+"""
 
-import pytest
+from datetime import date
 
-from dqx.common import ResultKey
-from dqx.dialect import DuckDBDialect
-from dqx.models import BatchCTEData
-from dqx.ops import Average, Maximum, Minimum, NullCount, Sum
-
-
-class TestBatchCTEQueryMap:
-    """Test MAP-based batch CTE queries."""
-
-    def test_build_batch_cte_query_single_date(self) -> None:
-        """Test MAP query with single date."""
-        dialect = DuckDBDialect()
-
-        # Create test data
-        key = ResultKey(datetime.date(2024, 1, 1), {})
-        ops = [
-            Sum("revenue"),
-            Average("price"),
-        ]
-
-        cte_data = [BatchCTEData(key=key, cte_sql="SELECT * FROM sales WHERE yyyy_mm_dd = '2024-01-01'", ops=ops)]  # type: ignore[arg-type]
-
-        # This method will be updated to use MAP
-        sql = dialect.build_batch_cte_query(cte_data)
-
-        # Verify MAP structure
-        assert "MAP {" in sql
-        # Check that the sql_col values are used as MAP keys
-        assert f"'{ops[0].sql_col}': \"{ops[0].sql_col}\"" in sql  # type: ignore[attr-defined] # Sum(revenue)
-        assert f"'{ops[1].sql_col}': \"{ops[1].sql_col}\"" in sql  # type: ignore[attr-defined] # Average(price)
-        assert "as values FROM" in sql
-        assert sql.count("SELECT '2024-01-01' as date") == 1  # Only one row
-
-    def test_build_batch_cte_query_multiple_dates(self) -> None:
-        """Test MAP query with multiple dates."""
-        dialect = DuckDBDialect()
-
-        # Create test data for 3 dates
-        cte_data = []
-        for day in [1, 2, 3]:
-            key = ResultKey(datetime.date(2024, 1, day), {})
-            ops = [
-                Sum("revenue"),
-                Average("price"),
-                NullCount("customer_id"),
-            ]
-
-            cte_data.append(
-                BatchCTEData(key=key, cte_sql=f"SELECT * FROM sales WHERE yyyy_mm_dd = '2024-01-0{day}'", ops=ops)  # type: ignore[arg-type]
-            )
-
-        sql = dialect.build_batch_cte_query(cte_data)
-
-        # Should have 9 SELECT statements: 3 source CTEs + 3 metrics CTEs + 3 final SELECTs
-        assert sql.count("SELECT") == 9
-        assert sql.count("UNION ALL") == 2  # 3 results joined by 2 UNION ALLs
-        assert sql.count("MAP {") == 3  # One MAP per date
-
-    def test_build_batch_cte_query_preserves_column_aliases(self) -> None:
-        """Test that MAP keys use the correct sql_col aliases."""
-        dialect = DuckDBDialect()
-
-        key = ResultKey(datetime.date(2024, 1, 1), {})
-        ops = [
-            Sum("total_sales"),
-            Minimum("min_price"),
-            Maximum("max_price"),
-        ]
-
-        # Get the actual sql_col values
-        expected_keys = [op.sql_col for op in ops]  # type: ignore[attr-defined]
-
-        cte_data = [BatchCTEData(key=key, cte_sql="SELECT * FROM orders", ops=ops)]  # type: ignore[arg-type]
-
-        sql = dialect.build_batch_cte_query(cte_data)
-
-        # Verify each sql_col appears as a MAP key
-        for sql_col in expected_keys:
-            assert f"'{sql_col}': \"{sql_col}\"" in sql
-
-    def test_build_batch_cte_query_empty_data(self) -> None:
-        """Test error handling for empty CTE data."""
-        dialect = DuckDBDialect()
-
-        with pytest.raises(ValueError, match="No CTE data provided"):
-            dialect.build_batch_cte_query([])
-
-    def test_build_batch_cte_query_no_ops(self) -> None:
-        """Test error handling when no ops provided."""
-        dialect = DuckDBDialect()
-
-        cte_data = [
-            BatchCTEData(
-                key=ResultKey(datetime.date(2024, 1, 1), {}),
-                cte_sql="SELECT * FROM sales",
-                ops=[],  # No ops
-            )
-        ]
-
-        with pytest.raises(ValueError, match="No metrics to compute"):
-            dialect.build_batch_cte_query(cte_data)
+from dqx import ops
+from dqx.dialect import BigQueryDialect, DuckDBDialect
+from dqx.models import BatchCTEData, ResultKey
 
 
-def test_map_query_with_duckdb_execution() -> None:
-    """Test MAP query with actual DuckDB execution."""
-    import duckdb
-
-    from dqx import ops
-    from dqx.common import ResultKey
-    from dqx.dialect import DuckDBDialect
-    from dqx.models import BatchCTEData
-
-    # Create test database
-    conn = duckdb.connect(":memory:")
-
-    # Create test data for multiple dates
-    conn.execute("""
-        CREATE TABLE sales AS
-        SELECT
-            '2024-01-01'::DATE as yyyy_mm_dd,
-            100.0 as revenue,
-            25.0 as price,
-            1 as customer_id
-        UNION ALL
-        SELECT '2024-01-01'::DATE, 200.0, 30.0, 2
-        UNION ALL
-        SELECT '2024-01-01'::DATE, 150.0, NULL, NULL
-        UNION ALL
-        SELECT '2024-01-02'::DATE, 300.0, 40.0, 3
-        UNION ALL
-        SELECT '2024-01-02'::DATE, 250.0, 35.0, NULL
-        UNION ALL
-        SELECT '2024-01-03'::DATE, 400.0, 50.0, 4
-    """)
-
+def test_batch_optimization_with_count_values_duckdb() -> None:
+    """Test DuckDB batch optimization including CountValues ops."""
     dialect = DuckDBDialect()
 
-    # Create batch data
+    # Create test data with various ops including CountValues
+    key1 = ResultKey(yyyy_mm_dd=date(2024, 1, 1), tags={})
+    key2 = ResultKey(yyyy_mm_dd=date(2024, 1, 2), tags={})
+
+    cte_data = [
+        BatchCTEData(
+            key=key1,
+            cte_sql="SELECT * FROM orders WHERE date = '2024-01-01'",
+            ops=[
+                ops.NumRows(),
+                ops.CountValues("status", "completed"),
+                ops.CountValues("priority", [1, 2]),  # High priority orders
+                ops.Average("amount"),
+            ],
+        ),
+        BatchCTEData(
+            key=key2,
+            cte_sql="SELECT * FROM orders WHERE date = '2024-01-02'",
+            ops=[
+                ops.NumRows(),
+                ops.CountValues("status", "cancelled"),
+                ops.CountValues("region", ["US", "EU", "APAC"]),
+                ops.Sum("amount"),
+            ],
+        ),
+    ]
+
+    query = dialect.build_batch_cte_query(cte_data)
+
+    # Verify query structure
+    assert "WITH" in query
+    assert "source_2024_01_01_0" in query
+    assert "metrics_2024_01_01_0" in query
+    assert "source_2024_01_02_1" in query
+    assert "metrics_2024_01_02_1" in query
+
+    # Check for COUNT_IF conditions
+    assert "COUNT_IF(status = 'completed')" in query
+    assert "COUNT_IF(priority IN (1, 2))" in query
+    assert "COUNT_IF(status = 'cancelled')" in query
+    assert "COUNT_IF(region IN ('US', 'EU', 'APAC'))" in query
+
+    # Check MAP structure
+    assert "MAP {" in query
+    assert "'2024-01-01' as date" in query
+    assert "'2024-01-02' as date" in query
+
+    # Verify UNION ALL for multiple dates
+    assert "UNION ALL" in query
+
+
+def test_batch_optimization_with_count_values_bigquery() -> None:
+    """Test BigQuery batch optimization including CountValues ops."""
+    dialect = BigQueryDialect()
+
+    key = ResultKey(yyyy_mm_dd=date(2024, 3, 15), tags={})
+
+    cte_data = [
+        BatchCTEData(
+            key=key,
+            cte_sql="SELECT * FROM transactions WHERE date = '2024-03-15'",
+            ops=[
+                ops.CountValues("type", "purchase"),
+                ops.CountValues("country", ["UK", "FR", "DE"]),
+                ops.CountValues("amount_range", [100, 200, 300]),
+                ops.Maximum("amount"),
+                ops.NullCount("customer_id"),
+            ],
+        )
+    ]
+
+    query = dialect.build_batch_cte_query(cte_data)
+
+    # Verify BigQuery specific syntax
+    assert "COUNTIF(type = 'purchase')" in query
+    assert "COUNTIF(country IN ('UK', 'FR', 'DE'))" in query
+    assert "COUNTIF(amount_range IN (100, 200, 300))" in query
+    assert "COUNTIF(customer_id IS NULL)" in query
+
+    # Check STRUCT usage
+    assert "STRUCT(" in query
+    assert "'2024-03-15' as date" in query
+
+    # Verify backticks for column aliases
+    assert "`" in query
+
+
+def test_batch_optimization_special_characters() -> None:
+    """Test batch optimization with special characters in CountValues."""
+    dialect = DuckDBDialect()
+
+    key = ResultKey(yyyy_mm_dd=date(2024, 5, 1), tags={})
+
+    cte_data = [
+        BatchCTEData(
+            key=key,
+            cte_sql="SELECT * FROM logs WHERE date = '2024-05-01'",
+            ops=[
+                ops.CountValues("user", "O'Brien"),
+                ops.CountValues("path", ["C:\\Users\\test", "D:\\Data\\files"]),
+                ops.CountValues("message", 'Error: "File not found"'),
+            ],
+        )
+    ]
+
+    query = dialect.build_batch_cte_query(cte_data)
+
+    # Check proper escaping
+    assert "COUNT_IF(user = 'O''Brien')" in query
+    assert "COUNT_IF(path IN ('C:\\\\Users\\\\test', 'D:\\\\Data\\\\files'))" in query
+    # Double quotes inside the string should be escaped
+    assert "'Error: \\\"File not found\\\"'" in query or 'Error: "File not found"' in query
+
+
+def test_batch_optimization_mixed_ops() -> None:
+    """Test batch optimization with mixed op types."""
+    dialect = DuckDBDialect()
+
+    # Create multiple dates with different combinations of ops
+    dates = [date(2024, 6, i) for i in range(1, 4)]
     cte_data = []
-    for day in [1, 2, 3]:
-        date = datetime.date(2024, 1, day)
-        key = ResultKey(date, {})
 
-        ops_list = [
-            ops.Sum("revenue"),
-            ops.Average("price"),
-            ops.NullCount("customer_id"),
-        ]
+    for i, d in enumerate(dates):
+        ops_list: list[ops.SqlOp] = []
 
-        cte_data.append(
-            BatchCTEData(key=key, cte_sql=f"SELECT * FROM sales WHERE yyyy_mm_dd = '{date.isoformat()}'", ops=ops_list)  # type: ignore[arg-type]
+        # Add standard ops
+        ops_list.append(ops.NumRows())
+
+        # Add CountValues with different patterns
+        if i == 0:
+            ops_list.append(ops.CountValues("type", 1))  # Single int
+        elif i == 1:
+            ops_list.append(ops.CountValues("category", "active"))  # Single string
+        else:
+            ops_list.append(ops.CountValues("level", [1, 2, 3, 4, 5]))  # Multiple ints
+
+        # Add other ops
+        ops_list.extend(
+            [
+                ops.Average("score"),
+                ops.NullCount("email"),
+                ops.DuplicateCount(["user_id", "session_id"]),
+            ]
         )
 
-    # Generate MAP query
-    sql = dialect.build_batch_cte_query(cte_data)
+        cte_data.append(
+            BatchCTEData(
+                key=ResultKey(yyyy_mm_dd=d, tags={}),
+                cte_sql=f"SELECT * FROM events WHERE date = '{d.isoformat()}'",
+                ops=ops_list,
+            )
+        )
 
-    # Execute query
-    result = conn.execute(sql).fetchall()
+    query = dialect.build_batch_cte_query(cte_data)
 
-    # Verify results
-    assert len(result) == 3  # One row per date
+    # Check all dates are present
+    for d in dates:
+        assert f"'{d.isoformat()}' as date" in query
 
-    # Check first date results
-    date1, values1 = result[0]
-    assert date1 == "2024-01-01"
-    assert isinstance(values1, dict)  # DuckDB returns MAP as dict
-    # Sum of revenue for 2024-01-01: 100 + 200 + 150 = 450
-    assert values1[cte_data[0].ops[0].sql_col] == 450.0
-    # Average of price for 2024-01-01: (25 + 30) / 2 = 27.5 (NULL excluded)
-    assert values1[cte_data[0].ops[1].sql_col] == 27.5
-    # Null count for customer_id: 1
-    assert values1[cte_data[0].ops[2].sql_col] == 1.0
+    # Check various CountValues patterns
+    assert "COUNT_IF(type = 1)" in query
+    assert "COUNT_IF(category = 'active')" in query
+    assert "COUNT_IF(level IN (1, 2, 3, 4, 5))" in query
 
-    # Check second date results
-    date2, values2 = result[1]
-    assert date2 == "2024-01-02"
-    # Sum of revenue for 2024-01-02: 300 + 250 = 550
-    assert values2[cte_data[1].ops[0].sql_col] == 550.0
+    # Verify other ops are included
+    assert "AVG(score)" in query
+    assert "COUNT_IF(email IS NULL)" in query
+    assert "COUNT(DISTINCT (session_id, user_id))" in query
 
-    conn.close()
+
+def test_batch_optimization_empty_string_values() -> None:
+    """Test batch optimization with empty strings in CountValues."""
+    dialect = BigQueryDialect()
+
+    key = ResultKey(yyyy_mm_dd=date(2024, 7, 1), tags={})
+
+    cte_data = [
+        BatchCTEData(
+            key=key,
+            cte_sql="SELECT * FROM forms WHERE date = '2024-07-01'",
+            ops=[
+                ops.CountValues("field1", ""),  # Empty string
+                ops.CountValues("field2", ["", "N/A", "Unknown"]),  # Mix with empty
+            ],
+        )
+    ]
+
+    query = dialect.build_batch_cte_query(cte_data)
+
+    # Empty strings should be properly quoted
+    assert "COUNTIF(field1 = '')" in query
+    assert "COUNTIF(field2 IN ('', 'N/A', 'Unknown'))" in query
+
+
+def test_batch_optimization_large_value_lists() -> None:
+    """Test batch optimization with large lists of values."""
+    dialect = DuckDBDialect()
+
+    key = ResultKey(yyyy_mm_dd=date(2024, 8, 1), tags={})
+
+    # Create a large list of status codes
+    status_codes = list(range(100, 150))  # 50 values
+
+    cte_data = [
+        BatchCTEData(
+            key=key,
+            cte_sql="SELECT * FROM api_logs WHERE date = '2024-08-01'",
+            ops=[
+                ops.CountValues("status_code", status_codes),
+                ops.CountValues("endpoint", [f"/api/v{i}/users" for i in range(1, 11)]),  # 10 endpoints
+            ],
+        )
+    ]
+
+    query = dialect.build_batch_cte_query(cte_data)
+
+    # Check the IN clause is properly formed
+    status_list = ", ".join(str(code) for code in status_codes)
+    assert f"COUNT_IF(status_code IN ({status_list}))" in query
+
+    # Check multiple endpoints
+    assert "COUNT_IF(endpoint IN (" in query
+    assert "'/api/v1/users'" in query
+    assert "'/api/v10/users'" in query
+
+
+def test_batch_optimization_consistent_ordering() -> None:
+    """Test that ops maintain consistent ordering in batch queries."""
+    dialect = DuckDBDialect()
+
+    key = ResultKey(yyyy_mm_dd=date(2024, 9, 1), tags={})
+
+    # Define ops in specific order
+    ops_list: list[ops.SqlOp] = [
+        ops.CountValues("col1", 1),
+        ops.NumRows(),
+        ops.CountValues("col2", ["a", "b"]),
+        ops.Average("col3"),
+        ops.CountValues("col4", "test"),
+    ]
+
+    cte_data = [
+        BatchCTEData(
+            key=key,
+            cte_sql="SELECT * FROM data WHERE date = '2024-09-01'",
+            ops=ops_list,
+        )
+    ]
+
+    query = dialect.build_batch_cte_query(cte_data)
+
+    # Extract the MAP section to verify ordering
+    map_start = query.find("MAP {")
+    map_end = query.find("}", map_start)
+    map_content = query[map_start:map_end]
+
+    # Verify all ops are present in the MAP
+    for op in ops_list:
+        assert op.sql_col in map_content

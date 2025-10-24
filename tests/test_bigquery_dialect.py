@@ -245,7 +245,7 @@ class TestBigQueryDialect:
         assert isinstance(dialect, BigQueryDialect)
         assert dialect.name == "bigquery"
 
-    def test_register_duplicate_dialect_error(self) -> None:
+    def test_register_duplicate_dialect_error(self, isolated_dialect_registry: dict[str, type]) -> None:
         """Test error when registering duplicate dialect."""
         import pytest
 

@@ -1,5 +1,6 @@
 import logging
 from collections.abc import Iterator
+from unittest.mock import patch
 
 import pytest
 from rich.console import Console
@@ -19,3 +20,23 @@ def run_around_tests() -> Iterator:
 @pytest.fixture(scope="session")
 def console() -> Console:
     return Console()
+
+
+@pytest.fixture
+def isolated_dialect_registry() -> Iterator[dict[str, type]]:
+    """Provide an isolated dialect registry for tests.
+
+    This fixture creates a fresh copy of the dialect registry for each test,
+    preventing test interference when registering dialects.
+    """
+    # Import here to avoid circular imports
+    from dqx.dialect import _DIALECT_REGISTRY, BigQueryDialect, DuckDBDialect
+
+    # Create a fresh registry with only built-in dialects
+    clean_registry = {
+        "duckdb": DuckDBDialect,
+        "bigquery": BigQueryDialect,
+    }
+
+    with patch.dict("dqx.dialect._DIALECT_REGISTRY", clean_registry, clear=True):
+        yield _DIALECT_REGISTRY
