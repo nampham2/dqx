@@ -167,31 +167,39 @@ def test_dataset_validator_detects_parent_child_mismatch() -> None:
     provider = MetricProvider(db)
 
     root = RootNode("test_suite")
-    check = root.add_check("revenue_check", datasets=["production"])
+    check = root.add_check("revenue_check", datasets=["staging"])
 
-    # Create parent metric with dataset
-    parent_symbol = provider.sum("revenue", dataset="production")
+    # Create base metric with dataset
+    base_symbol = provider.sum("revenue", dataset="production")
 
-    # Create child metric (day_over_day) with different dataset - this is an error!
-    provider.ext.day_over_day(parent_symbol, dataset="staging")
+    # Create derived metric (day_over_day) with different dataset - this is the parent now!
+    dod_symbol = provider.ext.day_over_day(base_symbol, dataset="staging")
 
-    # Add assertion using the parent symbol (child is a dependency)
+    # Add assertion using the derived symbol (parent)
     revenue_validator = SymbolicValidator("> 0", lambda x: x > 0)
-    check.add_assertion(parent_symbol, name="revenue > 0", validator=revenue_validator)
+    check.add_assertion(dod_symbol, name="revenue day-over-day > 0", validator=revenue_validator)
 
     # Act: Run the validator
     validator = DatasetValidator(provider)
     for child in check.children:
         validator.process_node(child)
 
-    # Assert: Should have error about child dataset mismatch
+    # Assert: Should have 2 errors about dependent dataset mismatch
+    # One for sum(revenue) and one for lag(1) metric
     issues = validator.get_issues()
-    assert len(issues) == 1
-    assert issues[0].rule == "dataset_mismatch"
-    assert "Child symbol" in issues[0].message
-    assert "day_over_day" in issues[0].message
-    assert "staging" in issues[0].message
-    assert "production" in issues[0].message
+    assert len(issues) == 2
+
+    # Check both errors have the right content
+    for issue in issues:
+        assert issue.rule == "dataset_mismatch"
+        assert "Dependent metric" in issue.message
+        assert "staging" in issue.message
+        assert "production" in issue.message
+
+    # Check we have errors for both base and lag metrics
+    error_messages = [issue.message for issue in issues]
+    assert any("sum(revenue)" in msg for msg in error_messages)
+    assert any("lag(1)" in msg for msg in error_messages)
 
 
 def test_dataset_validator_allows_consistent_parent_child_datasets() -> None:
@@ -202,15 +210,15 @@ def test_dataset_validator_allows_consistent_parent_child_datasets() -> None:
     root = RootNode("test_suite")
     check = root.add_check("revenue_check", datasets=["production"])
 
-    # Create parent metric with dataset
-    parent_symbol = provider.sum("revenue", dataset="production")
+    # Create base metric with dataset
+    base_symbol = provider.sum("revenue", dataset="production")
 
-    # Create child metric with same dataset - this is OK
-    provider.ext.day_over_day(parent_symbol, dataset="production")
+    # Create derived metric (parent) with same dataset - this is OK
+    dod_symbol = provider.ext.day_over_day(base_symbol, dataset="production")
 
-    # Add assertion
+    # Add assertion using the derived symbol
     revenue_validator = SymbolicValidator("> 0", lambda x: x > 0)
-    check.add_assertion(parent_symbol, name="revenue > 0", validator=revenue_validator)
+    check.add_assertion(dod_symbol, name="revenue day-over-day > 0", validator=revenue_validator)
 
     # Act: Run the validator
     validator = DatasetValidator(provider)
@@ -230,15 +238,15 @@ def test_dataset_validator_allows_child_without_dataset() -> None:
     root = RootNode("test_suite")
     check = root.add_check("revenue_check", datasets=["production"])
 
-    # Create parent metric with dataset
-    parent_symbol = provider.sum("revenue", dataset="production")
+    # Create base metric without dataset
+    base_symbol = provider.sum("revenue", dataset=None)
 
-    # Create child metric without dataset - OK, will be imputed
-    provider.ext.day_over_day(parent_symbol, dataset=None)
+    # Create derived metric (parent) with dataset - OK, child will be imputed
+    dod_symbol = provider.ext.day_over_day(base_symbol, dataset="production")
 
-    # Add assertion
+    # Add assertion using the derived symbol
     revenue_validator = SymbolicValidator("> 0", lambda x: x > 0)
-    check.add_assertion(parent_symbol, name="revenue > 0", validator=revenue_validator)
+    check.add_assertion(dod_symbol, name="revenue day-over-day > 0", validator=revenue_validator)
 
     # Act: Run the validator
     validator = DatasetValidator(provider)
@@ -258,26 +266,36 @@ def test_dataset_validator_checks_multiple_children() -> None:
     root = RootNode("test_suite")
     check = root.add_check("revenue_check", datasets=["production"])
 
-    # Create parent metric
-    parent_symbol = provider.sum("revenue", dataset="production")
+    # Create base metric with dataset that differs from derived metrics
+    base_symbol = provider.sum("revenue", dataset="testing")
 
-    # Create multiple child metrics with different datasets
-    provider.ext.day_over_day(parent_symbol, dataset="staging")  # Error
-    provider.ext.week_over_week(parent_symbol, dataset="testing")  # Error
+    # Create multiple derived metrics (parents) with same dataset
+    dod_symbol = provider.ext.day_over_day(base_symbol, dataset="production")
+    wow_symbol = provider.ext.week_over_week(base_symbol, dataset="production")
 
-    # Add assertion
+    # Add assertions using both derived symbols
     revenue_validator = SymbolicValidator("> 0", lambda x: x > 0)
-    check.add_assertion(parent_symbol, name="revenue > 0", validator=revenue_validator)
+    check.add_assertion(dod_symbol, name="revenue dod > 0", validator=revenue_validator)
+    check.add_assertion(wow_symbol, name="revenue wow > 0", validator=revenue_validator)
 
     # Act: Run the validator
     validator = DatasetValidator(provider)
     for child in check.children:
         validator.process_node(child)
 
-    # Assert: Should have two errors
+    # Assert: Should have 4 errors total
+    # - 2 for day_over_day (base metric + lag(1) metric)
+    # - 2 for week_over_week (base metric + lag(7) metric)
     issues = validator.get_issues()
-    assert len(issues) == 2
-    # Check both error messages
+    assert len(issues) == 4
+
+    # Check error messages contain expected content
     error_messages = [issue.message for issue in issues]
-    assert any("day_over_day" in msg and "staging" in msg for msg in error_messages)
-    assert any("week_over_week" in msg and "testing" in msg for msg in error_messages)
+    assert all("Dependent metric" in msg for msg in error_messages)
+    assert all("testing" in msg for msg in error_messages)
+    assert all("production" in msg for msg in error_messages)
+
+    # Check we have errors for both base and lag metrics
+    assert any("sum(revenue)" in msg for msg in error_messages)
+    assert any("lag(1)" in msg for msg in error_messages)
+    assert any("lag(7)" in msg for msg in error_messages)

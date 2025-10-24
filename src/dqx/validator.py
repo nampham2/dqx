@@ -288,8 +288,8 @@ class DatasetValidator(BaseValidator):
                         ValidationIssue(
                             rule=self.name,
                             message=(
-                                f"Child symbol '{child_metric.name}' has dataset '{child_metric.dataset}' "
-                                f"but its parent symbol '{metric.name}' has dataset '{metric.dataset}'. "
+                                f"Dependent metric '{child_metric.name}' has dataset '{child_metric.dataset}' "
+                                f"but its parent metric '{metric.name}' requires dataset '{metric.dataset}'. "
                                 f"Dependent metrics must use the same dataset as their parent."
                             ),
                             node_path=["root", f"check:{parent_check.name}", f"assertion:{node.name}"],
@@ -323,23 +323,23 @@ class UnusedSymbolValidator(BaseValidator):
         # Find unused symbols
         unused_symbols = defined_symbols - self._used_symbols
 
-        # Build a set of all parent symbols (more efficient single pass)
-        parent_symbols = set()
-        for symbol in defined_symbols:
-            metric = self._provider.get_symbol(symbol)
-            if metric.parent_symbol is not None:
-                parent_symbols.add(metric.parent_symbol)
+        # Build a set of symbols that are used through their parents
+        indirectly_used = set()
+        for used_symbol in self._used_symbols:
+            # Get children of used symbols - these are indirectly used
+            children = self._provider.get_children(used_symbol)
+            indirectly_used.update(children)
 
         # Generate warnings for each unused symbol, excluding dependencies
         for symbol in unused_symbols:
             metric = self._provider.get_symbol(symbol)
 
-            # Skip symbols that have parents (they are dependencies)
+            # Skip symbols that have parents (they are dependencies/children)
             if metric.parent_symbol is not None:
                 continue
 
-            # Skip symbols that are parents of other symbols
-            if symbol in parent_symbols:
+            # Skip symbols that are indirectly used through their parent
+            if symbol in indirectly_used:
                 continue
 
             # Format: symbol_name ← metric_name

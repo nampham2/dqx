@@ -5,7 +5,12 @@ from dqx.provider import MetricProvider
 
 
 def test_extended_metrics_children_tracking() -> None:
-    """Test that MetricProvider tracks parent-child relationships."""
+    """Test that MetricProvider tracks parent-child relationships.
+
+    In the reversed relationship:
+    - Extended metrics (day_over_day, week_over_week) are parents
+    - Base metrics and lag metrics they depend on are children
+    """
     # GIVEN: A metric provider
     mp = MetricProvider(InMemoryMetricDB())
 
@@ -13,35 +18,33 @@ def test_extended_metrics_children_tracking() -> None:
     base = mp.maximum("tax")
     dod = mp.ext.day_over_day(base)
 
-    # THEN: The parent should have the child tracked
-    children = mp.get_children(base)
-    assert dod in children
-    assert len(children) == 2  # dod and lag(1) dependency
+    # THEN: The extended metric (parent) should have children tracked
+    children = mp.get_children(dod)
+    assert base in children
+    assert len(children) == 2  # base and lag(1) dependency
 
     # Verify the lag(1) dependency is also a child
-    lag_symbols = [s for s in children if s != dod]
+    lag_symbols = [s for s in children if s != base]
     assert len(lag_symbols) == 1
     lag_metric = mp.get_symbol(lag_symbols[0])
     assert "lag(1)" in lag_metric.name
 
-    # AND: Creating another child
+    # AND: The base metric should have no children (it's a leaf)
+    assert mp.get_children(base) == []
+
+    # AND: Creating another extended metric
     wow = mp.ext.week_over_week(base)
 
-    # THEN: All children should be tracked (dod, wow, lag(1), lag(7))
-    children = mp.get_children(base)
-    assert dod in children
-    assert wow in children
-    assert len(children) == 4  # dod, wow, lag(1), lag(7)
+    # THEN: The week_over_week should have its own children
+    wow_children = mp.get_children(wow)
+    assert base in wow_children
+    assert len(wow_children) == 2  # base and lag(7) dependency
 
-    # Verify the lag dependencies
-    lag_names = []
-    for child in children:
-        if child not in [dod, wow]:
-            lag_metric = mp.get_symbol(child)
-            lag_names.append(lag_metric.name)
+    # Verify the lag(7) dependency
+    lag_symbols = [s for s in wow_children if s != base]
+    assert len(lag_symbols) == 1
+    lag_metric = mp.get_symbol(lag_symbols[0])
+    assert "lag(7)" in lag_metric.name
 
-    assert any("lag(1)" in name for name in lag_names)
-    assert any("lag(7)" in name for name in lag_names)
-
-    # AND: The extended metric should have no children
-    assert mp.get_children(dod) == []
+    # AND: The base metric still has no children
+    assert mp.get_children(base) == []

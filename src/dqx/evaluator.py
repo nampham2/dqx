@@ -124,14 +124,13 @@ class Evaluator:
             metric_result = self.metrics[sym]
 
             # Create SymbolInfo for this symbol
-            # For extended metrics, use the name from SymbolicMetric which includes
-            # the extended metric function name (e.g., "day_over_day(maximum(tax))")
-            # For regular metrics, the name and str(metric_spec) should be the same
-            metric_name = sm.name if sm.parent_symbol is not None else str(sm.metric_spec)
-
+            # Use the name from SymbolicMetric which includes the proper function name
+            # For extended metrics: "day_over_day(maximum(tax))"
+            # For regular metrics: "maximum(tax)"
+            # For lag metrics: "lag(1)(x_1)"
             symbol_info = SymbolInfo(
                 name=str(sym),
-                metric=metric_name,
+                metric=sm.name,
                 dataset=sm.dataset,
                 value=metric_result,
                 yyyy_mm_dd=self._key.yyyy_mm_dd,

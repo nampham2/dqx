@@ -258,24 +258,27 @@ def test_evaluator_collect_symbols() -> None:
 
     # Create symbolic metrics
     sm_x = SymbolicMetric(
-        name="x",
+        name="metric_x",  # This is what appears in si.metric
         symbol=x,
         fn=lambda k: Success(5.0),
         key_provider=Mock(),
-        metric_spec=Mock(__str__=Mock(return_value="metric_x")),
+        metric_spec=Mock(),
         dataset="dataset1",
     )
     sm_y = SymbolicMetric(
-        name="y",
+        name="metric_y",  # This is what appears in si.metric
         symbol=y,
         fn=lambda k: Failure("Error loading y"),
         key_provider=Mock(),
-        metric_spec=Mock(__str__=Mock(return_value="metric_y")),
+        metric_spec=Mock(),
         dataset="dataset2",
     )
 
-    provider.symbolic_metrics = [sm_x, sm_y]
-    provider.get_symbol.side_effect = lambda s: sm_x if s == x else sm_y
+    # Fix for mypy: don't assign to provider attributes directly
+    def get_symbol_impl(s: sp.Symbol) -> SymbolicMetric:
+        return sm_x if s == x else sm_y
+
+    provider.get_symbol.side_effect = get_symbol_impl
     evaluator._metrics = {x: Success(5.0), y: Failure("Error loading y")}
 
     # Collect symbols from expression
@@ -294,10 +297,10 @@ def test_evaluator_collect_symbols() -> None:
         assert si.tags == {"env": "prod"}
 
         if si.name == "x":
-            assert si.metric == "metric_x"
+            assert si.metric == "metric_x"  # si.metric is the name field from SymbolicMetric
             assert si.dataset == "dataset1"
             assert si.value == Success(5.0)
         else:  # y
-            assert si.metric == "metric_y"
+            assert si.metric == "metric_y"  # si.metric is the name field from SymbolicMetric
             assert si.dataset == "dataset2"
             assert si.value == Failure("Error loading y")

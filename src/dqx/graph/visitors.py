@@ -139,7 +139,7 @@ class DatasetImputationVisitor:
                         self._errors.append(
                             f"Child symbol '{child_metric.name}' has dataset '{child_metric.dataset}' "
                             f"but its parent symbol '{metric.name}' has dataset '{metric.dataset}'. "
-                            f"Child symbols must use the same dataset as their parent."
+                            f"Dependent metrics must use the same dataset as their parent."
                         )
                     elif not child_metric.dataset:
                         # Propagate dataset from parent to child

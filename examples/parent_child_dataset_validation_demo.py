@@ -2,7 +2,12 @@
 """Demo of parent-child dataset validation in DQX.
 
 This example shows how DQX validates dataset consistency between
-parent metrics and their derived child metrics (e.g., day_over_day).
+parent metrics (derived metrics like day_over_day) and their child metrics
+(base metrics that the derived metrics depend on).
+
+In DQX:
+- Parent: Derived metrics (e.g., day_over_day, week_over_week)
+- Child: Base metrics that the derived metrics depend on
 """
 
 import logging
@@ -25,20 +30,17 @@ def demo_parent_child_dataset_mismatch() -> None:
     print("\n=== Demo 1: Parent-Child Dataset Mismatch ===\n")
 
     # Create check function
-    @check(name="Daily Revenue Check", datasets=["production"])
+    @check(name="Daily Revenue Check", datasets=["staging"])
     def revenue_check(mp: MetricProvider, ctx: Context) -> None:
-        # Create a parent metric using production dataset
+        # Create a base metric (child) using production dataset
         revenue_sum = mp.sum("revenue", dataset="production")
 
-        # Create a child metric (day_over_day) with DIFFERENT dataset - this is an error!
+        # Create a derived metric (parent) with DIFFERENT dataset - this is an error!
         revenue_dod = mp.ext.day_over_day(revenue_sum, dataset="staging")
 
-        # Add assertion using the parent metric
-        # The child metric is a dependency and will be validated
-        ctx.assert_that(revenue_sum).where(name="Revenue must exceed $1000").is_gt(1000)
-
-        # Use the child metric to avoid unused variable warning
-        _ = revenue_dod
+        # Add assertion using the parent (derived) metric
+        # The child (base) metric is a dependency and will be validated
+        ctx.assert_that(revenue_dod).where(name="Revenue DoD must be positive").is_positive()
 
     try:
         # Create a verification suite
@@ -67,10 +69,10 @@ def demo_valid_parent_child_datasets() -> None:
 
     @check(name="Daily Revenue Check", datasets=["production"])
     def revenue_check(mp: MetricProvider, ctx: Context) -> None:
-        # Create parent metric using production dataset
+        # Create base metric (child) using production dataset
         revenue_sum = mp.sum("revenue", dataset="production")
 
-        # Create child metrics with SAME dataset - this is correct
+        # Create derived metrics (parents) with SAME dataset - this is correct
         revenue_dod = mp.ext.day_over_day(revenue_sum, dataset="production")
         revenue_wow = mp.ext.week_over_week(revenue_sum, dataset="production")
 
@@ -100,9 +102,9 @@ def demo_valid_parent_child_datasets() -> None:
         suite.run(datasources, key)
 
         print("✅ Validation passed! Parent and child datasets are consistent.")
-        print("   Parent metric: sum(revenue) with dataset='production'")
-        print("   Child metric: day_over_day(sum(revenue)) with dataset='production'")
-        print("   Child metric: week_over_week(sum(revenue)) with dataset='production'")
+        print("   Child metric: sum(revenue) with dataset='production'")
+        print("   Parent metric: day_over_day(sum(revenue)) with dataset='production'")
+        print("   Parent metric: week_over_week(sum(revenue)) with dataset='production'")
     except DQXError as e:
         print(f"Unexpected error: {e}")
 
@@ -113,13 +115,13 @@ def demo_dataset_propagation() -> None:
 
     @check(name="Revenue Analysis", datasets=["production"])
     def revenue_analysis(mp: MetricProvider, ctx: Context) -> None:
-        # Create parent metric with dataset
-        revenue_sum = mp.sum("revenue", dataset="production")
+        # Create base metric (child) WITHOUT dataset
+        revenue_sum = mp.sum("revenue")  # No dataset specified
 
-        # Create child metrics WITHOUT specifying dataset
-        # They will inherit from parent automatically
-        revenue_dod = mp.ext.day_over_day(revenue_sum)  # No dataset specified
-        revenue_wow = mp.ext.week_over_week(revenue_sum)  # No dataset specified
+        # Create derived metrics (parents) WITH dataset
+        # The child will inherit dataset from parent automatically
+        revenue_dod = mp.ext.day_over_day(revenue_sum, dataset="production")
+        revenue_wow = mp.ext.week_over_week(revenue_sum, dataset="production")
 
         # Add assertions
         ctx.assert_that(revenue_sum).where(name="Positive revenue").is_positive()
@@ -142,35 +144,34 @@ def demo_dataset_propagation() -> None:
         key = ResultKey(date.today(), tags={})
         suite.run(datasources, key)
 
-        print("✅ Validation passed! Child datasets were automatically propagated from parent.")
-        print("   Parent: sum(revenue) with dataset='production'")
-        print("   Children automatically inherit dataset='production':")
+        print("✅ Validation passed! Child dataset was automatically propagated from parent.")
+        print("   Child: sum(revenue) - originally no dataset")
+        print("   Parents with dataset='production':")
         print("   - day_over_day(sum(revenue))")
         print("   - week_over_week(sum(revenue))")
+        print("   Child inherits dataset='production' from parents")
     except DQXError as e:
         print(f"Unexpected error: {e}")
 
 
 def demo_multiple_children_validation() -> None:
-    """Demonstrate validation with multiple child metrics."""
-    print("\n\n=== Demo 4: Multiple Children with Dataset Issues ===\n")
+    """Demonstrate validation with multiple parent-child relationships."""
+    print("\n\n=== Demo 4: Multiple Parents with Dataset Issues ===\n")
 
-    @check(name="Metrics Check", datasets=["prod"])
+    @check(name="Metrics Check", datasets=["prod", "staging", "dev"])
     def metrics_check(mp: MetricProvider, ctx: Context) -> None:
-        # Parent metric
-        total_sales = mp.sum("sales", dataset="prod")
+        # Base metric (child) with different dataset
+        total_sales = mp.sum("sales", dataset="testing")
 
-        # Multiple children with different datasets - errors!
+        # Multiple parents with different datasets - errors expected!
         sales_dod = mp.ext.day_over_day(total_sales, dataset="staging")
         sales_wow = mp.ext.week_over_week(total_sales, dataset="dev")
-        # Note: month_over_month doesn't exist, so we'll use stddev as another example
-        sales_stddev = mp.ext.stddev(total_sales, lag=0, n=7, dataset="prod")  # This one is OK
+        sales_stddev = mp.ext.stddev(total_sales, lag=0, n=7, dataset="prod")
 
-        # Add assertion on parent
-        ctx.assert_that(total_sales).where(name="Positive sales").is_positive()
-
-        # Use the unused variables to avoid linting warnings
-        _ = (sales_dod, sales_wow, sales_stddev)
+        # Add assertions on the parent metrics
+        ctx.assert_that(sales_dod).where(name="Daily change positive").is_positive()
+        ctx.assert_that(sales_wow).where(name="Weekly change positive").is_positive()
+        ctx.assert_that(sales_stddev).where(name="StdDev positive").is_positive()
 
     try:
         db = InMemoryMetricDB()
@@ -187,15 +188,15 @@ def demo_multiple_children_validation() -> None:
 
     except DQXError as e:
         print(f"❌ Validation Error (as expected):\n{e}")
-        print("\nNote: The error reports all child symbols with mismatched datasets.")
-        print("Only stddev is valid because it uses the same dataset as parent.")
+        print("\nNote: The error reports that the child (base metric) has a different")
+        print("dataset than its parents (derived metrics).")
 
 
 if __name__ == "__main__":
     print("Parent-Child Dataset Validation Demo")
     print("====================================")
     print("This demo shows how DQX validates dataset consistency")
-    print("between parent metrics and their derived children.")
+    print("between parent metrics (derived) and their children (base metrics).")
 
     demo_parent_child_dataset_mismatch()
     demo_valid_parent_child_datasets()
@@ -203,7 +204,9 @@ if __name__ == "__main__":
     demo_multiple_children_validation()
 
     print("\n\n✨ Key Takeaways:")
-    print("1. Child metrics must use the same dataset as their parent")
-    print("2. Dataset mismatches are caught during graph building")
-    print("3. Child metrics can omit dataset to inherit from parent")
-    print("4. This prevents subtle bugs from mixed dataset usage")
+    print("1. In DQX, derived metrics (day_over_day, etc.) are parents")
+    print("2. Base metrics that they depend on are children")
+    print("3. Children must use the same dataset as their parents")
+    print("4. Children without datasets inherit from their parents")
+    print("5. Dataset mismatches are caught during graph validation")
+    print("6. This prevents subtle bugs from mixed dataset usage")

@@ -16,17 +16,20 @@ def test_day_over_day_creates_lag_dependency() -> None:
     base = mp.maximum("tax")
     dod = mp.ext.day_over_day(base)
 
-    # THEN: A lag(1) dependency should be automatically created
-    children = mp.get_children(base)
-    assert len(children) == 2  # dod and lag(1)
+    # THEN: The day_over_day metric should have the base metric and lag(1) as children
+    children = mp.get_children(dod)
+    assert len(children) == 2  # base and lag(1)
 
-    # Find the lag symbol (not the dod)
-    lag_symbol = next((child for child in children if child != dod), None)
+    # The base metric should be one of the children
+    assert base in children
+
+    # Find the lag symbol (not the base)
+    lag_symbol = next((child for child in children if child != base), None)
     assert lag_symbol is not None
 
     # Verify the lag symbol has correct metadata
     lag_metric = mp.get_symbol(lag_symbol)
-    assert lag_metric.parent_symbol == base
+    assert lag_metric.parent_symbol == dod  # lag's parent is the dod metric
     assert "lag(1)" in lag_metric.name
     assert lag_metric.name == f"lag(1)({base})"
 
@@ -40,17 +43,20 @@ def test_week_over_week_creates_lag_dependency() -> None:
     base = mp.sum("revenue")
     wow = mp.ext.week_over_week(base)
 
-    # THEN: A lag(7) dependency should be automatically created
-    children = mp.get_children(base)
-    assert len(children) == 2  # wow and lag(7)
+    # THEN: The week_over_week metric should have the base metric and lag(7) as children
+    children = mp.get_children(wow)
+    assert len(children) == 2  # base and lag(7)
 
-    # Find the lag symbol (not the wow)
-    lag_symbol = next((child for child in children if child != wow), None)
+    # The base metric should be one of the children
+    assert base in children
+
+    # Find the lag symbol (not the base)
+    lag_symbol = next((child for child in children if child != base), None)
     assert lag_symbol is not None
 
     # Verify the lag symbol has correct metadata
     lag_metric = mp.get_symbol(lag_symbol)
-    assert lag_metric.parent_symbol == base
+    assert lag_metric.parent_symbol == wow  # lag's parent is the wow metric
     assert "lag(7)" in lag_metric.name
     assert lag_metric.name == f"lag(7)({base})"
 
@@ -77,7 +83,7 @@ def test_dependency_symbols_are_collected() -> None:
     # Verify the lag symbol has correct metadata
     lag_metric = mp.get_symbol(lag_symbol)
     assert lag_metric.name == f"lag(1)({base})"
-    assert lag_metric.parent_symbol == base
+    assert lag_metric.parent_symbol == dod  # lag's parent is the dod metric
 
     # Verify the lag metric can be evaluated
     from dqx.evaluator import Evaluator

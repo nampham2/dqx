@@ -141,7 +141,7 @@ class TestCollectSymbols:
         metric_spec2 = Mock(__str__=Mock(return_value="sum(quantity)"))
 
         sm1 = SymbolicMetric(
-            name="x_1",
+            name="average(price)",  # This is what gets stored in SymbolInfo.metric
             symbol=x1,
             fn=lambda k: Success(100.0),
             key_provider=Mock(),
@@ -149,7 +149,7 @@ class TestCollectSymbols:
             dataset="orders",
         )
         sm2 = SymbolicMetric(
-            name="x_2",
+            name="sum(quantity)",  # This is what gets stored in SymbolInfo.metric
             symbol=x2,
             fn=lambda k: Success(50.0),
             key_provider=Mock(),

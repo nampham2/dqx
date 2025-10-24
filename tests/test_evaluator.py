@@ -23,7 +23,7 @@ class TestEvaluatorFailureHandling:
         # Create a symbol that will fail
         symbol = sp.Symbol("x_1")
         symbolic_metric = SymbolicMetric(
-            name="x_1",
+            name="average(price)",
             symbol=symbol,
             fn=lambda k: Failure("Database error"),
             key_provider=Mock(),
@@ -73,7 +73,7 @@ class TestEvaluatorFailureHandling:
         metric_spec2 = Mock(__str__=Mock(return_value="sum(quantity)"))
 
         sm1 = SymbolicMetric(
-            name="x_1",
+            name="average(price)",
             symbol=x1,
             fn=lambda k: Success(0.0),
             key_provider=Mock(),
@@ -81,7 +81,7 @@ class TestEvaluatorFailureHandling:
             dataset="orders",
         )
         sm2 = SymbolicMetric(
-            name="x_2",
+            name="sum(quantity)",
             symbol=x2,
             fn=lambda k: Success(0.0),
             key_provider=Mock(),

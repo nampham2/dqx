@@ -1,57 +1,48 @@
 # Active Context
 
-## Current Work Focus: Parent-Child Dataset Validation
+## Current Status (2024-10-24)
 
-### Recent Implementation (2024-10-24)
-Successfully enhanced dataset validation to check parent-child symbol relationships, ensuring dataset consistency across hierarchical metric dependencies.
+### Recently Completed: Parent-Child Relationship Reversal
 
-### Key Implementation Details
+Successfully reversed the parent-child relationship for extended metrics in DQX:
 
-#### Enhanced DatasetValidator
-- Extended validation to check child symbols of metrics used in assertions
-- Added recursive validation for parent-child dataset consistency
-- Validates that child symbols either:
-  - Have the same dataset as their parent
-  - Have no dataset (will be imputed from parent)
-  - Are not using a conflicting dataset
+**Key Changes:**
+1. **ExtendedMetricProvider** - Extended metrics (day_over_day, week_over_week, stddev) are now parents of their base metrics and lag dependencies
+2. **DatasetImputationVisitor** - Updated to propagate datasets from parent metrics to their children
+3. **DatasetValidator** - Now validates that child metrics have consistent datasets with their parents
+4. **UnusedSymbolValidator** - Updated to understand the new relationship when determining unused symbols
 
-#### Enhanced DatasetImputationVisitor
-- Added parent-child dataset propagation during imputation
-- When a parent symbol has a dataset, propagates it to children with no dataset
-- Validates that children don't have conflicting datasets
-- Maintains consistency across the entire symbol dependency tree
+**Implementation Details:**
+- Base metrics are registered as children of extended metrics
+- Lag dependencies are registered as children of extended metrics
+- Dataset propagation flows from parent (extended metric) to children (base metrics, lag metrics)
+- All tests updated to reflect the new relationship
+- Documentation and examples updated
 
-#### Error Reporting
-- Clear error messages for parent-child dataset mismatches
-- Reports specific symbol names and dataset conflicts
-- Example: "Child symbol 'day_over_day(revenue)' has dataset 'staging' but parent 'sum(revenue)' uses 'production'"
+**Files Modified:**
+- `src/dqx/provider.py` - Reversed parent-child registration in ExtendedMetricProvider
+- `src/dqx/graph/visitors.py` - Updated DatasetImputationVisitor logic
+- `src/dqx/validator.py` - Updated DatasetValidator and UnusedSymbolValidator
+- Various test files to match new expectations
+- `examples/parent_child_dataset_validation_demo.py` - Updated documentation
 
-### Test Coverage
-- Comprehensive tests for parent-child validation scenarios
-- Tests for dataset propagation from parent to child
-- Tests for multiple children with different datasets
-- Tests for allowing children without datasets (imputation)
+### Active Work Focus
 
-### Usage Impact
-This prevents subtle bugs where:
-- A parent metric uses production data
-- Its derived metric (e.g., day_over_day) accidentally uses staging data
-- Results would be incorrect due to dataset mismatch
+The parent-child relationship reversal is complete and all tests pass. The system now correctly models extended metrics as parents of their dependencies.
+
+### Important Patterns
+
+1. **Parent-Child Hierarchy**: Extended metrics → Base metrics → Dependencies
+2. **Dataset Propagation**: Flows from parent to child during imputation
+3. **Validation**: Ensures consistency between parent and child datasets
+4. **Symbol Collection**: Correctly identifies unused symbols considering the hierarchy
 
 ### Next Steps
-- Monitor for edge cases in complex symbol hierarchies
-- Consider validation for more complex dependency chains
-- Potentially add visualization of dataset propagation
 
-### Important Patterns Learned
-1. Dataset consistency must be enforced across symbol dependencies
-2. Parent-child relationships in metrics need special validation
-3. Clear error messages are crucial for debugging dataset issues
-4. Recursive validation is necessary for deep hierarchies
+- Monitor for any edge cases with the new parent-child relationship
+- Consider additional extended metric types that might need similar treatment
+- Ensure documentation clearly explains the parent-child model
 
-### Previous Work: CountValues Op Implementation
-Successfully implemented the CountValues operation for DQX, allowing users to count occurrences of specific values in columns. Key features:
-- Support for single values and lists
-- Type safety with mypy compliance
-- SQL injection prevention
-- Integration with Provider API
+### Recent Insights
+
+The reversal of parent-child relationships makes the model more intuitive - extended metrics that depend on base metrics are naturally parents in the hierarchy. This aligns better with how users think about metric dependencies.
