@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC
+from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import partial
@@ -34,7 +35,7 @@ class SymbolicMetricBase(ABC):
         self._symbol_index: SymbolIndex = {}
         self._curr_index: int = 0
         self._mutex = Lock()
-        self._children_map: dict[sp.Symbol, list[sp.Symbol]] = {}
+        self._children_map: defaultdict[sp.Symbol, list[sp.Symbol]] = defaultdict(list)
 
     @property
     def symbolic_metrics(self) -> list[SymbolicMetric]:
@@ -104,8 +105,6 @@ class SymbolicMetricBase(ABC):
 
         # Update children map
         if parent is not None:
-            if parent not in self._children_map:
-                self._children_map[parent] = []
             self._children_map[parent].append(symbol)
 
     def evaluate(self, symbol: sp.Symbol, key: ResultKey) -> Result[float, str]:
@@ -197,8 +196,6 @@ class ExtendedMetricProvider:
         self._create_lag_dependency(metric, 1, parent_metric=sym)
 
         # Register base metric as child of day_over_day
-        if sym not in self._provider._children_map:
-            self._provider._children_map[sym] = []
         if metric not in self._provider._children_map[sym]:
             self._provider._children_map[sym].append(metric)
 
@@ -231,8 +228,6 @@ class ExtendedMetricProvider:
             self._create_lag_dependency(metric, i, parent_metric=sym)
 
         # Register base metric as child of stddev
-        if sym not in self._provider._children_map:
-            self._provider._children_map[sym] = []
         if metric not in self._provider._children_map[sym]:
             self._provider._children_map[sym].append(metric)
 
@@ -258,8 +253,6 @@ class ExtendedMetricProvider:
         self._create_lag_dependency(metric, 7, parent_metric=sym)
 
         # Register base metric as child of week_over_week
-        if sym not in self._provider._children_map:
-            self._provider._children_map[sym] = []
         if metric not in self._provider._children_map[sym]:
             self._provider._children_map[sym].append(metric)
 

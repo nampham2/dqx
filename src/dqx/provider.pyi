@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC
+from collections import defaultdict
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from threading import Lock
@@ -30,7 +31,7 @@ class SymbolicMetricBase(ABC):
     _symbol_index: SymbolIndex
     _curr_index: int
     _mutex: Lock
-    _children_map: dict[sp.Symbol, list[sp.Symbol]]
+    _children_map: defaultdict[sp.Symbol, list[sp.Symbol]]
 
     def __init__(self) -> None: ...
     @property
