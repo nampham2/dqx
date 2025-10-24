@@ -283,3 +283,34 @@ def test_count_values_symbol_info() -> None:
     assert isinstance(symbol_info.metric_spec, specs.CountValues)
     assert symbol_info.metric_spec.parameters["column"] == "status"
     assert symbol_info.metric_spec.parameters["values"] == ["active", "pending"]
+
+
+def test_count_values_with_booleans() -> None:
+    """Test CountValues with boolean values."""
+    data = pa.table(
+        {
+            "is_active": [True, False, True, True, False, None, True],
+            "verified": [True, True, False, False, True, True, False],
+        }
+    )
+
+    ds = DuckRelationDataSource.from_arrow(data)
+
+    @check(name="Boolean Values Check")
+    def boolean_values_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(mp.count_values("is_active", True)).where(
+            name="Count of True values should be 4 (ignoring nulls)"
+        ).is_eq(4)
+
+        ctx.assert_that(mp.count_values("is_active", False)).where(name="Count of False values should be 2").is_eq(2)
+
+        ctx.assert_that(mp.count_values("verified", True)).where(name="Count of verified True should be 4").is_eq(4)
+
+    db = InMemoryMetricDB()
+    suite = VerificationSuite([boolean_values_check], db, "Test Suite")
+    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+
+    # Run the suite
+    suite.run({"test": ds}, key)
+
+    # The test passes if no exceptions are raised

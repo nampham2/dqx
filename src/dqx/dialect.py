@@ -369,6 +369,9 @@ class DuckDBDialect:
                         # Escape single quotes and backslashes
                         escaped_val = val.replace("\\", "\\\\").replace("'", "''")
                         condition = f"{col} = '{escaped_val}'"
+                    elif isinstance(val, bool):
+                        # Handle boolean values - DuckDB uses TRUE/FALSE
+                        condition = f"{col} = {'TRUE' if val else 'FALSE'}"
                     else:
                         condition = f"{col} = {val}"
                 else:
@@ -483,6 +486,9 @@ class BigQueryDialect:
                         # Escape single quotes and backslashes
                         escaped_val = val.replace("\\", "\\\\").replace("'", "''")
                         condition = f"{col} = '{escaped_val}'"
+                    elif isinstance(val, bool):
+                        # Handle boolean values - BigQuery uses TRUE/FALSE
+                        condition = f"{col} = {'TRUE' if val else 'FALSE'}"
                     else:
                         condition = f"{col} = {val}"
                 else:

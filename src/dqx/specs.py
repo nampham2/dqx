@@ -433,7 +433,7 @@ class DuplicateCount:
 class CountValues:
     metric_type: MetricType = "CountValues"
 
-    def __init__(self, column: str, values: int | str | list[int] | list[str]) -> None:
+    def __init__(self, column: str, values: int | str | bool | list[int] | list[str]) -> None:
         self._column = column
         self._values = values
         self._analyzers = (ops.CountValues(self._column, self._values),)

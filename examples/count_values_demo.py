@@ -3,7 +3,7 @@
 
 This example demonstrates how to use the CountValues operation to count
 occurrences of specific values in columns, including:
-- Single value counting (string and integer)
+- Single value counting (string, integer, and boolean)
 - Multiple value counting
 - Integration with VerificationSuite and assertions
 - Handling special characters and edge cases
@@ -43,6 +43,8 @@ def main() -> None:
             "category": ["A", "B", "A", "C", "A", "B", "D", "A"],
             "name": ["Smith", "O'Brien", "Jones", "Smith", "Lee", "O'Brien", "Chen", "Smith"],
             "score": [100, 200, 100, 300, 100, 200, None, 100],
+            "is_active": [True, False, True, True, True, False, None, True],
+            "verified": [True, True, False, False, True, True, False, True],
         }
     )
 
@@ -139,7 +141,26 @@ def main() -> None:
     console.print("[yellow]Running edge case checks...[/yellow]")
     suite4.run({"demo": ds}, key)
 
-    print_section("Example 5: Complex Business Rules")
+    print_section("Example 5: Boolean Value Counting")
+
+    @check(name="Boolean Value Counts")
+    def boolean_check(mp: MetricProvider, ctx: Context) -> None:
+        # Count True values
+        ctx.assert_that(mp.count_values("is_active", True)).where(name="Count of active items (True)").is_eq(5)
+
+        # Count False values
+        ctx.assert_that(mp.count_values("is_active", False)).where(name="Count of inactive items (False)").is_eq(2)
+
+        # Boolean counting with nulls (nulls are ignored)
+        ctx.assert_that(mp.count_values("verified", True)).where(name="Count of verified items").is_eq(5)
+
+        ctx.assert_that(mp.count_values("verified", False)).where(name="Count of unverified items").is_eq(3)
+
+    suite5 = VerificationSuite([boolean_check], db, "Boolean Suite")
+    console.print("[yellow]Running boolean value checks...[/yellow]")
+    suite5.run({"demo": ds}, key)
+
+    print_section("Example 6: Complex Business Rules")
 
     @check(name="Business Rule Validation")
     def business_rules_check(mp: MetricProvider, ctx: Context) -> None:
@@ -158,19 +179,20 @@ def main() -> None:
             name="High priority items (1 or 2) should be majority"
         ).is_gt(4)
 
-    suite5 = VerificationSuite([business_rules_check], db, "Business Rules Suite")
+    suite6 = VerificationSuite([business_rules_check], db, "Business Rules Suite")
     console.print("[yellow]Running business rule checks...[/yellow]")
-    suite5.run({"demo": ds}, key)
+    suite6.run({"demo": ds}, key)
 
     print_section("Summary")
     console.print("""
 CountValues is a powerful operation for validating categorical data:
 
-✓ Count occurrences of single values (strings or integers)
+✓ Count occurrences of single values (strings, integers, or booleans)
 ✓ Count occurrences of multiple values using lists
 ✓ Handle special characters in values properly
 ✓ Ignore null values in counts
 ✓ Case-sensitive matching
+✓ Boolean value counting (True/False)
 ✓ Integration with assertion framework for data quality rules
 
 Use cases:
@@ -179,6 +201,7 @@ Use cases:
 - Check for data quality issues
 - Monitor changes in categorical distributions
 - Validate business rules about categorical data
+- Count boolean flags (active/inactive, verified/unverified)
 """)
 
 

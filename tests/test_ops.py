@@ -325,6 +325,13 @@ def test_count_values_single() -> None:
     op_str = ops.CountValues("category", "active")
     assert op_str.name == "count_values(category,active)"
 
+    # Test with single boolean value
+    op_bool_true = ops.CountValues("is_active", True)
+    assert op_bool_true.name == "count_values(is_active,True)"
+
+    op_bool_false = ops.CountValues("is_verified", False)
+    assert op_bool_false.name == "count_values(is_verified,False)"
+
     # Test value assignment
     with pytest.raises(DQXError, match="CountValues op has not been collected yet!"):
         op_int.value()
@@ -354,11 +361,8 @@ def test_count_values_multiple() -> None:
 
 def test_count_values_invalid_types() -> None:
     # Test invalid single value type
-    with pytest.raises(ValueError, match="CountValues accepts int, str, list\\[int\\], or list\\[str\\]"):
+    with pytest.raises(ValueError, match="CountValues accepts int, str, bool, list\\[int\\], or list\\[str\\]"):
         ops.CountValues("column", 3.14)  # type: ignore
-
-    with pytest.raises(ValueError, match="CountValues accepts int, str, list\\[int\\], or list\\[str\\]"):
-        ops.CountValues("column", True)  # type: ignore
 
     # Test empty list
     with pytest.raises(ValueError, match="CountValues requires at least one value"):
@@ -367,6 +371,10 @@ def test_count_values_invalid_types() -> None:
     # Test mixed type list
     with pytest.raises(ValueError, match="CountValues list must contain all integers or all strings"):
         ops.CountValues("column", [1, "two", 3])  # type: ignore
+
+    # Test booleans in lists (not allowed)
+    with pytest.raises(ValueError, match="CountValues list must contain all integers or all strings"):
+        ops.CountValues("column", [True, False])  # type: ignore
 
 
 def test_count_values_equality() -> None:
@@ -392,6 +400,15 @@ def test_count_values_equality() -> None:
     op8 = ops.CountValues("col", 1)
     op9 = ops.CountValues("col", [1])
     assert op8 != op9  # Different formats
+
+    # Boolean values
+    op10 = ops.CountValues("col", True)
+    op11 = ops.CountValues("col", True)
+    op12 = ops.CountValues("col", False)
+
+    assert op10 == op11
+    assert op10 != op12
+    assert op10 != op1  # Boolean True is not equal to integer 1
 
 
 def test_count_values_hashing() -> None:

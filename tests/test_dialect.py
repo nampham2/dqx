@@ -118,6 +118,15 @@ def test_translate_count_values() -> None:
     sql_str = dialect_duck.translate_sql_op(op_str)
     assert sql_str == f"CAST(COUNT_IF(category = 'active') AS DOUBLE) AS '{op_str.sql_col}'"
 
+    # Test DuckDB with single boolean value
+    op_bool_true = ops.CountValues("is_active", True)
+    sql_bool_true = dialect_duck.translate_sql_op(op_bool_true)
+    assert sql_bool_true == f"CAST(COUNT_IF(is_active = TRUE) AS DOUBLE) AS '{op_bool_true.sql_col}'"
+
+    op_bool_false = ops.CountValues("is_verified", False)
+    sql_bool_false = dialect_duck.translate_sql_op(op_bool_false)
+    assert sql_bool_false == f"CAST(COUNT_IF(is_verified = FALSE) AS DOUBLE) AS '{op_bool_false.sql_col}'"
+
     # Test DuckDB with string containing quotes
     op_quote = ops.CountValues("name", "O'Brien")
     sql_quote = dialect_duck.translate_sql_op(op_quote)
@@ -146,6 +155,13 @@ def test_translate_count_values() -> None:
     # Test BigQuery with IN clause
     sql_bq_in = dialect_bq.translate_sql_op(op_ints)
     assert sql_bq_in == f"CAST(COUNTIF(type_id IN (1, 2, 3)) AS FLOAT64) AS `{op_ints.sql_col}`"
+
+    # Test BigQuery with boolean values
+    sql_bq_bool_true = dialect_bq.translate_sql_op(op_bool_true)
+    assert sql_bq_bool_true == f"CAST(COUNTIF(is_active = TRUE) AS FLOAT64) AS `{op_bool_true.sql_col}`"
+
+    sql_bq_bool_false = dialect_bq.translate_sql_op(op_bool_false)
+    assert sql_bq_bool_false == f"CAST(COUNTIF(is_verified = FALSE) AS FLOAT64) AS `{op_bool_false.sql_col}`"
 
 
 def test_dialect_unsupported_op() -> None:
@@ -353,6 +369,8 @@ def test_all_ops_covered() -> None:
         ops.DuplicateCount(["col"]),
         ops.CountValues("col", 1),
         ops.CountValues("col", "test"),
+        ops.CountValues("col", True),
+        ops.CountValues("col", False),
         ops.CountValues("col", [1, 2, 3]),
         ops.CountValues("col", ["a", "b", "c"]),
     ]
