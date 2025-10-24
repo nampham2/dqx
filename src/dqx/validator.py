@@ -304,9 +304,25 @@ class UnusedSymbolValidator(BaseValidator):
         # Find unused symbols
         unused_symbols = defined_symbols - self._used_symbols
 
-        # Generate warnings for each unused symbol
+        # Build a set of all parent symbols (more efficient single pass)
+        parent_symbols = set()
+        for symbol in defined_symbols:
+            metric = self._provider.get_symbol(symbol)
+            if metric.parent_symbol is not None:
+                parent_symbols.add(metric.parent_symbol)
+
+        # Generate warnings for each unused symbol, excluding dependencies
         for symbol in unused_symbols:
             metric = self._provider.get_symbol(symbol)
+
+            # Skip symbols that have parents (they are dependencies)
+            if metric.parent_symbol is not None:
+                continue
+
+            # Skip symbols that are parents of other symbols
+            if symbol in parent_symbols:
+                continue
+
             # Format: symbol_name ← metric_name
             symbol_repr = f"{symbol} ← {metric.name}"
 

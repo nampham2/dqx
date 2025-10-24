@@ -196,10 +196,17 @@ def test_suite_validator_performance() -> None:
 
     root = RootNode("large_suite")
 
+    # Create a provider for validation
+    db = InMemoryMetricDB()
+    provider = MetricProvider(db)
+
     # Create a large suite
     for i in range(100):
         check = root.add_check(f"Check_{i}")
         for j in range(10):
+            # Create metrics through provider so they're registered
+            metric = provider.metric(specs.Average(f"column_{i}_{j}"))
+
             # Create validator with closure over j value
             max_value = j + 1
 
@@ -207,14 +214,10 @@ def test_suite_validator_performance() -> None:
                 return bool(0 <= x <= mv)
 
             range_validator = SymbolicValidator(f"in [0, {max_value}]", validator_fn)
-            check.add_assertion(sp.Symbol(f"x_{i}_{j}"), name=f"Assert_{j}", validator=range_validator)
+            check.add_assertion(metric, name=f"Assert_{j}", validator=range_validator)
 
     graph = Graph(root)
     validator = SuiteValidator()
-
-    # Create a provider for validation
-    db = InMemoryMetricDB()
-    provider = MetricProvider(db)
 
     start = time.time()
     report = validator.validate(graph, provider)
@@ -390,6 +393,7 @@ def test_unused_symbol_validator_extended_metrics() -> None:
 
     # Only use extended metrics (x1 and x2)
     # The base metrics (sum("revenue") and average("latency")) are registered but not directly used
+    # However, they are parent symbols of the extended metrics, so they should NOT be warned about
     validator_fn = SymbolicValidator("> 0", lambda x: x > 0)
     check.add_assertion(x1 > 0.1, name="DoD check", validator=validator_fn)
     check.add_assertion(x2 < 100, name="Stddev check", validator=validator_fn)
@@ -398,17 +402,18 @@ def test_unused_symbol_validator_extended_metrics() -> None:
     validator = SuiteValidator()
     report = validator.validate(graph, provider)
 
-    # Should warn about:
+    # Should only warn about:
     # - x3 (average(conversion_rate)) - explicitly created but unused
-    # - The base metrics for extended metrics (sum(revenue) and average(latency))
+    # The base metrics for extended metrics are parent symbols and should not be warned about
     unused_warnings = [w for w in report.warnings if w.rule == "unused_symbols"]
-    assert len(unused_warnings) == 3
+    assert len(unused_warnings) == 1
 
     warning_messages = [w.message for w in unused_warnings]
-    # Check that all expected unused symbols are warned about
+    # Check that only the truly unused symbol is warned about
     assert any("average(conversion_rate)" in msg for msg in warning_messages)
-    assert any("sum(revenue)" in msg for msg in warning_messages)
-    assert any("average(latency)" in msg for msg in warning_messages)
+    # Base metrics should NOT be warned about as they are parents of used extended metrics
+    assert not any("sum(revenue)" in msg for msg in warning_messages)
+    assert not any("average(latency)" in msg for msg in warning_messages)
 
 
 def test_unused_symbol_validator_no_symbols_defined() -> None:

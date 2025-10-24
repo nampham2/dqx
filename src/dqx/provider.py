@@ -25,6 +25,7 @@ class SymbolicMetric:
     key_provider: ResultKeyProvider
     metric_spec: MetricSpec
     dataset: str | None = None
+    parent_symbol: sp.Symbol | None = None
 
 
 class SymbolicMetricBase(ABC):
@@ -33,6 +34,7 @@ class SymbolicMetricBase(ABC):
         self._symbol_index: SymbolIndex = {}
         self._curr_index: int = 0
         self._mutex = Lock()
+        self._children_map: dict[sp.Symbol, list[sp.Symbol]] = {}
 
     @property
     def symbolic_metrics(self) -> list[SymbolicMetric]:
@@ -85,12 +87,40 @@ class SymbolicMetricBase(ABC):
         key: ResultKeyProvider,
         metric_spec: MetricSpec,
         dataset: str | None = None,
+        parent: sp.Symbol | None = None,
     ) -> None:
-        self._metrics.append(sm := SymbolicMetric(name, symbol, fn, key, metric_spec, dataset))
-        self._symbol_index[symbol] = sm
+        """Register a symbolic metric and track parent-child relationships."""
+        metric = SymbolicMetric(
+            name=name,
+            symbol=symbol,
+            fn=fn,
+            key_provider=key,
+            metric_spec=metric_spec,
+            dataset=dataset,
+            parent_symbol=parent,
+        )
+        self._metrics.append(metric)
+        self._symbol_index[symbol] = metric
+
+        # Update children map
+        if parent is not None:
+            if parent not in self._children_map:
+                self._children_map[parent] = []
+            self._children_map[parent].append(symbol)
 
     def evaluate(self, symbol: sp.Symbol, key: ResultKey) -> Result[float, str]:
         return self._symbol_index[symbol].fn(key)
+
+    def get_children(self, symbol: sp.Symbol) -> list[sp.Symbol]:
+        """Get all child symbols of a given parent symbol.
+
+        Args:
+            symbol: The parent symbol to get children for
+
+        Returns:
+            List of child symbols, or empty list if no children
+        """
+        return self._children_map.get(symbol, [])
 
 
 class ExtendedMetricProvider:
@@ -109,10 +139,49 @@ class ExtendedMetricProvider:
         symbolic_metric = self._provider.get_symbol(metric)
         return symbolic_metric.metric_spec
 
+    def _create_lag_dependency(self, base_metric: sp.Symbol, lag_days: int) -> sp.Symbol:
+        """Create a lag dependency symbol for the base metric.
+
+        Args:
+            base_metric: The base metric symbol to create lag for
+            lag_days: Number of days to lag
+
+        Returns:
+            Symbol representing the lag dependency
+        """
+        metric_spec = self._resolve_metric_spec(base_metric)
+        base_metric_info = self._provider.get_symbol(base_metric)
+
+        # Create lag function that applies the lag to the key
+        def lag_metric(
+            db: MetricDB, metric: MetricSpec, lag: int, key_provider: ResultKeyProvider, nominal_key: ResultKey
+        ) -> Result[float, str]:
+            lagged_key = nominal_key.lag(lag)
+            key = key_provider.create(lagged_key)
+            value = db.get_metric_value(metric, key)
+            from returns.converters import maybe_to_result
+
+            return maybe_to_result(value, f"Metric {metric.name} not found for lagged date!")
+
+        self._provider._register(
+            sym := self._next_symbol(),
+            name=f"lag({lag_days})({base_metric})",
+            fn=partial(lag_metric, self._db, metric_spec, lag_days, base_metric_info.key_provider),
+            key=base_metric_info.key_provider,
+            metric_spec=metric_spec,
+            dataset=base_metric_info.dataset,
+            parent=base_metric,
+        )
+        return sym
+
     def day_over_day(
         self, metric: sp.Symbol, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
         metric_spec = self._resolve_metric_spec(metric)
+
+        # Create lag(1) dependency
+        self._create_lag_dependency(metric, 1)
+
         self._provider._register(
             sym := self._next_symbol(),
             name=f"day_over_day({metric_spec.name})",
@@ -120,6 +189,7 @@ class ExtendedMetricProvider:
             key=key,
             metric_spec=metric_spec,
             dataset=dataset,
+            parent=metric,
         )
         return sym
 
@@ -132,6 +202,12 @@ class ExtendedMetricProvider:
         dataset: str | None = None,
     ) -> sp.Symbol:
         metric_spec = self._resolve_metric_spec(metric)
+
+        # Create lag dependencies for the window
+        # stddev needs lag values from lag to lag+n-1
+        for i in range(lag, lag + n):
+            self._create_lag_dependency(metric, i)
+
         self._provider._register(
             sym := self._next_symbol(),
             name=f"stddev({metric_spec.name})",
@@ -139,6 +215,7 @@ class ExtendedMetricProvider:
             key=key,
             metric_spec=metric_spec,
             dataset=dataset,
+            parent=metric,
         )
         return sym
 
@@ -146,6 +223,10 @@ class ExtendedMetricProvider:
         self, metric: sp.Symbol, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
         metric_spec = self._resolve_metric_spec(metric)
+
+        # Create lag(7) dependency
+        self._create_lag_dependency(metric, 7)
+
         self._provider._register(
             sym := self._next_symbol(),
             name=f"week_over_week({metric_spec.name})",
@@ -153,6 +234,7 @@ class ExtendedMetricProvider:
             key=key,
             metric_spec=metric_spec,
             dataset=dataset,
+            parent=metric,
         )
         return sym
 
@@ -167,7 +249,11 @@ class MetricProvider(SymbolicMetricBase):
         return ExtendedMetricProvider(self)
 
     def metric(
-        self, metric: MetricSpec, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
+        self,
+        metric: MetricSpec,
+        key: ResultKeyProvider = ResultKeyProvider(),
+        dataset: str | None = None,
+        parent: sp.Symbol | None = None,
     ) -> sp.Symbol:
         self._register(
             sym := self._next_symbol(),
@@ -176,6 +262,7 @@ class MetricProvider(SymbolicMetricBase):
             key=key,
             metric_spec=metric,
             dataset=dataset,
+            parent=parent,
         )
         return sym
 

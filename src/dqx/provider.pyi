@@ -23,12 +23,14 @@ class SymbolicMetric:
     key_provider: ResultKeyProvider
     metric_spec: MetricSpec
     dataset: str | None = None
+    parent_symbol: sp.Symbol | None = None
 
 class SymbolicMetricBase(ABC):
     _metrics: list[SymbolicMetric]
     _symbol_index: SymbolIndex
     _curr_index: int
     _mutex: Lock
+    _children_map: dict[sp.Symbol, list[sp.Symbol]]
 
     def __init__(self) -> None: ...
     @property
@@ -44,8 +46,10 @@ class SymbolicMetricBase(ABC):
         key: ResultKeyProvider,
         metric_spec: MetricSpec,
         dataset: str | None = None,
+        parent: sp.Symbol | None = None,
     ) -> None: ...
     def evaluate(self, symbol: sp.Symbol, key: ResultKey) -> Result[float, str]: ...
+    def get_children(self, symbol: sp.Symbol) -> list[sp.Symbol]: ...
 
 class ExtendedMetricProvider:
     _provider: MetricProvider

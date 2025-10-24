@@ -31,6 +31,7 @@ class SymbolInfo:
         yyyy_mm_dd: Date when the metric was evaluated
         suite: Name of the verification suite that evaluated this symbol
         tags: Additional metadata from ResultKey (e.g., {"env": "prod"})
+        children_names: List of child symbol names for hierarchical display
     """
 
     name: str
@@ -40,6 +41,7 @@ class SymbolInfo:
     yyyy_mm_dd: datetime.date
     suite: str
     tags: Tags = field(default_factory=dict)
+    children_names: list[str] = field(default_factory=list)
 
 
 @dataclass

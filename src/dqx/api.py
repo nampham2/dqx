@@ -659,7 +659,10 @@ class VerificationSuite:
 
         symbols = []
 
-        # Iterate through all registered symbols
+        # Create a mapping from symbol to SymbolInfo for easy lookup
+        symbol_map: dict[str, SymbolInfo] = {}
+
+        # First pass: create all SymbolInfo objects
         for symbolic_metric in self._context.provider.symbolic_metrics:
             # Calculate the effective key for this symbol
             effective_key = symbolic_metric.key_provider.create(self.key)
@@ -682,8 +685,19 @@ class VerificationSuite:
                 yyyy_mm_dd=effective_key.yyyy_mm_dd,  # Use effective date!
                 suite=self._name,
                 tags=effective_key.tags,
+                children_names=[],  # Initialize empty, will populate in second pass
             )
+            symbol_map[str(symbolic_metric.symbol)] = symbol_info
             symbols.append(symbol_info)
+
+        # Second pass: populate children_names based on parent_symbol
+        for symbolic_metric in self._context.provider.symbolic_metrics:
+            symbol_name = str(symbolic_metric.symbol)
+            if symbolic_metric.parent_symbol:
+                parent_name = str(symbolic_metric.parent_symbol)
+                if parent_name in symbol_map:
+                    # Add this symbol as a child of its parent
+                    symbol_map[parent_name].children_names.append(symbol_name)
 
         # Sort by symbol numeric suffix for natural ordering (x_1, x_2, ..., x_10)
         # instead of lexicographic ordering (x_1, x_10, x_2)
