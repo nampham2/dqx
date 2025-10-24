@@ -5,7 +5,6 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import partial
 from threading import Lock
-from typing import overload
 
 import sympy as sp
 from returns.result import Result
@@ -210,111 +209,6 @@ class MetricProvider(SymbolicMetricBase):
         self, columns: list[str], key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
     ) -> sp.Symbol:
         return self.metric(specs.DuplicateCount(columns), key, dataset)
-
-    @overload
-    def count_values(
-        self, column: str, values: bool, key: ResultKeyProvider = ..., dataset: str | None = ...
-    ) -> sp.Symbol:
-        """Count occurrences of a boolean value in a column.
-
-        Args:
-            column: Column name to count values in
-            values: The boolean value to count (True or False)
-            key: Result key provider
-            dataset: Optional dataset name
-
-        Returns:
-            Symbol representing the count
-
-        Example:
-            >>> suite.count_values("is_active", True)
-            >>> suite.count_values("is_deleted", False)
-        """
-        ...
-
-    @overload
-    def count_values(
-        self, column: str, values: int, key: ResultKeyProvider = ..., dataset: str | None = ...
-    ) -> sp.Symbol:
-        """Count occurrences of a specific integer value in a column.
-
-        Args:
-            column: Column name to count values in
-            values: The integer value to count
-            key: Result key provider
-            dataset: Optional dataset name
-
-        Returns:
-            Symbol representing the count
-
-        Example:
-            >>> suite.count_values("user_id", 123)
-            >>> suite.count_values("type_id", 1)
-        """
-        ...
-
-    @overload
-    def count_values(
-        self, column: str, values: str, key: ResultKeyProvider = ..., dataset: str | None = ...
-    ) -> sp.Symbol:
-        """Count occurrences of a specific string value in a column.
-
-        Args:
-            column: Column name to count values in
-            values: The string value to count
-            key: Result key provider
-            dataset: Optional dataset name
-
-        Returns:
-            Symbol representing the count
-
-        Example:
-            >>> suite.count_values("status", "active")
-            >>> suite.count_values("category", "electronics")
-        """
-        ...
-
-    @overload
-    def count_values(
-        self, column: str, values: list[int], key: ResultKeyProvider = ..., dataset: str | None = ...
-    ) -> sp.Symbol:
-        """Count occurrences of multiple integer values in a column.
-
-        Args:
-            column: Column name to count values in
-            values: List of integer values to count
-            key: Result key provider
-            dataset: Optional dataset name
-
-        Returns:
-            Symbol representing the count
-
-        Example:
-            >>> suite.count_values("user_id", [123, 456, 789])
-            >>> suite.count_values("type_id", [1, 2, 3])
-        """
-        ...
-
-    @overload
-    def count_values(
-        self, column: str, values: list[str], key: ResultKeyProvider = ..., dataset: str | None = ...
-    ) -> sp.Symbol:
-        """Count occurrences of multiple string values in a column.
-
-        Args:
-            column: Column name to count values in
-            values: List of string values to count
-            key: Result key provider
-            dataset: Optional dataset name
-
-        Returns:
-            Symbol representing the count
-
-        Example:
-            >>> suite.count_values("status", ["active", "pending"])
-            >>> suite.count_values("category", ["electronics", "books", "clothing"])
-        """
-        ...
 
     def count_values(
         self,
