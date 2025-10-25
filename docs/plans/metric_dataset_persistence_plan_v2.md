@@ -385,29 +385,10 @@ def _analyze_internal(
     return AnalysisReport(data=report_data)
 ```
 
-### Step 4: Update MetricProvider
-**File**: `src/dqx/provider.py`
-
-#### 4.1 Add dataset mapping method
-```python
-def build_dataset_mapping(self) -> dict[MetricSpec, str]:
-    """Build mapping from MetricSpec to dataset name.
-
-    Returns:
-        Dict mapping each MetricSpec to its dataset name.
-        Only includes metrics that have a dataset assigned.
-    """
-    mapping = {}
-    for sym_metric in self.symbolic_metrics:
-        if sym_metric.dataset:
-            mapping[sym_metric.metric_spec] = sym_metric.dataset
-    return mapping
-```
-
-### Step 5: Update ORM Repository
+### Step 4: Update ORM Repository
 **File**: `src/dqx/orm/repositories.py`
 
-#### 5.1 Update _adapt_to_orm to include dataset
+#### 4.1 Update _adapt_to_orm to include dataset
 ```python
 def _adapt_to_orm(self, metric: models.Metric) -> schema.Metric:
     return schema.Metric(
@@ -419,7 +400,7 @@ def _adapt_to_orm(self, metric: models.Metric) -> schema.Metric:
     )
 ```
 
-#### 5.2 Update _build_from_orm (if it exists)
+#### 4.2 Update _build_from_orm (if it exists)
 ```python
 def _build_from_orm(self, orm_row: Any) -> models.Metric | None:
     # ... existing code ...
@@ -432,10 +413,10 @@ def _build_from_orm(self, orm_row: Any) -> models.Metric | None:
     )
 ```
 
-### Step 6: Simplify VerificationSuite API
+### Step 5: Simplify VerificationSuite API
 **File**: `src/dqx/api.py`
 
-#### 6.1 Update _analyze signature to use list
+#### 5.1 Update _analyze signature to use list
 ```python
 def _analyze(self, datasources: list[SqlDataSource], key: ResultKey) -> None:
     """Analyze metrics for all datasources.
@@ -467,7 +448,7 @@ def _analyze(self, datasources: list[SqlDataSource], key: ResultKey) -> None:
         analyzer.report.persist(self.provider._db)
 ```
 
-#### 6.2 Update run method to call simplified _analyze
+#### 5.2 Update run method to call simplified _analyze
 ```python
 def run(self, datasources: list[SqlDataSource], key: ResultKey, *, enable_plugins: bool = True) -> None:
     # ... existing validation code ...
