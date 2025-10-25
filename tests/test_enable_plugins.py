@@ -66,6 +66,7 @@ def test_enable_plugins_true_by_default() -> None:
 
     # Mock data source
     datasource = Mock()
+    datasource.name = "test_ds"
     datasource.query.return_value.fetchone.return_value = (1,)
 
     # Mock the analyzer and evaluator behavior
@@ -98,7 +99,7 @@ def test_enable_plugins_true_by_default() -> None:
 
                 # Run suite - plugins should be enabled by default
                 key = ResultKey(datetime.now().date(), {})
-                suite.run({"ds1": datasource}, key)
+                suite.run([datasource], key)
 
     # Plugin should have been called
     assert plugin_called
@@ -137,6 +138,7 @@ def test_enable_plugins_false_disables_plugins() -> None:
 
     # Mock data source
     datasource = Mock()
+    datasource.name = "test_ds"
     datasource.query.return_value.fetchone.return_value = (1,)
 
     # Mock the analyzer and evaluator behavior
@@ -169,7 +171,7 @@ def test_enable_plugins_false_disables_plugins() -> None:
 
                 # Run suite with plugins disabled
                 key = ResultKey(datetime.now().date(), {})
-                suite.run({"ds1": datasource}, key, enable_plugins=False)
+                suite.run([datasource], key, enable_plugins=False)
 
     # Plugin should NOT have been called
     assert not plugin_called
@@ -208,6 +210,7 @@ def test_enable_plugins_true_explicit() -> None:
 
     # Mock data source
     datasource = Mock()
+    datasource.name = "test_ds"
     datasource.query.return_value.fetchone.return_value = (1,)
 
     # Mock the analyzer and evaluator behavior
@@ -240,7 +243,7 @@ def test_enable_plugins_true_explicit() -> None:
 
                 # Run suite with plugins explicitly enabled
                 key = ResultKey(datetime.now().date(), {})
-                suite.run({"ds1": datasource}, key, enable_plugins=True)
+                suite.run([datasource], key, enable_plugins=True)
 
     # Plugin should have been called
     assert plugin_called
@@ -260,13 +263,14 @@ def test_process_plugins_not_called_when_disabled() -> None:
 
     # Mock data source
     datasource = Mock()
+    datasource.name = "test_ds"
     datasource.query.return_value.fetchone.return_value = (1,)
 
     # Mock process_plugins to track if it's called
     process_plugins_called = False
     original_process_plugins = suite._process_plugins
 
-    def mock_process_plugins(datasources: dict[str, Any]) -> None:
+    def mock_process_plugins(datasources: list[Any]) -> None:
         nonlocal process_plugins_called
         process_plugins_called = True
         original_process_plugins(datasources)
@@ -303,7 +307,7 @@ def test_process_plugins_not_called_when_disabled() -> None:
 
                 # Run suite with plugins disabled
                 key = ResultKey(datetime.now().date(), {})
-                suite.run({"ds1": datasource}, key, enable_plugins=False)
+                suite.run([datasource], key, enable_plugins=False)
 
     # _process_plugins should NOT have been called
     assert not process_plugins_called

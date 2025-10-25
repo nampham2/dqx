@@ -26,10 +26,10 @@ class TestSuiteCaching:
 
         suite = VerificationSuite([price_check], db, "Test Suite")
         data = pa.table({"price": [10, 20, 30]})
-        ds = DuckRelationDataSource.from_arrow(data)
+        ds = DuckRelationDataSource.from_arrow(data, "data")
         key = ResultKey(date.today(), {"env": "test"})
 
-        suite.run({"test": ds}, key)
+        suite.run([ds], key)
 
         # Get results twice
         results1 = suite.collect_results()
@@ -49,10 +49,10 @@ class TestSuiteCaching:
 
         suite = VerificationSuite([simple_check], db, "Test Suite")
         data = pa.table({"value": [25, 25, 25, 25]})
-        ds = DuckRelationDataSource.from_arrow(data)
+        ds = DuckRelationDataSource.from_arrow(data, "data")
         key = ResultKey(date.today(), {"env": "test"})
 
-        suite.run({"test": ds}, key)
+        suite.run([ds], key)
 
         # First calls - should compute and cache
         results1 = suite.collect_results()

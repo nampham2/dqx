@@ -214,8 +214,8 @@ def print_ground_truth(ground_truth: dict[str, float | str]) -> None:
 
 def test_e2e_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> None:
     db = InMemoryMetricDB()
-    ds1 = DuckRelationDataSource.from_arrow(commerce_data_c1)
-    ds2 = DuckRelationDataSource.from_arrow(commerce_data_c2)
+    ds1 = DuckRelationDataSource.from_arrow(commerce_data_c1, "ds1")
+    ds2 = DuckRelationDataSource.from_arrow(commerce_data_c2, "ds2")
 
     key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={})
     checks = [simple_checks, manual_day_over_day, rate_of_change, null_percentage, cross_dataset_check]
@@ -223,7 +223,7 @@ def test_e2e_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> No
     # Run for today
     suite = VerificationSuite(checks, db, name="Simple test suite")
 
-    suite.run({"ds1": ds1, "ds2": ds2}, key)
+    suite.run([ds1, ds2], key)
     suite.graph.print_tree()
 
     print_assertion_results(suite.collect_results())

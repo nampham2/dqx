@@ -30,7 +30,7 @@ def sample_data() -> pa.Table:
 @pytest.fixture
 def arrow_data_source(sample_data: pa.Table) -> DuckRelationDataSource:
     """Create a DuckRelationDataSource with sample data."""
-    return DuckRelationDataSource.from_arrow(sample_data)
+    return DuckRelationDataSource.from_arrow(sample_data, "data")
 
 
 @pytest.fixture
@@ -390,7 +390,7 @@ class TestAnalyzeFunctions:
     def test_analyze_sql_ops_empty(self) -> None:
         """Test analyze_sql_ops with empty ops list."""
         data = pa.Table.from_pydict({"col": [1, 2, 3]})
-        ds = DuckRelationDataSource.from_arrow(data)
+        ds = DuckRelationDataSource.from_arrow(data, "data")
         nominal_date = datetime.date(2024, 1, 1)
         analyze_sql_ops(ds, [], nominal_date)
         # Should return without errors
@@ -415,7 +415,7 @@ class TestAnalyzeFunctions:
         """Test analyze_sql_ops with actual ops."""
         # Use DuckRelationDataSource
         data = pa.Table.from_pydict({"test_col": [42.0]})
-        ds = DuckRelationDataSource.from_arrow(data)
+        ds = DuckRelationDataSource.from_arrow(data, "data")
         nominal_date = datetime.date(2024, 1, 1)
 
         # Use real SQL ops
@@ -433,7 +433,7 @@ class TestAnalyzeFunctions:
         """Test that duplicate SQL ops are only executed once."""
         # Create test data
         data = pa.Table.from_pydict({"value": [1, 2, 3, 4, 5]})
-        ds = DuckRelationDataSource.from_arrow(data)
+        ds = DuckRelationDataSource.from_arrow(data, "data")
         nominal_date = datetime.date(2024, 1, 1)
 
         # Create duplicate ops
@@ -456,7 +456,7 @@ class TestAnalyzeFunctions:
     def test_sql_ops_order_preservation(self) -> None:
         """Test that deduplication preserves order of first occurrence."""
         data = pa.Table.from_pydict({"a": [1, 2, 3], "b": [4, 5, 6]})
-        ds = DuckRelationDataSource.from_arrow(data)
+        ds = DuckRelationDataSource.from_arrow(data, "data")
         nominal_date = datetime.date(2024, 1, 1)
 
         # Create ops in specific order
@@ -480,7 +480,7 @@ class TestAnalyzeFunctions:
     def test_mixed_column_deduplication(self) -> None:
         """Test deduplication with ops on different columns."""
         data = pa.Table.from_pydict({"price": [10.0, 20.0, 30.0], "quantity": [1, 2, 3], "tax": [1.0, 2.0, 3.0]})
-        ds = DuckRelationDataSource.from_arrow(data)
+        ds = DuckRelationDataSource.from_arrow(data, "data")
         nominal_date = datetime.date(2024, 1, 1)
 
         # Create ops on different columns with some duplicates

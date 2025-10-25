@@ -27,10 +27,10 @@ class TestSuiteCritical:
 
         suite = VerificationSuite([critical_check], db, "Test Suite")
         data = pa.table({"value": [25, 25, 25, 25]})
-        ds = DuckRelationDataSource.from_arrow(data)
+        ds = DuckRelationDataSource.from_arrow(data, "data")
         key = ResultKey(date.today(), {"env": "test"})
 
-        suite.run({"test": ds}, key)
+        suite.run([ds], key)
 
         # Should be critical due to P0 failure
         assert suite.is_critical() is True
@@ -49,10 +49,10 @@ class TestSuiteCritical:
 
         suite = VerificationSuite([non_critical_checks], db, "Test Suite")
         data = pa.table({"value": [25, 25, 25, 25]})
-        ds = DuckRelationDataSource.from_arrow(data)
+        ds = DuckRelationDataSource.from_arrow(data, "data")
         key = ResultKey(date.today(), {"env": "test"})
 
-        suite.run({"test": ds}, key)
+        suite.run([ds], key)
 
         # Should not be critical (no P0 failures)
         assert suite.is_critical() is False
@@ -73,10 +73,10 @@ class TestSuiteCritical:
 
         suite = VerificationSuite([mixed_check], db, "Test Suite")
         data = pa.table({"value": [25, 25, 25, 25]})
-        ds = DuckRelationDataSource.from_arrow(data)
+        ds = DuckRelationDataSource.from_arrow(data, "data")
         key = ResultKey(date.today(), {"env": "test"})
 
-        suite.run({"test": ds}, key)
+        suite.run([ds], key)
 
         # Should be critical due to P0 failure
         assert suite.is_critical() is True
@@ -105,10 +105,10 @@ class TestSuiteCritical:
 
         suite = VerificationSuite([empty_check], db, "Test Suite")
         data = pa.table({"value": [1, 2, 3]})
-        ds = DuckRelationDataSource.from_arrow(data)
+        ds = DuckRelationDataSource.from_arrow(data, "data")
         key = ResultKey(date.today(), {"env": "test"})
 
-        suite.run({"test": ds}, key)
+        suite.run([ds], key)
 
         # Should not be critical (no assertions at all)
         assert suite.is_critical() is False
@@ -124,10 +124,10 @@ class TestSuiteCritical:
 
         suite = VerificationSuite([p0_failure], db, "Test Suite")
         data = pa.table({"value": [1, 2, 3]})
-        ds = DuckRelationDataSource.from_arrow(data)
+        ds = DuckRelationDataSource.from_arrow(data, "data")
         key = ResultKey(date.today(), {"env": "test"})
 
-        suite.run({"test": ds}, key)
+        suite.run([ds], key)
 
         # First call to collect_results
         results1 = suite.collect_results()

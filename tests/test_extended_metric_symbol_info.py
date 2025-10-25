@@ -11,7 +11,7 @@ from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
 
 
-@check(name="Extended Metric Test", datasets=["test_ds"])
+@check(name="Extended Metric Test", datasets=["ds1"])
 def extended_metric_check(mp: MetricProvider, ctx: Context) -> None:
     """Test check using day_over_day, week_over_week, and stddev metrics."""
     # Create day_over_day metric
@@ -30,12 +30,12 @@ def extended_metric_check(mp: MetricProvider, ctx: Context) -> None:
 def test_extended_metrics_symbol_info_names(commerce_data_c1: pa.Table) -> None:
     """Test that extended metrics have correct names in SymbolInfo."""
     db = InMemoryMetricDB()
-    ds = DuckRelationDataSource.from_arrow(commerce_data_c1)
+    ds = DuckRelationDataSource.from_arrow(commerce_data_c1, "ds1")
 
     # Create and run suite
     suite = VerificationSuite([extended_metric_check], db, "Extended Metric Test Suite")
     key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={})
-    suite.run({"test_ds": ds}, key)
+    suite.run([ds], key)
 
     # Collect symbols
     symbols = suite.provider.collect_symbols(key)

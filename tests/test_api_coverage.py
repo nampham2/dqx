@@ -95,7 +95,7 @@ def test_verification_suite_run_no_datasources_error() -> None:
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
     with pytest.raises(DQXError, match="No data sources provided"):
-        suite.run({}, key)  # Empty datasources dict
+        suite.run([], key)  # Empty datasources list
 
 
 def test_collect_results_before_run_error() -> None:
@@ -149,7 +149,12 @@ def test_verification_suite_already_executed_error() -> None:
     # Second run should raise error
     with pytest.raises(DQXError, match="Verification suite has already been executed"):
         # Use a mock datasource that doesn't need actual implementation
-        suite.run({"test_ds": None}, key)  # type: ignore
+        import pyarrow as pa
+
+        from dqx.datasource import DuckRelationDataSource
+
+        data = pa.table({"price": [10, 20, 30]})
+        suite.run([DuckRelationDataSource.from_arrow(data, "data")], key)
 
 
 def test_verification_suite_multiple_checks() -> None:
@@ -164,7 +169,7 @@ def test_verification_suite_multiple_checks() -> None:
     def check2(mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(mp.average("price")).where(name="Price is positive").is_positive()
 
-    @check(name="Check 3", datasets=["orders"])
+    @check(name="Check 3", datasets=["data"])
     def check3(mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(mp.sum("quantity")).where(name="Total quantity").is_geq(100)
 
@@ -177,7 +182,7 @@ def test_verification_suite_multiple_checks() -> None:
     from dqx.datasource import DuckRelationDataSource
 
     data = pa.table({"price": [10, 20, 30], "quantity": [100, 200, 300]})
-    suite.run({"orders": DuckRelationDataSource.from_arrow(data)}, key)
+    suite.run([DuckRelationDataSource.from_arrow(data, "data")], key)
 
     # Verify all checks were added
     checks = list(suite.graph.checks())
@@ -186,7 +191,7 @@ def test_verification_suite_multiple_checks() -> None:
 
     # Verify datasets (tags have been removed)
     check3_node = next(c for c in checks if c.name == "Check 3")
-    assert check3_node.datasets == ["orders"]
+    assert check3_node.datasets == ["data"]
 
 
 def test_context_provider_property() -> None:
@@ -373,7 +378,7 @@ def test_is_leq_assertion() -> None:
     from dqx.datasource import DuckRelationDataSource
 
     data = pa.table({"x": [1, 2, 3], "y": [10, 15, 20]})
-    suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
+    suite.run([DuckRelationDataSource.from_arrow(data, "data")], key)
 
     # Verify assertions were created
     assertions = list(suite.graph.assertions())
@@ -401,7 +406,7 @@ def test_is_lt_assertion() -> None:
     from dqx.datasource import DuckRelationDataSource
 
     data = pa.table({"x": [5, 10, 15], "y": [18, 19, 20]})
-    suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
+    suite.run([DuckRelationDataSource.from_arrow(data, "data")], key)
 
     # Verify assertions were created
     assertions = list(suite.graph.assertions())
@@ -429,7 +434,7 @@ def test_is_eq_assertion() -> None:
     from dqx.datasource import DuckRelationDataSource
 
     data = pa.table({"x": [10, 10, 10], "y": [20, 20, 20]})
-    suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
+    suite.run([DuckRelationDataSource.from_arrow(data, "data")], key)
 
     # Verify assertions were created
     assertions = list(suite.graph.assertions())
@@ -473,7 +478,7 @@ def test_is_between_valid_assertion() -> None:
     from dqx.datasource import DuckRelationDataSource
 
     data = pa.table({"x": [5, 7, 9], "y": [-3, 0, 3]})
-    suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
+    suite.run([DuckRelationDataSource.from_arrow(data, "data")], key)
 
     # Verify assertions were created
     assertions = list(suite.graph.assertions())
@@ -584,7 +589,7 @@ def test_suite_validation_with_warnings() -> None:
 
 def test_verification_suite_run_full_execution() -> None:
     """Test full execution of VerificationSuite.run() method covering all code paths."""
-    from unittest.mock import MagicMock, patch
+    from unittest.mock import MagicMock, PropertyMock, patch
 
     db = InMemoryMetricDB()
 
@@ -606,12 +611,16 @@ def test_verification_suite_run_full_execution() -> None:
 
     suite = VerificationSuite([check1, check2, check3], db, "Test Suite")
 
-    # Create mock datasources
+    # Create mock datasources that implement SqlDataSource protocol
     mock_ds1 = MagicMock()
-    mock_ds1.name = "ds1"
+    type(mock_ds1).name = PropertyMock(return_value="ds1")
+    mock_ds1.select = MagicMock()
+
     mock_ds2 = MagicMock()
-    mock_ds2.name = "ds2"
-    datasources = {"ds1": mock_ds1, "ds2": mock_ds2}
+    type(mock_ds2).name = PropertyMock(return_value="ds2")
+    mock_ds2.select = MagicMock()
+
+    datasources = [mock_ds1, mock_ds2]
 
     # Mock the Analyzer to track calls
     mock_analyzer = MagicMock()
@@ -668,7 +677,7 @@ def test_verification_suite_run_full_execution() -> None:
 
 def test_verification_suite_run_with_plugins() -> None:
     """Test VerificationSuite.run() with plugins enabled."""
-    from unittest.mock import MagicMock, patch
+    from unittest.mock import MagicMock, PropertyMock, patch
 
     db = InMemoryMetricDB()
 
@@ -678,9 +687,11 @@ def test_verification_suite_run_with_plugins() -> None:
 
     suite = VerificationSuite([test_check], db, "Test Suite")
 
-    # Create mock datasource
+    # Create mock datasource that implements SqlDataSource protocol
     mock_ds = MagicMock()
-    datasources = {"test_ds": mock_ds}
+    type(mock_ds).name = PropertyMock(return_value="test_ds")
+    mock_ds.select = MagicMock()
+    datasources = [mock_ds]
 
     # Mock the Analyzer and Evaluator
     mock_analyzer = MagicMock()

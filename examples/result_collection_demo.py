@@ -206,13 +206,13 @@ def main() -> None:
             )
 
     # Create data sources
-    orders_datasource = DuckRelationDataSource.from_arrow(orders_data)
+    orders_datasource = DuckRelationDataSource.from_arrow(orders_data, "orders")
 
     # Run validation
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={"environment": "production", "version": "1.0"})
 
     print("Running data quality checks with intentional failures...")
-    suite.run({"orders": orders_datasource}, key)
+    suite.run([orders_datasource], key)
 
     # Check evaluation status
     print(f"Suite evaluated: {suite._is_evaluated}")
@@ -267,7 +267,7 @@ def main() -> None:
     # Demonstrate that suite cannot be run again
     print("\nAttempting to run suite again...")
     try:
-        suite.run({"orders": orders_datasource}, key)
+        suite.run([orders_datasource], key)
     except Exception as e:
         print(f"Expected error: {e}")
 

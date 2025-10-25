@@ -132,8 +132,12 @@ class SqlDataSource(Protocol):
         dialect: The SQL dialect name used for query generation
     """
 
-    name: str
     dialect: str
+
+    @property
+    def name(self) -> str:
+        """Get the name of this data source."""
+        ...
 
     def cte(self, nominal_date: datetime.date) -> str:
         """

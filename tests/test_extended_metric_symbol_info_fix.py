@@ -40,7 +40,7 @@ def test_lag_metrics_have_correct_dates() -> None:
 
     # Create data source
     db = InMemoryMetricDB()
-    ds = DuckRelationDataSource.from_arrow(arrow_table)
+    ds = DuckRelationDataSource.from_arrow(arrow_table, "ds1")
 
     # Create suite
     suite = VerificationSuite([_test_check], db, name="Lag Date Test")
@@ -48,7 +48,7 @@ def test_lag_metrics_have_correct_dates() -> None:
     # Run with nominal date 2025-01-15
     nominal_date = dt.date(2025, 1, 15)
     key = ResultKey(yyyy_mm_dd=nominal_date, tags={})
-    suite.run({"ds1": ds}, key)
+    suite.run([ds], key)
 
     # Collect symbols and check dates
     symbols = suite.provider.collect_symbols(key)
@@ -108,9 +108,9 @@ def test_nested_lag_metrics() -> None:
     arrow_table = pa.Table.from_arrays([value], names=["value"])
 
     db = InMemoryMetricDB()
-    ds = DuckRelationDataSource.from_arrow(arrow_table)
+    ds = DuckRelationDataSource.from_arrow(arrow_table, "ds1")
 
-    @check(name="Nested Check", datasets=["test"])
+    @check(name="Nested Check", datasets=["ds1"])
     def nested_check(mp: MetricProvider, ctx: Context) -> None:
         # Create nested extended metrics
         base = mp.average("value")
@@ -123,7 +123,7 @@ def test_nested_lag_metrics() -> None:
 
     nominal_date = dt.date(2025, 1, 20)
     key = ResultKey(yyyy_mm_dd=nominal_date, tags={})
-    suite.run({"test": ds}, key)
+    suite.run([ds], key)
 
     symbols = suite.provider.collect_symbols(key)
     symbol_map = {sym.metric: sym for sym in symbols}

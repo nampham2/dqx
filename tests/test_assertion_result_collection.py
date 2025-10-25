@@ -46,16 +46,16 @@ class TestAssertionResultCollection:
 
         # Create test data
         data = pa.table({"x": [1, 2, 3]})
-        datasource = DuckRelationDataSource.from_arrow(data)
+        datasource = DuckRelationDataSource.from_arrow(data, "data")
         key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
         # First run should succeed
-        suite.run({"data": datasource}, key)
+        suite.run([datasource], key)
         assert suite.is_evaluated is True
 
         # Second run should raise error
         with pytest.raises(DQXError) as exc_info:
-            suite.run({"data": datasource}, key)
+            suite.run([datasource], key)
 
         assert "Verification suite has already been executed" in str(exc_info.value)
 
@@ -72,7 +72,7 @@ class TestAssertionResultCollection:
         # Run with specific key
         data = pa.table({"x": [1, 2, 3]})
         key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 15), tags={"env": "test", "version": "1.0"})
-        suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
+        suite.run([DuckRelationDataSource.from_arrow(data, "data")], key)
 
         # Collect results without passing key
         results = suite.collect_results()  # No key parameter!
@@ -88,7 +88,7 @@ class TestAssertionResultCollection:
         data = pa.table(
             {"id": [1, 2, 3, 4, 5], "value": [10.0, 20.0, 30.0, 40.0, 50.0], "category": ["A", "B", "A", "B", "A"]}
         )
-        datasource = DuckRelationDataSource.from_arrow(data)
+        datasource = DuckRelationDataSource.from_arrow(data, "data")
 
         # Define checks with multiple assertions
         @check(name="data validation")
@@ -111,7 +111,7 @@ class TestAssertionResultCollection:
         key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 15), tags={"env": "test", "version": "1.0"})
 
         # Run the suite
-        suite.run({"test_data": datasource}, key)
+        suite.run([datasource], key)
 
         # Should be evaluated after run
         assert suite.is_evaluated is True
@@ -178,7 +178,7 @@ class TestAssertionResultCollection:
 
         # This should raise an exception
         with pytest.raises(RuntimeError):
-            suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
+            suite.run([DuckRelationDataSource.from_arrow(data, "data")], key)
 
         # Flag should NOT be set on failure
         assert suite.is_evaluated is False
@@ -191,7 +191,7 @@ class TestAssertionResultCollection:
     def test_collect_results_preserves_result_object(self) -> None:
         """Should preserve the full Result object for advanced usage."""
         data = pa.table({"x": [1, 2, 3]})
-        datasource = DuckRelationDataSource.from_arrow(data)
+        datasource = DuckRelationDataSource.from_arrow(data, "data")
 
         @check(name="result preservation")
         def check_results(mp: MetricProvider, ctx: Context) -> None:
@@ -201,7 +201,7 @@ class TestAssertionResultCollection:
         suite = VerificationSuite([check_results], db, "Suite")
 
         key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-        suite.run({"data": datasource}, key)
+        suite.run([datasource], key)
 
         results = suite.collect_results()
 
@@ -234,7 +234,7 @@ class TestAssertionResultCollection:
         # Empty checks will raise a warning but not fail
         # The suite will not run analyzer since there are no metrics
         try:
-            suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
+            suite.run([DuckRelationDataSource.from_arrow(data, "data")], key)
         except DQXError as e:
             # Expected - no metrics to analyze (batch analysis now)
             assert "No metrics provided for batch analysis" in str(e)
@@ -249,7 +249,7 @@ class TestAssertionResultCollection:
     def test_failure_details_accessible_from_result(self) -> None:
         """Should be able to access failure details directly from Result object."""
         data = pa.table({"x": [5]})
-        datasource = DuckRelationDataSource.from_arrow(data)
+        datasource = DuckRelationDataSource.from_arrow(data, "data")
 
         @check(name="failure test")
         def failure_check(mp: MetricProvider, ctx: Context) -> None:
@@ -260,7 +260,7 @@ class TestAssertionResultCollection:
         suite = VerificationSuite([failure_check], db, "Test Suite")
 
         key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-        suite.run({"data": datasource}, key)
+        suite.run([datasource], key)
 
         results = suite.collect_results()
         assert len(results) == 1

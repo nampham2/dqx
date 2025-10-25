@@ -415,7 +415,7 @@ def test_verification_suite_graph_property() -> None:
     from dqx.datasource import DuckRelationDataSource
 
     data = pa.table({"x": [1, 2, 3]})
-    suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
+    suite.run([DuckRelationDataSource.from_arrow(data, "data")], key)
 
     # Should return a Graph instance
     from dqx.graph.traversal import Graph
@@ -450,7 +450,7 @@ def test_verification_suite_build_graph_method() -> None:
     from dqx.datasource import DuckRelationDataSource
 
     data = pa.table({"x": [1, 2, 3]})
-    suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
+    suite.run([DuckRelationDataSource.from_arrow(data, "data")], key)
 
     # After run, graph should be populated
     assert len(suite.graph.root.children) > 0

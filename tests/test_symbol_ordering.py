@@ -39,10 +39,10 @@ def test_collect_symbols_natural_ordering() -> None:
     # Create test data with all columns (2 rows to satisfy variance calculation)
     data = {f"col_{i}": [float(i), float(i)] for i in range(1, 16)}
     table = pa.table(data)
-    datasource = DuckRelationDataSource.from_arrow(table)
+    datasource = DuckRelationDataSource.from_arrow(table, "test")
 
     key = ResultKey(yyyy_mm_dd=date.today(), tags={})
-    suite.run({"test": datasource}, key)
+    suite.run([datasource], key)
 
     symbols = suite.provider.collect_symbols(key)
 
@@ -77,10 +77,10 @@ def test_collect_symbols_large_numbers() -> None:
     # Create test data (2 rows to satisfy variance calculation)
     data = {f"col_{i}": [float(i), float(i)] for i in range(105)}
     table = pa.table(data)
-    datasource = DuckRelationDataSource.from_arrow(table)
+    datasource = DuckRelationDataSource.from_arrow(table, "test")
 
     key = ResultKey(yyyy_mm_dd=date.today(), tags={})
-    suite.run({"test": datasource}, key)
+    suite.run([datasource], key)
 
     symbols = suite.provider.collect_symbols(key)
     names = [s.name for s in symbols]

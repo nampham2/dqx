@@ -117,9 +117,9 @@ def main() -> None:
 
     # Create data sources
     tables = create_sample_data()
-    datasources: dict[str, SqlDataSource] = {
-        name: DuckRelationDataSource.from_arrow(table) for name, table in tables.items()
-    }
+    datasources: list[SqlDataSource] = [
+        DuckRelationDataSource.from_arrow(table, name) for name, table in tables.items()
+    ]
 
     # Run the suite
     suite.run(datasources, key)

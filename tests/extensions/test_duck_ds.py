@@ -2,6 +2,7 @@ import datetime
 
 import duckdb
 import pyarrow as pa
+import pytest
 
 from dqx.common import SqlDataSource
 from dqx.datasource import DuckRelationDataSource
@@ -12,8 +13,8 @@ def test_duck_relation_datasource_init(commerce_data_c1: pa.Table) -> None:
     # Create a duckdb relation from the arrow table
     relation = duckdb.arrow(commerce_data_c1)
 
-    ds = DuckRelationDataSource(relation)
-    assert ds.name == "duckdb"
+    ds = DuckRelationDataSource(relation, "test_data")
+    assert ds.name == "test_data"
     assert ds.dialect == "duckdb"
     assert hasattr(ds, "_relation")
     assert hasattr(ds, "_table_name")
@@ -23,7 +24,7 @@ def test_duck_relation_datasource_init(commerce_data_c1: pa.Table) -> None:
 def test_duck_relation_datasource_cte(commerce_data_c1: pa.Table) -> None:
     """Test DuckRelationDataSource cte method."""
     relation = duckdb.arrow(commerce_data_c1)
-    ds = DuckRelationDataSource(relation)
+    ds = DuckRelationDataSource(relation, "test_data")
 
     nominal_date = datetime.date(2024, 1, 1)
     cte = ds.cte(nominal_date)
@@ -34,7 +35,7 @@ def test_duck_relation_datasource_cte(commerce_data_c1: pa.Table) -> None:
 def test_duck_relation_datasource_query(commerce_data_c1: pa.Table) -> None:
     """Test DuckRelationDataSource query method."""
     relation = duckdb.arrow(commerce_data_c1)
-    ds = DuckRelationDataSource(relation)
+    ds = DuckRelationDataSource(relation, "test_data")
 
     # Test a simple query
     query = f"SELECT COUNT(*) as count FROM {ds._table_name}"
@@ -48,10 +49,14 @@ def test_duck_relation_datasource_query(commerce_data_c1: pa.Table) -> None:
 
 def test_duck_relation_datasource_from_arrow(commerce_data_c1: pa.Table) -> None:
     """Test DuckRelationDataSource.from_arrow classmethod."""
-    ds = DuckRelationDataSource.from_arrow(commerce_data_c1)
+    ds = DuckRelationDataSource.from_arrow(commerce_data_c1, "commerce_data")
 
     # Should return a DuckRelationDataSource instance
     assert isinstance(ds, DuckRelationDataSource)
     assert isinstance(ds, SqlDataSource)
-    assert ds.name == "duckdb"
+    assert ds.name == "commerce_data"
     assert ds.dialect == "duckdb"
+
+    # Test that name is read-only
+    with pytest.raises(AttributeError):
+        ds.name = "new_name"  # type: ignore[misc]

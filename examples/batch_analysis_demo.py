@@ -123,7 +123,7 @@ def main() -> None:
     print(f"Generated {len(table)} total records")
 
     # Create data source
-    ds = DuckRelationDataSource.from_arrow(table)
+    ds = DuckRelationDataSource.from_arrow(table, "data")
 
     # Define metrics to compute
     metrics: list[specs.MetricSpec] = [
@@ -168,7 +168,7 @@ def main() -> None:
 
     # Generate data for 60 days (exceeds DEFAULT_BATCH_SIZE)
     large_table = generate_sales_data(start_date, 60)
-    large_ds = DuckRelationDataSource.from_arrow(large_table)
+    large_ds = DuckRelationDataSource.from_arrow(large_table, "large")
 
     analyzer = Analyzer()
     dates_60 = [start_date + datetime.timedelta(days=i) for i in range(60)]

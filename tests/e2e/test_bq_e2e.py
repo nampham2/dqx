@@ -152,14 +152,14 @@ def metric_collection(mp: MetricProvider, ctx: Context) -> None:
 @pytest.mark.skip(reason="BigQuery tests are disabled temporarily")
 def test_bq_e2e_suite(commerce_data_c1: pa.Table) -> None:
     db = InMemoryMetricDB()
-    ds1 = DuckRelationDataSource.from_arrow(commerce_data_c1)
+    ds1 = DuckRelationDataSource.from_arrow(commerce_data_c1, "commerce_data")
 
     key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={})
     checks = [simple_checks, booking_basic, nits, commission, bookings, metric_collection]
 
     suite = VerificationSuite(checks, db, name="Simple test suite")
 
-    suite.run({"ds1": ds1}, key)
+    suite.run([ds1], key)
     suite.graph.print_tree()
 
     print_assertion_results(suite.collect_results())

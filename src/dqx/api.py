@@ -314,7 +314,8 @@ class VerificationSuite:
     Example:
         >>> db = MetricDB()
         >>> suite = VerificationSuite([my_check], db, "My Suite")
-        >>> result = suite.run({"dataset": datasource}, key)
+        >>> datasource = DuckRelationDataSource.from_arrow(data, "dataset")
+        >>> result = suite.run([datasource], key)
     """
 
     def __init__(
@@ -375,6 +376,7 @@ class VerificationSuite:
 
         Example:
             >>> suite = VerificationSuite(checks, db, "My Suite")
+            >>> datasources = [DuckRelationDataSource.from_arrow(data, "my_data")]
             >>> suite.run(datasources, key)
             >>> graph = suite.graph  # Now accessible
             >>> print(f"Graph has {len(list(graph.checks()))} checks")
@@ -502,12 +504,12 @@ class VerificationSuite:
             # Persist the combined report
             analyzer.report.persist(self.provider._db)
 
-    def run(self, datasources: dict[str, SqlDataSource], key: ResultKey, *, enable_plugins: bool = True) -> None:
+    def run(self, datasources: list[SqlDataSource], key: ResultKey, *, enable_plugins: bool = True) -> None:
         """
         Execute the verification suite against the provided data sources.
 
         Args:
-            datasources: Dictionary mapping dataset names to data sources
+            datasources: List of data sources to analyze
             key: Result key defining the time period and tags
             enable_plugins: Whether to execute plugins after validation (default True)
 
@@ -521,11 +523,14 @@ class VerificationSuite:
         if self.is_evaluated:
             raise DQXError("Verification suite has already been executed. Create a new suite instance to run again.")
 
-        logger.info(f"Running verification suite '{self._name}' with datasets: {list(datasources.keys())}")
-
         # Validate the datasources
         if not datasources:
             raise DQXError("No data sources provided!")
+
+        # Create internal dict for compatibility
+        datasources_dict = {ds.name: ds for ds in datasources}
+
+        logger.info(f"Running verification suite '{self._name}' with datasets: {list(datasources_dict.keys())}")
 
         # Store the key for later use in collect_results
         self._key = key
@@ -540,11 +545,11 @@ class VerificationSuite:
         # 1. Impute datasets using visitor pattern
         # Use graph in the context to avoid the check if the suite has been evaluated
         logger.info("Imputing datasets...")
-        self._context._graph.impute_datasets(list(datasources.keys()), self._context.provider)
+        self._context._graph.impute_datasets([ds.name for ds in datasources], self._context.provider)
 
         # 2. Analyze by datasources
         with self._analyze_ms:
-            self._analyze(datasources, key)
+            self._analyze(datasources_dict, key)
 
         # 3. Evaluate assertions
         # Use graph in the context to avoid the check if the suite has been evaluated
@@ -579,6 +584,7 @@ class VerificationSuite:
 
         Example:
             >>> suite = VerificationSuite(checks, db, "My Suite")
+            >>> datasources = [DuckRelationDataSource.from_arrow(data, "my_data")]
             >>> suite.run(datasources, key)
             >>> results = suite.collect_results()  # No key needed!
             >>> for r in results:
@@ -637,6 +643,7 @@ class VerificationSuite:
 
         Example:
             >>> suite = VerificationSuite(checks, db, "My Suite")
+            >>> datasources = [DuckRelationDataSource.from_arrow(data, "my_data")]
             >>> suite.run(datasources, key)
             >>> if suite.is_critical():
             ...     print("CRITICAL: P0 failures detected!")
@@ -656,12 +663,12 @@ class VerificationSuite:
 
         return False
 
-    def _process_plugins(self, datasources: dict[str, SqlDataSource]) -> None:
+    def _process_plugins(self, datasources: list[SqlDataSource]) -> None:
         """
         Process results through all loaded plugins.
 
         Args:
-            datasources: Dictionary of data sources used in the suite execution
+            datasources: List of data sources used in the suite execution
         """
         # Raise error if the suite hasn't been properly executed
         self.assert_is_evaluated()
@@ -670,7 +677,7 @@ class VerificationSuite:
         # Create plugin execution context
         context = PluginExecutionContext(
             suite_name=self._name,
-            datasources=list(datasources.keys()),
+            datasources=[ds.name for ds in datasources],
             key=self.key,
             timestamp=self._context.start_time,
             duration_ms=duration_ms,

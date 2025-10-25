@@ -79,7 +79,7 @@ class TestDuplicateCountIntegration:
 
         # Create a DuckDB relation and data source
         relation = conn.sql("SELECT * FROM test_data")
-        data_source = DuckRelationDataSource(relation)
+        data_source = DuckRelationDataSource(relation, "test_data")
 
         # Create analyzer
         analyzer = Analyzer()
@@ -130,7 +130,7 @@ class TestDuplicateCountIntegration:
         from dqx.datasource import DuckRelationDataSource
 
         data = pa.table({"order_id": [1, 2, 3]})
-        suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
+        suite.run([DuckRelationDataSource.from_arrow(data, "data")], key)
 
         # Access graph after running
         graph = suite.graph

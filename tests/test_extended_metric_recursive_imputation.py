@@ -60,8 +60,8 @@ def test_extended_metric_recursive_dataset_imputation() -> None:
 
     # Create data sources
     db = InMemoryMetricDB()
-    ds1 = DuckRelationDataSource.from_arrow(arrow1)
-    ds2 = DuckRelationDataSource.from_arrow(arrow2)
+    ds1 = DuckRelationDataSource.from_arrow(arrow1, "ds1")
+    ds2 = DuckRelationDataSource.from_arrow(arrow2, "ds2")
 
     # Create verification suite with only the single-dataset checks
     # to avoid validation errors
@@ -70,7 +70,7 @@ def test_extended_metric_recursive_dataset_imputation() -> None:
 
     # Run the suite to trigger dataset imputation
     key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-14"), tags={})
-    suite.run({"ds1": ds1, "ds2": ds2}, key)
+    suite.run([ds1, ds2], key)
 
     # Collect symbols after the run
     symbols = suite.provider.collect_symbols(key)
@@ -137,14 +137,14 @@ def test_nested_extended_metrics() -> None:
 
     # Create data source
     db = InMemoryMetricDB()
-    ds = DuckRelationDataSource.from_arrow(arrow_table)
+    ds = DuckRelationDataSource.from_arrow(arrow_table, "prod")
 
     # Create suite
     suite = VerificationSuite([nested_checks], db, name="Nested Extended Metrics")
 
     # Run analysis
     key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-14"), tags={})
-    suite.run({"prod": ds}, key)
+    suite.run([ds], key)
 
     # Check all symbols were created and have datasets
     symbols = suite.provider.collect_symbols(key)
@@ -177,7 +177,7 @@ def test_nested_extended_metrics() -> None:
     assert metric_types["stddev"] >= 1, f"Should have stddev metric, got {metric_types}. All metrics: {all_metrics}"
 
 
-@check(name="Simple Check", datasets=["test"])
+@check(name="Simple Check", datasets=["circuit"])
 def simple_check(mp: MetricProvider, ctx: Context) -> None:
     """Simple check to verify basic functionality."""
     ctx.assert_that(mp.sum("value")).where(name="Sum > 0").is_gt(0)
@@ -196,14 +196,14 @@ def test_circular_dependency_handling() -> None:
 
     # Create data source
     db = InMemoryMetricDB()
-    ds = DuckRelationDataSource.from_arrow(arrow_table)
+    ds = DuckRelationDataSource.from_arrow(arrow_table, "circuit")
 
     # Create suite
     suite = VerificationSuite([simple_check], db, name="Circular Dependency Test")
 
     # Run should complete without hanging
     key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-14"), tags={})
-    suite.run({"test": ds}, key)
+    suite.run([ds], key)
 
     # Basic verification that it ran
     symbols = suite.provider.collect_symbols(key)

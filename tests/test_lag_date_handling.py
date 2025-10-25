@@ -59,9 +59,9 @@ def test_suite_analyzes_metrics_with_correct_dates(monkeypatch: Any) -> None:
 
     # Create test data
     data = pa.table({"value": [100.0] * 10})
-    ds = DuckRelationDataSource.from_arrow(data)
+    ds = DuckRelationDataSource.from_arrow(data, "ds1")
 
-    suite.run({"ds1": ds}, key)
+    suite.run([ds], key)
 
     # Verify analyze was called with metrics for different dates
     assert len(analyze_calls) == 2
@@ -97,10 +97,10 @@ def test_collect_symbols_with_lagged_dates() -> None:
 
     # Create test data
     data = pa.table({"value": [100.0] * 10})
-    ds = DuckRelationDataSource.from_arrow(data)
+    ds = DuckRelationDataSource.from_arrow(data, "ds1")
 
     # Run suite
-    suite.run({"ds1": ds}, key)
+    suite.run([ds], key)
 
     # Collect symbols
     symbols = suite.provider.collect_symbols(key)
@@ -144,9 +144,9 @@ def test_mixed_lag_and_no_lag_metrics() -> None:
     key = ResultKey(datetime.date(2025, 1, 15), {})
 
     data = pa.table({"value": [10.0, 20.0, 30.0, 40.0, 50.0]})
-    ds = DuckRelationDataSource.from_arrow(data)
+    ds = DuckRelationDataSource.from_arrow(data, "ds1")
 
-    suite.run({"ds1": ds}, key)
+    suite.run([ds], key)
     symbols = suite.provider.collect_symbols(key)
 
     # Verify we have 4 symbols
@@ -180,10 +180,10 @@ def test_missing_historical_data_graceful_handling() -> None:
 
     # Data source only has current data
     data = pa.table({"value": [100.0] * 10})
-    ds = DuckRelationDataSource.from_arrow(data)
+    ds = DuckRelationDataSource.from_arrow(data, "ds1")
 
     # Should not fail even if historical data is missing
-    suite.run({"ds1": ds}, key)
+    suite.run([ds], key)
 
     # Verify both symbols are collected
     symbols = suite.provider.collect_symbols(key)
@@ -232,9 +232,9 @@ def test_large_lag_values() -> None:
     key = ResultKey(datetime.date(2025, 1, 15), {})
 
     data = pa.table({"revenue": [1000.0] * 50})
-    ds = DuckRelationDataSource.from_arrow(data)
+    ds = DuckRelationDataSource.from_arrow(data, "ds1")
 
-    suite.run({"ds1": ds}, key)
+    suite.run([ds], key)
     symbols = suite.provider.collect_symbols(key)
 
     # Find the metrics
@@ -265,9 +265,9 @@ def test_date_boundary_conditions() -> None:
     key = ResultKey(datetime.date(2025, 1, 2), {})
 
     data = pa.table({"id": list(range(100))})
-    ds = DuckRelationDataSource.from_arrow(data)
+    ds = DuckRelationDataSource.from_arrow(data, "ds1")
 
-    suite.run({"ds1": ds}, key)
+    suite.run([ds], key)
     symbols = suite.provider.collect_symbols(key)
 
     # Verify dates cross year boundary correctly
@@ -280,7 +280,7 @@ def test_date_boundary_conditions() -> None:
     key2 = ResultKey(datetime.date(2025, 3, 1), {})
     suite2 = VerificationSuite([boundary_check], db, "Test Suite 2")
 
-    suite2.run({"ds1": ds}, key2)
+    suite2.run([ds], key2)
     symbols2 = suite2.provider.collect_symbols(key2)
 
     dates2 = {s.yyyy_mm_dd for s in symbols2}

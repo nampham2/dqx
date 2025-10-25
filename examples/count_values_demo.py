@@ -62,7 +62,7 @@ def main() -> None:
     console.print(table)
 
     # Create datasource
-    ds = DuckRelationDataSource.from_arrow(data)
+    ds = DuckRelationDataSource.from_arrow(data, "data")
 
     # Set up metric database and key
     db = InMemoryMetricDB()
@@ -85,7 +85,7 @@ def main() -> None:
 
     suite1 = VerificationSuite([single_value_check], db, "Single Value Suite")
     console.print("[yellow]Running single value checks...[/yellow]")
-    suite1.run({"demo": ds}, key)
+    suite1.run([ds], key)
 
     print_section("Example 2: Multiple Value Counting")
 
@@ -102,7 +102,7 @@ def main() -> None:
 
     suite2 = VerificationSuite([multiple_value_check], db, "Multiple Value Suite")
     console.print("[yellow]Running multiple value checks...[/yellow]")
-    suite2.run({"demo": ds}, key)
+    suite2.run([ds], key)
 
     print_section("Example 3: Using CountValues Spec Directly")
 
@@ -120,7 +120,7 @@ def main() -> None:
 
     suite3 = VerificationSuite([spec_check], db, "Direct Spec Suite")
     console.print("[yellow]Running direct spec checks...[/yellow]")
-    suite3.run({"demo": ds}, key)
+    suite3.run([ds], key)
 
     print_section("Example 4: Edge Cases and Validation")
 
@@ -139,7 +139,7 @@ def main() -> None:
 
     suite4 = VerificationSuite([edge_case_check], db, "Edge Case Suite")
     console.print("[yellow]Running edge case checks...[/yellow]")
-    suite4.run({"demo": ds}, key)
+    suite4.run([ds], key)
 
     print_section("Example 5: Boolean Value Counting")
 
@@ -158,7 +158,7 @@ def main() -> None:
 
     suite5 = VerificationSuite([boolean_check], db, "Boolean Suite")
     console.print("[yellow]Running boolean value checks...[/yellow]")
-    suite5.run({"demo": ds}, key)
+    suite5.run([ds], key)
 
     print_section("Example 6: Complex Business Rules")
 
@@ -181,7 +181,7 @@ def main() -> None:
 
     suite6 = VerificationSuite([business_rules_check], db, "Business Rules Suite")
     console.print("[yellow]Running business rule checks...[/yellow]")
-    suite6.run({"demo": ds}, key)
+    suite6.run([ds], key)
 
     print_section("Summary")
     console.print("""

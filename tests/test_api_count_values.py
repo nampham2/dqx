@@ -27,7 +27,7 @@ def test_count_values_with_check() -> None:
         }
     )
 
-    ds = DuckRelationDataSource.from_arrow(data)
+    ds = DuckRelationDataSource.from_arrow(data, "data")
 
     # Create check using count_values
     @check(name="Count Values Check")
@@ -44,7 +44,7 @@ def test_count_values_with_check() -> None:
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
     # Run the suite - it will print audit report but doesn't return a result by default
-    suite.run({"test": ds}, key)
+    suite.run([ds], key)
 
     # The test passes if no exceptions are raised
     # The audit report shows the assertions passed
@@ -59,7 +59,7 @@ def test_count_values_multiple_values() -> None:
         }
     )
 
-    ds = DuckRelationDataSource.from_arrow(data)
+    ds = DuckRelationDataSource.from_arrow(data, "data")
 
     @check(name="Multiple Values Check")
     def multiple_values_check(mp: MetricProvider, ctx: Context) -> None:
@@ -76,7 +76,7 @@ def test_count_values_multiple_values() -> None:
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
     # Run the suite
-    suite.run({"test": ds}, key)
+    suite.run([ds], key)
 
     # The test passes if no exceptions are raised
 
@@ -90,7 +90,7 @@ def test_count_values_with_integers() -> None:
         }
     )
 
-    ds = DuckRelationDataSource.from_arrow(data)
+    ds = DuckRelationDataSource.from_arrow(data, "data")
 
     @check(name="Integer Values Check")
     def integer_values_check(mp: MetricProvider, ctx: Context) -> None:
@@ -105,7 +105,7 @@ def test_count_values_with_integers() -> None:
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
     # Run the suite
-    suite.run({"test": ds}, key)
+    suite.run([ds], key)
 
     # The test passes if no exceptions are raised
 
@@ -119,7 +119,7 @@ def test_count_values_with_nulls() -> None:
         }
     )
 
-    ds = DuckRelationDataSource.from_arrow(data)
+    ds = DuckRelationDataSource.from_arrow(data, "data")
 
     # CountValues should not count nulls
     @check(name="Nulls Check")
@@ -135,7 +135,7 @@ def test_count_values_with_nulls() -> None:
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
     # Run the suite
-    suite.run({"test": ds}, key)
+    suite.run([ds], key)
 
     # The test passes if no exceptions are raised
 
@@ -148,7 +148,7 @@ def test_count_values_with_spec_directly() -> None:
         }
     )
 
-    ds = DuckRelationDataSource.from_arrow(data)
+    ds = DuckRelationDataSource.from_arrow(data, "data")
 
     # Use the spec directly
     count_values_spec = specs.CountValues("type", "A")
@@ -162,7 +162,7 @@ def test_count_values_with_spec_directly() -> None:
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
     # Run the suite
-    suite.run({"test": ds}, key)
+    suite.run([ds], key)
 
     # The test passes if no exceptions are raised
 
@@ -175,7 +175,7 @@ def test_count_values_failure_case() -> None:
         }
     )
 
-    ds = DuckRelationDataSource.from_arrow(data)
+    ds = DuckRelationDataSource.from_arrow(data, "data")
 
     @check(name="Failure Check")
     def failure_check(mp: MetricProvider, ctx: Context) -> None:
@@ -189,7 +189,7 @@ def test_count_values_failure_case() -> None:
 
     # Run the suite - we expect it to complete but with failed checks
     # This will be visible in the audit report
-    suite.run({"test": ds}, key)
+    suite.run([ds], key)
 
     # The test passes because we're testing that CountValues works,
     # even when the assertion fails
@@ -198,7 +198,7 @@ def test_count_values_failure_case() -> None:
 def test_count_values_with_empty_list() -> None:
     """Test CountValues with an empty list of values raises ValueError."""
     data = pa.table({"col": [1, 2, 3]})
-    ds = DuckRelationDataSource.from_arrow(data)
+    ds = DuckRelationDataSource.from_arrow(data, "data")
 
     @check(name="Empty List Check")
     def empty_list_check(mp: MetricProvider, ctx: Context) -> None:
@@ -211,7 +211,7 @@ def test_count_values_with_empty_list() -> None:
 
     # Expecting ValueError because empty list is not allowed
     with pytest.raises(ValueError, match="CountValues requires at least one value"):
-        suite.run({"test": ds}, key)
+        suite.run([ds], key)
 
 
 def test_count_values_with_special_characters() -> None:
@@ -223,7 +223,7 @@ def test_count_values_with_special_characters() -> None:
         }
     )
 
-    ds = DuckRelationDataSource.from_arrow(data)
+    ds = DuckRelationDataSource.from_arrow(data, "data")
 
     @check(name="Special Characters Check")
     def special_chars_check(mp: MetricProvider, ctx: Context) -> None:
@@ -238,7 +238,7 @@ def test_count_values_with_special_characters() -> None:
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
     # Run the suite
-    suite.run({"test": ds}, key)
+    suite.run([ds], key)
 
     # The test passes if no exceptions are raised
 
@@ -251,7 +251,7 @@ def test_count_values_case_sensitive() -> None:
         }
     )
 
-    ds = DuckRelationDataSource.from_arrow(data)
+    ds = DuckRelationDataSource.from_arrow(data, "data")
 
     @check(name="Case Sensitive Check")
     def case_sensitive_check(mp: MetricProvider, ctx: Context) -> None:
@@ -262,7 +262,7 @@ def test_count_values_case_sensitive() -> None:
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
     # Run the suite
-    suite.run({"test": ds}, key)
+    suite.run([ds], key)
 
     # The test passes if no exceptions are raised
 
@@ -294,7 +294,7 @@ def test_count_values_with_booleans() -> None:
         }
     )
 
-    ds = DuckRelationDataSource.from_arrow(data)
+    ds = DuckRelationDataSource.from_arrow(data, "data")
 
     @check(name="Boolean Values Check")
     def boolean_values_check(mp: MetricProvider, ctx: Context) -> None:
@@ -311,6 +311,6 @@ def test_count_values_with_booleans() -> None:
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
     # Run the suite
-    suite.run({"test": ds}, key)
+    suite.run([ds], key)
 
     # The test passes if no exceptions are raised

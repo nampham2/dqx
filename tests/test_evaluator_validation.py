@@ -253,11 +253,6 @@ class TestValidationExpressions:
         db = Mock()
         suite = VerificationSuite([test_check], db, "Test Suite")
 
-        # Create mock data source
-        datasource = Mock()
-        datasource.name = "test_data"
-        datasource.cte = Mock(return_value="SELECT * FROM test")
-
         # Mock the provider and evaluator behavior
         suite.provider._symbol_index = {}
 
@@ -268,7 +263,7 @@ class TestValidationExpressions:
         from dqx.datasource import DuckRelationDataSource
 
         data = pa.table({"price": [75.0]})
-        suite.run({"data": DuckRelationDataSource.from_arrow(data)}, key)
+        suite.run([DuckRelationDataSource.from_arrow(data, "data")], key)
 
         # Get the assertion node
         assertions = list(suite.graph.assertions())

@@ -102,11 +102,11 @@ def test_noop_assertion_always_succeeds() -> None:
 
     # Create test data
     data = pa.table({"value": [1, 2, 3, 4, 5]})
-    datasource = DuckRelationDataSource.from_arrow(data)
+    datasource = DuckRelationDataSource.from_arrow(data, "data")
 
     # Run suite
     key = ResultKey(yyyy_mm_dd=date.today(), tags={})
-    suite.run({"test": datasource}, key)
+    suite.run([datasource], key)
 
     # Verify noop always succeeds
     results = suite.collect_results()

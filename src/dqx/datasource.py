@@ -15,10 +15,11 @@ from typing import Self
 import duckdb
 import pyarrow as pa
 
+from dqx.common import SqlDataSource
 from dqx.utils import random_prefix
 
 
-class DuckRelationDataSource:
+class DuckRelationDataSource(SqlDataSource):
     """Adapter for DuckDB relations to work as DQX data sources.
 
     This class wraps a DuckDB relation and implements the SqlDataSource protocol,
@@ -30,22 +31,21 @@ class DuckRelationDataSource:
     materializing the results to disk.
 
     Attributes:
-        name: Identifier for this data source type, always "duckdb"
+        name: Name of this specific dataset (e.g., "orders", "users")
         dialect: SQL dialect used for query generation, always "duckdb"
 
     Example:
         >>> # From an existing DuckDB query
         >>> relation = duckdb.sql("SELECT * FROM sales WHERE year = 2023")
-        >>> ds = DuckRelationDataSource(relation)
+        >>> ds = DuckRelationDataSource(relation, "sales_2023")
         >>>
         >>> # Use with analyzer
         >>> report = analyzer.analyze_single(ds, metrics, key)
     """
 
-    name: str = "duckdb"
     dialect: str = "duckdb"
 
-    def __init__(self, relation: duckdb.DuckDBPyRelation) -> None:
+    def __init__(self, relation: duckdb.DuckDBPyRelation, name: str) -> None:
         """Initialize the DuckDB relation data source.
 
         Creates a wrapper around a DuckDB relation with a randomly generated
@@ -55,12 +55,14 @@ class DuckRelationDataSource:
         Args:
             relation: A DuckDB relation object to wrap. This can be the result
                      of any DuckDB query or transformation.
+            name: The name of this dataset (e.g., "orders", "users")
 
         Example:
             >>> conn = duckdb.connect()
             >>> rel = conn.sql("SELECT * FROM 'data.csv'")
-            >>> ds = DuckRelationDataSource(rel)
+            >>> ds = DuckRelationDataSource(rel, "my_data")
         """
+        self._name = name
         self._relation = relation
         self._table_name = random_prefix(k=6)
 
@@ -92,8 +94,13 @@ class DuckRelationDataSource:
         """
         return self._relation.query(self._table_name, query)
 
+    @property
+    def name(self) -> str:
+        """Get the name of this data source (read-only)."""
+        return self._name
+
     @classmethod
-    def from_arrow(cls, table: pa.RecordBatch | pa.Table) -> Self:
+    def from_arrow(cls, table: pa.RecordBatch | pa.Table, name: str) -> Self:
         """Create a DuckRelationDataSource from PyArrow data structures.
 
         This factory method provides a convenient way to create a DuckDB data source
@@ -109,6 +116,7 @@ class DuckRelationDataSource:
             table: A PyArrow Table or RecordBatch containing the data to analyze.
                    Both types are supported and will be converted to a DuckDB
                    relation automatically.
+            name: The name of this dataset (e.g., "orders", "users")
 
         Returns:
             A new DuckRelationDataSource instance wrapping the Arrow data.
@@ -122,14 +130,14 @@ class DuckRelationDataSource:
             ...     'id': [1, 2, 3, 4],
             ...     'value': [10.5, 20.3, 30.1, 40.7]
             ... })
-            >>> ds = DuckRelationDataSource.from_arrow(arrow_table)
+            >>> ds = DuckRelationDataSource.from_arrow(arrow_table, "sales_data")
             >>>
             >>> # From a RecordBatch
             >>> batch = pa.record_batch([
             ...     pa.array([1, 2, 3]),
             ...     pa.array(['a', 'b', 'c'])
             ... ], names=['id', 'category'])
-            >>> ds = DuckRelationDataSource.from_arrow(batch)
+            >>> ds = DuckRelationDataSource.from_arrow(batch, "category_data")
             >>>
             >>> # Use with analyzer
             >>> analyzer = Analyzer()
@@ -137,4 +145,4 @@ class DuckRelationDataSource:
             >>> report = analyzer.analyze_single(ds, metrics, key)
         """
         relation: duckdb.DuckDBPyRelation = duckdb.arrow(table)
-        return cls(relation)
+        return cls(relation, name)
