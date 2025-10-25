@@ -118,13 +118,13 @@ This script will:
 
 1. **Install Dependencies**:
    ```bash
-   pip install astor  # Required for AST to source conversion
+   uv pip install astor  # Temporarily install astor for AST to source conversion
    ```
 
 2. **Run the Script**:
    ```bash
    cd /path/to/dqx
-   python scripts/update_metric_build_calls.py
+   uv run python scripts/update_metric_build_calls.py
    ```
 
 3. **Review Output**:
