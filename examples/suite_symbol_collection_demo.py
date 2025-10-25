@@ -129,6 +129,8 @@ def main() -> None:
     # 1. Basic Symbol Collection
     print("1. Basic Symbol Collection")
     print("-" * 50)
+
+    # Method 1: Collect and process symbols manually
     symbols = suite.provider.collect_symbols(key, suite._name)
     print(f"Total symbols registered: {len(symbols)}")
     print("\nAll symbols:")
@@ -137,6 +139,12 @@ def main() -> None:
             f"{symbol.value.unwrap():.2f}" if isinstance(symbol.value, Success) else f"FAILED: {symbol.value.failure()}"
         )
         print(f"  {symbol.name}: {symbol.metric} = {value_str}")
+    print()
+
+    # Method 2: Use the convenience method to directly print symbols
+    print("\n1b. Using print_symbols convenience method")
+    print("-" * 50)
+    suite.provider.print_symbols(key, suite._name)
     print()
 
     # 2. Debugging Failed Assertions

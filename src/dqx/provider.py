@@ -219,6 +219,30 @@ class SymbolicMetricBase(ABC):
 
         return sorted_symbols
 
+    def print_symbols(self, key: ResultKey, suite_name: str) -> None:
+        """
+        Collect and display all symbol values in a formatted table.
+
+        This is a convenience method that combines collect_symbols() and
+        print_symbols() from the display module into a single call.
+
+        Args:
+            key: The ResultKey for evaluation context (date and tags)
+            suite_name: Name of the verification suite for metadata
+
+        Example:
+            >>> # Instead of:
+            >>> symbols = provider.collect_symbols(key, "My Suite")
+            >>> print_symbols(symbols)
+            >>>
+            >>> # You can now simply do:
+            >>> provider.print_symbols(key, "My Suite")
+        """
+        from dqx.display import print_symbols
+
+        symbols = self.collect_symbols(key, suite_name)
+        print_symbols(symbols)
+
 
 class ExtendedMetricProvider:
     """A provider for derivative metrics that builds on top of primitive metrics."""

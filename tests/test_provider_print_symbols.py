@@ -1,0 +1,113 @@
+"""Test the print_symbols convenience method in MetricProvider."""
+
+import datetime as dt
+from io import StringIO
+from unittest.mock import patch
+
+import pytest
+
+from dqx.common import ResultKey
+from dqx.orm.repositories import InMemoryMetricDB
+from dqx.provider import MetricProvider
+
+
+def test_print_symbols_convenience_method() -> None:
+    """Test that print_symbols method correctly calls collect_symbols and prints."""
+    # Setup
+    db = InMemoryMetricDB()
+    provider = MetricProvider(db)
+    key = ResultKey(yyyy_mm_dd=dt.date(2024, 1, 1), tags={"env": "test"})
+    suite_name = "Test Suite"
+
+    # Create some test metrics
+    provider.average("price", dataset="ds1")
+    provider.sum("revenue", dataset="ds1")
+
+    # Mock the console output
+    with patch("dqx.display.Console") as MockConsole:
+        # Create a StringIO to capture output
+        output = StringIO()
+        mock_console = MockConsole.return_value
+        mock_console.print = lambda x: output.write(str(x))
+
+        # Call the convenience method
+        provider.print_symbols(key, suite_name)
+
+        # Verify that Console was called (print_symbols was invoked)
+        assert MockConsole.called
+
+    # Alternative test: verify the method works without errors
+    # and that it internally calls collect_symbols
+    with patch.object(provider, "collect_symbols") as mock_collect:
+        # Set up mock return value
+        mock_collect.return_value = []
+
+        # Call print_symbols
+        provider.print_symbols(key, suite_name)
+
+        # Verify collect_symbols was called with correct arguments
+        mock_collect.assert_called_once_with(key, suite_name)
+
+
+def test_print_symbols_with_actual_output(capsys: pytest.CaptureFixture[str]) -> None:
+    """Test print_symbols produces actual output to console."""
+    # Setup
+    db = InMemoryMetricDB()
+    provider = MetricProvider(db)
+    key = ResultKey(yyyy_mm_dd=dt.date(2024, 1, 1), tags={"env": "prod"})
+    suite_name = "Production Suite"
+
+    # Create a metric
+    provider.average("price", dataset="sales")
+    provider.sum("quantity", dataset="sales")
+
+    # Call print_symbols (values will show as "Not evaluated" in test)
+    provider.print_symbols(key, suite_name)
+
+    # Capture output
+    captured = capsys.readouterr()
+
+    # Verify output contains expected elements
+    assert "Symbol Values" in captured.out
+    assert "Producti" in captured.out  # Table truncates long names
+    assert "average(" in captured.out
+    assert "sum(quan" in captured.out  # Table truncates long names
+    assert "sales" in captured.out
+    assert "2024-01-01" in captured.out
+    assert "env=prod" in captured.out
+
+
+def test_print_symbols_integration() -> None:
+    """Test that print_symbols works the same as manual collect + print."""
+
+    # Setup
+    db = InMemoryMetricDB()
+    provider = MetricProvider(db)
+    key = ResultKey(yyyy_mm_dd=dt.date(2024, 1, 1), tags={})
+    suite_name = "Test"
+
+    # Create metrics
+    provider.sum("amount")
+    provider.null_count("status")
+
+    # Mock display.print_symbols to capture arguments
+    with patch("dqx.display.print_symbols") as mock_print:
+        # Call the convenience method
+        provider.print_symbols(key, suite_name)
+
+        # Get the symbols that were passed to print_symbols
+        mock_print.assert_called_once()
+        symbols_from_convenience = mock_print.call_args[0][0]
+
+    # Now get symbols manually
+    symbols_manual = provider.collect_symbols(key, suite_name)
+
+    # They should be identical
+    assert len(symbols_from_convenience) == len(symbols_manual)
+    for s1, s2 in zip(symbols_from_convenience, symbols_manual):
+        assert s1.name == s2.name
+        assert s1.metric == s2.metric
+        assert s1.dataset == s2.dataset
+        assert s1.yyyy_mm_dd == s2.yyyy_mm_dd
+        assert s1.suite == s2.suite
+        assert s1.tags == s2.tags
