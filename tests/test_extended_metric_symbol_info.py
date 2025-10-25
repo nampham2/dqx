@@ -38,7 +38,7 @@ def test_extended_metrics_symbol_info_names(commerce_data_c1: pa.Table) -> None:
     suite.run({"test_ds": ds}, key)
 
     # Collect symbols
-    symbols = suite.collect_symbols()
+    symbols = suite.provider.collect_symbols(key, suite._name)
 
     # Find our extended metric symbols
     symbol_metrics = {s.metric for s in symbols}

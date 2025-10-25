@@ -11,8 +11,8 @@ from dqx.common import (
     PluginExecutionContext,
     PluginMetadata,
     ResultKey,
-    SymbolInfo,
 )
+from dqx.provider import SymbolInfo
 
 
 def test_plugin_metadata_frozen() -> None:

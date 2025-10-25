@@ -87,11 +87,11 @@ def demo_caching(db: InMemoryMetricDB) -> None:
 
     # Same for symbols
     start = time.time()
-    symbols1 = suite.collect_symbols()
+    symbols1 = suite.provider.collect_symbols(key, suite._name)
     time1 = time.time() - start
 
     start = time.time()
-    symbols2 = suite.collect_symbols()
+    symbols2 = suite.provider.collect_symbols(key, suite._name)
     time2 = time.time() - start
 
     print(f"\nFirst collect_symbols() call: {time1 * 1000:.3f}ms")

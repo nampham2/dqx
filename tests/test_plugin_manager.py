@@ -12,9 +12,9 @@ from dqx.common import (
     PluginExecutionContext,
     PluginMetadata,
     ResultKey,
-    SymbolInfo,
 )
 from dqx.plugins import AuditPlugin, PluginManager
+from dqx.provider import SymbolInfo
 
 
 class ValidInstancePlugin:

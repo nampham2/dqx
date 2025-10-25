@@ -1,21 +1,61 @@
 from __future__ import annotations
 
+import datetime
 from abc import ABC
 from collections import defaultdict
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import partial
 from threading import Lock
+from typing import TYPE_CHECKING
 
 import sympy as sp
 from returns.result import Result
 
 from dqx import compute, specs
-from dqx.common import DQXError, ResultKey, ResultKeyProvider, RetrievalFn
+from dqx.common import DQXError, ResultKey, ResultKeyProvider, RetrievalFn, Tags
 from dqx.orm.repositories import MetricDB
 from dqx.specs import MetricSpec
 
+if TYPE_CHECKING:
+    pass
+
+__all__ = [
+    "SymbolInfo",
+    "SymbolicMetric",
+    "SymbolicMetricBase",
+    "ExtendedMetricProvider",
+    "MetricProvider",
+    "SymbolIndex",
+]
+
 SymbolIndex = dict[sp.Symbol, "SymbolicMetric"]
+
+
+@dataclass
+class SymbolInfo:
+    """Information about a symbol in an expression.
+
+    Captures metadata about a computed metric symbol, including its value
+    and the context in which it was evaluated.
+
+    Attributes:
+        name: Symbol identifier (e.g., "x_1", "x_2")
+        metric: Human-readable metric description (e.g., "average(price)")
+        dataset: Name of the dataset this metric was computed from (optional)
+        value: Computation result - Success(float) or Failure(error_message)
+        yyyy_mm_dd: Date when the metric was evaluated
+        suite: Name of the verification suite that evaluated this symbol
+        tags: Additional metadata from ResultKey (e.g., {"env": "prod"})
+    """
+
+    name: str
+    metric: str
+    dataset: str | None
+    value: Result[float, str]
+    yyyy_mm_dd: datetime.date
+    suite: str
+    tags: Tags = field(default_factory=dict)
 
 
 @dataclass
@@ -120,6 +160,64 @@ class SymbolicMetricBase(ABC):
             List of child symbols, or empty list if no children
         """
         return self._children_map.get(symbol, [])
+
+    def collect_symbols(self, key: ResultKey, suite_name: str) -> list[SymbolInfo]:
+        """
+        Collect all symbol values with metadata.
+
+        This method retrieves information about all symbols (metrics) that were
+        registered, evaluates them, and returns their values along with metadata.
+        Symbols are sorted by name for consistent ordering.
+
+        Args:
+            key: The ResultKey for evaluation context (date and tags)
+            suite_name: Name of the verification suite for metadata
+
+        Returns:
+            List of SymbolInfo instances, sorted by symbol name in natural numeric
+            order (x_1, x_2, ..., x_10, x_11, etc. rather than lexicographic).
+            Each contains the symbol name, metric description, dataset,
+            computed value, and context information (date, suite, tags).
+
+        Example:
+            >>> symbols = provider.collect_symbols(key, "My Suite")
+            >>> for s in symbols:
+            ...     if s.value.is_success():
+            ...         print(f"{s.metric}: {s.value.unwrap()}")
+        """
+        symbols = []
+
+        # Create all SymbolInfo objects
+        for symbolic_metric in self.symbolic_metrics:
+            # Calculate the effective key for this symbol
+            effective_key = symbolic_metric.key_provider.create(key)
+
+            # Try to evaluate the symbol to get its value
+            try:
+                value = symbolic_metric.fn(effective_key)
+            except Exception:
+                # In tests, the symbol might not be evaluable
+                from returns.result import Failure
+
+                value = Failure("Not evaluated")
+
+            # Create SymbolInfo with all fields (no children_names)
+            symbol_info = SymbolInfo(
+                name=str(symbolic_metric.symbol),
+                metric=symbolic_metric.name,
+                dataset=symbolic_metric.dataset,
+                value=value,
+                yyyy_mm_dd=effective_key.yyyy_mm_dd,  # Use effective date!
+                suite=suite_name,
+                tags=effective_key.tags,
+            )
+            symbols.append(symbol_info)
+
+        # Sort by symbol numeric suffix for natural ordering (x_1, x_2, ..., x_10)
+        # instead of lexicographic ordering (x_1, x_10, x_2)
+        sorted_symbols = sorted(symbols, key=lambda s: int(s.name.split("_")[1]))
+
+        return sorted_symbols
 
 
 class ExtendedMetricProvider:

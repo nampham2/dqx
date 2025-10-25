@@ -21,7 +21,6 @@ from dqx.common import (
     SeverityLevel,
     SqlDataSource,
     SymbolicValidator,
-    SymbolInfo,
 )
 from dqx.evaluator import Evaluator
 from dqx.graph.nodes import CheckNode, RootNode
@@ -353,9 +352,8 @@ class VerificationSuite:
         # Lazy-loaded plugin manager
         self._plugin_manager: PluginManager | None = None
 
-        # Caching for collect_results and collect_symbols
+        # Caching for collect_results
         self._cached_results: list[AssertionResult] | None = None
-        self._cached_symbols: list[SymbolInfo] | None = None
 
         # Timer for analyzing phase
         self._analyze_ms = timer_registry.timer("analyzing.time_ms")
@@ -622,91 +620,6 @@ class VerificationSuite:
         self._cached_results = results
         return self._cached_results
 
-    def collect_symbols(self) -> list[SymbolInfo]:
-        """
-        Collect all symbol values after suite execution.
-
-        This method retrieves information about all symbols (metrics) that were
-        registered during suite setup, evaluates them, and returns their values
-        along with metadata. Symbols are sorted by name for consistent ordering.
-
-        Results are cached after the first call, so subsequent calls return
-        the same object reference for efficiency.
-
-        Returns:
-            List of SymbolInfo instances, sorted by symbol name in natural numeric
-            order (x_1, x_2, ..., x_10, x_11, etc. rather than lexicographic).
-            Each contains the symbol name, metric description, dataset,
-            computed value, and context information (date, suite, tags).
-
-        Raises:
-            DQXError: If called before run() has been executed successfully.
-
-        Example:
-            >>> suite = VerificationSuite(checks, db, "My Suite")
-            >>> suite.run(datasources, key)
-            >>> symbols = suite.collect_symbols()
-            >>> for s in symbols:
-            ...     if s.value.is_success():
-            ...         print(f"{s.metric}: {s.value.unwrap()}")
-        """
-        # Only collect symbols after evaluation
-        self.assert_is_evaluated()
-
-        # Return cached symbols if available
-        if self._cached_symbols is not None:
-            return self._cached_symbols
-
-        symbols = []
-
-        # Create a mapping from symbol to SymbolInfo for easy lookup
-        symbol_map: dict[str, SymbolInfo] = {}
-
-        # First pass: create all SymbolInfo objects
-        for symbolic_metric in self._context.provider.symbolic_metrics:
-            # Calculate the effective key for this symbol
-            effective_key = symbolic_metric.key_provider.create(self.key)
-
-            # Try to evaluate the symbol to get its value
-            try:
-                value = symbolic_metric.fn(effective_key)
-            except Exception:
-                # In tests, the symbol might not be evaluable
-                from returns.result import Failure
-
-                value = Failure("Not evaluated")
-
-            # Create SymbolInfo with all fields
-            symbol_info = SymbolInfo(
-                name=str(symbolic_metric.symbol),
-                metric=symbolic_metric.name,
-                dataset=symbolic_metric.dataset,
-                value=value,
-                yyyy_mm_dd=effective_key.yyyy_mm_dd,  # Use effective date!
-                suite=self._name,
-                tags=effective_key.tags,
-                children_names=[],  # Initialize empty, will populate in second pass
-            )
-            symbol_map[str(symbolic_metric.symbol)] = symbol_info
-            symbols.append(symbol_info)
-
-        # Second pass: populate children_names based on parent_symbol
-        for symbolic_metric in self._context.provider.symbolic_metrics:
-            symbol_name = str(symbolic_metric.symbol)
-            if symbolic_metric.parent_symbol:
-                parent_name = str(symbolic_metric.parent_symbol)
-                if parent_name in symbol_map:
-                    # Add this symbol as a child of its parent
-                    symbol_map[parent_name].children_names.append(symbol_name)
-
-        # Sort by symbol numeric suffix for natural ordering (x_1, x_2, ..., x_10)
-        # instead of lexicographic ordering (x_1, x_10, x_2)
-        sorted_symbols = sorted(symbols, key=lambda s: int(s.name.split("_")[1]))
-
-        # Cache the sorted symbols
-        self._cached_symbols = sorted_symbols
-        return self._cached_symbols
-
     def is_critical(self) -> bool:
         """
         Determine if the suite has critical failures (P0 severity).
@@ -762,7 +675,7 @@ class VerificationSuite:
             timestamp=self._context.start_time,
             duration_ms=duration_ms,
             results=self.collect_results(),
-            symbols=self.collect_symbols(),
+            symbols=self.provider.collect_symbols(self.key, self._name),
         )
 
         # Process through all plugins

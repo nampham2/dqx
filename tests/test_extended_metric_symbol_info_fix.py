@@ -51,7 +51,7 @@ def test_lag_metrics_have_correct_dates() -> None:
     suite.run({"ds1": ds}, key)
 
     # Collect symbols and check dates
-    symbols = suite.collect_symbols()
+    symbols = suite.provider.collect_symbols(key, suite._name)
 
     # Create a map for easier lookup
     symbol_map = {sym.metric: sym for sym in symbols}
@@ -125,7 +125,7 @@ def test_nested_lag_metrics() -> None:
     key = ResultKey(yyyy_mm_dd=nominal_date, tags={})
     suite.run({"test": ds}, key)
 
-    symbols = suite.collect_symbols()
+    symbols = suite.provider.collect_symbols(key, suite._name)
     symbol_map = {sym.metric: sym for sym in symbols}
 
     # Check all lag metrics have correct dates

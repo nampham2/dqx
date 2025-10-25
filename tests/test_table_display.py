@@ -5,8 +5,9 @@ from datetime import date
 import pytest
 from returns.result import Failure, Success
 
-from dqx.common import AssertionResult, EvaluationFailure, SymbolInfo
+from dqx.common import AssertionResult, EvaluationFailure
 from dqx.display import print_assertion_results, print_symbols
+from dqx.provider import SymbolInfo
 
 
 def test_print_assertion_results_basic() -> None:

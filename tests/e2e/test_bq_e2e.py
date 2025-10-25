@@ -163,4 +163,4 @@ def test_bq_e2e_suite(commerce_data_c1: pa.Table) -> None:
     suite.graph.print_tree()
 
     print_assertion_results(suite.collect_results())
-    print_symbols(suite.collect_symbols())
+    print_symbols(suite.provider.collect_symbols(key, suite._name))

@@ -4,10 +4,10 @@ from typing import Tuple
 import sympy as sp
 from returns.result import Failure, Result, Success
 
-from dqx.common import DQXError, EvaluationFailure, ResultKey, SymbolInfo
+from dqx.common import DQXError, EvaluationFailure, ResultKey
 from dqx.graph.base import BaseNode
 from dqx.graph.nodes import AssertionNode
-from dqx.provider import MetricProvider, SymbolicMetric
+from dqx.provider import MetricProvider, SymbolicMetric, SymbolInfo
 
 
 class Evaluator:

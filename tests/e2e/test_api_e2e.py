@@ -220,10 +220,6 @@ def test_e2e_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> No
     key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={})
     checks = [simple_checks, manual_day_over_day, rate_of_change, null_percentage, cross_dataset_check]
 
-    # Run once for yesterday
-    suite = VerificationSuite(checks, db, name="Simple test suite")
-    suite.run({"ds1": ds1, "ds2": ds2}, key.lag(1))
-
     # Run for today
     suite = VerificationSuite(checks, db, name="Simple test suite")
 
@@ -231,7 +227,7 @@ def test_e2e_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> No
     suite.graph.print_tree()
 
     print_assertion_results(suite.collect_results())
-    print_symbols(suite.collect_symbols())
+    print_symbols(suite.provider.collect_symbols(suite.key, "Simple test suite"))
 
     # Create and display ground truth
     print("\n" + "=" * 80 + "\n")

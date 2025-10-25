@@ -10,10 +10,10 @@ from datetime import date
 
 from returns.result import Success
 
-from dqx.common import ResultKey, SymbolInfo
+from dqx.common import ResultKey
 from dqx.evaluator import Evaluator
 from dqx.orm.repositories import InMemoryMetricDB
-from dqx.provider import MetricProvider
+from dqx.provider import MetricProvider, SymbolInfo
 from dqx.specs import Average
 
 

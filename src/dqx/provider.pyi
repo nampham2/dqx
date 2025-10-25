@@ -1,20 +1,31 @@
 from __future__ import annotations
 
+import datetime
 from abc import ABC
 from collections import defaultdict
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from threading import Lock
 from typing import overload
 
 import sympy as sp
 from returns.result import Result
 
-from dqx.common import ResultKey, ResultKeyProvider, RetrievalFn
+from dqx.common import ResultKey, ResultKeyProvider, RetrievalFn, Tags
 from dqx.orm.repositories import MetricDB
 from dqx.specs import MetricSpec
 
 SymbolIndex = dict[sp.Symbol, SymbolicMetric]
+
+@dataclass
+class SymbolInfo:
+    name: str
+    metric: str
+    dataset: str | None
+    value: Result[float, str]
+    yyyy_mm_dd: datetime.date
+    suite: str
+    tags: Tags = field(default_factory=dict)
 
 @dataclass
 class SymbolicMetric:
@@ -51,6 +62,7 @@ class SymbolicMetricBase(ABC):
     ) -> None: ...
     def evaluate(self, symbol: sp.Symbol, key: ResultKey) -> Result[float, str]: ...
     def get_children(self, symbol: sp.Symbol) -> list[sp.Symbol]: ...
+    def collect_symbols(self, key: ResultKey, suite_name: str) -> list[SymbolInfo]: ...
 
 class ExtendedMetricProvider:
     _provider: MetricProvider

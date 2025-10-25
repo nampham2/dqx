@@ -8,9 +8,9 @@ import pytest
 import sympy as sp
 from returns.result import Failure, Success
 
-from dqx.common import DQXError, ResultKey, SymbolInfo
+from dqx.common import DQXError, ResultKey
 from dqx.evaluator import Evaluator
-from dqx.provider import MetricProvider, SymbolicMetric
+from dqx.provider import MetricProvider, SymbolicMetric, SymbolInfo
 
 
 class TestSymbolInfoExtended:

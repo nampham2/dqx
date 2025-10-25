@@ -113,7 +113,7 @@ def test_collect_results_before_run_error() -> None:
 
 
 def test_collect_symbols_before_run_error() -> None:
-    """Test collect_symbols raises error when called before run()."""
+    """Test that accessing symbols before run() is not possible."""
     db = InMemoryMetricDB()
 
     @check(name="Test Check")
@@ -122,8 +122,14 @@ def test_collect_symbols_before_run_error() -> None:
 
     suite = VerificationSuite([test_check], db, "Test Suite")
 
-    with pytest.raises(DQXError, match="Verification suite has not been executed yet!"):
-        suite.collect_symbols()
+    # Since collect_symbols is on provider, we need to ensure we can't get meaningful
+    # symbols before run. The provider exists but won't have evaluated metrics.
+    # This test verifies the concept that symbols aren't available before run.
+    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+    symbols = suite.provider.collect_symbols(key, suite._name)
+
+    # Should return empty list as no metrics have been evaluated
+    assert symbols == []
 
 
 def test_verification_suite_already_executed_error() -> None:
@@ -226,7 +232,7 @@ def test_verification_suite_collect_results_without_key() -> None:
 
 
 def test_verification_suite_collect_symbols_without_key() -> None:
-    """Test collect_symbols with None key (edge case that should not happen)."""
+    """Test that symbols can't be collected properly without a key."""
     db = InMemoryMetricDB()
 
     @check(name="Test Check")
@@ -245,8 +251,10 @@ def test_verification_suite_collect_symbols_without_key() -> None:
     suite._is_evaluated = True
     suite._key = None
 
+    # Try to collect symbols - the provider method needs a key
     with pytest.raises(DQXError, match="No ResultKey available"):
-        suite.collect_symbols()
+        # Access the key property which will raise the error
+        _ = suite.key
 
 
 def test_verification_suite_graph_before_build_error() -> None:
@@ -315,8 +323,8 @@ def test_collect_symbols_with_evaluation_error() -> None:
 
     # Mock the fn to raise an exception
     with patch.object(metric, "fn", side_effect=RuntimeError("Test error")):
-        # Collect symbols - should handle the exception
-        symbols = suite.collect_symbols()
+        # Collect symbols via provider
+        symbols = suite.provider.collect_symbols(key, suite._name)
 
         # Verify the symbol was created with a Failure value
         assert len(symbols) == 1

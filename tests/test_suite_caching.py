@@ -13,7 +13,7 @@ from dqx.provider import MetricProvider
 
 
 class TestSuiteCaching:
-    """Test suite for collect_results and collect_symbols caching."""
+    """Test suite for collect_results caching."""
 
     def test_collect_results_returns_same_object_reference(self) -> None:
         """Multiple calls to collect_results should return the same cached object."""
@@ -38,30 +38,6 @@ class TestSuiteCaching:
         # Should be the exact same object (not just equal)
         assert results1 is results2
 
-    def test_collect_symbols_returns_same_object_reference(self) -> None:
-        """Multiple calls to collect_symbols should return the same cached object."""
-        db = InMemoryMetricDB()
-
-        @check(name="Metric Check")
-        def metric_check(mp: MetricProvider, ctx: Context) -> None:
-            avg_price = mp.average("price")
-            sum_quantity = mp.sum("quantity")
-            ctx.assert_that(avg_price + sum_quantity).where(name="Combined metric check").is_positive()
-
-        suite = VerificationSuite([metric_check], db, "Test Suite")
-        data = pa.table({"price": [10, 20], "quantity": [5, 15]})
-        ds = DuckRelationDataSource.from_arrow(data)
-        key = ResultKey(date.today(), {"env": "test"})
-
-        suite.run({"test": ds}, key)
-
-        # Get symbols twice
-        symbols1 = suite.collect_symbols()
-        symbols2 = suite.collect_symbols()
-
-        # Should be the exact same object
-        assert symbols1 is symbols2
-
     def test_caching_works_after_successful_run(self) -> None:
         """Caching should work correctly after a successful suite run."""
         db = InMemoryMetricDB()
@@ -80,19 +56,15 @@ class TestSuiteCaching:
 
         # First calls - should compute and cache
         results1 = suite.collect_results()
-        symbols1 = suite.collect_symbols()
 
         # Verify we got results
         assert len(results1) == 1
-        assert len(symbols1) == 1
 
         # Second calls - should return cached
         results2 = suite.collect_results()
-        symbols2 = suite.collect_symbols()
 
         # Verify caching
         assert results1 is results2
-        assert symbols1 is symbols2
 
     def test_cache_before_run_raises_error(self) -> None:
         """Attempting to access cache before run() should raise DQXError."""
@@ -107,6 +79,3 @@ class TestSuiteCaching:
         # Should raise error before run
         with pytest.raises(DQXError, match="not been executed"):
             suite.collect_results()
-
-        with pytest.raises(DQXError, match="not been executed"):
-            suite.collect_symbols()

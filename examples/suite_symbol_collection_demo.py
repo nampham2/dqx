@@ -129,7 +129,7 @@ def main() -> None:
     # 1. Basic Symbol Collection
     print("1. Basic Symbol Collection")
     print("-" * 50)
-    symbols = suite.collect_symbols()
+    symbols = suite.provider.collect_symbols(key, suite._name)
     print(f"Total symbols registered: {len(symbols)}")
     print("\nAll symbols:")
     for symbol in symbols:

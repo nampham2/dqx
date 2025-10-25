@@ -9,9 +9,10 @@ from rich.console import Console
 from rich.tree import Tree
 
 if TYPE_CHECKING:
-    from dqx.common import AssertionResult, EvaluationFailure, SymbolInfo
+    from dqx.common import AssertionResult, EvaluationFailure
     from dqx.graph.base import BaseNode
     from dqx.graph.traversal import Graph
+    from dqx.provider import SymbolInfo
 
 # Type aliases for clarity
 if TYPE_CHECKING:

@@ -73,7 +73,7 @@ def test_extended_metric_recursive_dataset_imputation() -> None:
     suite.run({"ds1": ds1, "ds2": ds2}, key)
 
     # Collect symbols after the run
-    symbols = suite.collect_symbols()
+    symbols = suite.provider.collect_symbols(key, "Extended Metric Test")
 
     # Find symbols for our metrics
     wow_symbol = None
@@ -111,14 +111,8 @@ def test_extended_metric_recursive_dataset_imputation() -> None:
     assert dod_symbol.dataset == "ds2", f"day_over_day should have ds2, got {dod_symbol.dataset}"
     assert lag1_symbol.dataset == "ds2", f"lag(1) should inherit ds2 from parent, got {lag1_symbol.dataset}"
 
-    # Verify that lag symbols show correct parent-child relationships
-    # The key insight is that lag(7) was created and has the correct dataset
-    assert lag7_symbol.children_names == [], "lag(7) should have no children"
-    assert lag1_symbol.children_names == [], "lag(1) should have no children"
-
-    # Verify that wow_symbol has lag symbols as children
-    assert len(wow_symbol.children_names) > 0, f"week_over_week should have children: {wow_symbol.children_names}"
-    assert len(dod_symbol.children_names) > 0, f"day_over_day should have children: {dod_symbol.children_names}"
+    # Note: children_names field has been removed, parent-child relationships
+    # are now tracked internally in the provider
 
 
 @check(name="Nested Checks", datasets=["prod"])
@@ -153,7 +147,7 @@ def test_nested_extended_metrics() -> None:
     suite.run({"prod": ds}, key)
 
     # Check all symbols were created and have datasets
-    symbols = suite.collect_symbols()
+    symbols = suite.provider.collect_symbols(key, "Nested Extended Metrics")
 
     # Count metrics by type and print all metrics for debugging
     metric_types = {"sum": 0, "lag": 0, "stddev": 0}
@@ -212,7 +206,7 @@ def test_circular_dependency_handling() -> None:
     suite.run({"test": ds}, key)
 
     # Basic verification that it ran
-    symbols = suite.collect_symbols()
+    symbols = suite.provider.collect_symbols(key, "Circular Dependency Test")
     assert len(symbols) > 0, "Should have processed symbols"
 
     results = suite.collect_results()
