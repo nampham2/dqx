@@ -154,19 +154,25 @@ class ExtendedMetricProvider:
         lag_key_provider = ResultKeyProvider()
         lag_key_provider.lag(lag_days)
 
+        # For the computation function, use a fresh key_provider
+        # since lag_metric already applies the lag internally via nominal_key.lag(lag)
+        base_key_provider = ResultKeyProvider()
+
         # Create lag function that applies the lag to the key
-        def lag_metric(db: MetricDB, metric: MetricSpec, lag: int, nominal_key: ResultKey) -> Result[float, str]:
-            # Directly compute the lagged key without any key_provider to avoid double-lagging
+        def lag_metric(
+            db: MetricDB, metric: MetricSpec, lag: int, key_provider: ResultKeyProvider, nominal_key: ResultKey
+        ) -> Result[float, str]:
             lagged_key = nominal_key.lag(lag)
-            value = db.get_metric_value(metric, lagged_key)
+            key = key_provider.create(lagged_key)
+            value = db.get_metric_value(metric, key)
             from returns.converters import maybe_to_result
 
-            return maybe_to_result(value, f"Metric {metric.name} not found for date {lagged_key.yyyy_mm_dd}!")
+            return maybe_to_result(value, f"Metric {metric.name} not found for lagged date!")
 
         self._provider._register(
             sym := self._next_symbol(),
             name=f"lag({lag_days})({base_metric})",
-            fn=partial(lag_metric, self._db, metric_spec, lag_days),
+            fn=partial(lag_metric, self._db, metric_spec, lag_days, base_key_provider),
             key=lag_key_provider,
             metric_spec=metric_spec,
             dataset=symbolic_metric.dataset,

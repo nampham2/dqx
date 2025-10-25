@@ -45,7 +45,7 @@ class DuckRelationDataSource:
     name: str = "duckdb"
     dialect: str = "duckdb"
 
-    def __init__(self, relation: duckdb.DuckDBPyRelation, conn: duckdb.DuckDBPyConnection | None = None) -> None:
+    def __init__(self, relation: duckdb.DuckDBPyRelation) -> None:
         """Initialize the DuckDB relation data source.
 
         Creates a wrapper around a DuckDB relation with a randomly generated
@@ -55,8 +55,6 @@ class DuckRelationDataSource:
         Args:
             relation: A DuckDB relation object to wrap. This can be the result
                      of any DuckDB query or transformation.
-            conn: Optional DuckDB connection to keep alive. If provided, it will
-                  be stored to prevent connection closure during queries.
 
         Example:
             >>> conn = duckdb.connect()
@@ -65,17 +63,12 @@ class DuckRelationDataSource:
         """
         self._relation = relation
         self._table_name = random_prefix(k=6)
-        self._conn = conn  # Keep connection alive
 
         # Initialize DuckDB settings
         self._setup_duckdb()
 
     def _setup_duckdb(self) -> None:
-        # Use the connection if available, otherwise use global execute
-        if self._conn:
-            self._conn.execute("SET enable_progress_bar = false")
-        else:
-            duckdb.execute("SET enable_progress_bar = false")
+        duckdb.execute("SET enable_progress_bar = false")
 
     def cte(self, nominal_date: datetime.date) -> str:
         """Get the CTE for this data source.
@@ -86,12 +79,6 @@ class DuckRelationDataSource:
         Returns:
             The CTE SQL string
         """
-        # Debug logging
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.debug(f"CTE for table {self._table_name} on date {nominal_date}")
-
         return f"SELECT * FROM {self._table_name}"
 
     def query(self, query: str) -> duckdb.DuckDBPyRelation:
@@ -103,12 +90,6 @@ class DuckRelationDataSource:
         Returns:
             Query results as a DuckDB relation
         """
-        # Debug logging
-        import logging
-
-        logger = logging.getLogger(__name__)
-        logger.debug(f"Executing query on table {self._table_name}")
-
         return self._relation.query(self._table_name, query)
 
     @classmethod
@@ -155,7 +136,5 @@ class DuckRelationDataSource:
             >>> metrics = [MetricSpec.num_rows(), MetricSpec.cardinality('category')]
             >>> report = analyzer.analyze_single(ds, metrics, key)
         """
-        # Create an isolated connection to avoid data conflicts
-        conn = duckdb.connect()
-        relation: duckdb.DuckDBPyRelation = conn.from_arrow(table)
-        return cls(relation, conn)
+        relation: duckdb.DuckDBPyRelation = duckdb.arrow(table)
+        return cls(relation)

@@ -122,9 +122,8 @@ class First:
 class Average:
     metric_type: MetricType = "Average"
 
-    def __init__(self, column: str, dataset: str | None = None) -> None:
+    def __init__(self, column: str) -> None:
         self._column = column
-        self._dataset = dataset
         self._analyzers = (ops.NumRows(), ops.Average(self._column))
 
     @property
@@ -133,10 +132,7 @@ class Average:
 
     @property
     def parameters(self) -> Parameters:
-        params = {"column": self._column}
-        if self._dataset is not None:
-            params["dataset"] = self._dataset
-        return params
+        return {"column": self._column}
 
     @property
     def analyzers(self) -> Sequence[ops.Op]:
