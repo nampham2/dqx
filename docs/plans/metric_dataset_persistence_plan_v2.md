@@ -413,6 +413,35 @@ def _build_from_orm(self, orm_row: Any) -> models.Metric | None:
     )
 ```
 
+### Step 4.5: Add Metric Grouping Helper Method
+**File**: `src/dqx/provider.py`
+
+Add a helper method to MetricProvider to encapsulate the logic for grouping metrics by their effective date:
+
+```python
+def get_metrics_by_date(self, dataset: str, key: ResultKey) -> dict[ResultKey, list[MetricSpec]]:
+    """Get metrics for a dataset grouped by their effective date.
+
+    Args:
+        dataset: Name of the dataset
+        key: Result key to create effective keys from
+
+    Returns:
+        Dict mapping effective ResultKeys to lists of MetricSpecs
+    """
+    symbolic_metrics = self._context.pending_metrics(dataset)
+
+    # Group metrics by their effective date
+    metrics_by_date: dict[ResultKey, list[MetricSpec]] = defaultdict(list)
+    for sym_metric in symbolic_metrics:
+        effective_key = sym_metric.key_provider.create(key)
+        metrics_by_date[effective_key].append(sym_metric.metric_spec)
+
+    return metrics_by_date
+```
+
+This method encapsulates the grouping logic that was previously inline in `_analyze`, making the code more modular and testable.
+
 ### Step 5: Simplify VerificationSuite API
 **File**: `src/dqx/api.py`
 
@@ -426,18 +455,12 @@ def _analyze(self, datasources: list[SqlDataSource], key: ResultKey) -> None:
         key: Result key for the analysis
     """
     for ds in datasources:
-        # Get all symbolic metrics for this dataset
-        symbolic_metrics = self._context.pending_metrics(ds.name)
+        # Get metrics already grouped by date using the new helper method
+        metrics_by_date = self.provider.get_metrics_by_date(ds.name, key)
 
         # Skip if no metrics for this dataset
-        if not symbolic_metrics:
+        if not metrics_by_date:
             continue
-
-        # Group metrics by their effective date
-        metrics_by_date: dict[ResultKey, list[MetricSpec]] = defaultdict(list)
-        for sym_metric in symbolic_metrics:
-            effective_key = sym_metric.key_provider.create(key)
-            metrics_by_date[effective_key].append(sym_metric.metric_spec)
 
         # Analyze each date group separately
         logger.info(f"Analyzing dataset '{ds.name}'...")
