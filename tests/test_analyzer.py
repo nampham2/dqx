@@ -143,7 +143,7 @@ class TestAnalysisReport:
         """Test creating a report with initial data."""
         metric_spec = specs.NumRows()
         state = SimpleAdditiveState(10.0)
-        metric = models.Metric.build(metric_spec, result_key, state=state)
+        metric = models.Metric.build(metric_spec, result_key, state=state, dataset="test_dataset")
 
         report = AnalysisReport({(metric_spec, result_key): metric})
         assert len(report) == 1
@@ -154,16 +154,16 @@ class TestAnalysisReport:
         # Create first report
         metric1_spec = specs.NumRows()
         state1 = SimpleAdditiveState(10.0)
-        metric1 = models.Metric.build(metric1_spec, result_key, state=state1)
+        metric1 = models.Metric.build(metric1_spec, result_key, state=state1, dataset="test_dataset")
         report1 = AnalysisReport({(metric1_spec, result_key): metric1})
 
         # Create second report with overlapping and new metrics
         metric2_spec = specs.Average("col")
         state2 = Average(avg=20.0, n=5.0)
-        metric2 = models.Metric.build(metric2_spec, result_key, state=state2)
+        metric2 = models.Metric.build(metric2_spec, result_key, state=state2, dataset="test_dataset")
 
         state1_new = SimpleAdditiveState(5.0)
-        metric1_new = models.Metric.build(metric1_spec, result_key, state=state1_new)
+        metric1_new = models.Metric.build(metric1_spec, result_key, state=state1_new, dataset="test_dataset")
 
         report2 = AnalysisReport({(metric1_spec, result_key): metric1_new, (metric2_spec, result_key): metric2})
 
@@ -184,8 +184,12 @@ class TestAnalysisReport:
 
     def test_merge_non_overlapping_reports(self, result_key: ResultKey) -> None:
         """Test merging reports with different metrics."""
-        metric1 = models.Metric.build(specs.Average("price"), result_key, SimpleAdditiveState(10.0))
-        metric2 = models.Metric.build(specs.Average("quantity"), result_key, SimpleAdditiveState(5.0))
+        metric1 = models.Metric.build(
+            specs.Average("price"), result_key, dataset="test_dataset", state=SimpleAdditiveState(10.0)
+        )
+        metric2 = models.Metric.build(
+            specs.Average("quantity"), result_key, dataset="test_dataset", state=SimpleAdditiveState(5.0)
+        )
 
         report1 = AnalysisReport({(metric1.spec, result_key): metric1})
         report2 = AnalysisReport({(metric2.spec, result_key): metric2})
@@ -200,8 +204,8 @@ class TestAnalysisReport:
         spec = specs.Average("price")
 
         # Create two metrics with same spec but different values
-        metric1 = models.Metric.build(spec, result_key, SimpleAdditiveState(10.0))
-        metric2 = models.Metric.build(spec, result_key, SimpleAdditiveState(20.0))
+        metric1 = models.Metric.build(spec, result_key, dataset="test_dataset", state=SimpleAdditiveState(10.0))
+        metric2 = models.Metric.build(spec, result_key, dataset="test_dataset", state=SimpleAdditiveState(20.0))
 
         report1 = AnalysisReport({(spec, result_key): metric1})
         report2 = AnalysisReport({(spec, result_key): metric2})
@@ -220,8 +224,8 @@ class TestAnalysisReport:
         key2 = ResultKey(yyyy_mm_dd=dt.date(2024, 1, 2), tags={})
         spec = specs.Average("price")
 
-        metric1 = models.Metric.build(spec, key1, SimpleAdditiveState(10.0))
-        metric2 = models.Metric.build(spec, key2, SimpleAdditiveState(20.0))
+        metric1 = models.Metric.build(spec, key1, dataset="test_dataset", state=SimpleAdditiveState(10.0))
+        metric2 = models.Metric.build(spec, key2, dataset="test_dataset", state=SimpleAdditiveState(20.0))
 
         report1 = AnalysisReport({(spec, key1): metric1})
         report2 = AnalysisReport({(spec, key2): metric2})
@@ -234,14 +238,24 @@ class TestAnalysisReport:
     def test_merge_multiple_metrics_simultaneously(self, result_key: ResultKey) -> None:
         """Test merging multiple different metrics at once."""
         # Report 1: price average and sum
-        price_avg1 = models.Metric.build(specs.Average("price"), result_key, SimpleAdditiveState(10.0))
-        price_sum1 = models.Metric.build(specs.Sum("price"), result_key, SimpleAdditiveState(100.0))
+        price_avg1 = models.Metric.build(
+            specs.Average("price"), result_key, dataset="test_dataset", state=SimpleAdditiveState(10.0)
+        )
+        price_sum1 = models.Metric.build(
+            specs.Sum("price"), result_key, dataset="test_dataset", state=SimpleAdditiveState(100.0)
+        )
         report1 = AnalysisReport({(price_avg1.spec, result_key): price_avg1, (price_sum1.spec, result_key): price_sum1})
 
         # Report 2: price average, quantity average, and quantity sum
-        price_avg2 = models.Metric.build(specs.Average("price"), result_key, SimpleAdditiveState(5.0))
-        qty_avg = models.Metric.build(specs.Average("quantity"), result_key, SimpleAdditiveState(3.0))
-        qty_sum = models.Metric.build(specs.Sum("quantity"), result_key, SimpleAdditiveState(30.0))
+        price_avg2 = models.Metric.build(
+            specs.Average("price"), result_key, dataset="test_dataset", state=SimpleAdditiveState(5.0)
+        )
+        qty_avg = models.Metric.build(
+            specs.Average("quantity"), result_key, dataset="test_dataset", state=SimpleAdditiveState(3.0)
+        )
+        qty_sum = models.Metric.build(
+            specs.Sum("quantity"), result_key, dataset="test_dataset", state=SimpleAdditiveState(30.0)
+        )
         report2 = AnalysisReport(
             {
                 (price_avg2.spec, result_key): price_avg2,
@@ -262,7 +276,9 @@ class TestAnalysisReport:
 
     def test_merge_empty_with_non_empty(self, result_key: ResultKey) -> None:
         """Test merging empty report with non-empty report."""
-        metric = models.Metric.build(specs.Average("price"), result_key, SimpleAdditiveState(10.0))
+        metric = models.Metric.build(
+            specs.Average("price"), result_key, dataset="test_dataset", state=SimpleAdditiveState(10.0)
+        )
 
         empty_report = AnalysisReport()
         non_empty_report = AnalysisReport({(metric.spec, result_key): metric})
@@ -281,8 +297,8 @@ class TestAnalysisReport:
         spec = specs.Average("price")
 
         # Create metrics
-        metric1 = models.Metric.build(spec, result_key, SimpleAdditiveState(10.0))
-        metric2 = models.Metric.build(spec, result_key, SimpleAdditiveState(20.0))
+        metric1 = models.Metric.build(spec, result_key, dataset="test_dataset", state=SimpleAdditiveState(10.0))
+        metric2 = models.Metric.build(spec, result_key, dataset="test_dataset", state=SimpleAdditiveState(20.0))
 
         # Test reduce directly
         reduced = models.Metric.reduce([metric1, metric2])
@@ -296,7 +312,7 @@ class TestAnalysisReport:
         """Test the show method of AnalysisReport."""
         metric_spec = specs.NumRows()
         state = SimpleAdditiveState(42.0)
-        metric = models.Metric.build(metric_spec, result_key, state=state)
+        metric = models.Metric.build(metric_spec, result_key, state=state, dataset="test_dataset")
 
         report = AnalysisReport({(metric_spec, result_key): metric})
         report.show()
@@ -340,7 +356,7 @@ class TestPersistence:
         # Add a metric to the report
         metric_spec = specs.NumRows()
         state = SimpleAdditiveState(10.0)
-        metric = models.Metric.build(metric_spec, result_key, state=state)
+        metric = models.Metric.build(metric_spec, result_key, state=state, dataset="test_dataset")
         analyzer._report[(metric_spec, result_key)] = metric
 
         # Persist to database
@@ -358,13 +374,13 @@ class TestPersistence:
         # Add a metric to the analyzer report
         metric_spec = specs.NumRows()
         state1 = SimpleAdditiveState(10.0)
-        metric1 = models.Metric.build(metric_spec, result_key, state=state1)
+        metric1 = models.Metric.build(metric_spec, result_key, state=state1, dataset="test_dataset")
         analyzer._report[(metric_spec, result_key)] = metric1
 
         # Create database with existing metric
         db = InMemoryMetricDB()
         state2 = SimpleAdditiveState(5.0)
-        metric2 = models.Metric.build(metric_spec, result_key, state=state2)
+        metric2 = models.Metric.build(metric_spec, result_key, state=state2, dataset="test_dataset")
         db.persist([metric2])
 
         # Persist with merge

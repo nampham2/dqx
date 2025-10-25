@@ -94,11 +94,17 @@ def test_analyze_batch_with_more_than_4_dates(capsys: pytest.CaptureFixture[str]
 
     # Check that the special log message was generated
     captured = capsys.readouterr()
+
+    # Strip ANSI color codes for simpler matching
+    import re
+
+    clean_output = re.sub(r"\x1b\[[0-9;]*m", "", captured.out)
+
     # Should log with first 2 and last 2 dates - check for parts of the message
     # since the output may be formatted across multiple lines
-    assert "Analyzing batch of 6 dates:" in captured.out
-    assert "['2024-01-01', '2024-01-02']" in captured.out
-    assert "['2024-01-05', '2024-01-06']" in captured.out
+    assert "Analyzing batch of 6 dates:" in clean_output
+    assert "['2024-01-01', '2024-01-02']" in clean_output
+    assert "['2024-01-05', '2024-01-06']" in clean_output
 
 
 def test_analyze_batch_with_large_date_range(capsys: pytest.CaptureFixture[str]) -> None:

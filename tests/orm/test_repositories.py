@@ -1,11 +1,11 @@
 import datetime as dt
 
 import pytest
-from returns.maybe import Some, Nothing
+from returns.maybe import Nothing, Some
 from rich.console import Console
 
 from dqx import specs, states
-from dqx.common import ResultKey, DQXError
+from dqx.common import DQXError, ResultKey
 from dqx.models import Metric
 from dqx.orm import repositories
 from dqx.orm.repositories import InMemoryMetricDB
@@ -19,13 +19,13 @@ def key() -> ResultKey:
 @pytest.fixture
 def metric_1(key: ResultKey) -> Metric:
     metric = specs.Average("page_views")
-    return Metric.build(metric, key, state=states.Average(5.2, 10))
+    return Metric.build(metric, key, state=states.Average(5.2, 10), dataset="test_dataset")
 
 
 @pytest.fixture
 def metric_window(key: ResultKey) -> list[Metric]:
     metric = specs.Average("page_views")
-    return [Metric.build(metric, key.lag(_), state=states.Average(5.2, 10)) for _ in range(10)]
+    return [Metric.build(metric, key.lag(_), dataset="test_dataset", state=states.Average(5.2, 10)) for _ in range(10)]
 
 
 def test_crud(metric_1: Metric) -> None:

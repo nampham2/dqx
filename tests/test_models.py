@@ -15,25 +15,25 @@ def key() -> ResultKey:
 @pytest.fixture
 def metric_1(key: ResultKey) -> Metric:
     metric = specs.Average("page_views")
-    return Metric.build(metric, key, state=states.Average(5.2, 10))
+    return Metric.build(metric, key, state=states.Average(5.2, 10), dataset="test_dataset")
 
 
 @pytest.fixture
 def metric_2(key: ResultKey) -> Metric:
     metric = specs.Average("visitors")
-    return Metric.build(metric, key, state=states.Average(2044, 10))
+    return Metric.build(metric, key, state=states.Average(2044, 10), dataset="test_dataset")
 
 
 @pytest.fixture
 def metric_3(key: ResultKey) -> Metric:
     metric = specs.NullCount("visitors")
-    return Metric.build(metric, key, state=states.Average(2044, 10))
+    return Metric.build(metric, key, state=states.Average(2044, 10), dataset="test_dataset")
 
 
 @pytest.fixture
 def metric_4(key: ResultKey) -> Metric:
     metric = specs.Average("page_views")
-    return Metric.build(metric, key, state=states.Average(10.0, 5.0))
+    return Metric.build(metric, key, state=states.Average(10.0, 5.0), dataset="test_dataset")
 
 
 def test_metric_merge_success(metric_1: Metric, key: ResultKey) -> None:

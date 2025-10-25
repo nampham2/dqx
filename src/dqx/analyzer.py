@@ -413,6 +413,6 @@ class Analyzer:
         report_data = {}
         for key, metrics in metrics_by_key.items():
             for metric in metrics:
-                report_data[(metric, key)] = models.Metric.build(metric, key)
+                report_data[(metric, key)] = models.Metric.build(metric, key, dataset=ds.name)
 
         return AnalysisReport(data=report_data)

@@ -481,10 +481,10 @@ class VerificationSuite:
         elif report.has_warnings():
             logger.warning(f"Suite validation warnings:\n{report}")
 
-    def _analyze(self, datasources: dict[str, SqlDataSource], key: ResultKey) -> None:
-        for ds_name in datasources.keys():
+    def _analyze(self, datasources: list[SqlDataSource], key: ResultKey) -> None:
+        for ds in datasources:
             # Get all symbolic metrics for this dataset
-            symbolic_metrics = self._context.pending_metrics(ds_name)
+            symbolic_metrics = self._context.pending_metrics(ds.name)
 
             # Skip if no metrics for this dataset
             if not symbolic_metrics:
@@ -497,9 +497,9 @@ class VerificationSuite:
                 metrics_by_date[effective_key].append(sym_metric.metric_spec)
 
             # Analyze each date group separately
-            logger.info(f"Analyzing dataset '{ds_name}'...")
+            logger.info(f"Analyzing dataset '{ds.name}'...")
             analyzer = Analyzer()
-            analyzer.analyze(datasources[ds_name], metrics_by_date)
+            analyzer.analyze(ds, metrics_by_date)
 
             # Persist the combined report
             analyzer.report.persist(self.provider._db)
@@ -527,10 +527,7 @@ class VerificationSuite:
         if not datasources:
             raise DQXError("No data sources provided!")
 
-        # Create internal dict for compatibility
-        datasources_dict = {ds.name: ds for ds in datasources}
-
-        logger.info(f"Running verification suite '{self._name}' with datasets: {list(datasources_dict.keys())}")
+        logger.info(f"Running verification suite '{self._name}' with datasets: {[ds.name for ds in datasources]}")
 
         # Store the key for later use in collect_results
         self._key = key
@@ -549,7 +546,7 @@ class VerificationSuite:
 
         # 2. Analyze by datasources
         with self._analyze_ms:
-            self._analyze(datasources_dict, key)
+            self._analyze(datasources, key)
 
         # 3. Evaluate assertions
         # Use graph in the context to avoid the check if the suite has been evaluated

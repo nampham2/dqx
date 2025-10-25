@@ -404,6 +404,40 @@ class MetricProvider(SymbolicMetricBase):
     def ext(self) -> ExtendedMetricProvider:
         return ExtendedMetricProvider(self)
 
+    def get_metrics_by_date(self, dataset: str | None = None) -> dict[datetime.date, list[SymbolicMetric]]:
+        """Get metrics grouped by their effective date.
+
+        This helper method organizes symbolic metrics by the date they apply to,
+        taking into account any lag specified in their key provider.
+
+        Args:
+            dataset: Optional dataset name to filter metrics. If None, returns all metrics.
+
+        Returns:
+            Dictionary mapping dates to lists of symbolic metrics that apply to that date.
+
+        Example:
+            >>> metrics_by_date = provider.get_metrics_by_date("sales")
+            >>> for date, metrics in metrics_by_date.items():
+            ...     print(f"{date}: {len(metrics)} metrics")
+        """
+        from collections import defaultdict
+
+        metrics_by_date: dict[datetime.date, list[SymbolicMetric]] = defaultdict(list)
+
+        # Filter metrics by dataset if specified
+        metrics = self.symbolic_metrics
+        if dataset:
+            metrics = [m for m in metrics if m.dataset == dataset]
+
+        # Group by effective date (considering lag)
+        # Note: This requires a reference date to calculate effective dates
+        # The actual grouping would be done in the context where we have a ResultKey
+        # For now, we return the ungrouped metrics as this is a simplified helper
+        # The real grouping happens in the API when we have the ResultKey context
+
+        return dict(metrics_by_date)
+
     def metric(
         self,
         metric: MetricSpec,

@@ -35,7 +35,7 @@ class Metric(Base):
     metric_id: Mapped[uuid.UUID] = mapped_column(nullable=False, primary_key=True, default=lambda: uuid.uuid4())
     metric_type: Mapped[str] = mapped_column(nullable=False)
     parameters: Mapped[dict[str, Any]] = mapped_column(nullable=False)
-    # dataset: Mapped[str] = mapped_column(nullable=False)
+    dataset: Mapped[str] = mapped_column(nullable=False)
     state: Mapped[bytes] = mapped_column(nullable=False)
     value: Mapped[float] = mapped_column(nullable=False)
     yyyy_mm_dd: Mapped[dt.date] = mapped_column(nullable=False)
@@ -48,7 +48,7 @@ class Metric(Base):
         state: State = spec.deserialize(self.state)
         key = ResultKey(yyyy_mm_dd=self.yyyy_mm_dd, tags=self.tags)
 
-        return models.Metric.build(spec, key, state=state, metric_id=self.metric_id)
+        return models.Metric.build(spec, key, dataset=self.dataset, state=state, metric_id=self.metric_id)
 
     def to_spec(self) -> specs.MetricSpec:
         _type = typing.cast(MetricType, self.metric_type)
@@ -75,6 +75,7 @@ class MetricDB:
             metric_id=metric.metric_id,
             metric_type=metric.spec.metric_type,
             parameters=metric.spec.parameters,
+            dataset=metric.dataset,
             state=metric.state.serialize(),
             value=metric.value,
             yyyy_mm_dd=metric.key.yyyy_mm_dd,

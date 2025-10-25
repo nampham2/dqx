@@ -28,6 +28,7 @@ class Metric:
     spec: specs.MetricSpec
     state: State
     key: ResultKey
+    dataset: str
     metric_id: uuid.UUID | None = None
 
     @property
@@ -39,6 +40,7 @@ class Metric:
         cls,
         metric: specs.MetricSpec,
         key: ResultKey,
+        dataset: str,
         state: State | None = None,
         metric_id: uuid.UUID | None = None,
     ) -> Self:
@@ -47,6 +49,7 @@ class Metric:
             spec=metric,
             state=state or metric.state(),
             key=key,
+            dataset=dataset,
         )
 
     @classmethod
@@ -63,6 +66,7 @@ class Metric:
             spec=self.spec,
             state=merged_state,
             key=self.key,
+            dataset=self.dataset,
         )
 
     def identity(self) -> Metric:
@@ -70,4 +74,5 @@ class Metric:
             spec=self.spec,
             state=self.state.identity(),
             key=self.key,
+            dataset=self.dataset,
         )
