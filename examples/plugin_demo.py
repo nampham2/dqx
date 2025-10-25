@@ -10,7 +10,7 @@ This example demonstrates:
 """
 
 import time
-from datetime import datetime
+from datetime import date, datetime
 
 from returns.result import Failure, Success
 
@@ -171,31 +171,28 @@ def demo_plugin_system() -> None:
     # Create sample symbols
     symbols = [
         SymbolInfo(
-            name="avg_price",
-            metric="average(price)",
-            dataset="products",
-            value=Success(250.75),
-            yyyy_mm_dd=datetime.now().date(),
-            suite="ProductQuality",
-            tags={"env": "prod"},
+            name="x_1",
+            metric="count(*)",
+            dataset="users",
+            value=Success(100.0),
+            yyyy_mm_dd=date.today(),
+            tags={},
         ),
         SymbolInfo(
-            name="total_stock",
-            metric="sum(stock)",
-            dataset="inventory",
-            value=Success(15420.0),
-            yyyy_mm_dd=datetime.now().date(),
-            suite="ProductQuality",
-            tags={"env": "prod"},
+            name="x_2",
+            metric="average(score)",
+            dataset="users",
+            value=Success(85.5),
+            yyyy_mm_dd=date.today(),
+            tags={},
         ),
         SymbolInfo(
-            name="null_descriptions",
-            metric="count_if(description IS NULL)",
-            dataset="products",
-            value=Failure("Query execution failed"),
-            yyyy_mm_dd=datetime.now().date(),
-            suite="ProductQuality",
-            tags={"env": "prod"},
+            name="x_3",
+            metric="count_if(active)",
+            dataset="users",
+            value=Failure("Query timeout"),
+            yyyy_mm_dd=date.today(),
+            tags={},
         ),
     ]
 

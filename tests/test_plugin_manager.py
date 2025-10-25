@@ -626,7 +626,6 @@ class TestAuditPlugin:
                 dataset="ds1",
                 value=Success(50.0),
                 yyyy_mm_dd=datetime.now().date(),
-                suite="Test Suite",
                 tags={},
             )
         ]
@@ -848,7 +847,6 @@ class TestAuditPlugin:
                 dataset="ds1",
                 value=Success(50.0),
                 yyyy_mm_dd=datetime.now().date(),
-                suite="Test Suite",
                 tags={},
             ),
             SymbolInfo(
@@ -857,7 +855,6 @@ class TestAuditPlugin:
                 dataset="ds1",
                 value=Failure("Computation failed"),
                 yyyy_mm_dd=datetime.now().date(),
-                suite="Test Suite",
                 tags={},
             ),
             SymbolInfo(
@@ -866,7 +863,6 @@ class TestAuditPlugin:
                 dataset="ds2",
                 value=Success(100.0),
                 yyyy_mm_dd=datetime.now().date(),
-                suite="Test Suite",
                 tags={},
             ),
         ]

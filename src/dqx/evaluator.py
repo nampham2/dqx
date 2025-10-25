@@ -134,7 +134,6 @@ class Evaluator:
                 dataset=sm.dataset,
                 value=metric_result,
                 yyyy_mm_dd=self._key.yyyy_mm_dd,
-                suite=self._suite_name,
                 tags=self._key.tags,
             )
             symbol_infos.append(symbol_info)

@@ -76,7 +76,6 @@ def test_plugin_execution_context_creation() -> None:
             dataset="ds1",
             value=Success(10.0),
             yyyy_mm_dd=date(2024, 1, 1),
-            suite="test",
             tags={},
         )
     ]
@@ -213,7 +212,6 @@ def test_context_symbol_methods() -> None:
             dataset="ds1",
             value=Success(float(i)) if i < 3 else Failure("Error"),
             yyyy_mm_dd=date(2024, 1, 1),
-            suite="test",
             tags={},
         )
         for i in range(5)

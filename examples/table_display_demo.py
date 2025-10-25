@@ -76,7 +76,6 @@ def main() -> None:
             dataset="orders",
             value=Success(125.50),
             yyyy_mm_dd=date(2024, 1, 15),
-            suite="Daily Data Quality",
             tags={"env": "production", "region": "us-west"},
         ),
         SymbolInfo(
@@ -85,7 +84,6 @@ def main() -> None:
             dataset="orders",
             value=Success(15000.0),
             yyyy_mm_dd=date(2024, 1, 15),
-            suite="Daily Data Quality",
             tags={"env": "production", "region": "us-west"},
         ),
         SymbolInfo(
@@ -94,7 +92,6 @@ def main() -> None:
             dataset="customers",
             value=Success(0.0),  # Use 0.0 instead of None
             yyyy_mm_dd=date(2024, 1, 15),
-            suite="Daily Data Quality",
             tags={"env": "production", "region": "us-west"},
         ),
         SymbolInfo(
@@ -103,7 +100,6 @@ def main() -> None:
             dataset="orders",
             value=Failure("Connection timeout"),
             yyyy_mm_dd=date(2024, 1, 15),
-            suite="Daily Data Quality",
             tags={"env": "production", "region": "us-west"},
         ),
     ]

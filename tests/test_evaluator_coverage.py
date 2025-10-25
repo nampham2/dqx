@@ -293,7 +293,6 @@ def test_evaluator_collect_symbols() -> None:
 
     for si in symbol_infos:
         assert si.yyyy_mm_dd == date(2024, 1, 15)
-        assert si.suite == "Test Suite"
         assert si.tags == {"env": "prod"}
 
         if si.name == "x":

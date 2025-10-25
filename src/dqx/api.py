@@ -675,7 +675,7 @@ class VerificationSuite:
             timestamp=self._context.start_time,
             duration_ms=duration_ms,
             results=self.collect_results(),
-            symbols=self.provider.collect_symbols(self.key, self._name),
+            symbols=self.provider.collect_symbols(self.key),
         )
 
         # Process through all plugins

@@ -73,7 +73,7 @@ def test_extended_metric_recursive_dataset_imputation() -> None:
     suite.run({"ds1": ds1, "ds2": ds2}, key)
 
     # Collect symbols after the run
-    symbols = suite.provider.collect_symbols(key, "Extended Metric Test")
+    symbols = suite.provider.collect_symbols(key)
 
     # Find symbols for our metrics
     wow_symbol = None
@@ -147,7 +147,7 @@ def test_nested_extended_metrics() -> None:
     suite.run({"prod": ds}, key)
 
     # Check all symbols were created and have datasets
-    symbols = suite.provider.collect_symbols(key, "Nested Extended Metrics")
+    symbols = suite.provider.collect_symbols(key)
 
     # Count metrics by type and print all metrics for debugging
     metric_types = {"sum": 0, "lag": 0, "stddev": 0}
@@ -206,7 +206,7 @@ def test_circular_dependency_handling() -> None:
     suite.run({"test": ds}, key)
 
     # Basic verification that it ran
-    symbols = suite.provider.collect_symbols(key, "Circular Dependency Test")
+    symbols = suite.provider.collect_symbols(key)
     assert len(symbols) > 0, "Should have processed symbols"
 
     results = suite.collect_results()

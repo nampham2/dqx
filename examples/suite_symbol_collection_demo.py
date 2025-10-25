@@ -131,7 +131,7 @@ def main() -> None:
     print("-" * 50)
 
     # Method 1: Collect and process symbols manually
-    symbols = suite.provider.collect_symbols(key, suite._name)
+    symbols = suite.provider.collect_symbols(key)
     print(f"Total symbols registered: {len(symbols)}")
     print("\nAll symbols:")
     for symbol in symbols:
@@ -144,7 +144,7 @@ def main() -> None:
     # Method 2: Use the convenience method to directly print symbols
     print("\n1b. Using print_symbols convenience method")
     print("-" * 50)
-    suite.provider.print_symbols(key, suite._name)
+    suite.provider.print_symbols(key)
     print()
 
     # 2. Debugging Failed Assertions

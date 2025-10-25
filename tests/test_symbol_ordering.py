@@ -44,7 +44,7 @@ def test_collect_symbols_natural_ordering() -> None:
     key = ResultKey(yyyy_mm_dd=date.today(), tags={})
     suite.run({"test": datasource}, key)
 
-    symbols = suite.provider.collect_symbols(key, suite._name)
+    symbols = suite.provider.collect_symbols(key)
 
     # Extract symbol names
     names = [s.name for s in symbols]
@@ -82,7 +82,7 @@ def test_collect_symbols_large_numbers() -> None:
     key = ResultKey(yyyy_mm_dd=date.today(), tags={})
     suite.run({"test": datasource}, key)
 
-    symbols = suite.provider.collect_symbols(key, suite._name)
+    symbols = suite.provider.collect_symbols(key)
     names = [s.name for s in symbols]
 
     # Check specific transitions

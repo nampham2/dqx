@@ -45,7 +45,6 @@ class SymbolInfo:
         dataset: Name of the dataset this metric was computed from (optional)
         value: Computation result - Success(float) or Failure(error_message)
         yyyy_mm_dd: Date when the metric was evaluated
-        suite: Name of the verification suite that evaluated this symbol
         tags: Additional metadata from ResultKey (e.g., {"env": "prod"})
     """
 
@@ -54,7 +53,6 @@ class SymbolInfo:
     dataset: str | None
     value: Result[float, str]
     yyyy_mm_dd: datetime.date
-    suite: str
     tags: Tags = field(default_factory=dict)
 
 
@@ -161,7 +159,7 @@ class SymbolicMetricBase(ABC):
         """
         return self._children_map.get(symbol, [])
 
-    def collect_symbols(self, key: ResultKey, suite_name: str) -> list[SymbolInfo]:
+    def collect_symbols(self, key: ResultKey) -> list[SymbolInfo]:
         """
         Collect all symbol values with metadata.
 
@@ -171,16 +169,15 @@ class SymbolicMetricBase(ABC):
 
         Args:
             key: The ResultKey for evaluation context (date and tags)
-            suite_name: Name of the verification suite for metadata
 
         Returns:
             List of SymbolInfo instances, sorted by symbol name in natural numeric
             order (x_1, x_2, ..., x_10, x_11, etc. rather than lexicographic).
             Each contains the symbol name, metric description, dataset,
-            computed value, and context information (date, suite, tags).
+            computed value, and context information (date, tags).
 
         Example:
-            >>> symbols = provider.collect_symbols(key, "My Suite")
+            >>> symbols = provider.collect_symbols(key)
             >>> for s in symbols:
             ...     if s.value.is_success():
             ...         print(f"{s.metric}: {s.value.unwrap()}")
@@ -201,14 +198,13 @@ class SymbolicMetricBase(ABC):
 
                 value = Failure("Not evaluated")
 
-            # Create SymbolInfo with all fields (no children_names)
+            # Create SymbolInfo with all fields
             symbol_info = SymbolInfo(
                 name=str(symbolic_metric.symbol),
                 metric=symbolic_metric.name,
                 dataset=symbolic_metric.dataset,
                 value=value,
                 yyyy_mm_dd=effective_key.yyyy_mm_dd,  # Use effective date!
-                suite=suite_name,
                 tags=effective_key.tags,
             )
             symbols.append(symbol_info)
@@ -219,7 +215,7 @@ class SymbolicMetricBase(ABC):
 
         return sorted_symbols
 
-    def print_symbols(self, key: ResultKey, suite_name: str) -> None:
+    def print_symbols(self, key: ResultKey) -> None:
         """
         Collect and display all symbol values in a formatted table.
 
@@ -228,19 +224,18 @@ class SymbolicMetricBase(ABC):
 
         Args:
             key: The ResultKey for evaluation context (date and tags)
-            suite_name: Name of the verification suite for metadata
 
         Example:
             >>> # Instead of:
-            >>> symbols = provider.collect_symbols(key, "My Suite")
+            >>> symbols = provider.collect_symbols(key)
             >>> print_symbols(symbols)
             >>>
             >>> # You can now simply do:
-            >>> provider.print_symbols(key, "My Suite")
+            >>> provider.print_symbols(key)
         """
         from dqx.display import print_symbols
 
-        symbols = self.collect_symbols(key, suite_name)
+        symbols = self.collect_symbols(key)
         print_symbols(symbols)
 
 

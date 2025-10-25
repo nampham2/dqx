@@ -58,7 +58,6 @@ def test_print_symbols_basic() -> None:
             dataset="orders",
             value=Success(42.5),
             yyyy_mm_dd=date(2024, 1, 15),
-            suite="Test Suite",
             tags={"env": "prod"},
         ),
         SymbolInfo(
@@ -67,7 +66,6 @@ def test_print_symbols_basic() -> None:
             dataset="orders",
             value=Success(1000.0),
             yyyy_mm_dd=date(2024, 1, 15),
-            suite="Test Suite",
             tags={"env": "prod"},
         ),
         SymbolInfo(
@@ -76,7 +74,6 @@ def test_print_symbols_basic() -> None:
             dataset=None,
             value=Failure("No data found"),
             yyyy_mm_dd=date(2024, 1, 15),
-            suite="Test Suite",
             tags={},
         ),
     ]
@@ -201,7 +198,6 @@ def test_print_symbols_with_none_dataset() -> None:
             dataset=None,  # None dataset
             value=Success(100.0),
             yyyy_mm_dd=date(2024, 1, 15),
-            suite="Test Suite",
             tags={},
         )
     ]
@@ -219,7 +215,6 @@ def test_print_symbols_success_and_failure_values() -> None:
             dataset="orders",
             value=Success(42.5),
             yyyy_mm_dd=date(2024, 1, 15),
-            suite="Test Suite",
             tags={},
         ),
         SymbolInfo(
@@ -228,7 +223,6 @@ def test_print_symbols_success_and_failure_values() -> None:
             dataset="orders",
             value=Failure("Connection timeout"),
             yyyy_mm_dd=date(2024, 1, 15),
-            suite="Test Suite",
             tags={},
         ),
     ]
@@ -266,7 +260,6 @@ def test_print_symbols_complex_tags() -> None:
             dataset="orders",
             value=Success(42.5),
             yyyy_mm_dd=date(2024, 1, 15),
-            suite="Test Suite",
             tags={"env": "production", "region": "us-west", "team": "data"},
         )
     ]
@@ -320,7 +313,6 @@ def test_table_display_demo_integration() -> None:
             dataset="orders",
             value=Success(125.50),
             yyyy_mm_dd=date(2024, 1, 15),
-            suite="Daily Data Quality",
             tags={"env": "production", "region": "us-west"},
         ),
         SymbolInfo(
@@ -329,7 +321,6 @@ def test_table_display_demo_integration() -> None:
             dataset="orders",
             value=Success(15000.0),
             yyyy_mm_dd=date(2024, 1, 15),
-            suite="Daily Data Quality",
             tags={"env": "production", "region": "us-west"},
         ),
     ]

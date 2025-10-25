@@ -56,7 +56,6 @@ def main() -> None:
         print(f"   - Dataset: {symbol_info.dataset}")
         print(f"   - Value: {symbol_info.value}")
         print(f"   - Date: {symbol_info.yyyy_mm_dd}")
-        print(f"   - Suite: {symbol_info.suite}")
         print(f"   - Tags: {symbol_info.tags}")
         print()
 

@@ -103,7 +103,7 @@ def test_collect_symbols_with_lagged_dates() -> None:
     suite.run({"ds1": ds}, key)
 
     # Collect symbols
-    symbols = suite.provider.collect_symbols(key, suite._name)
+    symbols = suite.provider.collect_symbols(key)
 
     # Find the three symbols we created by checking their dates
     # Since all metrics are average(value), we differentiate by date
@@ -147,7 +147,7 @@ def test_mixed_lag_and_no_lag_metrics() -> None:
     ds = DuckRelationDataSource.from_arrow(data)
 
     suite.run({"ds1": ds}, key)
-    symbols = suite.provider.collect_symbols(key, suite._name)
+    symbols = suite.provider.collect_symbols(key)
 
     # Verify we have 4 symbols
     assert len(symbols) == 4
@@ -186,7 +186,7 @@ def test_missing_historical_data_graceful_handling() -> None:
     suite.run({"ds1": ds}, key)
 
     # Verify both symbols are collected
-    symbols = suite.provider.collect_symbols(key, suite._name)
+    symbols = suite.provider.collect_symbols(key)
     assert len(symbols) == 2
 
     # Verify dates
@@ -235,7 +235,7 @@ def test_large_lag_values() -> None:
     ds = DuckRelationDataSource.from_arrow(data)
 
     suite.run({"ds1": ds}, key)
-    symbols = suite.provider.collect_symbols(key, suite._name)
+    symbols = suite.provider.collect_symbols(key)
 
     # Find the metrics
     dates_found = {s.yyyy_mm_dd for s in symbols}
@@ -268,7 +268,7 @@ def test_date_boundary_conditions() -> None:
     ds = DuckRelationDataSource.from_arrow(data)
 
     suite.run({"ds1": ds}, key)
-    symbols = suite.provider.collect_symbols(key, suite._name)
+    symbols = suite.provider.collect_symbols(key)
 
     # Verify dates cross year boundary correctly
     dates = {s.yyyy_mm_dd for s in symbols}
@@ -281,7 +281,7 @@ def test_date_boundary_conditions() -> None:
     suite2 = VerificationSuite([boundary_check], db, "Test Suite 2")
 
     suite2.run({"ds1": ds}, key2)
-    symbols2 = suite2.provider.collect_symbols(key2, suite2._name)
+    symbols2 = suite2.provider.collect_symbols(key2)
 
     dates2 = {s.yyyy_mm_dd for s in symbols2}
     assert datetime.date(2025, 3, 1) in dates2  # Mar 1, 2025

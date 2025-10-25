@@ -6,7 +6,7 @@ import sympy as sp
 from dqx.api import VerificationSuite, check
 from dqx.common import Context, ResultKey
 from dqx.datasource import DuckRelationDataSource
-from dqx.display import print_assertion_results, print_symbols
+from dqx.display import print_assertion_results
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
 
@@ -227,7 +227,7 @@ def test_e2e_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> No
     suite.graph.print_tree()
 
     print_assertion_results(suite.collect_results())
-    print_symbols(suite.provider.collect_symbols(suite.key, "Simple test suite"))
+    suite.provider.print_symbols(key)
 
     # Create and display ground truth
     print("\n" + "=" * 80 + "\n")

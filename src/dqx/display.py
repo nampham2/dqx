@@ -214,7 +214,7 @@ def print_symbols(symbols: list[SymbolInfo]) -> None:
     Display symbol values in a formatted table.
 
     Shows all fields from SymbolInfo objects in a table with columns:
-    Date, Suite, Symbol, Metric, Dataset, Value/Error, Tags
+    Date, Symbol, Metric, Dataset, Value/Error, Tags
 
     Args:
         symbols: List of SymbolInfo objects from collect_symbols()
@@ -233,7 +233,6 @@ def print_symbols(symbols: list[SymbolInfo]) -> None:
 
     # Add columns in specified order
     table.add_column("Date", style="cyan", no_wrap=True)
-    table.add_column("Suite", style="blue")
     table.add_column("Symbol", style="yellow", no_wrap=True)
     table.add_column("Metric")
     table.add_column("Dataset", style="magenta")
@@ -257,7 +256,6 @@ def print_symbols(symbols: list[SymbolInfo]) -> None:
         # Add row
         table.add_row(
             symbol.yyyy_mm_dd.isoformat(),
-            symbol.suite,
             symbol.name,
             symbol.metric,
             symbol.dataset or "-",

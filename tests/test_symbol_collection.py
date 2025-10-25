@@ -24,7 +24,6 @@ class TestSymbolInfoExtended:
             dataset="orders",
             value=Success(100.5),
             yyyy_mm_dd=date(2025, 1, 13),
-            suite="Test Suite",
             tags={"env": "prod", "region": "us-east"},
         )
 
@@ -33,7 +32,6 @@ class TestSymbolInfoExtended:
         assert info.dataset == "orders"
         assert info.value == Success(100.5)
         assert info.yyyy_mm_dd == date(2025, 1, 13)
-        assert info.suite == "Test Suite"
         assert info.tags == {"env": "prod", "region": "us-east"}
 
     def test_symbol_info_with_empty_tags(self) -> None:
@@ -44,7 +42,6 @@ class TestSymbolInfoExtended:
             dataset="orders",
             value=Success(100.5),
             yyyy_mm_dd=date(2025, 1, 13),
-            suite="Test Suite",
             # tags not provided, should default to {}
         )
 
@@ -58,7 +55,6 @@ class TestSymbolInfoExtended:
             dataset=None,
             value=Success(42.0),
             yyyy_mm_dd=date(2025, 1, 13),
-            suite="Test Suite",
         )
 
         assert info.dataset is None
@@ -180,7 +176,6 @@ class TestCollectSymbols:
 
             # Check context fields
             assert si.yyyy_mm_dd == date(2025, 1, 13)
-            assert si.suite == "Test Suite"
             assert si.tags == {"env": "test"}
 
     def test_collect_symbols_with_failures(self) -> None:
@@ -366,6 +361,5 @@ class TestEvaluatorWithContext:
 
         # Verify all context fields
         assert si.yyyy_mm_dd == date(2025, 1, 15)
-        assert si.suite == "Production Suite"
         assert si.tags == {"env": "staging", "version": "2.0"}
         assert si.dataset == "sales"

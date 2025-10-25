@@ -126,7 +126,7 @@ def test_collect_symbols_before_run_error() -> None:
     # symbols before run. The provider exists but won't have evaluated metrics.
     # This test verifies the concept that symbols aren't available before run.
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    symbols = suite.provider.collect_symbols(key, suite._name)
+    symbols = suite.provider.collect_symbols(key)
 
     # Should return empty list as no metrics have been evaluated
     assert symbols == []
@@ -324,7 +324,7 @@ def test_collect_symbols_with_evaluation_error() -> None:
     # Mock the fn to raise an exception
     with patch.object(metric, "fn", side_effect=RuntimeError("Test error")):
         # Collect symbols via provider
-        symbols = suite.provider.collect_symbols(key, suite._name)
+        symbols = suite.provider.collect_symbols(key)
 
         # Verify the symbol was created with a Failure value
         assert len(symbols) == 1
