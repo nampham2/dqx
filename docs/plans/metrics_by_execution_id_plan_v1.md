@@ -444,159 +444,9 @@ def test_multiple_suite_executions_isolated():
 uv run pytest tests/test_data.py -v
 ```
 
-### Task Group 5: Example and Documentation
+### Task Group 5: Final Verification
 
-#### Task 5.1: Create example demonstrating usage
-**File**: `examples/metrics_by_execution_id_demo.py`
-
-```python
-"""Demo: Retrieving all metrics from a suite execution.
-
-This example shows how to:
-1. Run a VerificationSuite with various metrics
-2. Retrieve all persisted metrics using the execution ID
-3. Display metrics including those from lagged operations
-"""
-
-import pyarrow as pa
-from datetime import date, timedelta
-
-from dqx import (
-    check,
-    MetricProvider,
-    Context,
-    VerificationSuite,
-    ResultKey,
-    metrics_by_execution_id,
-)
-from dqx.datasource import DuckRelationDataSource
-from dqx.orm.repositories import InMemoryMetricDB
-from dqx.display import print_symbols
-
-
-def create_sample_data():
-    """Create sample sales data for multiple days."""
-    dates = []
-    prices = []
-    quantities = []
-
-    # Generate 7 days of data
-    base_date = date(2024, 1, 1)
-    for i in range(7):
-        current_date = base_date + timedelta(days=i)
-        # 100 transactions per day
-        for j in range(100):
-            dates.append(current_date)
-            # Price varies by day (trend upward)
-            prices.append(50.0 + i * 2 + j * 0.1)
-            quantities.append(1 + j % 5)
-
-    return pa.table({
-        "yyyy_mm_dd": dates,
-        "price": prices,
-        "quantity": quantities,
-    })
-
-
-@check(name="Price Analytics", severity="P0")
-def price_analytics(mp: MetricProvider, ctx: Context):
-    """Comprehensive price analysis with extended metrics."""
-    # Basic metrics
-    avg_price = mp.average("price", dataset="sales")
-    min_price = mp.minimum("price", dataset="sales")
-    max_price = mp.maximum("price", dataset="sales")
-    total_revenue = mp.sum("price", dataset="sales")
-
-    # Assertions on basic metrics
-    ctx.assert_that(avg_price).where(name="Average price reasonable").is_between(40, 80)
-    ctx.assert_that(min_price).where(name="Min price above zero").is_gt(0)
-    ctx.assert_that(max_price).where(name="Max price below 100").is_lt(100)
-
-    # Extended metrics (creates lagged metrics)
-    dow_change = mp.ext.day_over_day(avg_price, dataset="sales")
-    wow_change = mp.ext.week_over_week(avg_price, dataset="sales")
-    price_volatility = mp.ext.stddev(avg_price, lag=1, n=7, dataset="sales")
-
-    # Assertions on extended metrics
-    ctx.assert_that(dow_change).where(name="Daily change < 10%").is_lt(0.10)
-    ctx.assert_that(wow_change).where(name="Weekly change < 20%").is_lt(0.20)
-    ctx.assert_that(price_volatility).where(name="Price stable").is_lt(5.0)
-
-
-def main():
-    """Run the demo."""
-    print("=== Metrics by Execution ID Demo ===\n")
-
-    # Setup
-    db = InMemoryMetricDB()
-    data = create_sample_data()
-    datasource = DuckRelationDataSource.from_arrow(data, "sales")
-
-    # Create and run suite
-    suite = VerificationSuite([price_analytics], db, "Price Analytics Suite")
-    print(f"Suite created with execution ID: {suite.execution_id}\n")
-
-    # Run for a specific date
-    run_date = date(2024, 1, 7)
-    key = ResultKey(yyyy_mm_dd=run_date, tags={"env": "production", "region": "US"})
-
-    print(f"Running suite for date: {run_date}")
-    suite.run([datasource], key)
-    print("Suite execution completed!\n")
-
-    # Retrieve all metrics from this execution
-    print("Retrieving all persisted metrics...")
-    metrics = metrics_by_execution_id(db, suite.execution_id)
-    print(f"Found {len(metrics)} metrics\n")
-
-    # Display all metrics
-    print("All metrics from this execution:")
-    print_symbols(metrics)
-
-    # Analysis
-    print("\n=== Analysis ===")
-
-    # Group by date
-    metrics_by_date = {}
-    for m in metrics:
-        if m.yyyy_mm_dd not in metrics_by_date:
-            metrics_by_date[m.yyyy_mm_dd] = []
-        metrics_by_date[m.yyyy_mm_dd].append(m)
-
-    print(f"\nMetrics span {len(metrics_by_date)} different dates:")
-    for dt in sorted(metrics_by_date.keys()):
-        print(f"  - {dt}: {len(metrics_by_date[dt])} metrics")
-
-    # Show lagged metrics
-    lagged_metrics = [m for m in metrics if m.yyyy_mm_dd != run_date]
-    if lagged_metrics:
-        print(f"\nFound {len(lagged_metrics)} lagged metrics from extended operations:")
-        for m in lagged_metrics[:5]:  # Show first 5
-            days_ago = (run_date - m.yyyy_mm_dd).days
-            print(f"  - {m.metric} from {days_ago} days ago: {m.value}")
-
-    # Show execution metadata
-    print(f"\nExecution metadata:")
-    print(f"  - Execution ID: {suite.execution_id}")
-    print(f"  - Environment: {key.tags.get('env', 'N/A')}")
-    print(f"  - Region: {key.tags.get('region', 'N/A')}")
-
-
-if __name__ == "__main__":
-    main()
-```
-
-#### Task 5.2: Update pyproject.toml to add the example
-Add to the examples section if it exists, or create it:
-```toml
-[project.scripts]
-# ... existing scripts ...
-metrics-by-execution-id-demo = "examples.metrics_by_execution_id_demo:main"
-```
-
-### Task Group 6: Final Verification
-
-#### Task 6.1: Run all tests
+#### Task 5.1: Run all tests
 ```bash
 # Run mypy type checking
 uv run mypy src/dqx/data.py
@@ -613,12 +463,7 @@ uv run pytest tests/test_data.py -v
 bin/run-hooks.sh
 ```
 
-#### Task 6.2: Run the example
-```bash
-uv run python examples/metrics_by_execution_id_demo.py
-```
-
-#### Task 6.3: Verify complete test coverage
+#### Task 5.2: Verify complete test coverage
 ```bash
 uv run pytest tests/ -v --cov=dqx --cov-report=term-missing
 ```
@@ -629,7 +474,7 @@ uv run pytest tests/ -v --cov=dqx --cov-report=term-missing
 2. **Performance**: The execution_id tag adds minimal overhead (one UUID per suite)
 3. **Security**: The `__execution_id` tag uses double underscore to indicate internal use
 4. **Testing**: Full TDD approach with unit and integration tests
-5. **Documentation**: Comprehensive docstrings and example demonstrate usage
+5. **Documentation**: Comprehensive docstrings for all new functions
 
 ## Expected Outcomes
 
@@ -638,4 +483,4 @@ After implementation:
 - All metrics persisted during suite execution are tagged with this ID
 - The `metrics_by_execution_id` function retrieves all metrics from a specific execution
 - Lagged metrics from extended operations are automatically included
-- Full test coverage and working example demonstrate the feature
+- Full test coverage with unit and integration tests

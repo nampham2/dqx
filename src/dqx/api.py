@@ -3,6 +3,7 @@ from __future__ import annotations
 import functools
 import threading
 import time
+import uuid
 from collections import defaultdict
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
@@ -359,6 +360,23 @@ class VerificationSuite:
         # Timer for analyzing phase
         self._analyze_ms = timer_registry.timer("analyzing.time_ms")
 
+        # Generate unique execution ID
+        self._execution_id = str(uuid.uuid4())
+
+    @property
+    def execution_id(self) -> str:
+        """
+        Unique identifier for this suite execution.
+
+        Returns a UUID string that uniquely identifies this instance of the
+        VerificationSuite. This ID is generated when the suite is created
+        and remains constant throughout its lifetime.
+
+        Returns:
+            str: UUID string for this execution
+        """
+        return self._execution_id
+
     @property
     def graph(self) -> Graph:
         """
@@ -490,11 +508,20 @@ class VerificationSuite:
             if not symbolic_metrics:
                 continue
 
-            # Group metrics by their effective date
+            # Group metrics by their effective date, injecting execution_id
             metrics_by_date: dict[ResultKey, list[MetricSpec]] = defaultdict(list)
             for sym_metric in symbolic_metrics:
+                # Create the effective key from the provider
                 effective_key = sym_metric.key_provider.create(key)
-                metrics_by_date[effective_key].append(sym_metric.metric_spec)
+
+                # Inject execution_id into tags
+                tags_with_execution_id = dict(effective_key.tags)
+                tags_with_execution_id["__execution_id"] = self._execution_id
+
+                # Create new key with updated tags
+                key_with_execution_id = ResultKey(yyyy_mm_dd=effective_key.yyyy_mm_dd, tags=tags_with_execution_id)
+
+                metrics_by_date[key_with_execution_id].append(sym_metric.metric_spec)
 
             # Analyze each date group separately
             logger.info(f"Analyzing dataset '{ds.name}'...")
@@ -550,7 +577,12 @@ class VerificationSuite:
 
         # 3. Evaluate assertions
         # Use graph in the context to avoid the check if the suite has been evaluated
-        evaluator = Evaluator(self.provider, key, self._name)
+        # Create a key with execution_id for the evaluator
+        tags_with_execution_id = dict(key.tags)
+        tags_with_execution_id["__execution_id"] = self._execution_id
+        key_with_execution_id = ResultKey(yyyy_mm_dd=key.yyyy_mm_dd, tags=tags_with_execution_id)
+
+        evaluator = Evaluator(self.provider, key_with_execution_id, self._name)
         self._context._graph.bfs(evaluator)
 
         # Mark suite as evaluated only after successful completion

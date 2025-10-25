@@ -4,6 +4,9 @@ import logging
 
 from rich.logging import RichHandler
 
+# Export the data module for easy access
+from dqx import data as data  # noqa: PLC0414
+
 DEFAULT_FORMAT = "%(asctime)s [%(levelname).1s] %(message)s"
 DEFAULT_LOGGER_NAME = "dqx"
 
