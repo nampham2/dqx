@@ -16,6 +16,7 @@ __all__ = [
     "metrics_to_pyarrow_table",
     "analysis_reports_to_pyarrow_table",
     "symbols_to_pyarrow_table",
+    "metric_trace",
 ]
 
 
@@ -73,7 +74,7 @@ def metrics_to_pyarrow_table(metrics: Sequence[Metric], execution_id: str) -> pa
     Transform metrics from metrics_by_execution_id to a PyArrow table.
 
     The table schema matches the display format of print_metrics_by_execution_id
-    with columns: Date, Metric Name, Type, Dataset, Value, Tags.
+    with columns: date, metric, type, dataset, value, tags.
 
     Args:
         metrics: Sequence of Metric objects from metrics_by_execution_id
@@ -114,12 +115,12 @@ def metrics_to_pyarrow_table(metrics: Sequence[Metric], execution_id: str) -> pa
     # Create PyArrow table
     return pa.Table.from_pydict(
         {
-            "Date": dates,
-            "Metric Name": metric_names,
-            "Type": types,
-            "Dataset": datasets,
-            "Value": values,
-            "Tags": tags,
+            "date": dates,
+            "metric": metric_names,
+            "type": types,
+            "dataset": datasets,
+            "value": values,
+            "tags": tags,
         }
     )
 
@@ -129,14 +130,15 @@ def analysis_reports_to_pyarrow_table(reports: dict[str, "AnalysisReport"]) -> p
     Transform analysis reports from VerificationSuite to a PyArrow table.
 
     The table schema matches the display format of print_analysis_report
-    with columns: Date, Metric Name, Symbol, Type, Dataset, Value, Tags.
+    with columns: date, metric, symbol, type, dataset, value, tags.
 
     Args:
         reports: Dictionary mapping datasource names to their AnalysisReports
 
     Returns:
-        PyArrow table with all metrics from all reports, sorted by date (newest first) then by name
+        PyArrow table with all metrics from all reports, sorted by symbol indices
     """
+    import re
     from datetime import date
 
     import pyarrow as pa
@@ -153,8 +155,18 @@ def analysis_reports_to_pyarrow_table(reports: dict[str, "AnalysisReport"]) -> p
             symbol = ds_report.symbol_mapping.get(metric_key, "-")
             all_items.append((metric_key, metric, symbol))
 
-    # Sort by date (newest first) then by metric name
-    sorted_items = sorted(all_items, key=lambda x: (-x[0][1].yyyy_mm_dd.toordinal(), x[0][0].name))
+    # Sort by symbol indices (x_1, x_2, ..., x_10, ..., x_20, ...)
+    def symbol_sort_key(item: tuple[tuple[MetricSpec, ResultKey], Metric, str]) -> tuple[int, int, str]:
+        symbol = item[2]
+        if symbol and symbol != "-":
+            # Extract numeric part from x_N pattern
+            match = re.match(r"x_(\d+)", symbol)
+            if match:
+                return (0, int(match.group(1)), "")  # (0, N, "") for symbols
+        # For non-symbols, use metric name as secondary sort
+        return (1, 0, item[0][0].name)  # (1, 0, metric_name) for non-symbols
+
+    sorted_items = sorted(all_items, key=symbol_sort_key)
 
     # Build column data
     dates: list[date] = []
@@ -183,13 +195,13 @@ def analysis_reports_to_pyarrow_table(reports: dict[str, "AnalysisReport"]) -> p
     # Create PyArrow table
     return pa.Table.from_pydict(
         {
-            "Date": dates,
-            "Metric Name": metric_names,
-            "Symbol": symbols,
-            "Type": types,
-            "Dataset": datasets,
-            "Value": values,
-            "Tags": tags,
+            "date": dates,
+            "metric": metric_names,
+            "symbol": symbols,
+            "type": types,
+            "dataset": datasets,
+            "value": values,
+            "tags": tags,
         }
     )
 
@@ -199,7 +211,7 @@ def symbols_to_pyarrow_table(symbols: list[SymbolInfo]) -> pa.Table:
     Transform a list of SymbolInfo objects to a PyArrow table.
 
     The table schema splits the value/error information into separate columns:
-    Date, Symbol, Metric, Dataset, Value, Error, Tags.
+    date, symbol, metric, dataset, value, error, tags.
 
     Args:
         symbols: List of SymbolInfo objects from collect_symbols()
@@ -246,15 +258,209 @@ def symbols_to_pyarrow_table(symbols: list[SymbolInfo]) -> pa.Table:
             tag_str = "-"
         tags.append(tag_str)
 
-    # Create PyArrow table
-    return pa.Table.from_pydict(
-        {
-            "Date": dates,
-            "Symbol": symbol_names,
-            "Metric": metrics,
-            "Dataset": datasets,
-            "Value": values,
-            "Error": errors,
-            "Tags": tags,
-        }
+    # Create PyArrow table with proper types for nullable columns
+    # We must explicitly set types to avoid 'null' type when all values are None
+    return pa.table(
+        [
+            pa.array(dates, type=pa.date32()),
+            pa.array(symbol_names, type=pa.string()),
+            pa.array(metrics, type=pa.string()),
+            pa.array(datasets, type=pa.string()),
+            pa.array(values, type=pa.float64()),
+            pa.array(errors, type=pa.string()),  # Explicit string type even if all None
+            pa.array(tags, type=pa.string()),
+        ],
+        names=["date", "symbol", "metric", "dataset", "value", "error", "tags"],
     )
+
+
+def metric_trace(
+    metrics: Sequence[Metric],
+    execution_id: str,
+    reports: dict[str, "AnalysisReport"],
+    symbols: list[SymbolInfo],
+) -> pa.Table:
+    """
+    Join metrics from DB, analysis reports, and symbols to trace metric values.
+
+    Performs a FULL OUTER JOIN between metrics and analysis reports on (date, metric, dataset),
+    followed by a LEFT JOIN with symbols on (date, symbol, metric, dataset) from symbols perspective.
+
+    Args:
+        metrics: Sequence of Metric objects from metrics_by_execution_id
+        execution_id: The execution ID
+        reports: Dictionary mapping datasource names to their AnalysisReports
+        symbols: List of SymbolInfo objects from collect_symbols()
+
+    Returns:
+        PyArrow table with columns: date, metric, symbol, type, dataset,
+        value_db, value_analysis, value_final, error, tags
+    """
+    import pyarrow.compute as pc
+
+    # Get individual tables
+    metrics_table = metrics_to_pyarrow_table(metrics, execution_id)
+    reports_table = analysis_reports_to_pyarrow_table(reports)
+    symbols_table = symbols_to_pyarrow_table(symbols)
+
+    # Rename value columns to avoid conflicts during joins
+    if metrics_table.num_rows > 0:
+        metrics_columns = metrics_table.column_names
+        metrics_columns[metrics_columns.index("value")] = "value_db"
+        metrics_table = metrics_table.rename_columns(metrics_columns)
+
+    if reports_table.num_rows > 0:
+        reports_columns = reports_table.column_names
+        reports_columns[reports_columns.index("value")] = "value_analysis"
+        reports_table = reports_table.rename_columns(reports_columns)
+
+    if symbols_table.num_rows > 0:
+        symbols_columns = symbols_table.column_names
+        symbols_columns[symbols_columns.index("value")] = "value_final"
+        symbols_table = symbols_table.rename_columns(symbols_columns)
+
+    # Handle empty tables
+    if metrics_table.num_rows == 0 and reports_table.num_rows == 0 and symbols_table.num_rows == 0:
+        # Return empty table with expected schema
+        return pa.table(
+            {
+                "date": pa.array([], type=pa.date32()),
+                "metric": pa.array([], type=pa.string()),
+                "symbol": pa.array([], type=pa.string()),
+                "type": pa.array([], type=pa.string()),
+                "dataset": pa.array([], type=pa.string()),
+                "value_db": pa.array([], type=pa.float64()),
+                "value_analysis": pa.array([], type=pa.float64()),
+                "value_final": pa.array([], type=pa.float64()),
+                "error": pa.array([], type=pa.string()),
+                "tags": pa.array([], type=pa.string()),
+            }
+        )
+
+    # First join: FULL OUTER JOIN metrics with reports
+    if metrics_table.num_rows > 0 and reports_table.num_rows > 0:
+        # PyArrow join with multiple keys
+        first_join = metrics_table.join(
+            reports_table,
+            keys=["date", "metric", "dataset"],
+            join_type="full outer",
+            left_suffix="_left",
+            right_suffix="_right",
+        )
+
+        # Handle duplicate columns from join
+        # Coalesce type and tags columns (take non-null value)
+        type_col = pc.coalesce(first_join["type_left"], first_join["type_right"])
+        tags_col = pc.coalesce(first_join["tags_left"], first_join["tags_right"])
+
+        # Build intermediate table
+        first_join = pa.table(
+            {
+                "date": first_join["date"],
+                "metric": first_join["metric"],
+                "dataset": first_join["dataset"],
+                "symbol": first_join["symbol"],
+                "type": type_col,
+                "value_db": first_join["value_db"],
+                "value_analysis": first_join["value_analysis"],
+                "tags": tags_col,
+            }
+        )
+    elif metrics_table.num_rows > 0:
+        # Only metrics data
+        first_join = metrics_table.append_column("symbol", pa.array([None] * metrics_table.num_rows, type=pa.string()))
+        first_join = first_join.append_column(
+            "value_analysis", pa.array([None] * metrics_table.num_rows, type=pa.float64())
+        )
+    elif reports_table.num_rows > 0:
+        # Only reports data
+        first_join = reports_table.append_column(
+            "value_db", pa.array([None] * reports_table.num_rows, type=pa.float64())
+        )
+    else:
+        # Both empty, use symbols only
+        first_join = None
+
+    # Second join: LEFT JOIN from symbols perspective
+    if symbols_table.num_rows > 0 and first_join is not None and first_join.num_rows > 0:
+        final_join = symbols_table.join(
+            first_join,
+            keys=["date", "symbol", "metric", "dataset"],
+            join_type="left outer",
+            left_suffix="_symbols",
+            right_suffix="_joined",
+        )
+
+        # Handle duplicate columns
+        tags_col = pc.coalesce(final_join["tags_symbols"], final_join["tags_joined"])
+
+        # Build final table
+        # For columns that might be null, ensure they have the right type
+        type_col = (
+            final_join["type"]
+            if "type" in final_join.column_names
+            else pa.array([None] * final_join.num_rows, type=pa.string())
+        )
+        value_db_col = (
+            final_join["value_db"]
+            if "value_db" in final_join.column_names
+            else pa.array([None] * final_join.num_rows, type=pa.float64())
+        )
+        value_analysis_col = (
+            final_join["value_analysis"]
+            if "value_analysis" in final_join.column_names
+            else pa.array([None] * final_join.num_rows, type=pa.float64())
+        )
+
+        result = pa.table(
+            {
+                "date": final_join["date"],
+                "metric": final_join["metric"],
+                "symbol": final_join["symbol"],
+                "type": type_col,
+                "dataset": final_join["dataset"],
+                "value_db": value_db_col,
+                "value_analysis": value_analysis_col,
+                "value_final": final_join["value_final"],
+                "error": final_join["error"],
+                "tags": tags_col,
+            }
+        )
+    elif symbols_table.num_rows > 0:
+        # Only symbols data
+        result = pa.table(
+            {
+                "date": symbols_table["date"],
+                "metric": symbols_table["metric"],
+                "symbol": symbols_table["symbol"],
+                "type": pa.array([None] * symbols_table.num_rows, type=pa.string()),
+                "dataset": symbols_table["dataset"],
+                "value_db": pa.array([None] * symbols_table.num_rows, type=pa.float64()),
+                "value_analysis": pa.array([None] * symbols_table.num_rows, type=pa.float64()),
+                "value_final": symbols_table["value_final"],
+                "error": symbols_table["error"],
+                "tags": symbols_table["tags"],
+            }
+        )
+    else:
+        # No symbols, just return first join result
+        result = first_join.append_column("value_final", pa.array([None] * first_join.num_rows, type=pa.float64()))
+        result = result.append_column("error", pa.array([None] * first_join.num_rows, type=pa.string()))
+
+        # Reorder columns to match expected schema
+        result = pa.table(
+            {
+                "date": result["date"],
+                "metric": result["metric"],
+                "symbol": result["symbol"],
+                "type": result["type"],
+                "dataset": result["dataset"],
+                "value_db": result["value_db"],
+                "value_analysis": result["value_analysis"],
+                "value_final": result["value_final"],
+                "error": result["error"],
+                "tags": result["tags"],
+            }
+        )
+
+    return result

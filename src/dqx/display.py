@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol, Sequence
 
+import pyarrow as pa
 from returns.result import Result
 from rich.console import Console
 from rich.tree import Tree
@@ -211,6 +212,151 @@ def print_assertion_results(results: list[AssertionResult]) -> None:
     console.print(table)
 
 
+def print_metric_trace(trace_table: pa.Table, execution_id: str) -> None:
+    """
+    Display metric trace table with discrepancy highlighting.
+
+    Shows how metric values flow from DB through analysis reports to final symbol values.
+    Rows with differing values are highlighted to identify discrepancies.
+    The table is sorted by symbol indices (x_1, x_2, ..., x_10, ...) with non-symbol rows at the end.
+
+    Args:
+        trace_table: PyArrow table from metric_trace() with columns:
+                    date, metric, symbol, type, dataset, value_db, value_analysis, value_final, error, tags
+        execution_id: The execution ID to display in the title
+
+    Example:
+        >>> trace = metric_trace(metrics, execution_id, reports, symbols)
+        >>> print_metric_trace(trace, execution_id)
+    """
+    import re
+
+    from rich.table import Table
+
+    # Create table with title
+    table = Table(title=f"Metric Trace for Execution: {execution_id}", show_lines=True)
+
+    # Add columns (removed Type column)
+    table.add_column("Date", style="cyan", no_wrap=True)
+    table.add_column("Metric", style="yellow", no_wrap=True)
+    table.add_column("Symbol", style="yellow", no_wrap=True)
+    table.add_column("Dataset", style="magenta")
+    table.add_column("Value DB", style="dim")
+    table.add_column("Value Analysis", style="dim")
+    table.add_column("Value Final", style="dim")
+    table.add_column("Error", style="red")
+    table.add_column("Tags", style="dim")
+
+    # Convert PyArrow table to dict
+    data = trace_table.to_pydict()
+
+    # Create a list of row indices for sorting
+    row_indices = list(range(trace_table.num_rows))
+
+    # Sort function to extract numeric part from symbol
+    def symbol_sort_key(idx: int) -> tuple[int, int]:
+        symbol = data["symbol"][idx]
+        if symbol and symbol != "-":
+            # Extract numeric part from x_N pattern
+            match = re.match(r"x_(\d+)", symbol)
+            if match:
+                return (0, int(match.group(1)))  # (0, N) for symbols
+        return (1, idx)  # (1, original_index) for non-symbols
+
+    # Sort row indices by symbol
+    row_indices.sort(key=symbol_sort_key)
+
+    # Process each row in sorted order
+    for i in row_indices:
+        # Extract values
+        value_db = data["value_db"][i]
+        value_analysis = data["value_analysis"][i]
+        value_final = data["value_final"][i]
+        error = data["error"][i]
+
+        # Check for discrepancies
+        has_discrepancy = False
+        if value_db is not None and value_analysis is not None and value_db != value_analysis:
+            has_discrepancy = True
+        if value_db is not None and value_final is not None and value_db != value_final:
+            has_discrepancy = True
+        if value_analysis is not None and value_final is not None and value_analysis != value_final:
+            has_discrepancy = True
+
+        # Format values with colors
+        def format_value(value: float | None, highlight: bool = False) -> str:
+            if value is None:
+                return "-"
+            if highlight:
+                return f"[bold red]{value}[/bold red]"
+            return f"[green]{value}[/green]"
+
+        value_db_display = format_value(value_db, has_discrepancy)
+        value_analysis_display = format_value(value_analysis, has_discrepancy)
+        value_final_display = format_value(value_final, has_discrepancy)
+
+        # Format error
+        error_display = error if error else "-"
+
+        # Format other fields
+        symbol_display = data["symbol"][i] if data["symbol"][i] else "-"
+
+        # Add row with discrepancy highlighting
+        if has_discrepancy:
+            # Highlight entire row with warning style
+            table.add_row(
+                data["date"][i].isoformat(),
+                data["metric"][i],
+                symbol_display,
+                data["dataset"][i],
+                value_db_display,
+                value_analysis_display,
+                value_final_display,
+                error_display,
+                data["tags"][i],
+                style="bold yellow",
+            )
+        else:
+            table.add_row(
+                data["date"][i].isoformat(),
+                data["metric"][i],
+                symbol_display,
+                data["dataset"][i],
+                value_db_display,
+                value_analysis_display,
+                value_final_display,
+                error_display,
+                data["tags"][i],
+            )
+
+    # Print table
+    console = Console()
+    console.print(table)
+
+    # Print summary of discrepancies
+    total_rows = trace_table.num_rows
+    discrepancy_count = sum(
+        1
+        for i in range(total_rows)
+        if any(
+            [
+                data["value_db"][i] is not None
+                and data["value_analysis"][i] is not None
+                and data["value_db"][i] != data["value_analysis"][i],
+                data["value_db"][i] is not None
+                and data["value_final"][i] is not None
+                and data["value_db"][i] != data["value_final"][i],
+                data["value_analysis"][i] is not None
+                and data["value_final"][i] is not None
+                and data["value_analysis"][i] != data["value_final"][i],
+            ]
+        )
+    )
+
+    if discrepancy_count > 0:
+        console.print(f"\n[bold yellow]⚠️  Found {discrepancy_count} row(s) with value discrepancies[/bold yellow]")
+
+
 def print_metrics_by_execution_id(metrics: Sequence[Metric], execution_id: str) -> None:
     """
     Display metrics for a specific execution in a formatted table.
@@ -248,16 +394,16 @@ def print_metrics_by_execution_id(metrics: Sequence[Metric], execution_id: str) 
     data = pa_table.to_pydict()
     for i in range(pa_table.num_rows):
         # Format value with green color
-        value_display = f"[green]{data['Value'][i]}[/green]"
+        value_display = f"[green]{data['value'][i]}[/green]"
 
         # Add row (tags are already formatted by PyArrow function)
         table.add_row(
-            data["Date"][i].isoformat(),
-            data["Metric Name"][i],
-            data["Type"][i],
-            data["Dataset"][i],
+            data["date"][i].isoformat(),
+            data["metric"][i],
+            data["type"][i],
+            data["dataset"][i],
             value_display,
-            data["Tags"][i],
+            data["tags"][i],
         )
 
     # Print table
@@ -303,8 +449,8 @@ def print_symbols(symbols: list[SymbolInfo]) -> None:
     data = pa_table.to_pydict()
     for i in range(pa_table.num_rows):
         # Combine Value and Error columns for display
-        value = data["Value"][i]
-        error = data["Error"][i]
+        value = data["value"][i]
+        error = data["error"][i]
 
         if value is not None:
             value_display = f"[green]{value}[/green]"
@@ -313,12 +459,12 @@ def print_symbols(symbols: list[SymbolInfo]) -> None:
 
         # Add row (tags are already formatted by PyArrow function)
         table.add_row(
-            data["Date"][i].isoformat(),
-            data["Symbol"][i],
-            data["Metric"][i],
-            data["Dataset"][i],
+            data["date"][i].isoformat(),
+            data["symbol"][i],
+            data["metric"][i],
+            data["dataset"][i],
             value_display,
-            data["Tags"][i],
+            data["tags"][i],
         )
 
     # Print table
@@ -354,17 +500,17 @@ def print_analysis_report(report: dict[str, AnalysisReport]) -> None:
     data = pa_table.to_pydict()
     for i in range(pa_table.num_rows):
         # Format value with green color
-        value_display = f"[green]{data['Value'][i]}[/green]"
+        value_display = f"[green]{data['value'][i]}[/green]"
 
         # Add row
         table.add_row(
-            data["Date"][i].isoformat(),
-            data["Metric Name"][i],
-            data["Symbol"][i],
-            data["Type"][i],
-            data["Dataset"][i],
+            data["date"][i].isoformat(),
+            data["metric"][i],
+            data["symbol"][i],
+            data["type"][i],
+            data["dataset"][i],
             value_display,
-            data["Tags"][i],
+            data["tags"][i],
         )
 
     # Print table
