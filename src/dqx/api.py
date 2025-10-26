@@ -521,9 +521,6 @@ class VerificationSuite:
             logger.warning(f"Suite validation warnings:\n{report}")
 
     def _analyze(self, datasources: list[SqlDataSource], key: ResultKey) -> None:
-        # Apply symbol deduplication BEFORE analysis
-        self._context.provider.symbol_deduplication(self._context._graph, key)
-
         # Analyze ALL symbolic metrics, not just those with matching dataset
         all_symbolic_metrics = self._context.provider.symbolic_metrics
 
@@ -604,6 +601,9 @@ class VerificationSuite:
         # Use graph in the context to avoid the check if the suite has been evaluated
         logger.info("Imputing datasets...")
         self._context._graph.impute_datasets([ds.name for ds in datasources], self._context.provider)
+
+        # Apply symbol deduplication BEFORE analysis
+        self._context.provider.symbol_deduplication(self._context._graph, key)
 
         # 2. Analyze by datasources
         with self._analyze_ms:

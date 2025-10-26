@@ -5,6 +5,7 @@ from abc import ABC
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from datetime import timedelta
 from functools import partial
 from threading import Lock
 from typing import TYPE_CHECKING
@@ -254,8 +255,6 @@ class SymbolicMetricBase(ABC):
 
             This returns: {x_3: x_1, x_2: x_1}
         """
-        from datetime import timedelta
-
         groups: dict[tuple[str, str, str | None], list[sp.Symbol]] = {}
 
         # Group symbols by identity
