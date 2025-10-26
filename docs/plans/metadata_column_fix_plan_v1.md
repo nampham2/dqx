@@ -798,7 +798,7 @@ bin/run-hooks.sh
 
 ### Task Group 5: Update VerificationSuite (Remove execution_id injection)
 
-#### Task 5.1: Test VerificationSuite with ttl_hours
+#### Task 5.1: Test VerificationSuite metadata handling
 **File**: `tests/test_api_metadata.py` (new file)
 
 ```python
@@ -817,26 +817,6 @@ from dqx.specs import Average
 class TestVerificationSuiteMetadata:
     """Test VerificationSuite metadata features."""
 
-    def test_suite_init_with_ttl_hours(self, metric_db: MetricDB) -> None:
-        """Test creating suite with custom ttl_hours."""
-        @check(name="Test Check")
-        def test_check(mp, ctx):
-            pass
-
-        suite = VerificationSuite([test_check], metric_db, "Test Suite", ttl_hours=48)
-
-        assert suite._ttl_hours == 48
-
-    def test_suite_default_ttl_hours(self, metric_db: MetricDB) -> None:
-        """Test suite uses default ttl_hours."""
-        @check(name="Test Check")
-        def test_check(mp, ctx):
-            pass
-
-        suite = VerificationSuite([test_check], metric_db, "Test Suite")
-
-        assert suite._ttl_hours == 168  # 7 days
-
     @patch('dqx.analyzer.Analyzer.analyze')
     def test_analyze_passes_metadata(self, mock_analyze, metric_db: MetricDB) -> None:
         """Test _analyze creates metadata and passes to analyzer."""
@@ -844,7 +824,7 @@ class TestVerificationSuiteMetadata:
         def test_check(mp, ctx):
             ctx.assert_that(mp.average("price")).where(name="Positive").is_positive()
 
-        suite = VerificationSuite([test_check], metric_db, "Test Suite", ttl_hours=24)
+        suite = VerificationSuite([test_check], metric_db, "Test Suite")
 
         # Mock datasource
         mock_ds = Mock()
@@ -861,45 +841,17 @@ class TestVerificationSuiteMetadata:
 
         assert metadata is not None
         assert metadata.execution_id == suite.execution_id
-        assert metadata.ttl_hours == 24
+        assert metadata.ttl_hours == 168  # default from Metadata dataclass
 ```
 
 #### Task 5.2: Update VerificationSuite
 **File**: `src/dqx/api.py`
 
-Add ttl_hours parameter to __init__:
-```python
-def __init__(
-    self,
-    checks: Sequence[CheckProducer | DecoratedCheck],
-    db: MetricDB,
-    name: str,
-    ttl_hours: int = 168,  # 7 days default
-) -> None:
-    """
-    Initialize the verification suite.
-
-    Args:
-        checks: Sequence of check functions to execute
-        db: Database for storing and retrieving metrics
-        name: Human-readable name for the suite
-        ttl_hours: Time-to-live for metrics in hours (default 168 = 7 days)
-
-    Raises:
-        DQXError: If no checks provided or name is empty
-    """
-    # ... existing validation ...
-
-    self._ttl_hours = ttl_hours
-
-    # ... rest of existing code ...
-```
-
 Update _analyze to remove execution_id injection and pass metadata:
 ```python
 def _analyze(self, datasources: list[SqlDataSource], key: ResultKey) -> None:
-    # Create metadata for this run
-    metadata = Metadata(execution_id=self._execution_id, ttl_hours=self._ttl_hours)
+    # Create metadata for this run (using default ttl_hours from Metadata dataclass)
+    metadata = Metadata(execution_id=self._execution_id)
 
     for ds in datasources:
         # Get all symbolic metrics for this dataset
@@ -953,7 +905,7 @@ from dqx.common import (
 
 import datetime
 import pytest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from dqx.api import VerificationSuite, check
 from dqx.common import ResultKey
