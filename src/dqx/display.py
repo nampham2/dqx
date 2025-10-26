@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Protocol, Sequence
+from typing import TYPE_CHECKING, Protocol, Sequence
 
 from returns.result import Result
 from rich.console import Console
@@ -228,10 +228,15 @@ def print_metrics_by_execution_id(metrics: Sequence[Metric], execution_id: str) 
     """
     from rich.table import Table
 
+    from dqx.data import metrics_to_pyarrow_table
+
+    # Convert metrics to PyArrow table (handles sorting and formatting)
+    pa_table = metrics_to_pyarrow_table(metrics, execution_id)
+
     # Create table with execution ID in title
     table = Table(title=f"Metrics for Execution: {execution_id}", show_lines=True)
 
-    # Add columns with same color scheme as print_symbols
+    # Add columns with same color scheme as before
     table.add_column("Date", style="cyan", no_wrap=True)
     table.add_column("Metric Name", style="yellow", no_wrap=True)
     table.add_column("Type")
@@ -239,28 +244,20 @@ def print_metrics_by_execution_id(metrics: Sequence[Metric], execution_id: str) 
     table.add_column("Value")
     table.add_column("Tags", style="dim")
 
-    # Sort metrics by date (newest first) then by metric name
-    # Use negative date for reverse chronological order, but normal alphabetical for names
-    sorted_metrics = sorted(metrics, key=lambda m: (-m.key.yyyy_mm_dd.toordinal(), m.spec.name))
+    # Convert PyArrow table to dict and iterate through rows
+    data = pa_table.to_pydict()
+    for i in range(pa_table.num_rows):
+        # Format value with green color
+        value_display = f"[green]{data['Value'][i]}[/green]"
 
-    # Add rows
-    for metric in sorted_metrics:
-        # Format value with color
-        value_display = f"[green]{metric.value}[/green]"
-
-        # Format tags as key=value pairs
-        tags_display = ", ".join(f"{k}={v}" for k, v in metric.key.tags.items())
-        if not tags_display:
-            tags_display = "-"
-
-        # Add row
+        # Add row (tags are already formatted by PyArrow function)
         table.add_row(
-            metric.key.yyyy_mm_dd.isoformat(),
-            metric.spec.name,
-            metric.spec.metric_type,
-            metric.dataset,
+            data["Date"][i].isoformat(),
+            data["Metric Name"][i],
+            data["Type"][i],
+            data["Dataset"][i],
             value_display,
-            tags_display,
+            data["Tags"][i],
         )
 
     # Print table
@@ -335,7 +332,10 @@ def print_analysis_report(report: dict[str, AnalysisReport]) -> None:
     """
     from rich.table import Table
 
-    # Avoid circular import
+    from dqx.data import analysis_reports_to_pyarrow_table
+
+    # Convert reports to PyArrow table (handles sorting, symbol mapping, etc.)
+    pa_table = analysis_reports_to_pyarrow_table(report)
 
     table = Table(title="Analysis Reports", show_lines=True)
 
@@ -348,34 +348,21 @@ def print_analysis_report(report: dict[str, AnalysisReport]) -> None:
     table.add_column("Value")
     table.add_column("Tags", style="dim")
 
-    # Collect all items from all reports
-    all_items: list[tuple[tuple[Any, Any], Metric, str]] = []
-    for ds_name, ds_report in report.items():
-        for metric_key, metric in ds_report.items():
-            symbol = ds_report.symbol_mapping.get(metric_key, "-")
-            all_items.append((metric_key, metric, symbol))
-
-    # Sort by date (newest first) then by metric name
-    sorted_items = sorted(all_items, key=lambda x: (-x[0][1].yyyy_mm_dd.toordinal(), x[0][0].name))
-
-    # Add rows
-    for (metric_spec, result_key), metric, symbol in sorted_items:
+    # Convert PyArrow table to dict and iterate through rows
+    data = pa_table.to_pydict()
+    for i in range(pa_table.num_rows):
         # Format value with green color
-        value_display = f"[green]{metric.value}[/green]"
+        value_display = f"[green]{data['Value'][i]}[/green]"
 
-        # Format tags as key=value pairs
-        tags_display = ", ".join(f"{k}={v}" for k, v in result_key.tags.items())
-        if not tags_display:
-            tags_display = "-"
-
+        # Add row
         table.add_row(
-            result_key.yyyy_mm_dd.isoformat(),
-            metric_spec.name,
-            symbol,
-            metric_spec.metric_type,
-            metric.dataset or "-",
+            data["Date"][i].isoformat(),
+            data["Metric Name"][i],
+            data["Symbol"][i],
+            data["Type"][i],
+            data["Dataset"][i],
             value_display,
-            tags_display,
+            data["Tags"][i],
         )
 
     # Print table
