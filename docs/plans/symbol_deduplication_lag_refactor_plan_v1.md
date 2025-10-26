@@ -68,10 +68,22 @@ Delete the entire `ResultKeyProvider` class and its imports throughout the codeb
 #### Task 1.3: Write tests for updated data model
 **File**: `tests/test_provider.py`
 
-Add test to verify:
-- SymbolicMetric has `lag_offset` field
-- SymbolicMetric has `required_metrics` field
-- No `key_provider` or `parent_symbol` fields exist
+```python
+def test_symbolic_metric_has_new_fields():
+    """Test that SymbolicMetric has lag_offset and required_metrics."""
+    sm = SymbolicMetric(
+        name="test",
+        symbol=sp.Symbol("x_0"),
+        fn=lambda key: Result.success(1.0),
+        metric_spec=Average("col"),
+        lag_offset=1,
+        required_metrics=[sp.Symbol("x_1")]
+    )
+    assert sm.lag_offset == 1
+    assert sm.required_metrics == [sp.Symbol("x_1")]
+    assert not hasattr(sm, 'key_provider')
+    assert not hasattr(sm, 'parent_symbol')
+```
 
 ### Task Group 2: Update MetricProvider API
 **Goal**: Change all metric creation methods to use lag parameter
@@ -129,10 +141,40 @@ def _register(
 #### Task 2.3: Update tests for new API
 **File**: `tests/test_provider.py`
 
-Test that:
-- `mp.average("price", lag=1)` creates metric with lag_offset=1
-- Old `key=ResultKeyProvider()` usage is no longer valid
-- All metric methods accept lag parameter
+```python
+def test_metric_creation_with_lag():
+    """Test metric creation with lag parameter."""
+    mp = MetricProvider(db)
+    sym = mp.average("price", lag=1)
+    metric = mp.get_symbol(sym)
+    assert metric.lag_offset == 1
+
+def test_old_api_no_longer_works():
+    """Test that old ResultKeyProvider API raises error."""
+    mp = MetricProvider(db)
+    with pytest.raises(TypeError):
+        mp.average("price", key=ResultKeyProvider().lag(1))
+
+def test_all_metric_methods_accept_lag():
+    """Test all metric methods accept lag parameter."""
+    mp = MetricProvider(db)
+
+    # Test each metric method
+    avg = mp.average("price", lag=1)
+    assert mp.get_symbol(avg).lag_offset == 1
+
+    min_val = mp.minimum("price", lag=2)
+    assert mp.get_symbol(min_val).lag_offset == 2
+
+    max_val = mp.maximum("price", lag=3)
+    assert mp.get_symbol(max_val).lag_offset == 3
+
+    count = mp.count(lag=4)
+    assert mp.get_symbol(count).lag_offset == 4
+
+    sum_val = mp.sum("price", lag=5)
+    assert mp.get_symbol(sum_val).lag_offset == 5
+```
 
 ### Task Group 3: Update Extended Metrics
 **Goal**: Make extended metrics populate required_metrics field
@@ -186,10 +228,52 @@ Remove `_create_lag_dependency` method and update extended metrics to use `requi
 #### Task 3.3: Test extended metrics
 **File**: `tests/test_extended_metric_dependencies.py`
 
-Verify that:
-- stddev populates required_metrics correctly
-- day_over_day creates explicit lag dependency
-- No hidden symbol creation occurs
+```python
+def test_stddev_populates_required_metrics():
+    """Test that stddev creates required_metrics."""
+    mp = MetricProvider(db)
+    base = mp.average("price")
+    std = mp.stddev(base, lag=1, n=3)
+
+    std_metric = mp.get_symbol(std)
+    assert len(std_metric.required_metrics) == 3
+    # Should have symbols for lag 1, 2, and 3
+
+    # Verify each required metric has correct lag
+    for i, req_sym in enumerate(std_metric.required_metrics):
+        req_metric = mp.get_symbol(req_sym)
+        assert req_metric.lag_offset == i + 1
+
+def test_day_over_day_creates_explicit_dependency():
+    """Test day_over_day creates explicit lag dependency."""
+    mp = MetricProvider(db)
+    base = mp.average("price")
+    dod = mp.day_over_day(base)
+
+    dod_metric = mp.get_symbol(dod)
+    # Should have base metric with lag=1 as dependency
+    assert len(dod_metric.required_metrics) == 1
+
+    lag_metric = mp.get_symbol(dod_metric.required_metrics[0])
+    assert lag_metric.metric_spec == mp.get_symbol(base).metric_spec
+    assert lag_metric.lag_offset == 1
+
+def test_no_hidden_symbol_creation():
+    """Test that extended metrics don't create hidden symbols."""
+    mp = MetricProvider(db)
+    initial_count = len(mp.symbolic_metrics)
+
+    base = mp.average("price")
+    dod = mp.day_over_day(base)
+
+    # Should have base + dod + one lag symbol
+    assert len(mp.symbolic_metrics) == initial_count + 3
+
+    # Verify all symbols are trackable
+    all_symbols = [sm.symbol for sm in mp.symbolic_metrics]
+    assert base in all_symbols
+    assert dod in all_symbols
+```
 
 ### Task Group 4: Update Compute Functions
 **Goal**: Update compute functions to use lag_offset instead of ResultKeyProvider
@@ -211,70 +295,102 @@ Remove all ResultKeyProvider usage and use `key.lag(lag_offset)` directly.
 #### Task 4.3: Test compute functions
 **File**: `tests/test_compute.py`
 
-Ensure compute functions work correctly with lag_offset parameter.
+```python
+def test_compute_with_lag_offset():
+    """Test compute functions use lag_offset correctly."""
+    # Test average with lag
+    result = compute_average(db, "price", lag_offset=1, key=ResultKey("2024-01-15"))
+    # Should compute for 2024-01-14
+    assert result.is_success()
+
+    # Test other compute functions
+    result = compute_minimum(db, "price", lag_offset=2, key=ResultKey("2024-01-15"))
+    # Should compute for 2024-01-13
+    assert result.is_success()
+
+def test_lag_offset_date_calculation():
+    """Test that lag_offset correctly calculates dates."""
+    key = ResultKey("2024-01-15")
+
+    # Test various lag offsets
+    effective_key_0 = key.lag(0)
+    assert effective_key_0.yyyy_mm_dd == date(2024, 1, 15)
+
+    effective_key_1 = key.lag(1)
+    assert effective_key_1.yyyy_mm_dd == date(2024, 1, 14)
+
+    effective_key_7 = key.lag(7)
+    assert effective_key_7.yyyy_mm_dd == date(2024, 1, 8)
+```
 
 ### Task Group 5: Implement Symbol Deduplication
 **Goal**: Create visitor to identify and merge duplicate symbols
 
-#### Task 5.1: Create SymbolDeduplicationVisitor
+#### Task 5.1: Add build_deduplication_map to MetricProvider
+**File**: `src/dqx/provider.py`
+
+```python
+def build_deduplication_map(self, context_key: ResultKey) -> dict[sp.Symbol, sp.Symbol]:
+    """Build symbol substitution map for deduplication."""
+    groups: dict[tuple[str, str, str | None], list[sp.Symbol]] = {}
+
+    # Group symbols by identity
+    for sym_metric in self.symbolic_metrics:
+        # Calculate effective date for this symbol
+        effective_date = context_key.yyyy_mm_dd - timedelta(days=sym_metric.lag_offset)
+
+        identity = (
+            sym_metric.metric_spec.name,
+            effective_date.isoformat(),
+            sym_metric.dataset
+        )
+
+        if identity not in groups:
+            groups[identity] = []
+        groups[identity].append(sym_metric.symbol)
+
+    # Build substitution map
+    substitutions = {}
+    for duplicates in groups.values():
+        if len(duplicates) > 1:
+            # Keep the lowest numbered symbol as canonical
+            duplicates_sorted = sorted(
+                duplicates,
+                key=lambda s: int(s.name.split('_')[1])
+            )
+            canonical = duplicates_sorted[0]
+
+            for dup in duplicates_sorted[1:]:
+                substitutions[dup] = canonical
+
+    return substitutions
+```
+
+#### Task 5.2: Create SymbolDeduplicationVisitor
 **File**: `src/dqx/graph/visitors/symbol_deduplication.py`
 
 ```python
-from dataclasses import dataclass
-from datetime import timedelta
-from typing import TYPE_CHECKING
-
 import sympy as sp
 
-from dqx.common import ResultKey
-
-if TYPE_CHECKING:
-    from dqx.provider import MetricProvider
+from dqx.graph.base import BaseNode
+from dqx.graph.nodes import AssertionNode
 
 
 class SymbolDeduplicationVisitor:
-    """Visitor to identify and merge duplicate symbols."""
+    """Visitor to replace duplicate symbols in graph expressions."""
 
-    def __init__(self, provider: MetricProvider) -> None:
-        self.provider = provider
+    def __init__(self, substitutions: dict[sp.Symbol, sp.Symbol]) -> None:
+        self.substitutions = substitutions
 
-    def find_duplicates(self, context_key: ResultKey) -> dict[sp.Symbol, sp.Symbol]:
-        """Find duplicate symbols and return substitution map."""
-        groups: dict[tuple[str, str, str | None], list[sp.Symbol]] = {}
-
-        # Group symbols by identity
-        for sym_metric in self.provider.symbolic_metrics:
-            # Calculate effective date for this symbol
-            effective_date = context_key.yyyy_mm_dd - timedelta(days=sym_metric.lag_offset)
-
-            identity = (
-                sym_metric.metric_spec.name,
-                effective_date.isoformat(),
-                sym_metric.dataset
-            )
-
-            if identity not in groups:
-                groups[identity] = []
-            groups[identity].append(sym_metric.symbol)
-
-        # Build substitution map
-        substitutions = {}
-        for duplicates in groups.values():
-            if len(duplicates) > 1:
-                # Keep the lowest numbered symbol as canonical
-                duplicates_sorted = sorted(
-                    duplicates,
-                    key=lambda s: int(s.name.split('_')[1])
-                )
-                canonical = duplicates_sorted[0]
-
-                for dup in duplicates_sorted[1:]:
-                    substitutions[dup] = canonical
-
-        return substitutions
+    def visit(self, node: BaseNode) -> None:
+        """Visit a node and apply symbol substitutions."""
+        # Only process AssertionNodes
+        if isinstance(node, AssertionNode):
+            # Replace symbols in the assertion's expression
+            node.actual = node.actual.subs(self.substitutions)
 ```
 
-#### Task 5.2: Add prune_duplicate_symbols to MetricProvider
+#### Task 5.3: Update prune_duplicate_symbols to handle required_metrics
 **File**: `src/dqx/provider.py`
 
 ```python
@@ -288,6 +404,7 @@ def prune_duplicate_symbols(self, substitutions: dict[sp.Symbol, sp.Symbol]) -> 
     # Update required_metrics in remaining symbols
     for sym_metric in self._symbols:
         if sym_metric.required_metrics:
+            # Replace any duplicates in required_metrics
             sym_metric.required_metrics = [
                 substitutions.get(req, req)
                 for req in sym_metric.required_metrics
@@ -304,10 +421,58 @@ def prune_duplicate_symbols(self, substitutions: dict[sp.Symbol, sp.Symbol]) -> 
         del self._symbol_index[symbol]
 ```
 
-#### Task 5.3: Test deduplication
+#### Task 5.4: Test deduplication
 **File**: `tests/test_symbol_deduplication.py`
 
-Create comprehensive tests for deduplication logic.
+```python
+def test_deduplication_visitor():
+    """Test SymbolDeduplicationVisitor replaces symbols."""
+    # Create graph with assertions
+    root = RootNode("test")
+    check = root.add_check("check1")
+    assertion = check.add_assertion(
+        sp.Symbol("x_0") + sp.Symbol("x_1"),
+        "test",
+        lambda x: x > 0
+    )
+
+    # Apply deduplication
+    substitutions = {sp.Symbol("x_1"): sp.Symbol("x_0")}
+    visitor = SymbolDeduplicationVisitor(substitutions)
+    root.accept(visitor)
+
+    # Verify substitution
+    assert assertion.actual == sp.Symbol("x_0") + sp.Symbol("x_0")
+
+def test_build_deduplication_map():
+    """Test MetricProvider builds correct dedup map."""
+    mp = MetricProvider(db)
+    mp.average("price")  # x_0
+    mp.average("price", lag=1)  # x_1 (same as x_0 on different date)
+
+    key = ResultKey("2024-01-15")
+    dedup_map = mp.build_deduplication_map(key)
+
+    # Should identify duplicates
+    assert len(dedup_map) > 0
+
+def test_prune_duplicate_symbols():
+    """Test pruning removes duplicates and updates references."""
+    mp = MetricProvider(db)
+    x0 = mp.average("price")
+    x1 = mp.average("price")  # duplicate
+
+    # Create metric that references x1
+    mp._symbols[0].required_metrics = [x1]
+
+    substitutions = {x1: x0}
+    mp.prune_duplicate_symbols(substitutions)
+
+    # x1 should be removed
+    assert x1 not in [sm.symbol for sm in mp.symbolic_metrics]
+    # required_metrics should be updated
+    assert mp._symbols[0].required_metrics == [x0]
+```
 
 ### Task Group 6: Integrate Deduplication into Analyzer
 **Goal**: Apply deduplication before analysis
@@ -322,20 +487,17 @@ def _build_symbolic_metrics(
     """Build symbolic metrics with deduplication."""
     # ... existing code ...
 
-    # Apply deduplication
-    from dqx.graph.visitors import SymbolDeduplicationVisitor
+    # Build deduplication map
+    substitutions = metric_provider.build_deduplication_map(key)
 
-    dedup_visitor = SymbolDeduplicationVisitor(metric_provider)
-    substitutions = dedup_visitor.find_duplicates(key)
-
-    # Update expressions with substitutions
+    # Apply deduplication to graph
     if substitutions:
-        for node in graph.nodes:
-            if hasattr(node, 'assertions'):
-                for assertion in node.assertions:
-                    assertion.expression = assertion.expression.subs(substitutions)
+        from dqx.graph.visitors import SymbolDeduplicationVisitor
 
-        # Prune duplicate symbols
+        dedup_visitor = SymbolDeduplicationVisitor(substitutions)
+        graph.accept(dedup_visitor)
+
+        # Prune duplicate symbols from provider
         metric_provider.prune_duplicate_symbols(substitutions)
 
     return metric_provider, substitutions
@@ -344,7 +506,24 @@ def _build_symbolic_metrics(
 #### Task 6.2: Test analyzer integration
 **File**: `tests/test_analyzer.py`
 
-Test that analyzer correctly deduplicates symbols in analysis reports.
+```python
+def test_analyzer_deduplicates_symbols():
+    """Test analyzer applies deduplication."""
+    # Create suite with duplicate symbols
+    mp = MetricProvider(db)
+    x0 = mp.average("price")
+    x1 = mp.average("price", lag=1)
+
+    # Create assertions using both symbols
+    suite = Suite("test").check("test_check").assertion(x0 > 0).assertion(x1 > 0)
+
+    # Run analyzer
+    analyzer = Analyzer(db)
+    result = analyzer.analyze(suite, ResultKey("2024-01-15"))
+
+    # Verify no duplicates in analysis report
+    # All average(price) should be consolidated
+```
 
 ### Task Group 7: Update DatasetValidator
 **Goal**: Add validation for required_metrics consistency
@@ -382,7 +561,57 @@ Call the new consistency check for all metrics with required_metrics.
 #### Task 7.3: Test validation
 **File**: `tests/test_validator.py`
 
-Test dataset consistency validation for complex metrics.
+```python
+def test_required_metrics_consistency_validation():
+    """Test DatasetValidator checks required_metrics consistency."""
+    mp = MetricProvider(db)
+    base = mp.average("price")
+    std = mp.stddev(base, lag=1, n=3)
+
+    # Assign datasets - this should trigger validation error
+    mp.get_symbol(base).dataset = "ds1"
+    mp.get_symbol(std).dataset = "ds2"  # Different dataset
+
+    validator = DatasetValidator(mp)
+    errors = validator.validate()
+
+    # Should report dataset mismatch
+    assert any("Dataset mismatch" in error for error in errors)
+    assert any("required metric" in error for error in errors)
+
+def test_required_metrics_validation_same_dataset():
+    """Test validation passes when datasets match."""
+    mp = MetricProvider(db)
+    base = mp.average("price")
+    std = mp.stddev(base, lag=1, n=3)
+
+    # Assign same dataset to all
+    mp.get_symbol(base).dataset = "ds1"
+    mp.get_symbol(std).dataset = "ds1"
+
+    # Also need to assign to required metrics
+    for req_sym in mp.get_symbol(std).required_metrics:
+        mp.get_symbol(req_sym).dataset = "ds1"
+
+    validator = DatasetValidator(mp)
+    errors = validator.validate()
+
+    # Should not have dataset mismatch errors
+    assert not any("Dataset mismatch" in error for error in errors)
+
+def test_required_metrics_validation_none_dataset():
+    """Test validation skips when dataset is None."""
+    mp = MetricProvider(db)
+    base = mp.average("price")
+    std = mp.stddev(base, lag=1, n=3)
+
+    # Don't assign any datasets (all None)
+    validator = DatasetValidator(mp)
+    errors = validator.validate()
+
+    # Should not report errors for None datasets
+    assert not any("Dataset mismatch" in error for error in errors)
+```
 
 ### Task Group 8: Update All Tests
 **Goal**: Remove ResultKeyProvider usage from all tests
