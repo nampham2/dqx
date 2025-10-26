@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, Sequence
+from typing import TYPE_CHECKING, Any, Protocol, Sequence
 
 from returns.result import Result
 from rich.console import Console
 from rich.tree import Tree
 
 if TYPE_CHECKING:
+    from dqx.analyzer import AnalysisReport
     from dqx.common import AssertionResult, EvaluationFailure
     from dqx.graph.base import BaseNode
     from dqx.graph.traversal import Graph
@@ -317,6 +318,62 @@ def print_symbols(symbols: list[SymbolInfo]) -> None:
             symbol.name,
             symbol.metric,
             symbol.dataset or "-",
+            value_display,
+            tags_display,
+        )
+
+    # Print table
+    console = Console()
+    console.print(table)
+
+
+def print_analysis_report(report: dict[str, AnalysisReport]) -> None:
+    """Display analysis reports in a formatted table.
+
+    Args:
+        report: Dictionary mapping datasource names to their AnalysisReports
+    """
+    from rich.table import Table
+
+    # Avoid circular import
+
+    table = Table(title="Analysis Reports", show_lines=True)
+
+    # Add columns with consistent color scheme
+    table.add_column("Date", style="cyan", no_wrap=True)
+    table.add_column("Metric Name", style="yellow", no_wrap=True)
+    table.add_column("Symbol", style="yellow", no_wrap=True)
+    table.add_column("Type")
+    table.add_column("Dataset", style="magenta")
+    table.add_column("Value")
+    table.add_column("Tags", style="dim")
+
+    # Collect all items from all reports
+    all_items: list[tuple[tuple[Any, Any], Metric, str]] = []
+    for ds_name, ds_report in report.items():
+        for metric_key, metric in ds_report.items():
+            symbol = ds_report.symbol_mapping.get(metric_key, "-")
+            all_items.append((metric_key, metric, symbol))
+
+    # Sort by date (newest first) then by metric name
+    sorted_items = sorted(all_items, key=lambda x: (-x[0][1].yyyy_mm_dd.toordinal(), x[0][0].name))
+
+    # Add rows
+    for (metric_spec, result_key), metric, symbol in sorted_items:
+        # Format value with green color
+        value_display = f"[green]{metric.value}[/green]"
+
+        # Format tags as key=value pairs
+        tags_display = ", ".join(f"{k}={v}" for k, v in result_key.tags.items())
+        if not tags_display:
+            tags_display = "-"
+
+        table.add_row(
+            result_key.yyyy_mm_dd.isoformat(),
+            metric_spec.name,
+            symbol,
+            metric_spec.metric_type,
+            metric.dataset or "-",
             value_display,
             tags_display,
         )

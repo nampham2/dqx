@@ -12,7 +12,7 @@ from typing import Any, Protocol, cast, runtime_checkable
 import sympy as sp
 
 from dqx import functions, get_logger
-from dqx.analyzer import Analyzer
+from dqx.analyzer import AnalysisReport, Analyzer
 from dqx.common import (
     AssertionResult,
     DQXError,
@@ -364,6 +364,9 @@ class VerificationSuite:
         # Generate unique execution ID
         self._execution_id = str(uuid.uuid4())
 
+        # Store analysis reports by datasource name
+        self._analysis_reports: dict[str, AnalysisReport] = {}
+
     @property
     def execution_id(self) -> str:
         """
@@ -509,22 +512,30 @@ class VerificationSuite:
             if not symbolic_metrics:
                 continue
 
+            # Create symbol lookup dictionary
+            symbol_lookup: dict[MetricSpec, str] = {}
+
             # Group metrics by their effective date
             metrics_by_date: dict[ResultKey, list[MetricSpec]] = defaultdict(list)
             for sym_metric in symbolic_metrics:
                 # Create the effective key from the provider
                 effective_key = sym_metric.key_provider.create(key)
                 metrics_by_date[effective_key].append(sym_metric.metric_spec)
+                # Add to symbol lookup
+                symbol_lookup[sym_metric.metric_spec] = str(sym_metric.symbol)
 
             # Analyze each date group separately
             logger.info(f"Analyzing dataset '{ds.name}'...")
             # Pass execution_id through metadata instead of tags
             metadata = Metadata(execution_id=self._execution_id)
-            analyzer = Analyzer(metadata=metadata)
+            analyzer = Analyzer(metadata=metadata, symbol_lookup=symbol_lookup)
             analyzer.analyze(ds, metrics_by_date)
 
             # Persist the combined report
             analyzer.report.persist(self.provider._db)
+
+            # Store the report for later access
+            self._analysis_reports[ds.name] = analyzer.report
 
     def run(self, datasources: list[SqlDataSource], key: ResultKey, *, enable_plugins: bool = True) -> None:
         """

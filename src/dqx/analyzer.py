@@ -8,7 +8,6 @@ from typing import Any, TypeVar
 
 import numpy as np
 import sqlparse
-from rich.console import Console
 
 from dqx import models
 from dqx.common import (
@@ -75,6 +74,8 @@ def _validate_value(value: Any, date_str: str, symbol: str) -> float:
 class AnalysisReport(UserDict[MetricKey, models.Metric]):
     def __init__(self, data: dict[MetricKey, models.Metric] | None = None) -> None:
         self.data = data if data is not None else {}
+        # Maps (MetricSpec, ResultKey) to symbol name
+        self.symbol_mapping: dict[MetricKey, str] = {}
 
     def merge(self, other: AnalysisReport) -> AnalysisReport:
         """Merge two AnalysisReports, using Metric.reduce for conflicts.
@@ -101,11 +102,20 @@ class AnalysisReport(UserDict[MetricKey, models.Metric]):
                 # Key only in other: just add it
                 merged_data[key] = metric
 
-        return AnalysisReport(data=merged_data)
+        merged_report = AnalysisReport(data=merged_data)
+        # Merge symbol mappings
+        merged_report.symbol_mapping = {**self.symbol_mapping, **other.symbol_mapping}
+        return merged_report
 
-    def show(self) -> None:
-        # TODO(npham): Add more visualization options
-        Console().print({v.spec.name: v.value for v in self.values()})
+    def show(self, datasource: str = "unknown") -> None:
+        """Display this report using the new display function.
+
+        Args:
+            datasource: Name to identify this report's datasource
+        """
+        from dqx.display import print_analysis_report
+
+        print_analysis_report({datasource: self})
 
     def persist(self, db: MetricDB, overwrite: bool = True) -> None:
         """Persist the analysis report to the metric database.
@@ -261,10 +271,11 @@ class Analyzer:
     Note: This class is NOT thread-safe. Thread safety must be handled by callers if needed.
     """
 
-    def __init__(self, metadata: Metadata | None = None) -> None:
+    def __init__(self, metadata: Metadata | None = None, symbol_lookup: dict[MetricSpec, str] | None = None) -> None:
         # TODO(npham): Remove _report and make the analyzer stateless.
         self._report: AnalysisReport = AnalysisReport()
         self._metadata = metadata or Metadata()
+        self._symbol_lookup = symbol_lookup or {}
 
     @property
     def report(self) -> AnalysisReport:
@@ -411,10 +422,17 @@ class Analyzer:
                 except DQXError:
                     raise DQXError(f"Failed to retrieve value for analyzer {representative} on date {key.yyyy_mm_dd}")
 
-        # Phase 5: Build report
-        report_data = {}
+        # Phase 5: Build report with symbol mappings
+        report_data: dict[MetricKey, models.Metric] = {}
+        report = AnalysisReport(data=report_data)
+
         for key, metrics in metrics_by_key.items():
             for metric in metrics:
-                report_data[(metric, key)] = models.Metric.build(metric, key, dataset=ds.name, metadata=self._metadata)
+                metric_key = (metric, key)
+                report_data[metric_key] = models.Metric.build(metric, key, dataset=ds.name, metadata=self._metadata)
 
-        return AnalysisReport(data=report_data)
+                # Add symbol mapping if available
+                if metric in self._symbol_lookup:
+                    report.symbol_mapping[metric_key] = self._symbol_lookup[metric]
+
+        return report
