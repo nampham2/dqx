@@ -998,6 +998,78 @@ def test_required_metrics_validation_none_dataset():
 
     # Should not report errors for None datasets
     assert not any("Dataset mismatch" in error for error in errors)
+
+def test_recursive_required_metrics_validation():
+    """Test DatasetValidator handles recursive dependencies."""
+    mp = MetricProvider(db)
+
+    # Create recursive dependency chain
+    base = mp.average("price")
+    std1 = mp.ext.stddev(base, lag=1, n=3)
+    std2 = mp.ext.stddev(std1, lag=1, n=3)  # Recursive dependency
+
+    # Assign conflicting datasets deep in the chain
+    mp.get_symbol(base).dataset = "ds1"
+    mp.get_symbol(std1).dataset = "ds1"
+    mp.get_symbol(std2).dataset = "ds2"  # Conflict!
+
+    # Also need to check the auto-created lag dependencies
+    for req_sym in mp.get_symbol(std1).required_metrics:
+        mp.get_symbol(req_sym).dataset = "ds1"
+
+    for req_sym in mp.get_symbol(std2).required_metrics:
+        mp.get_symbol(req_sym).dataset = "ds2"  # Conflict propagates
+
+    validator = DatasetValidator(mp)
+    errors = validator.validate()
+
+    # Should detect the dataset mismatch in the chain
+    assert any("Dataset mismatch" in error for error in errors)
+    # Should report error for std2's dependencies
+    assert any("std2" in error or str(mp.get_symbol(std2).symbol) in error
+               for error in errors)
+
+def test_complex_dependency_graph_validation():
+    """Test validation with complex non-linear dependency graph."""
+    mp = MetricProvider(db)
+
+    # Create diamond-shaped dependency graph
+    #     base
+    #    /    \
+    #  avg1   avg2
+    #    \    /
+    #     dod
+
+    base = mp.average("price")
+    avg1 = mp.average("price", lag=1)
+    avg2 = mp.average("price", lag=2)
+
+    # Create a custom metric that depends on both avg1 and avg2
+    # (simulating a complex metric with multiple dependencies)
+    mp._register(
+        sym := mp._next_symbol(),
+        name="complex_metric",
+        fn=lambda key: Result.success(1.0),
+        metric_spec=mp.get_symbol(base).metric_spec,
+        lag=0,
+        dataset=None,
+        required_metrics=[avg1, avg2],
+    )
+    complex_metric = sym
+
+    # Assign datasets creating a conflict
+    mp.get_symbol(base).dataset = "ds1"
+    mp.get_symbol(avg1).dataset = "ds1"
+    mp.get_symbol(avg2).dataset = "ds2"  # Different dataset!
+    mp.get_symbol(complex_metric).dataset = "ds1"
+
+    validator = DatasetValidator(mp)
+    errors = validator.validate()
+
+    # Should detect that complex_metric can't have both ds1 and ds2 dependencies
+    assert any("Dataset mismatch" in error for error in errors)
+    assert any("complex_metric" in error or str(complex_metric) in error
+               for error in errors)
 ```
 
 ### Task Group 8: Automated Test Updates
