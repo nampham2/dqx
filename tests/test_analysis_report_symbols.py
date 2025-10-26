@@ -237,10 +237,14 @@ class TestAnalysisReportSymbols:
         symbols = list(report.symbol_mapping.values())
         assert len(symbols) >= 2  # We should have at least 2 symbols
 
+        # Debug: Let's check what type of values we're getting
+        # print(f"Symbol mapping values: {symbols}")
+        # print(f"First symbol type: {type(symbols[0]) if symbols else 'empty'}")
+
         # The symbols will be x_1, x_2, etc. - not the variable names from the check
         # This is because Python doesn't provide a way to capture local variable names
         # The symbol mapping maps (MetricSpec, ResultKey) -> symbol_name
-        assert all(s.startswith("x_") for s in symbols)
+        assert all(isinstance(s, str) and s.startswith("x_") for s in symbols)
 
         # Verify we have the right metric specs in the mapping
         metric_specs = [key[0] for key in report.symbol_mapping.keys()]
