@@ -281,8 +281,12 @@ def print_symbols(symbols: list[SymbolInfo]) -> None:
         >>> symbols = suite.collect_symbols()
         >>> print_symbols(symbols)
     """
-    from returns.result import Failure, Success
     from rich.table import Table
+
+    from dqx.data import symbols_to_pyarrow_table
+
+    # Convert symbols to PyArrow table (handles ordering and formatting)
+    pa_table = symbols_to_pyarrow_table(symbols)
 
     # Create table with title
     table = Table(title="Symbol Values", show_lines=True)
@@ -295,28 +299,26 @@ def print_symbols(symbols: list[SymbolInfo]) -> None:
     table.add_column("Value/Error")
     table.add_column("Tags", style="dim")
 
-    # Flat display of symbols
-    for symbol in symbols:
-        # Extract value/error using pattern matching with colors
-        match symbol.value:
-            case Success(value):
-                value_display = f"[green]{value}[/green]"
-            case Failure(error):
-                value_display = f"[red]{error}[/red]"
+    # Convert PyArrow table to dict and iterate through rows
+    data = pa_table.to_pydict()
+    for i in range(pa_table.num_rows):
+        # Combine Value and Error columns for display
+        value = data["Value"][i]
+        error = data["Error"][i]
 
-        # Format tags as key=value pairs
-        tags_display = ", ".join(f"{k}={v}" for k, v in symbol.tags.items())
-        if not tags_display:
-            tags_display = "-"
+        if value is not None:
+            value_display = f"[green]{value}[/green]"
+        else:
+            value_display = f"[red]{error}[/red]"
 
-        # Add row
+        # Add row (tags are already formatted by PyArrow function)
         table.add_row(
-            symbol.yyyy_mm_dd.isoformat(),
-            symbol.name,
-            symbol.metric,
-            symbol.dataset or "-",
+            data["Date"][i].isoformat(),
+            data["Symbol"][i],
+            data["Metric"][i],
+            data["Dataset"][i],
             value_display,
-            tags_display,
+            data["Tags"][i],
         )
 
     # Print table

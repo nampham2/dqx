@@ -10,6 +10,13 @@ if TYPE_CHECKING:
 
     from dqx.analyzer import AnalysisReport
 
+__all__ = [
+    "metrics_by_execution_id",
+    "metrics_to_pyarrow_table",
+    "analysis_reports_to_pyarrow_table",
+    "symbols_to_pyarrow_table",
+]
+
 
 def metrics_by_execution_id(db: MetricDB, execution_id: str) -> Sequence[Metric]:
     """
@@ -181,6 +188,72 @@ def analysis_reports_to_pyarrow_table(reports: dict[str, "AnalysisReport"]) -> "
             "Type": types,
             "Dataset": datasets,
             "Value": values,
+            "Tags": tags,
+        }
+    )
+
+
+def symbols_to_pyarrow_table(symbols: list) -> "pa.Table":
+    """
+    Transform a list of SymbolInfo objects to a PyArrow table.
+
+    The table schema splits the value/error information into separate columns:
+    Date, Symbol, Metric, Dataset, Value, Error, Tags.
+
+    Args:
+        symbols: List of SymbolInfo objects from collect_symbols()
+
+    Returns:
+        PyArrow table with symbol data. Value column contains float values
+        (null for failures), Error column contains error messages (null for successes).
+    """
+    from datetime import date
+
+    import pyarrow as pa
+    from returns.result import Failure, Success
+
+    # Note: symbols are already sorted by the provider (x_1, x_2, ..., x_10 order)
+
+    # Build column data
+    dates: list[date] = []
+    symbol_names: list[str] = []
+    metrics: list[str] = []
+    datasets: list[str] = []
+    values: list[float | None] = []
+    errors: list[str | None] = []
+    tags: list[str] = []
+
+    for symbol in symbols:
+        dates.append(symbol.yyyy_mm_dd)
+        symbol_names.append(symbol.name)
+        metrics.append(symbol.metric)
+        datasets.append(symbol.dataset or "-")
+
+        # Split Result into value and error columns
+        match symbol.value:
+            case Success(value):
+                values.append(value)
+                errors.append(None)
+            case Failure(error):
+                values.append(None)
+                errors.append(error)
+
+        # Format tags
+        if symbol.tags:
+            tag_str = ", ".join(f"{k}={v}" for k, v in symbol.tags.items())
+        else:
+            tag_str = "-"
+        tags.append(tag_str)
+
+    # Create PyArrow table
+    return pa.Table.from_pydict(
+        {
+            "Date": dates,
+            "Symbol": symbol_names,
+            "Metric": metrics,
+            "Dataset": datasets,
+            "Value": values,
+            "Error": errors,
             "Tags": tags,
         }
     )

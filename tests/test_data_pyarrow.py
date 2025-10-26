@@ -254,3 +254,197 @@ def test_analysis_reports_to_pyarrow_missing_dataset() -> None:
 
     # Should show "-" for missing dataset
     assert result["Dataset"][0] == "-"
+
+
+# Tests for symbols_to_pyarrow_table
+def test_symbols_to_pyarrow_basic() -> None:
+    """Test basic conversion of SymbolInfo to PyArrow table."""
+    from returns.result import Failure, Success
+
+    from dqx.data import symbols_to_pyarrow_table
+    from dqx.provider import SymbolInfo
+
+    symbols = [
+        SymbolInfo(
+            name="x_1",
+            metric="average(price)",
+            dataset="sales",
+            value=Success(25.5),
+            yyyy_mm_dd=dt.date(2024, 1, 26),
+            tags={"env": "prod"},
+        ),
+        SymbolInfo(
+            name="x_2",
+            metric="sum(quantity)",
+            dataset=None,
+            value=Failure("Metric not found"),
+            yyyy_mm_dd=dt.date(2024, 1, 26),
+            tags={},
+        ),
+        SymbolInfo(
+            name="x_3",
+            metric="null_count(user_id)",
+            dataset="users",
+            value=Success(42.0),
+            yyyy_mm_dd=dt.date(2024, 1, 25),
+            tags={"env": "staging", "region": "us-west"},
+        ),
+    ]
+
+    table = symbols_to_pyarrow_table(symbols)
+
+    # Verify schema
+    expected_columns = ["Date", "Symbol", "Metric", "Dataset", "Value", "Error", "Tags"]
+    assert table.schema.names == expected_columns
+    assert table.schema.field("Date").type == pa.date32()
+    assert table.schema.field("Value").type == pa.float64()
+    assert table.schema.field("Error").type == pa.string()
+
+    # Verify data
+    assert table.num_rows == 3
+
+    result = table.to_pydict()
+
+    # Check first row (success case)
+    assert result["Date"][0] == dt.date(2024, 1, 26)
+    assert result["Symbol"][0] == "x_1"
+    assert result["Metric"][0] == "average(price)"
+    assert result["Dataset"][0] == "sales"
+    assert result["Value"][0] == pytest.approx(25.5)
+    assert result["Error"][0] is None
+    assert result["Tags"][0] == "env=prod"
+
+    # Check second row (failure case)
+    assert result["Symbol"][1] == "x_2"
+    assert result["Dataset"][1] == "-"  # None becomes "-"
+    assert result["Value"][1] is None
+    assert result["Error"][1] == "Metric not found"
+    assert result["Tags"][1] == "-"  # Empty tags become "-"
+
+
+def test_symbols_to_pyarrow_value_error_split() -> None:
+    """Test that Result values are properly split into Value and Error columns."""
+    from returns.result import Failure, Success
+
+    from dqx.data import symbols_to_pyarrow_table
+    from dqx.provider import SymbolInfo
+
+    symbols = [
+        SymbolInfo(
+            name="x_1",
+            metric="test_success",
+            dataset="test",
+            value=Success(100.0),
+            yyyy_mm_dd=dt.date(2024, 1, 1),
+            tags={},
+        ),
+        SymbolInfo(
+            name="x_2",
+            metric="test_failure",
+            dataset="test",
+            value=Failure("Division by zero"),
+            yyyy_mm_dd=dt.date(2024, 1, 1),
+            tags={},
+        ),
+    ]
+
+    table = symbols_to_pyarrow_table(symbols)
+    result = table.to_pydict()
+
+    # Success case: value in Value column, null in Error column
+    assert result["Value"][0] == pytest.approx(100.0)
+    assert result["Error"][0] is None
+
+    # Failure case: null in Value column, error message in Error column
+    assert result["Value"][1] is None
+    assert result["Error"][1] == "Division by zero"
+
+
+def test_symbols_to_pyarrow_empty_input() -> None:
+    """Test with empty symbols list."""
+    from dqx.data import symbols_to_pyarrow_table
+
+    table = symbols_to_pyarrow_table([])
+
+    # Should have schema but no rows
+    expected_columns = ["Date", "Symbol", "Metric", "Dataset", "Value", "Error", "Tags"]
+    assert table.schema.names == expected_columns
+    assert table.num_rows == 0
+
+
+def test_symbols_to_pyarrow_preserves_order() -> None:
+    """Test that symbols order is preserved (already sorted by provider)."""
+    from returns.result import Success
+
+    from dqx.data import symbols_to_pyarrow_table
+    from dqx.provider import SymbolInfo
+
+    # Create symbols in numeric order (x_1, x_2, ..., x_11)
+    symbols = []
+    for i in [1, 2, 10, 11]:  # Test numeric ordering
+        symbols.append(
+            SymbolInfo(
+                name=f"x_{i}",
+                metric=f"metric_{i}",
+                dataset="test",
+                value=Success(float(i)),
+                yyyy_mm_dd=dt.date(2024, 1, 1),
+                tags={},
+            )
+        )
+
+    table = symbols_to_pyarrow_table(symbols)
+    result = table.to_pydict()
+
+    # Verify order is preserved
+    assert result["Symbol"] == ["x_1", "x_2", "x_10", "x_11"]
+
+
+def test_symbols_to_pyarrow_tag_formatting() -> None:
+    """Test tag formatting in symbols table."""
+    from returns.result import Success
+
+    from dqx.data import symbols_to_pyarrow_table
+    from dqx.provider import SymbolInfo
+
+    symbols = [
+        SymbolInfo(
+            name="x_1",
+            metric="test1",
+            dataset="test",
+            value=Success(1.0),
+            yyyy_mm_dd=dt.date(2024, 1, 1),
+            tags={},
+        ),
+        SymbolInfo(
+            name="x_2",
+            metric="test2",
+            dataset="test",
+            value=Success(2.0),
+            yyyy_mm_dd=dt.date(2024, 1, 1),
+            tags={"env": "prod"},
+        ),
+        SymbolInfo(
+            name="x_3",
+            metric="test3",
+            dataset="test",
+            value=Success(3.0),
+            yyyy_mm_dd=dt.date(2024, 1, 1),
+            tags={"env": "staging", "region": "us-west"},
+        ),
+    ]
+
+    table = symbols_to_pyarrow_table(symbols)
+    result = table.to_pydict()
+
+    # Empty tags -> "-"
+    assert result["Tags"][0] == "-"
+
+    # Single tag
+    assert result["Tags"][1] == "env=prod"
+
+    # Multiple tags (comma-separated)
+    tags_multi = result["Tags"][2]
+    assert "env=staging" in tags_multi
+    assert "region=us-west" in tags_multi
+    assert ", " in tags_multi
