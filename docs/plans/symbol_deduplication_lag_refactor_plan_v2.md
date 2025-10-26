@@ -11,6 +11,8 @@ The solution introduces a cleaner architecture by:
 - Adding `required_metrics` to track complex metric dependencies explicitly
 - Implementing symbol deduplication to ensure unique metric representation
 
+**Important**: This is a breaking change. No backward compatibility is required or provided. Users must update their code to use the new API.
+
 ## Background
 
 ### Current Issues
@@ -196,7 +198,11 @@ def test_metric_creation_with_lag():
     assert metric.lag == 1
 
 def test_old_api_no_longer_works():
-    """Test that old ResultKeyProvider API raises error."""
+    """Test that old ResultKeyProvider API raises error.
+
+    This verifies that we've completely removed the old API
+    and there's no backward compatibility.
+    """
     mp = MetricProvider(db)
     with pytest.raises(TypeError):
         mp.average("price", key=ResultKeyProvider().lag(1))
@@ -650,16 +656,33 @@ class SymbolDeduplicationVisitor:
             node.actual = node.actual.subs(self.substitutions)
 ```
 
-#### Task 5.3: Update prune_duplicate_symbols
+#### Task 5.3: Add deduplicate_required_metrics to MetricProvider
+**File**: `src/dqx/provider.py`
+
+```python
+def deduplicate_required_metrics(
+    self, substitutions: dict[sp.Symbol, sp.Symbol]
+) -> None:
+    """Update required_metrics in all symbolic metrics after deduplication.
+
+    Args:
+        substitutions: Map of duplicate symbols to canonical symbols
+    """
+    for sym_metric in self.symbolic_metrics:
+        if sym_metric.required_metrics:
+            # Replace any duplicates in required_metrics
+            sym_metric.required_metrics = [
+                substitutions.get(req, req)
+                for req in sym_metric.required_metrics
+            ]
+```
+
+#### Task 5.4: Add prune_duplicate_symbols to MetricProvider
 **File**: `src/dqx/provider.py`
 
 ```python
 def prune_duplicate_symbols(self, substitutions: dict[sp.Symbol, sp.Symbol]) -> None:
     """Remove duplicate symbols from the provider.
-
-    This method removes duplicate symbols from the internal tracking structures.
-    It does NOT update required_metrics - that should be done separately by
-    the analyzer to maintain separation of concerns.
 
     Args:
         substitutions: Map from duplicate symbols to canonical symbols
@@ -680,7 +703,42 @@ def prune_duplicate_symbols(self, substitutions: dict[sp.Symbol, sp.Symbol]) -> 
         del self._symbol_index[symbol]
 ```
 
-#### Task 5.4: Test deduplication
+#### Task 5.5: Add symbol_deduplication to MetricProvider
+**File**: `src/dqx/provider.py`
+
+```python
+def symbol_deduplication(self, graph: Graph, context_key: ResultKey) -> None:
+    """Apply symbol deduplication to graph and provider.
+
+    This method:
+    1. Builds a map of duplicate symbols
+    2. Applies deduplication to the graph
+    3. Updates required_metrics references
+    4. Prunes duplicate symbols
+
+    Args:
+        graph: The computation graph to apply deduplication to
+        context_key: The analysis date context for calculating effective dates
+    """
+    # Build deduplication map
+    substitutions = self.build_deduplication_map(context_key)
+
+    if not substitutions:
+        return
+
+    # Apply deduplication to graph
+    from dqx.graph.visitors import SymbolDeduplicationVisitor
+    dedup_visitor = SymbolDeduplicationVisitor(substitutions)
+    graph.accept(dedup_visitor)
+
+    # Update required_metrics in remaining symbols
+    self.deduplicate_required_metrics(substitutions)
+
+    # Prune duplicate symbols
+    self.prune_duplicate_symbols(substitutions)
+```
+
+#### Task 5.6: Test deduplication
 **File**: `tests/test_symbol_deduplication.py`
 
 ```python
@@ -715,106 +773,64 @@ def test_build_deduplication_map():
     # Should identify duplicates
     assert len(dedup_map) > 0
 
-def test_prune_duplicate_symbols_does_not_update_required_metrics():
-    """Test pruning removes duplicates but doesn't update required_metrics."""
+def test_deduplicate_required_metrics():
+    """Test deduplicate_required_metrics updates references."""
     mp = MetricProvider(db)
     x0 = mp.average("price")
     x1 = mp.average("price")  # duplicate
+    x2 = mp.sum("price")
 
     # Create metric that references x1
-    mp._metrics[0].required_metrics = [x1]
+    mp._metrics[2].required_metrics = [x1, x2]
 
     substitutions = {x1: x0}
-    mp.prune_duplicate_symbols(substitutions)
+    mp.deduplicate_required_metrics(substitutions)
 
-    # x1 should be removed
+    # required_metrics should be updated
+    assert mp._metrics[2].required_metrics == [x0, x2]
+
+def test_symbol_deduplication_complete_flow():
+    """Test symbol_deduplication performs all steps."""
+    mp = MetricProvider(db)
+    x0 = mp.average("price")
+    x1 = mp.average("price", lag=1)
+
+    # Create graph with assertions
+    root = RootNode("test")
+    check = root.add_check("check1")
+    assertion = check.add_assertion(x1, "test", lambda x: x > 0)
+
+    # Apply complete deduplication
+    key = ResultKey("2024-01-16")  # x1 will be duplicate of x0 on 2024-01-15
+    mp.symbol_deduplication(root, key)
+
+    # Verify all steps completed:
+    # 1. Graph updated
+    assert assertion.actual == x0  # x1 replaced with x0
+    # 2. Duplicate removed
     assert x1 not in [sm.symbol for sm in mp.symbolic_metrics]
-    # required_metrics should NOT be updated (that's analyzer's job)
-    assert mp._metrics[0].required_metrics == [x1]
+    # 3. Only canonical symbol remains
+    assert x0 in [sm.symbol for sm in mp.symbolic_metrics]
 ```
 
 ### Task Group 6: Integrate Deduplication into API
 **Goal**: Apply deduplication in VerificationSuite._analyze
 
-#### Task 6.1: Add _build_symbolic_metrics to VerificationSuite
+#### Task 6.1: Update _analyze method to use symbol_deduplication
 **File**: `src/dqx/api.py`
 
-Add these methods to the VerificationSuite class:
-
-```python
-def _build_symbolic_metrics(
-    self, graph: Graph, provider: MetricProvider, key: ResultKey
-) -> tuple[MetricProvider, dict[sp.Symbol, sp.Symbol]]:
-    """Build symbolic metrics with deduplication.
-
-    Args:
-        graph: The computation graph to apply deduplication to
-        provider: The metric provider containing all symbolic metrics
-        key: The analysis date context for calculating effective dates
-
-    Returns:
-        Tuple of (provider, substitutions) where substitutions maps
-        duplicate symbols to canonical symbols
-    """
-    # Build deduplication map
-    substitutions = provider.build_deduplication_map(key)
-
-    # Apply deduplication to graph if there are duplicates
-    if substitutions:
-        from dqx.graph.visitors import SymbolDeduplicationVisitor
-
-        dedup_visitor = SymbolDeduplicationVisitor(substitutions)
-        graph.accept(dedup_visitor)
-
-        # Update required_metrics in remaining symbols
-        self._update_required_metrics(provider, substitutions)
-
-        # Prune duplicate symbols from provider
-        provider.prune_duplicate_symbols(substitutions)
-
-    return provider, substitutions
-
-def _update_required_metrics(
-    self, provider: MetricProvider, substitutions: dict[sp.Symbol, sp.Symbol]
-) -> None:
-    """Update required_metrics in all symbolic metrics after deduplication.
-
-    Args:
-        provider: The metric provider containing symbolic metrics
-        substitutions: Map of duplicate symbols to canonical symbols
-    """
-    for sym_metric in provider.symbolic_metrics:
-        if sym_metric.required_metrics:
-            # Replace any duplicates in required_metrics
-            sym_metric.required_metrics = [
-                substitutions.get(req, req)
-                for req in sym_metric.required_metrics
-            ]
-```
-
-#### Task 6.2: Update _analyze method to use deduplication
-**File**: `src/dqx/api.py`
-
-Modify the existing `_analyze` method:
+Modify the existing `_analyze` method to call the provider's symbol_deduplication method:
 
 ```python
 def _analyze(self, datasources: list[SqlDataSource], key: ResultKey) -> None:
-    # Build symbolic metrics with deduplication FIRST
-    provider, substitutions = self._build_symbolic_metrics(
-        self._context._graph, self._context.provider, key
-    )
-
-    # Log deduplication results if any
-    if substitutions:
-        logger.info(
-            f"Deduplication removed {len(substitutions)} duplicate symbols"
-        )
+    # Apply symbol deduplication
+    self._context.provider.symbol_deduplication(self._context._graph, key)
 
     # ... rest of existing _analyze implementation ...
     # (The existing code for grouping by dataset and analyzing)
 ```
 
-#### Task 6.3: Test API integration
+#### Task 6.2: Test API integration
 **File**: `tests/test_api_symbol_deduplication.py`
 
 ```python
@@ -1105,9 +1121,9 @@ uv run pytest tests/ --cov=dqx --cov-report=html
 
 ## Risk Mitigation
 
-1. **Breaking Changes**: The removal of ResultKeyProvider is a breaking change. Users will need to update their code from `key=ResultKeyProvider().lag(n)` to `lag=n`.
+1. **Breaking Changes**: This is an intentional breaking change with no backward compatibility. All users must update their code to use the new API. The old `key=ResultKeyProvider()` pattern will no longer work and will raise errors.
 2. **Performance**: Deduplication adds a traversal step, but impact should be minimal.
-3. **Compatibility**: Ensure all existing tests pass with new implementation.
+3. **Test Updates**: All existing tests must be updated to use the new API. The automation script in Task Group 8 helps with this migration.
 
 ## Success Criteria
 
