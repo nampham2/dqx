@@ -1,5 +1,22 @@
 # Metadata Column Implementation Plan v1
 
+## Safety Requirements
+
+**IMPORTANT**: This plan emphasizes safety and quality. Each commit should only be made when:
+- All tests pass (100% success rate)
+- No linting issues exist
+- Pre-commit hooks pass successfully
+- The code is properly reviewed
+
+Before each commit point in this plan, explicit verification steps are provided including:
+1. Running specific tests for the changes
+2. Running the full test suite
+3. Running type checking (mypy)
+4. Running linting (ruff)
+5. Running pre-commit hooks
+
+**Never commit with failing tests or linting issues.**
+
 ## Overview
 This plan addresses the issue where `print_symbols()` fails after `run()` because it tries to retrieve metrics with an `execution_id` tag that doesn't exist in the stored metrics. The solution introduces a metadata column in the database to track execution context without polluting user tags.
 
@@ -154,7 +171,24 @@ class MetadataType(TypeDecorator):
         return Metadata(**value)
 ```
 
-**Commit after Task Group 1**: Run tests and commit with message "feat: add Metadata dataclass and MetadataType"
+**Before committing Task Group 1**:
+```bash
+# Run specific tests
+uv run pytest tests/orm/test_metadata_type.py -v
+
+# Run all tests to ensure nothing broke
+uv run pytest tests/ -v
+
+# Run linting and formatting checks
+uv run mypy src/dqx/common.py src/dqx/orm/repositories.py
+uv run ruff check src/dqx/common.py src/dqx/orm/repositories.py
+uv run ruff format --check src/dqx/common.py src/dqx/orm/repositories.py
+
+# Run pre-commit hooks
+bin/run-hooks.sh
+```
+
+**Only commit if ALL checks pass**: "feat: add Metadata dataclass and MetadataType"
 
 ### Task Group 2: Database Schema Update (TDD)
 
@@ -300,7 +334,24 @@ class TestPersistWithMetadata:
         assert retrieved is not None
 ```
 
-**Commit after Task Group 2**: Run tests and commit with message "feat: add metadata column to Metric table"
+**Before committing Task Group 2**:
+```bash
+# Run specific tests
+uv run pytest tests/orm/test_metric_metadata.py tests/orm/test_persist_with_metadata.py -v
+
+# Run all tests to ensure nothing broke
+uv run pytest tests/ -v
+
+# Run linting and formatting checks
+uv run mypy src/dqx/orm/repositories.py
+uv run ruff check src/dqx/orm/repositories.py
+uv run ruff format --check src/dqx/orm/repositories.py
+
+# Run pre-commit hooks
+bin/run-hooks.sh
+```
+
+**Only commit if ALL checks pass**: "feat: add metadata column to Metric table"
 
 ### Task Group 3: Update Persistence Methods
 
@@ -514,7 +565,24 @@ def get_metric_window(
         return [m.unwrap() for m in metrics]
 ```
 
-**Commit after Task Group 3**: Run tests and commit with message "feat: update persistence and retrieval for metadata support"
+**Before committing Task Group 3**:
+```bash
+# Run specific tests
+uv run pytest tests/orm/test_retrieval_latest.py tests/orm/test_persist_with_metadata.py -v
+
+# Run all tests to ensure nothing broke
+uv run pytest tests/ -v
+
+# Run linting and formatting checks
+uv run mypy src/dqx/orm/repositories.py
+uv run ruff check src/dqx/orm/repositories.py
+uv run ruff format --check src/dqx/orm/repositories.py
+
+# Run pre-commit hooks
+bin/run-hooks.sh
+```
+
+**Only commit if ALL checks pass**: "feat: update persistence and retrieval for metadata support"
 
 ### Task Group 4: Update Analyzer and AnalysisReport
 
@@ -709,7 +777,24 @@ def analyze(
     return self._report
 ```
 
-**Commit after Task Group 4**: Run tests and commit with message "feat: add metadata support to Analyzer and AnalysisReport"
+**Before committing Task Group 4**:
+```bash
+# Run specific tests
+uv run pytest tests/test_analyzer_metadata.py -v
+
+# Run all tests to ensure nothing broke
+uv run pytest tests/ -v
+
+# Run linting and formatting checks
+uv run mypy src/dqx/analyzer.py
+uv run ruff check src/dqx/analyzer.py
+uv run ruff format --check src/dqx/analyzer.py
+
+# Run pre-commit hooks
+bin/run-hooks.sh
+```
+
+**Only commit if ALL checks pass**: "feat: add metadata support to Analyzer and AnalysisReport"
 
 ### Task Group 5: Update VerificationSuite (Remove execution_id injection)
 
@@ -931,7 +1016,24 @@ class TestExecutionIdRemoved:
         assert "__execution_id" not in evaluator_key.tags
 ```
 
-**Commit after Task Group 5**: Run tests and commit with message "feat: remove execution_id tag injection"
+**Before committing Task Group 5**:
+```bash
+# Run specific tests
+uv run pytest tests/test_api_metadata.py tests/test_execution_id_removed.py -v
+
+# Run all tests to ensure nothing broke
+uv run pytest tests/ -v
+
+# Run linting and formatting checks
+uv run mypy src/dqx/api.py
+uv run ruff check src/dqx/api.py
+uv run ruff format --check src/dqx/api.py
+
+# Run pre-commit hooks
+bin/run-hooks.sh
+```
+
+**Only commit if ALL checks pass**: "feat: remove execution_id tag injection"
 
 ### Task Group 6: Integration Tests
 
@@ -1024,7 +1126,24 @@ class TestMultipleRuns:
         assert symbol_values["maximum('value')"] == 15.0
 ```
 
-**Commit after Task Group 6**: Run all tests and commit with message "test: add integration tests for metadata column"
+**Before committing Task Group 6**:
+```bash
+# Run specific integration tests
+uv run pytest tests/e2e/test_print_symbols_after_run.py tests/test_multiple_runs_integration.py -v
+
+# Run all tests to ensure nothing broke
+uv run pytest tests/ -v
+
+# Run linting and formatting checks on test files
+uv run mypy tests/test_multiple_runs_integration.py
+uv run ruff check tests/test_multiple_runs_integration.py
+uv run ruff format --check tests/test_multiple_runs_integration.py
+
+# Run pre-commit hooks
+bin/run-hooks.sh
+```
+
+**Only commit if ALL checks pass**: "test: add integration tests for metadata column"
 
 ### Task Group 7: Cleanup and Documentation
 
