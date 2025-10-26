@@ -2,6 +2,7 @@ import datetime as dt
 import typing
 import uuid
 from collections.abc import Iterable, Iterator, Sequence
+from dataclasses import asdict
 from datetime import datetime
 from threading import Lock
 from typing import Any, ClassVar, overload
@@ -10,9 +11,10 @@ import sqlalchemy as sa
 from returns.maybe import Maybe, Nothing, Some
 from sqlalchemy import BinaryExpression, ColumnElement, create_engine, delete, func, select
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
+from sqlalchemy.types import JSON, TypeDecorator
 
 from dqx import models, specs
-from dqx.common import DQXError, ResultKey, Tags, TimeSeries
+from dqx.common import DQXError, Metadata, ResultKey, Tags, TimeSeries
 from dqx.orm.session import db_session_factory
 from dqx.specs import MetricSpec, MetricType
 from dqx.states import State
@@ -20,6 +22,27 @@ from dqx.states import State
 Predicate = BinaryExpression | ColumnElement[bool]
 
 METRIC_TABLE = "dq_metric"
+
+
+class MetadataType(TypeDecorator):
+    """Custom type to handle Metadata dataclass serialization."""
+
+    impl = JSON
+    cache_ok = True
+
+    def process_bind_param(self, value: Metadata | None, dialect: Any) -> dict[str, Any]:
+        """Convert Metadata to JSON-serializable dict."""
+        if value is None:
+            return {}
+        if isinstance(value, Metadata):
+            return asdict(value)
+        return value
+
+    def process_result_value(self, value: dict[str, Any] | None, dialect: Any) -> Metadata:
+        """Convert JSON dict back to Metadata."""
+        if value is None:
+            return Metadata()
+        return Metadata(**value)
 
 
 class Base(DeclarativeBase):

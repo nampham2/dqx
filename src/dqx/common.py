@@ -63,6 +63,15 @@ class DQXError(Exception): ...
 TimeSeries = Mapping[dt.date, float]
 Tags = dict[str, Any]
 
+
+@dataclass
+class Metadata:
+    """Metadata for metric lifecycle and execution context."""
+
+    execution_id: str | None = None
+    ttl_hours: int = 168  # 7 days default
+
+
 SeverityLevel = Literal["P0", "P1", "P2", "P3"]
 RecomputeStrategy = Literal["ALWAYS", "MISSING", "NEVER"]
 Parameters = dict[str, Any]
