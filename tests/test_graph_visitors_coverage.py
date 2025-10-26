@@ -4,7 +4,7 @@ import pytest
 import sympy as sp
 
 from dqx.graph.nodes import AssertionNode, CheckNode, RootNode
-from dqx.graph.visitor_classes import DatasetImputationVisitor, NodeCollector
+from dqx.graph.visitors import DatasetImputationVisitor, NodeCollector
 
 
 def test_dataset_imputation_visitor_assertion_node_no_provider() -> None:

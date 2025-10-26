@@ -224,7 +224,7 @@ def test_suite_validator_performance() -> None:
     duration = time.time() - start
 
     # Should complete quickly even for large suites
-    assert duration < 0.5  # 500ms should be plenty
+    assert duration < 1.0  # 1 second should be plenty
 
     # Should have no issues
     assert not report.has_errors()

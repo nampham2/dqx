@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Optional
 
 from dqx.graph.base import BaseNode, CompositeNode, NodeVisitor
 from dqx.graph.nodes import AssertionNode, CheckNode, RootNode
-from dqx.graph.visitor_classes import NodeCollector
+from dqx.graph.visitors import NodeCollector
 
 if TYPE_CHECKING:
     from dqx.display import NodeFormatter
@@ -345,7 +345,7 @@ class Graph:
             DQXError: If validation fails
         """
         from dqx.common import DQXError
-        from dqx.graph.visitor_classes import DatasetImputationVisitor
+        from dqx.graph.visitors import DatasetImputationVisitor
 
         visitor = DatasetImputationVisitor(datasets, provider)
         self.dfs(visitor)  # Use DFS to ensure parents are processed before children

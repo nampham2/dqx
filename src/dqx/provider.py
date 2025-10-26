@@ -355,7 +355,7 @@ class SymbolicMetricBase(ABC):
             return
 
         # Apply deduplication to graph
-        from dqx.graph.visitors.symbol_deduplication import SymbolDeduplicationVisitor
+        from dqx.graph.visitors import SymbolDeduplicationVisitor
 
         dedup_visitor = SymbolDeduplicationVisitor(substitutions)
         graph.dfs(dedup_visitor)  # Use depth-first search to apply visitor

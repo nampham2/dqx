@@ -7,7 +7,7 @@ import sympy as sp
 
 from dqx.common import DQXError, SymbolicValidator
 from dqx.graph.nodes import RootNode
-from dqx.graph.visitor_classes import DatasetImputationVisitor
+from dqx.graph.visitors import DatasetImputationVisitor
 from dqx.provider import MetricProvider, SymbolicMetric
 
 
