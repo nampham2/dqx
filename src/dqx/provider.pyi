@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import datetime
 from abc import ABC
-from collections import defaultdict
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from threading import Lock
@@ -41,7 +40,6 @@ class SymbolicMetricBase(ABC):
     _symbol_index: SymbolIndex
     _curr_index: int
     _mutex: Lock
-    _children_map: defaultdict[sp.Symbol, list[sp.Symbol]]
 
     def __init__(self) -> None: ...
     @property
@@ -60,7 +58,6 @@ class SymbolicMetricBase(ABC):
         required_metrics: list[sp.Symbol] | None = None,
     ) -> None: ...
     def evaluate(self, symbol: sp.Symbol, key: ResultKey) -> Result[float, str]: ...
-    def get_children(self, symbol: sp.Symbol) -> list[sp.Symbol]: ...
     def collect_symbols(self, key: ResultKey) -> list[SymbolInfo]: ...
     def print_symbols(self, key: ResultKey) -> None: ...
 

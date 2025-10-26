@@ -7,58 +7,6 @@ from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
 
 
-def test_day_over_day_creates_lag_dependency() -> None:
-    """Test that day_over_day automatically creates lag(1) dependency."""
-    # GIVEN: A metric provider
-    mp = MetricProvider(InMemoryMetricDB())
-
-    # WHEN: Creating a day_over_day metric
-    base = mp.maximum("tax")
-    dod = mp.ext.day_over_day(base)
-
-    # THEN: The day_over_day metric should have the base metric and lag(1) as children
-    children = mp.get_children(dod)
-    assert len(children) == 2  # base and lag(1)
-
-    # The base metric should be one of the children
-    assert base in children
-
-    # Find the lag symbol (not the base)
-    lag_symbol = next((child for child in children if child != base), None)
-    assert lag_symbol is not None
-
-    # Verify the lag symbol has correct metadata
-    lag_metric = mp.get_symbol(lag_symbol)
-    assert "lag(1)" in lag_metric.name
-    assert lag_metric.lag == 1
-
-
-def test_week_over_week_creates_lag_dependency() -> None:
-    """Test that week_over_week automatically creates lag(7) dependency."""
-    # GIVEN: A metric provider
-    mp = MetricProvider(InMemoryMetricDB())
-
-    # WHEN: Creating a week_over_week metric
-    base = mp.sum("revenue")
-    wow = mp.ext.week_over_week(base)
-
-    # THEN: The week_over_week metric should have the base metric and lag(7) as children
-    children = mp.get_children(wow)
-    assert len(children) == 2  # base and lag(7)
-
-    # The base metric should be one of the children
-    assert base in children
-
-    # Find the lag symbol (not the base)
-    lag_symbol = next((child for child in children if child != base), None)
-    assert lag_symbol is not None
-
-    # Verify the lag symbol has correct metadata
-    lag_metric = mp.get_symbol(lag_symbol)
-    assert "lag(7)" in lag_metric.name
-    assert lag_metric.lag == 7
-
-
 def test_dependency_symbols_are_collected() -> None:
     """Test that dependency symbols are registered in the provider."""
     # GIVEN: A metric provider with day_over_day metric

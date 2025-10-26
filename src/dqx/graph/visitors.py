@@ -146,7 +146,7 @@ class DatasetImputationVisitor:
                     )
 
             # Get children of this symbol
-            children = self.provider.get_children(symbol)
+            children = self.provider.get_symbol(symbol).required_metrics
 
             # Process each child
             for child_symbol in children:

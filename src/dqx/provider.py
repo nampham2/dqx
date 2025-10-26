@@ -73,7 +73,6 @@ class SymbolicMetricBase(ABC):
         self._symbol_index: SymbolIndex = {}
         self._curr_index: int = 0
         self._mutex = Lock()
-        self._children_map: defaultdict[sp.Symbol, list[sp.Symbol]] = defaultdict(list)
 
     @property
     def symbolic_metrics(self) -> list[SymbolicMetric]:
@@ -144,23 +143,8 @@ class SymbolicMetricBase(ABC):
         )
         self._symbol_index[symbol] = self._metrics[-1]
 
-        # Populate children map: the symbol has these required_metrics as children
-        if required_metrics:
-            self._children_map[symbol] = required_metrics.copy()
-
     def evaluate(self, symbol: sp.Symbol, key: ResultKey) -> Result[float, str]:
         return self._symbol_index[symbol].fn(key)
-
-    def get_children(self, symbol: sp.Symbol) -> list[sp.Symbol]:
-        """Get all child symbols of a given parent symbol.
-
-        Args:
-            symbol: The parent symbol to get children for
-
-        Returns:
-            List of child symbols, or empty list if no children
-        """
-        return self._children_map.get(symbol, [])
 
     def collect_symbols(self, key: ResultKey) -> list[SymbolInfo]:
         """
@@ -310,12 +294,6 @@ class SymbolicMetricBase(ABC):
             if sym_metric.required_metrics:
                 # Replace any duplicates in required_metrics
                 sym_metric.required_metrics = [substitutions.get(req, req) for req in sym_metric.required_metrics]
-
-                # Also update the children map
-                if sym_metric.symbol in self._children_map:
-                    self._children_map[sym_metric.symbol] = [
-                        substitutions.get(child, child) for child in self._children_map[sym_metric.symbol]
-                    ]
 
     def prune_duplicate_symbols(self, substitutions: dict[sp.Symbol, sp.Symbol]) -> None:
         """Remove duplicate symbols from the provider.
@@ -519,7 +497,6 @@ class MetricProvider(SymbolicMetricBase):
             >>> for date, metrics in metrics_by_date.items():
             ...     print(f"{date}: {len(metrics)} metrics")
         """
-        from collections import defaultdict
 
         metrics_by_date: dict[datetime.date, list[SymbolicMetric]] = defaultdict(list)
 
