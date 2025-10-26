@@ -7,7 +7,7 @@ This plan addresses two critical issues in the DQX codebase:
 2. **Complex Lag Dependencies**: Hidden lag symbol creation causing confusion and analysis report issues
 
 The solution introduces a cleaner architecture by:
-- Replacing `ResultKeyProvider` with a simple `lag_offset` field
+- Replacing `ResultKeyProvider` with a simple `lag` field
 - Adding `required_metrics` to track complex metric dependencies explicitly
 - Implementing symbol deduplication to ensure unique metric representation
 
@@ -21,7 +21,7 @@ The solution introduces a cleaner architecture by:
 
 ### Proposed Solution
 - Remove `ResultKeyProvider` completely
-- Add `lag_offset: int` field to `SymbolicMetric`
+- Add `lag: int` field to `SymbolicMetric`
 - Replace `parent_symbol` with `required_metrics: list[sp.Symbol]`
 - Implement `SymbolDeduplicationVisitor` to identify and merge duplicates
 - Update all metric APIs to use `lag: int` parameter instead of `key: ResultKeyProvider`
@@ -55,7 +55,7 @@ class SymbolicMetric:
     symbol: sp.Symbol
     fn: RetrievalFn
     metric_spec: MetricSpec
-    lag_offset: int = 0
+    lag: int = 0
     dataset: str | None = None
     required_metrics: list[sp.Symbol] = field(default_factory=list)
 ```
@@ -70,16 +70,16 @@ Delete the entire `ResultKeyProvider` class and its imports throughout the codeb
 
 ```python
 def test_symbolic_metric_has_new_fields():
-    """Test that SymbolicMetric has lag_offset and required_metrics."""
+    """Test that SymbolicMetric has lag and required_metrics."""
     sm = SymbolicMetric(
         name="test",
         symbol=sp.Symbol("x_0"),
         fn=lambda key: Result.success(1.0),
         metric_spec=Average("col"),
-        lag_offset=1,
+        lag=1,
         required_metrics=[sp.Symbol("x_1")]
     )
-    assert sm.lag_offset == 1
+    assert sm.lag == 1
     assert sm.required_metrics == [sp.Symbol("x_1")]
     assert not hasattr(sm, 'key_provider')
     assert not hasattr(sm, 'parent_symbol')
@@ -104,7 +104,7 @@ def metric(
         name=metric.name,
         fn=partial(compute.simple_metric, self._db, metric, lag),
         metric_spec=metric,
-        lag_offset=lag,
+        lag=lag,
         dataset=dataset,
     )
     return sym
@@ -157,7 +157,7 @@ def _register(
     name: str,
     fn: RetrievalFn,
     metric_spec: MetricSpec,
-    lag_offset: int = 0,
+    lag: int = 0,
     dataset: str | None = None,
     required_metrics: list[sp.Symbol] | None = None,
 ) -> None:
@@ -168,7 +168,7 @@ def _register(
             symbol=symbol,
             fn=fn,
             metric_spec=metric_spec,
-            lag_offset=lag_offset,
+            lag=lag,
             dataset=dataset,
             required_metrics=required_metrics or [],
         )
@@ -193,7 +193,7 @@ def test_metric_creation_with_lag():
     mp = MetricProvider(db)
     sym = mp.average("price", lag=1)
     metric = mp.get_symbol(sym)
-    assert metric.lag_offset == 1
+    assert metric.lag == 1
 
 def test_old_api_no_longer_works():
     """Test that old ResultKeyProvider API raises error."""
@@ -207,29 +207,29 @@ def test_all_metric_methods_accept_lag():
 
     # Test simple metrics
     avg = mp.average("price", lag=1)
-    assert mp.get_symbol(avg).lag_offset == 1
+    assert mp.get_symbol(avg).lag == 1
 
     min_val = mp.minimum("price", lag=2)
-    assert mp.get_symbol(min_val).lag_offset == 2
+    assert mp.get_symbol(min_val).lag == 2
 
     max_val = mp.maximum("price", lag=3)
-    assert mp.get_symbol(max_val).lag_offset == 3
+    assert mp.get_symbol(max_val).lag == 3
 
     count = mp.num_rows(lag=4)
-    assert mp.get_symbol(count).lag_offset == 4
+    assert mp.get_symbol(count).lag == 4
 
     sum_val = mp.sum("price", lag=5)
-    assert mp.get_symbol(sum_val).lag_offset == 5
+    assert mp.get_symbol(sum_val).lag == 5
 
     # Test additional metrics
     first = mp.first("price", lag=6)
-    assert mp.get_symbol(first).lag_offset == 6
+    assert mp.get_symbol(first).lag == 6
 
     null = mp.null_count("price", lag=7)
-    assert mp.get_symbol(null).lag_offset == 7
+    assert mp.get_symbol(null).lag == 7
 
     var = mp.variance("price", lag=8)
-    assert mp.get_symbol(var).lag_offset == 8
+    assert mp.get_symbol(var).lag == 8
 ```
 
 ### Task Group 3: Update Extended Metrics
@@ -257,7 +257,7 @@ def _ensure_lagged_symbol(self, base: SymbolicMetric, lag: int) -> sp.Symbol:
     # Check if it already exists
     for sm in self._metrics:
         if (sm.metric_spec == base.metric_spec and
-            sm.lag_offset == lag and
+            sm.lag == lag and
             sm.dataset == base.dataset):
             return sm.symbol
 
@@ -291,7 +291,7 @@ def stddev(self, metric: sp.Symbol, lag: int, n: int, dataset: str | None = None
         name=f"stddev({base.name}, lag={lag}, n={n})",
         fn=partial(compute.stddev, self._provider._db, base.metric_spec, lag, n),
         metric_spec=StdDev(base.metric_spec),
-        lag_offset=0,
+        lag=0,
         dataset=dataset,
         required_metrics=required,
     )
@@ -314,7 +314,7 @@ def day_over_day(self, metric: sp.Symbol, dataset: str | None = None) -> sp.Symb
         name=f"day_over_day({base.name})",
         fn=partial(compute.day_over_day, self._provider._db, base.metric_spec),
         metric_spec=base.metric_spec,
-        lag_offset=0,
+        lag=0,
         dataset=dataset,
         required_metrics=[metric, lag_sym],
     )
@@ -332,7 +332,7 @@ def week_over_week(self, metric: sp.Symbol, dataset: str | None = None) -> sp.Sy
         name=f"week_over_week({base.name})",
         fn=partial(compute.week_over_week, self._provider._db, base.metric_spec),
         metric_spec=base.metric_spec,
-        lag_offset=0,
+        lag=0,
         dataset=dataset,
         required_metrics=[metric, lag_sym],
     )
@@ -356,7 +356,7 @@ def test_stddev_populates_required_metrics():
     # Verify each required metric has correct lag
     for i, req_sym in enumerate(std_metric.required_metrics):
         req_metric = mp.get_symbol(req_sym)
-        assert req_metric.lag_offset == i + 1
+        assert req_metric.lag == i + 1
 
 def test_day_over_day_creates_explicit_dependency():
     """Test day_over_day creates explicit lag dependency."""
@@ -378,7 +378,7 @@ def test_day_over_day_creates_explicit_dependency():
 
     assert lag_metric is not None
     assert lag_metric.metric_spec == mp.get_symbol(base).metric_spec
-    assert lag_metric.lag_offset == 1
+    assert lag_metric.lag == 1
 
 def test_week_over_week_creates_explicit_dependency():
     """Test week_over_week creates explicit lag dependency."""
@@ -400,7 +400,7 @@ def test_week_over_week_creates_explicit_dependency():
 
     assert lag_metric is not None
     assert lag_metric.metric_spec == mp.get_symbol(base).metric_spec
-    assert lag_metric.lag_offset == 7
+    assert lag_metric.lag == 7
 
 def test_nested_extended_metrics():
     """Test that nested extended metrics work correctly."""
@@ -437,7 +437,7 @@ def test_ensure_lagged_symbol_handles_all_metric_types():
     lag_sym = mp._ensure_lagged_symbol(avg_metric, 1)
     lag_metric = mp.get_symbol(lag_sym)
     assert lag_metric.metric_spec == avg_metric.metric_spec
-    assert lag_metric.lag_offset == 1
+    assert lag_metric.lag == 1
 
     # Test with extended metric
     std = mp.ext.stddev(avg, lag=1, n=3)
@@ -445,7 +445,7 @@ def test_ensure_lagged_symbol_handles_all_metric_types():
     std_lag_sym = mp._ensure_lagged_symbol(std_metric, 2)
     std_lag_metric = mp.get_symbol(std_lag_sym)
     assert std_lag_metric.metric_spec == std_metric.metric_spec
-    assert std_lag_metric.lag_offset == 2
+    assert std_lag_metric.lag == 2
 
     # Test reuse of existing symbol
     # Creating same lagged metric again should return existing symbol
@@ -476,47 +476,59 @@ def test_deduplication_with_nested_metrics():
 ```
 
 ### Task Group 4: Update Compute Functions
-**Goal**: Update compute functions to use lag_offset instead of ResultKeyProvider
+**Goal**: Update compute functions to use lag parameter and add it to all functions for consistency
 
 #### Task 4.1: Update ALL compute function signatures
 **File**: `src/dqx/compute.py`
 
 Update all functions that currently use ResultKeyProvider:
 ```python
-def simple_metric(db: MetricDB, metric: MetricSpec, lag_offset: int, key: ResultKey) -> Result[float, str]:
+def simple_metric(db: MetricDB, metric: MetricSpec, lag: int, key: ResultKey) -> Result[float, str]:
     """Compute simple metric with lag applied."""
-    effective_key = key.lag(lag_offset)
+    effective_key = key.lag(lag)
     # ... rest of implementation
 
-def day_over_day(db: MetricDB, metric: MetricSpec, key: ResultKey) -> Result[float, str]:
-    """Compute day-over-day comparison."""
-    # Note: DoD doesn't take lag_offset because it internally uses lag=1
-    # ... implementation
+def day_over_day(db: MetricDB, metric: MetricSpec, lag: int, key: ResultKey) -> Result[float, str]:
+    """Compute day-over-day comparison with lag support.
 
-def week_over_week(db: MetricDB, metric: MetricSpec, key: ResultKey) -> Result[float, str]:
-    """Compute week-over-week comparison."""
-    # Note: WoW doesn't take lag_offset because it internally uses lag=7
-    # ... implementation
+    Compares metric value at 'lag' days ago vs 'lag+1' days ago.
+    For example, lag=0 compares today vs yesterday (standard behavior).
+    """
+    current_key = key.lag(lag)
+    previous_key = key.lag(lag + 1)
+    # ... implementation using current_key and previous_key
+
+def week_over_week(db: MetricDB, metric: MetricSpec, lag: int, key: ResultKey) -> Result[float, str]:
+    """Compute week-over-week comparison with lag support.
+
+    Compares metric value at 'lag' days ago vs 'lag+7' days ago.
+    For example, lag=0 compares today vs 7 days ago (standard behavior).
+    """
+    current_key = key.lag(lag)
+    week_ago_key = key.lag(lag + 7)
+    # ... implementation using current_key and week_ago_key
 
 def stddev(db: MetricDB, metric: MetricSpec, lag: int, n: int, key: ResultKey) -> Result[float, str]:
-    """Compute standard deviation over time window."""
-    # Note: stddev has its own lag parameter for the window start
-    # ... implementation
+    """Compute standard deviation over time window.
+
+    Computes stddev over the window [lag, lag+1, ..., lag+n-1].
+    """
+    # ... implementation unchanged, already has lag parameter
 ```
 
 #### Task 4.2: Test compute functions
 **File**: `tests/test_compute.py`
 
 ```python
-def test_compute_with_lag_offset():
-    """Test compute functions use lag_offset correctly."""
+def test_compute_with_lag():
+    """Test compute functions use lag correctly."""
     # Test simple_metric with lag
-    result = simple_metric(db, Average("price"), lag_offset=1, key=ResultKey("2024-01-15"))
+    result = simple_metric(db, Average("price"), lag=1, key=ResultKey("2024-01-15"))
     # Should compute for 2024-01-14
     assert result.is_success()
 
-def test_lag_offset_date_calculation():
-    """Test that lag_offset correctly calculates dates."""
+def test_lag_date_calculation():
+    """Test that lag correctly calculates dates."""
     key = ResultKey("2024-01-15")
 
     # Test various lag offsets
@@ -571,7 +583,7 @@ def build_deduplication_map(self, context_key: ResultKey) -> dict[sp.Symbol, sp.
     # Group symbols by identity
     for sym_metric in self.symbolic_metrics:
         # Calculate effective date for this symbol
-        effective_date = context_key.yyyy_mm_dd - timedelta(days=sym_metric.lag_offset)
+        effective_date = context_key.yyyy_mm_dd - timedelta(days=sym_metric.lag)
 
         identity = (
             sym_metric.metric_spec.name,
