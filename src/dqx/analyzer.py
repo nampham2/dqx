@@ -13,6 +13,7 @@ from rich.console import Console
 from dqx import models
 from dqx.common import (
     DQXError,
+    Metadata,
     ResultKey,
     SqlDataSource,
 )
@@ -260,9 +261,10 @@ class Analyzer:
     Note: This class is NOT thread-safe. Thread safety must be handled by callers if needed.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, metadata: Metadata | None = None) -> None:
         # TODO(npham): Remove _report and make the analyzer stateless.
         self._report: AnalysisReport = AnalysisReport()
+        self._metadata = metadata or Metadata()
 
     @property
     def report(self) -> AnalysisReport:
@@ -413,6 +415,6 @@ class Analyzer:
         report_data = {}
         for key, metrics in metrics_by_key.items():
             for metric in metrics:
-                report_data[(metric, key)] = models.Metric.build(metric, key, dataset=ds.name)
+                report_data[(metric, key)] = models.Metric.build(metric, key, dataset=ds.name, metadata=self._metadata)
 
         return AnalysisReport(data=report_data)
