@@ -235,33 +235,25 @@ def test_all_metric_methods_accept_lag():
 ### Task Group 3: Update Extended Metrics
 **Goal**: Make extended metrics populate required_metrics field
 
-#### Task 3.1: Update stddev implementation
+#### Task 3.1: Add _ensure_lagged_symbol to MetricProvider
 **File**: `src/dqx/provider.py`
 
+Add this method to the MetricProvider class (not ExtendedMetricProvider):
+
 ```python
-def stddev(self, metric: sp.Symbol, lag: int, n: int, dataset: str | None = None) -> sp.Symbol:
-    """Create standard deviation metric over time window."""
-    base = self.get_symbol(metric)
-
-    # Ensure required lag metrics exist
-    required = []
-    for i in range(lag, lag + n):
-        lag_sym = self._ensure_lagged_symbol(base, i)
-        required.append(lag_sym)
-
-    self._register(
-        sym := self._next_symbol(),
-        name=f"stddev({base.name}, lag={lag}, n={n})",
-        fn=partial(compute.stddev, self._db, base.metric_spec, lag, n),
-        metric_spec=StdDev(base.metric_spec),
-        lag_offset=0,
-        dataset=dataset,
-        required_metrics=required,
-    )
-    return sym
-
 def _ensure_lagged_symbol(self, base: SymbolicMetric, lag: int) -> sp.Symbol:
-    """Get or create a lagged version of a base metric."""
+    """Get or create a lagged version of a base metric.
+
+    This method handles all metric types including nested extended metrics
+    like StdDev(Average("price")).
+
+    Args:
+        base: The base symbolic metric to create a lagged version of
+        lag: The lag offset to apply
+
+    Returns:
+        Symbol for the lagged metric (either existing or newly created)
+    """
     # Check if it already exists
     for sm in self._metrics:
         if (sm.metric_spec == base.metric_spec and
@@ -269,37 +261,58 @@ def _ensure_lagged_symbol(self, base: SymbolicMetric, lag: int) -> sp.Symbol:
             sm.dataset == base.dataset):
             return sm.symbol
 
-    # Create new lagged metric using the appropriate method
-    if isinstance(base.metric_spec, specs.Average):
-        return self.average(base.metric_spec.column, lag=lag, dataset=base.dataset)
-    elif isinstance(base.metric_spec, specs.Minimum):
-        return self.minimum(base.metric_spec.column, lag=lag, dataset=base.dataset)
-    elif isinstance(base.metric_spec, specs.Maximum):
-        return self.maximum(base.metric_spec.column, lag=lag, dataset=base.dataset)
-    elif isinstance(base.metric_spec, specs.Sum):
-        return self.sum(base.metric_spec.column, lag=lag, dataset=base.dataset)
-    elif isinstance(base.metric_spec, specs.NumRows):
-        return self.num_rows(lag=lag, dataset=base.dataset)
-    else:
-        # Fallback for any other metric spec
-        return self.metric(base.metric_spec, lag=lag, dataset=base.dataset)
+    # Create new lagged metric using the generic metric() method
+    # This works for ANY metric spec, including nested ones
+    return self.metric(
+        metric=base.metric_spec,
+        lag=lag,
+        dataset=base.dataset
+    )
 ```
 
-#### Task 3.2: Update day_over_day and week_over_week
+#### Task 3.2: Update stddev implementation in ExtendedMetricProvider
+**File**: `src/dqx/provider.py`
+
+Update the ExtendedMetricProvider methods to use the provider's _ensure_lagged_symbol:
+
+```python
+def stddev(self, metric: sp.Symbol, lag: int, n: int, dataset: str | None = None) -> sp.Symbol:
+    """Create standard deviation metric over time window."""
+    base = self._provider.get_symbol(metric)
+
+    # Ensure required lag metrics exist
+    required = []
+    for i in range(lag, lag + n):
+        lag_sym = self._provider._ensure_lagged_symbol(base, i)
+        required.append(lag_sym)
+
+    self._provider._register(
+        sym := self._provider._next_symbol(),
+        name=f"stddev({base.name}, lag={lag}, n={n})",
+        fn=partial(compute.stddev, self._provider._db, base.metric_spec, lag, n),
+        metric_spec=StdDev(base.metric_spec),
+        lag_offset=0,
+        dataset=dataset,
+        required_metrics=required,
+    )
+    return sym
+```
+
+#### Task 3.3: Update day_over_day and week_over_week in ExtendedMetricProvider
 **File**: `src/dqx/provider.py`
 
 ```python
 def day_over_day(self, metric: sp.Symbol, dataset: str | None = None) -> sp.Symbol:
     """Create day-over-day comparison metric."""
-    base = self.get_symbol(metric)
+    base = self._provider.get_symbol(metric)
 
     # Create lag dependency
-    lag_sym = self._ensure_lagged_symbol(base, 1)
+    lag_sym = self._provider._ensure_lagged_symbol(base, 1)
 
-    self._register(
-        sym := self._next_symbol(),
+    self._provider._register(
+        sym := self._provider._next_symbol(),
         name=f"day_over_day({base.name})",
-        fn=partial(compute.day_over_day, self._db, base.metric_spec),
+        fn=partial(compute.day_over_day, self._provider._db, base.metric_spec),
         metric_spec=base.metric_spec,
         lag_offset=0,
         dataset=dataset,
@@ -309,15 +322,15 @@ def day_over_day(self, metric: sp.Symbol, dataset: str | None = None) -> sp.Symb
 
 def week_over_week(self, metric: sp.Symbol, dataset: str | None = None) -> sp.Symbol:
     """Create week-over-week comparison metric."""
-    base = self.get_symbol(metric)
+    base = self._provider.get_symbol(metric)
 
     # Create lag dependency
-    lag_sym = self._ensure_lagged_symbol(base, 7)
+    lag_sym = self._provider._ensure_lagged_symbol(base, 7)
 
-    self._register(
-        sym := self._next_symbol(),
+    self._provider._register(
+        sym := self._provider._next_symbol(),
         name=f"week_over_week({base.name})",
-        fn=partial(compute.week_over_week, self._db, base.metric_spec),
+        fn=partial(compute.week_over_week, self._provider._db, base.metric_spec),
         metric_spec=base.metric_spec,
         lag_offset=0,
         dataset=dataset,
@@ -326,7 +339,7 @@ def week_over_week(self, metric: sp.Symbol, dataset: str | None = None) -> sp.Sy
     return sym
 ```
 
-#### Task 3.3: Test extended metrics
+#### Task 3.4: Test extended metrics
 **File**: `tests/test_extended_metric_dependencies.py`
 
 ```python
@@ -334,7 +347,7 @@ def test_stddev_populates_required_metrics():
     """Test that stddev creates required_metrics."""
     mp = MetricProvider(db)
     base = mp.average("price")
-    std = mp.stddev(base, lag=1, n=3)
+    std = mp.ext.stddev(base, lag=1, n=3)
 
     std_metric = mp.get_symbol(std)
     assert len(std_metric.required_metrics) == 3
@@ -349,7 +362,7 @@ def test_day_over_day_creates_explicit_dependency():
     """Test day_over_day creates explicit lag dependency."""
     mp = MetricProvider(db)
     base = mp.average("price")
-    dod = mp.day_over_day(base)
+    dod = mp.ext.day_over_day(base)
 
     dod_metric = mp.get_symbol(dod)
     # Should have base metric and lag=1 metric as dependencies
@@ -371,7 +384,7 @@ def test_week_over_week_creates_explicit_dependency():
     """Test week_over_week creates explicit lag dependency."""
     mp = MetricProvider(db)
     base = mp.average("price")
-    wow = mp.week_over_week(base)
+    wow = mp.ext.week_over_week(base)
 
     wow_metric = mp.get_symbol(wow)
     # Should have base metric and lag=7 metric as dependencies
@@ -388,6 +401,78 @@ def test_week_over_week_creates_explicit_dependency():
     assert lag_metric is not None
     assert lag_metric.metric_spec == mp.get_symbol(base).metric_spec
     assert lag_metric.lag_offset == 7
+
+def test_nested_extended_metrics():
+    """Test that nested extended metrics work correctly."""
+    mp = MetricProvider(db)
+
+    # Create nested extended metric: stddev of stddev
+    base = mp.average("price")
+    std1 = mp.ext.stddev(base, lag=1, n=3)
+    std2 = mp.ext.stddev(std1, lag=1, n=3)
+
+    # Check that std2's metric_spec is nested
+    std2_metric = mp.get_symbol(std2)
+    assert isinstance(std2_metric.metric_spec, StdDev)
+    assert isinstance(std2_metric.metric_spec.metric, StdDev)
+    assert isinstance(std2_metric.metric_spec.metric.metric, Average)
+
+    # Verify required_metrics are created
+    assert len(std2_metric.required_metrics) == 3
+
+    # Each required metric should have the correct nested metric_spec
+    for req_sym in std2_metric.required_metrics:
+        req_metric = mp.get_symbol(req_sym)
+        # Should be StdDev(Average("price")) with different lags
+        assert isinstance(req_metric.metric_spec, StdDev)
+        assert isinstance(req_metric.metric_spec.metric, Average)
+
+def test_ensure_lagged_symbol_handles_all_metric_types():
+    """Test _ensure_lagged_symbol works with all metric types."""
+    mp = MetricProvider(db)
+
+    # Test with simple metric
+    avg = mp.average("price")
+    avg_metric = mp.get_symbol(avg)
+    lag_sym = mp._ensure_lagged_symbol(avg_metric, 1)
+    lag_metric = mp.get_symbol(lag_sym)
+    assert lag_metric.metric_spec == avg_metric.metric_spec
+    assert lag_metric.lag_offset == 1
+
+    # Test with extended metric
+    std = mp.ext.stddev(avg, lag=1, n=3)
+    std_metric = mp.get_symbol(std)
+    std_lag_sym = mp._ensure_lagged_symbol(std_metric, 2)
+    std_lag_metric = mp.get_symbol(std_lag_sym)
+    assert std_lag_metric.metric_spec == std_metric.metric_spec
+    assert std_lag_metric.lag_offset == 2
+
+    # Test reuse of existing symbol
+    # Creating same lagged metric again should return existing symbol
+    lag_sym_2 = mp._ensure_lagged_symbol(avg_metric, 1)
+    assert lag_sym_2 == lag_sym  # Should be the same symbol
+
+def test_deduplication_with_nested_metrics():
+    """Test deduplication works correctly with nested extended metrics."""
+    mp = MetricProvider(db)
+
+    # Create metrics that will have duplicates after lag resolution
+    base = mp.average("price")
+    std = mp.ext.stddev(base, lag=0, n=3)  # Will create lag 0, 1, 2
+
+    # Create another stddev that overlaps
+    std2 = mp.ext.stddev(base, lag=1, n=3)  # Will create lag 1, 2, 3
+
+    # Build deduplication map
+    key = ResultKey("2024-01-15")
+    dedup_map = mp.build_deduplication_map(key)
+
+    # Should identify some duplicates (lag 1 and 2 of average(price))
+    assert len(dedup_map) > 0
+
+    # Verify all duplicates map to valid symbols
+    for dup, canonical in dedup_map.items():
+        assert any(sm.symbol == canonical for sm in mp.symbolic_metrics)
 ```
 
 ### Task Group 4: Update Compute Functions
