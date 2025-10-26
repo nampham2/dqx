@@ -71,9 +71,10 @@ def test_execution_id_full_flow() -> None:
     # Basic: 4 metrics (avg, min, max, num_rows) + Extended: 2 metrics (avg_tax for both days)
     assert len(metrics1) >= 5
 
-    # Verify all metrics have the correct execution_id
+    # Verify all metrics have the correct execution_id in metadata
     for metric in metrics1:
-        assert metric.key.tags["__execution_id"] == exec_id1
+        assert metric.metadata is not None
+        assert metric.metadata.execution_id == exec_id1
         assert metric.key.tags["env"] == "prod"
         assert metric.key.tags["region"] == "us-east"
 
@@ -96,8 +97,8 @@ def test_execution_id_full_flow() -> None:
     assert date(2024, 1, 1) in dates2  # Lag date for day_over_day
 
     # Verify no overlap between executions
-    exec_ids_1 = {m.key.tags["__execution_id"] for m in metrics1}
-    exec_ids_2 = {m.key.tags["__execution_id"] for m in metrics2}
+    exec_ids_1 = {m.metadata.execution_id for m in metrics1 if m.metadata}
+    exec_ids_2 = {m.metadata.execution_id for m in metrics2 if m.metadata}
     assert exec_ids_1 == {exec_id1}
     assert exec_ids_2 == {exec_id2}
 
@@ -137,9 +138,10 @@ def test_multiple_datasets_single_execution() -> None:
     assert "orders" in datasets
     assert "products" in datasets
 
-    # All should have the same execution_id
+    # All should have the same execution_id in metadata
     for metric in metrics:
-        assert metric.key.tags["__execution_id"] == suite.execution_id
+        assert metric.metadata is not None
+        assert metric.metadata.execution_id == suite.execution_id
 
 
 def test_execution_id_persistence_across_queries() -> None:
@@ -170,9 +172,7 @@ def test_execution_id_persistence_across_queries() -> None:
     metrics_by_date = db.search(DBMetric.yyyy_mm_dd == date.today(), DBMetric.dataset == "test_data")
 
     # Filter to only metrics with our execution_id
-    metrics_by_date_filtered = [
-        m for m in metrics_by_date if "__execution_id" in m.key.tags and m.key.tags["__execution_id"] == exec_id
-    ]
+    metrics_by_date_filtered = [m for m in metrics_by_date if m.metadata and m.metadata.execution_id == exec_id]
 
     # Should get the same metrics
     assert len(metrics_by_exec) == len(metrics_by_date_filtered)

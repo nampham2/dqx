@@ -44,10 +44,10 @@ def test_metrics_by_execution_id_basic() -> None:
     # Verify we got all metrics
     assert len(metrics) > 0
 
-    # All metrics should have the same execution_id tag
+    # All metrics should have the same execution_id in metadata
     for metric in metrics:
-        assert "__execution_id" in metric.key.tags
-        assert metric.key.tags["__execution_id"] == execution_id
+        assert metric.metadata is not None
+        assert metric.metadata.execution_id == execution_id
 
     # Check that we got the expected metrics (at least average, min, max)
     metric_types = {m.spec.metric_type for m in metrics}
@@ -97,9 +97,10 @@ def test_metrics_by_execution_id_with_extended_ops() -> None:
     assert date(2024, 1, 2) in dates  # Current date
     assert date(2024, 1, 1) in dates  # Lag date
 
-    # All should have the same execution_id
+    # All should have the same execution_id in metadata
     for metric in metrics:
-        assert metric.key.tags["__execution_id"] == execution_id
+        assert metric.metadata is not None
+        assert metric.metadata.execution_id == execution_id
 
 
 def test_metrics_by_execution_id_not_found() -> None:
@@ -144,8 +145,8 @@ def test_metrics_by_execution_id_isolation() -> None:
     metrics2 = data.metrics_by_execution_id(db, exec_id2)
 
     # Each should only have its own metrics
-    assert all(m.key.tags["__execution_id"] == exec_id1 for m in metrics1)
-    assert all(m.key.tags["__execution_id"] == exec_id2 for m in metrics2)
+    assert all(m.metadata is not None and m.metadata.execution_id == exec_id1 for m in metrics1)
+    assert all(m.metadata is not None and m.metadata.execution_id == exec_id2 for m in metrics2)
 
     # Should have different base tags
     assert all(m.key.tags["env"] == "test1" for m in metrics1)

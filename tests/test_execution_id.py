@@ -35,8 +35,8 @@ def test_verification_suite_execution_id() -> None:
     assert suite1.execution_id != suite2.execution_id
 
 
-def test_tag_injection_in_result_keys() -> None:
-    """Test that execution_id is injected into ResultKey tags."""
+def test_execution_id_in_metadata() -> None:
+    """Test that execution_id is stored in metric metadata."""
 
     # Create a check that uses a metric
     @check(name="Test Check")
@@ -54,7 +54,7 @@ def test_tag_injection_in_result_keys() -> None:
     key = ResultKey(date.today(), {"env": "test"})
     suite.run([datasource], key)
 
-    # Check that all metrics in the DB have the __execution_id tag
+    # Check that all metrics in the DB have execution_id in metadata
     execution_id = suite.execution_id
 
     # Query all metrics from the DB for this date
@@ -62,8 +62,8 @@ def test_tag_injection_in_result_keys() -> None:
 
     all_metrics = db.search(Metric.yyyy_mm_dd == date.today(), Metric.dataset == "test_data")
 
-    # Verify all metrics have the execution_id tag
+    # Verify all metrics have the execution_id in metadata
     assert len(all_metrics) > 0, "Should have at least one metric persisted"
     for metric in all_metrics:
-        assert "__execution_id" in metric.key.tags
-        assert metric.key.tags["__execution_id"] == execution_id
+        assert metric.metadata is not None
+        assert metric.metadata.execution_id == execution_id

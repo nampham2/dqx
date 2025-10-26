@@ -19,7 +19,7 @@ def metrics_by_execution_id(db: MetricDB, execution_id: str) -> Sequence[Metric]
         execution_id: The UUID string identifying the execution
 
     Returns:
-        Sequence of Metric objects that have the given execution_id in their tags.
+        Sequence of Metric objects that have the given execution_id in their metadata.
         Returns empty sequence if no metrics are found.
 
     Example:
@@ -38,8 +38,18 @@ def metrics_by_execution_id(db: MetricDB, execution_id: str) -> Sequence[Metric]
     # Import here to avoid circular imports
     from dqx.orm.repositories import Metric as DBMetric
 
-    # Search for all metrics with the given execution_id tag
-    # Using the search method with a filter on the tags JSON field
-    db_metrics = db.search(DBMetric.tags.op("->>")("__execution_id") == execution_id)
+    # Get all metrics and filter by execution_id in Python
+    # This is necessary because SQLite doesn't support the JSON operators
+    # that work with PostgreSQL
+    session = db.new_session()
 
-    return db_metrics
+    # Query all metrics
+    all_db_metrics = session.query(DBMetric).all()
+
+    # Filter metrics that have the matching execution_id
+    matching_metrics = []
+    for db_metric in all_db_metrics:
+        if db_metric.meta and db_metric.meta.execution_id == execution_id:
+            matching_metrics.append(db_metric.to_model())
+
+    return matching_metrics
