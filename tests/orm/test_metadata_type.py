@@ -10,7 +10,7 @@ from dqx.orm.repositories import MetadataType
 Base = declarative_base()
 
 
-class TestModel(Base):  # type: ignore[misc, valid-type]
+class MetadataTestModel(Base):  # type: ignore[misc, valid-type]
     """Test model with metadata column."""
 
     __tablename__ = "test_model"
@@ -61,21 +61,21 @@ class TestMetadataType:
         """Test full roundtrip through database."""
         # Create record with metadata
         metadata = Metadata(execution_id="db-test", ttl_hours=24)
-        record = TestModel(meta=metadata)
+        record = MetadataTestModel(meta=metadata)
         session.add(record)
         session.commit()
 
         # Retrieve and verify
-        retrieved = session.query(TestModel).first()
+        retrieved = session.query(MetadataTestModel).first()
         assert retrieved is not None
         assert retrieved.meta == metadata
 
     def test_default_metadata(self, session: Session) -> None:
         """Test default metadata creation."""
-        record = TestModel()
+        record = MetadataTestModel()
         session.add(record)
         session.commit()
 
-        retrieved = session.query(TestModel).first()
+        retrieved = session.query(MetadataTestModel).first()
         assert retrieved is not None
         assert retrieved.meta == Metadata()

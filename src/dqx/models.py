@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Self
 
 from dqx import specs
-from dqx.common import DQXError, ResultKey
+from dqx.common import DQXError, Metadata, ResultKey
 from dqx.states import State
 
 if TYPE_CHECKING:
@@ -30,6 +30,7 @@ class Metric:
     key: ResultKey
     dataset: str
     metric_id: uuid.UUID | None = None
+    metadata: Metadata | None = None
 
     @property
     def value(self) -> float:
@@ -43,6 +44,7 @@ class Metric:
         dataset: str,
         state: State | None = None,
         metric_id: uuid.UUID | None = None,
+        metadata: Metadata | None = None,
     ) -> Self:
         return cls(
             metric_id=metric_id,
@@ -50,6 +52,7 @@ class Metric:
             state=state or metric.state(),
             key=key,
             dataset=dataset,
+            metadata=metadata,
         )
 
     @classmethod
@@ -67,6 +70,7 @@ class Metric:
             state=merged_state,
             key=self.key,
             dataset=self.dataset,
+            metadata=self.metadata,  # Keep metadata from self
         )
 
     def identity(self) -> Metric:
@@ -75,4 +79,5 @@ class Metric:
             state=self.state.identity(),
             key=self.key,
             dataset=self.dataset,
+            metadata=self.metadata,
         )

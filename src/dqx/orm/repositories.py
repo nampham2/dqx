@@ -63,6 +63,7 @@ class Metric(Base):
     value: Mapped[float] = mapped_column(nullable=False)
     yyyy_mm_dd: Mapped[dt.date] = mapped_column(nullable=False)
     tags: Mapped[Tags] = mapped_column(nullable=False)
+    meta: Mapped[Metadata] = mapped_column(MetadataType, nullable=False, default=Metadata)
     created: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
 
     def to_model(self) -> models.Metric:
@@ -71,7 +72,9 @@ class Metric(Base):
         state: State = spec.deserialize(self.state)
         key = ResultKey(yyyy_mm_dd=self.yyyy_mm_dd, tags=self.tags)
 
-        return models.Metric.build(spec, key, dataset=self.dataset, state=state, metric_id=self.metric_id)
+        return models.Metric.build(
+            spec, key, dataset=self.dataset, state=state, metric_id=self.metric_id, metadata=self.meta
+        )
 
     def to_spec(self) -> specs.MetricSpec:
         _type = typing.cast(MetricType, self.metric_type)
@@ -103,6 +106,7 @@ class MetricDB:
             value=metric.value,
             yyyy_mm_dd=metric.key.yyyy_mm_dd,
             tags=metric.key.tags,
+            meta=metric.metadata or Metadata(),
         )
 
     def persist(self, metrics: Iterable[models.Metric]) -> Iterable[models.Metric]:
