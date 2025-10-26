@@ -6,6 +6,18 @@ The DQX (Data Quality eXtensions) library is a comprehensive data quality valida
 
 ## Recently Completed Work
 
+### 2025-01-26: Added print_metrics_by_execution_id Display Function
+- **What**: Created a new display function to format and print metrics retrieved by execution ID
+- **Why**: Users needed a convenient way to display metrics from `data.metrics_by_execution_id()` in a readable format
+- **Changes**:
+  - Added `print_metrics_by_execution_id()` function to `display.py`
+  - Takes list of Metric objects and execution ID as parameters
+  - Displays formatted Rich table with Date, Metric Name, Type, Dataset, Value, and Tags columns
+  - Sorts metrics by date (newest first) then alphabetically by name
+  - Created comprehensive test suite in `tests/test_display_metrics_by_execution_id.py`
+  - Added example demo in `examples/metrics_by_execution_id_demo.py`
+- **Impact**: Provides consistent display formatting for execution-specific metrics
+
 ### 2025-01-25: Removed suite field from SymbolInfo
 - **What**: Removed the `suite` field from the `SymbolInfo` dataclass as it was redundant
 - **Why**: The suite information is available at the context level where symbols are collected, making it unnecessary to store in each symbol
@@ -42,6 +54,9 @@ The DQX (Data Quality eXtensions) library is a comprehensive data quality valida
 - **Result Persistence**: Store validation results in database
 - **Critical Level Detection**: Identify P0 failures automatically
 - **Rich Display**: Beautiful console output for results
+  - `print_assertion_results()`: Display assertion validation results
+  - `print_symbols()`: Display symbol computation values
+  - `print_metrics_by_execution_id()`: Display metrics for a specific execution
 
 ## Current Architecture
 

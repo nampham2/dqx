@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Protocol, Sequence
 
 from returns.result import Result
 from rich.console import Console
@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from dqx.common import AssertionResult, EvaluationFailure
     from dqx.graph.base import BaseNode
     from dqx.graph.traversal import Graph
+    from dqx.models import Metric
     from dqx.provider import SymbolInfo
 
 # Type aliases for clarity
@@ -200,6 +201,63 @@ def print_assertion_results(results: list[AssertionResult]) -> None:
             result.expression or "-",
             severity_display,
             status_display,
+            value_display,
+            tags_display,
+        )
+
+    # Print table
+    console = Console()
+    console.print(table)
+
+
+def print_metrics_by_execution_id(metrics: Sequence[Metric], execution_id: str) -> None:
+    """
+    Display metrics for a specific execution in a formatted table.
+
+    Shows all metrics from metrics_by_execution_id() in a table with columns:
+    Date, Metric Name, Type, Dataset, Value, Tags
+
+    Args:
+        metrics: List of Metric objects from metrics_by_execution_id()
+        execution_id: The execution ID to display in the title
+
+    Example:
+        >>> metrics = data.metrics_by_execution_id(db, execution_id)
+        >>> print_metrics_by_execution_id(metrics, execution_id)
+    """
+    from rich.table import Table
+
+    # Create table with execution ID in title
+    table = Table(title=f"Metrics for Execution: {execution_id}", show_lines=True)
+
+    # Add columns with same color scheme as print_symbols
+    table.add_column("Date", style="cyan", no_wrap=True)
+    table.add_column("Metric Name", style="yellow", no_wrap=True)
+    table.add_column("Type")
+    table.add_column("Dataset", style="magenta")
+    table.add_column("Value")
+    table.add_column("Tags", style="dim")
+
+    # Sort metrics by date (newest first) then by metric name
+    # Use negative date for reverse chronological order, but normal alphabetical for names
+    sorted_metrics = sorted(metrics, key=lambda m: (-m.key.yyyy_mm_dd.toordinal(), m.spec.name))
+
+    # Add rows
+    for metric in sorted_metrics:
+        # Format value with color
+        value_display = f"[green]{metric.value}[/green]"
+
+        # Format tags as key=value pairs
+        tags_display = ", ".join(f"{k}={v}" for k, v in metric.key.tags.items())
+        if not tags_display:
+            tags_display = "-"
+
+        # Add row
+        table.add_row(
+            metric.key.yyyy_mm_dd.isoformat(),
+            metric.spec.name,
+            metric.spec.metric_type,
+            metric.dataset,
             value_display,
             tags_display,
         )

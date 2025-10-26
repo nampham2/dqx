@@ -1,46 +1,57 @@
 # Active Context
 
 ## Current Work Focus
-- Successfully fixed lag metric date handling in symbol collection
-- Lag metrics now correctly show their effective date (nominal date - lag days) in the symbol table
-- This ensures accurate tracking of when each metric's data is actually from
+- Successfully implemented `print_metrics_by_execution_id` display function
+- This function displays metrics for a specific suite execution in a formatted table
+- Complements the existing `metrics_by_execution_id` data retrieval function
 
-## Recent Changes (2025-01-24)
-### Earlier Today:
-- Modified `DatasetImputationVisitor` in `src/dqx/graph/visitors.py`:
-  - Added recursive processing of child nodes in the visitor
-  - Each visited node now also visits all its children recursively
-  - Ensures that nested dependencies (like lag metrics created by extended metrics) inherit datasets from their parents
+## Recent Changes (2025-01-26)
+### Earlier Work:
+- Fixed lag metric date handling in symbol collection
+- Lag metrics now correctly show their effective date (nominal date - lag days) in the symbol table
+- Modified `_create_lag_dependency` in `src/dqx/provider.py` to pass correct lagged dates
 
 ### Just Completed:
-- Modified `_create_lag_dependency` in `src/dqx/provider.py`:
-  - Changed to pass the lagged ResultKey (with adjusted date) instead of the original key
-  - This ensures lag metrics show their actual effective date in symbol collection
-  - The fix was a simple one-line change that has significant impact on date accuracy
+- Added `print_metrics_by_execution_id` function to `src/dqx/display.py`:
+  - Takes a list of Metric objects and execution ID as parameters
+  - Displays metrics in a Rich table with columns: Date, Metric Name, Type, Dataset, Value, Tags
+  - Sorts metrics by date (newest first) then alphabetically by name
+  - Formats values in green and tags as key=value pairs
+  - Consistent styling with other display functions
 
-- Created new test file `tests/test_extended_metric_symbol_info_fix.py`:
-  - Tests that lag metrics show correct yyyy_mm_dd values in symbol table
-  - Verifies lag(7) metrics show date 7 days before nominal date
-  - Tests nested lag metrics and various lag values (1, 2, 3, 7 days)
+- Created comprehensive tests in `tests/test_display_metrics_by_execution_id.py`:
+  - Tests basic functionality with multiple metrics
+  - Tests handling of multiple tags
+  - Tests display when metrics have no tags
+  - Tests sorting behavior (newest dates first, then alphabetical)
+  - Tests empty list handling
+  - All tests passing with mock MetricSpec objects
+
+- Created demo in `examples/metrics_by_execution_id_demo.py`:
+  - Demonstrates using `data.metrics_by_execution_id` to retrieve metrics
+  - Shows using `display.print_metrics_by_execution_id` to display them
+  - Includes examples with different tags and metric types
 
 ## Key Implementation Details
-- The fix ensures that when a lag metric is created, it receives the correct effective date
-- This is crucial for understanding time-series data and debugging metric computations
-- The symbol table now accurately reflects the temporal nature of lag metrics
+- The function follows the same pattern as `print_assertion_results` and `print_symbols`
+- Uses Rich library for formatted table output with consistent styling
+- Sorting uses negative date ordinal for reverse chronological order while maintaining alphabetical name sorting
+- Handles empty tag sets by displaying "-" instead of empty string
 
 ## Next Steps
-- Monitor for any side effects of the date handling change
-- Consider if other extended metrics need similar date adjustments
-- The implementation is complete and tests are passing
+- The implementation is complete and tested
+- Consider adding this function to the public API documentation
+- Monitor for user feedback on the display format
 
 ## Important Patterns and Preferences
-- Extended metrics create child dependencies that must be processed correctly
-- Dataset imputation must flow from parent to child metrics
-- Date accuracy is crucial for time-series metrics
-- Small changes can have significant impacts on system behavior
+- Display functions in DQX use Rich library for consistent formatting
+- All display functions follow similar patterns with colored columns
+- Date columns are cyan, primary identifiers are yellow, datasets are magenta
+- Values are displayed in green for success
+- Tags are formatted as comma-separated key=value pairs
 
 ## Learnings and Project Insights
-- Extended metrics in DQX create implicit child metrics with temporal offsets
-- The ResultKey's date should reflect the actual data being used, not just the nominal date
-- Symbol collection is an important debugging tool that needs accurate metadata
-- Integration tests help catch subtle issues with date handling
+- Display functions are separate from data retrieval functions in DQX
+- The `data` module handles retrieval, `display` module handles presentation
+- Mock objects are useful for testing display functions without complex dependencies
+- Sorting logic needs careful consideration for multi-field sorts with different directions

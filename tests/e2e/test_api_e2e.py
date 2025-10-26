@@ -3,10 +3,11 @@ import datetime as dt
 import pyarrow as pa
 import sympy as sp
 
+from dqx import data
 from dqx.api import VerificationSuite, check
 from dqx.common import Context, ResultKey
 from dqx.datasource import DuckRelationDataSource
-from dqx.display import print_assertion_results
+from dqx.display import print_assertion_results, print_metrics_by_execution_id
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
 
@@ -233,3 +234,5 @@ def test_e2e_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> No
     print("\n" + "=" * 80 + "\n")
     ground_truth = create_ground_truth(commerce_data_c1, commerce_data_c2)
     print_ground_truth(ground_truth)
+
+    print_metrics_by_execution_id(data.metrics_by_execution_id(db, suite.execution_id), suite.execution_id)
