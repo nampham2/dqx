@@ -134,7 +134,7 @@ def test_impute_datasets_with_errors() -> None:
     graph = Graph(root)
 
     # Mock the visitor to simulate errors
-    with patch("dqx.graph.visitors.DatasetImputationVisitor") as MockVisitor:
+    with patch("dqx.graph.visitor_classes.DatasetImputationVisitor") as MockVisitor:
         # Create mock visitor instance
         mock_visitor = Mock()
         mock_visitor.has_errors.return_value = True
@@ -168,7 +168,7 @@ def test_impute_datasets_without_errors() -> None:
     graph = Graph(root)
 
     # Mock the visitor to simulate no errors
-    with patch("dqx.graph.visitors.DatasetImputationVisitor") as MockVisitor:
+    with patch("dqx.graph.visitor_classes.DatasetImputationVisitor") as MockVisitor:
         # Create mock visitor instance
         mock_visitor = Mock()
         mock_visitor.has_errors.return_value = False

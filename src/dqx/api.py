@@ -521,6 +521,9 @@ class VerificationSuite:
             logger.warning(f"Suite validation warnings:\n{report}")
 
     def _analyze(self, datasources: list[SqlDataSource], key: ResultKey) -> None:
+        # Apply symbol deduplication BEFORE analysis
+        self._context.provider.symbol_deduplication(self._context._graph, key)
+
         # Analyze ALL symbolic metrics, not just those with matching dataset
         all_symbolic_metrics = self._context.provider.symbolic_metrics
 
@@ -543,8 +546,8 @@ class VerificationSuite:
             # Group metrics by their effective date
             metrics_by_date: dict[ResultKey, list[MetricSpec]] = defaultdict(list)
             for sym_metric in relevant_metrics:
-                # Create the effective key from the provider
-                effective_key = sym_metric.key_provider.create(key)
+                # Use lag directly instead of key_provider
+                effective_key = key.lag(sym_metric.lag)
                 metrics_by_date[effective_key].append(sym_metric.metric_spec)
                 # Add to symbol lookup with (MetricSpec, ResultKey) as key
                 symbol_lookup[(sym_metric.metric_spec, effective_key)] = str(sym_metric.symbol)

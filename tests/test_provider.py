@@ -5,7 +5,7 @@ import sympy as sp
 from returns.result import Failure, Success
 
 from dqx import specs
-from dqx.common import DQXError, ResultKey, ResultKeyProvider
+from dqx.common import DQXError, ResultKey
 from dqx.orm.repositories import MetricDB
 from dqx.provider import (
     ExtendedMetricProvider,
@@ -22,7 +22,6 @@ class TestSymbolicMetric:
     def test_symbolic_metric_creation(self) -> None:
         """Test creating a SymbolicMetric instance."""
         symbol = sp.Symbol("x_1")
-        key_provider = Mock(spec=ResultKeyProvider)
         fn = Mock()
         metric_spec = Mock(spec=specs.MetricSpec)
 
@@ -30,30 +29,31 @@ class TestSymbolicMetric:
             name="test_metric",
             symbol=symbol,
             fn=fn,
-            key_provider=key_provider,
             metric_spec=metric_spec,
+            lag=7,
             dataset="dataset1",
+            required_metrics=[sp.Symbol("x_0")],
         )
 
         assert metric.name == "test_metric"
         assert metric.symbol == symbol
         assert metric.fn == fn
-        assert metric.key_provider == key_provider
         assert metric.metric_spec == metric_spec
+        assert metric.lag == 7
         assert metric.dataset == "dataset1"
+        assert metric.required_metrics == [sp.Symbol("x_0")]
 
-    def test_symbolic_metric_default_datasets(self) -> None:
-        """Test that dataset defaults to None."""
+    def test_symbolic_metric_default_values(self) -> None:
+        """Test that optional fields have correct defaults."""
         symbol = sp.Symbol("x_1")
-        key_provider = Mock(spec=ResultKeyProvider)
         fn = Mock()
         metric_spec = Mock(spec=specs.MetricSpec)
 
-        metric = SymbolicMetric(
-            name="test_metric", symbol=symbol, fn=fn, key_provider=key_provider, metric_spec=metric_spec
-        )
+        metric = SymbolicMetric(name="test_metric", symbol=symbol, fn=fn, metric_spec=metric_spec)
 
+        assert metric.lag == 0
         assert metric.dataset is None
+        assert metric.required_metrics == []
 
 
 class TestSymbolicMetricBase:
@@ -82,8 +82,8 @@ class TestSymbolicMetricBase:
         symbol2 = sp.Symbol("x_2")
 
         # Register some symbols
-        base._register(symbol1, "metric1", Mock(), Mock(spec=ResultKeyProvider), Mock(spec=specs.MetricSpec), None)
-        base._register(symbol2, "metric2", Mock(), Mock(spec=ResultKeyProvider), Mock(spec=specs.MetricSpec), None)
+        base._register(symbol1, "metric1", Mock(), Mock(spec=specs.MetricSpec), lag=0, dataset=None)
+        base._register(symbol2, "metric2", Mock(), Mock(spec=specs.MetricSpec), lag=0, dataset=None)
 
         symbols = list(base.symbols())
         assert len(symbols) == 2
@@ -94,16 +94,15 @@ class TestSymbolicMetricBase:
         """Test get_symbol() method with existing symbol."""
         symbol = sp.Symbol("x_1")
         fn = Mock()
-        key_provider = Mock(spec=ResultKeyProvider)
         metric_spec = Mock(spec=specs.MetricSpec)
 
-        base._register(symbol, "test_metric", fn, key_provider, metric_spec, "dataset1")
+        base._register(symbol, "test_metric", fn, metric_spec, lag=3, dataset="dataset1")
 
         result = base.get_symbol(symbol)
         assert result.name == "test_metric"
         assert result.symbol == symbol
         assert result.fn == fn
-        assert result.key_provider == key_provider
+        assert result.lag == 3
         assert result.dataset == "dataset1"
 
     def test_get_symbol_not_found(self, base: SymbolicMetricBase) -> None:
@@ -154,10 +153,11 @@ class TestSymbolicMetricBase:
         """Test _register() method."""
         symbol = sp.Symbol("x_1")
         fn = Mock()
-        key_provider = Mock(spec=ResultKeyProvider)
         metric_spec = Mock(spec=specs.MetricSpec)
 
-        base._register(symbol, "test_metric", fn, key_provider, metric_spec, "dataset1")
+        base._register(
+            symbol, "test_metric", fn, metric_spec, lag=5, dataset="dataset1", required_metrics=[sp.Symbol("x_0")]
+        )
 
         assert len(base._metrics) == 1
         assert symbol in base._symbol_index
@@ -166,9 +166,10 @@ class TestSymbolicMetricBase:
         assert registered_metric.name == "test_metric"
         assert registered_metric.symbol == symbol
         assert registered_metric.fn == fn
-        assert registered_metric.key_provider == key_provider
+        assert registered_metric.lag == 5
         assert registered_metric.metric_spec == metric_spec
         assert registered_metric.dataset == "dataset1"
+        assert registered_metric.required_metrics == [sp.Symbol("x_0")]
 
     def test_evaluate_success(self, base: SymbolicMetricBase) -> None:
         """Test evaluate() method with successful result."""
@@ -176,7 +177,7 @@ class TestSymbolicMetricBase:
         mock_fn = Mock(return_value=Success(42.5))
         mock_key = Mock(spec=ResultKey)
 
-        base._register(symbol, "test_metric", mock_fn, Mock(spec=ResultKeyProvider), Mock(spec=specs.MetricSpec), None)
+        base._register(symbol, "test_metric", mock_fn, Mock(spec=specs.MetricSpec), lag=0, dataset=None)
 
         result = base.evaluate(symbol, mock_key)
 
@@ -189,7 +190,7 @@ class TestSymbolicMetricBase:
         mock_fn = Mock(return_value=Failure("Error message"))
         mock_key = Mock(spec=ResultKey)
 
-        base._register(symbol, "test_metric", mock_fn, Mock(spec=ResultKeyProvider), Mock(spec=specs.MetricSpec), None)
+        base._register(symbol, "test_metric", mock_fn, Mock(spec=specs.MetricSpec), lag=0, dataset=None)
 
         result = base.evaluate(symbol, mock_key)
 
@@ -229,18 +230,18 @@ class TestMetricProvider:
         """Test metric() method."""
         mock_metric_spec = Mock(spec=specs.MetricSpec)
         mock_metric_spec.name = "test_metric"
-        mock_key_provider = Mock(spec=ResultKeyProvider)
+        lag = 7
         dataset = "dataset1"
 
-        symbol = provider.metric(mock_metric_spec, mock_key_provider, dataset)
+        symbol = provider.metric(mock_metric_spec, lag, dataset)
 
         assert isinstance(symbol, sp.Symbol)
         assert symbol.name == "x_1"
 
         # Check that the symbol was registered
         registered_metric = provider.get_symbol(symbol)
-        assert registered_metric.name == "test_metric"
-        assert registered_metric.key_provider == mock_key_provider
+        assert registered_metric.name == "lag(7)(test_metric)"
+        assert registered_metric.lag == 7
         assert registered_metric.dataset == dataset
         assert registered_metric.metric_spec == mock_metric_spec
 
@@ -252,7 +253,8 @@ class TestMetricProvider:
         symbol = provider.metric(mock_metric_spec)
 
         registered_metric = provider.get_symbol(symbol)
-        assert isinstance(registered_metric.key_provider, ResultKeyProvider)
+        assert registered_metric.name == "test_metric"  # No lag prefix when lag=0
+        assert registered_metric.lag == 0
         assert registered_metric.dataset is None
 
     @patch("dqx.provider.specs.NumRows")
@@ -260,16 +262,16 @@ class TestMetricProvider:
         """Test num_rows() method."""
         mock_spec = Mock()
         mock_num_rows.return_value = mock_spec
-        mock_key_provider = Mock()
+        lag = 3
         dataset = "dataset1"
 
         with patch.object(provider, "metric") as mock_metric:
             mock_metric.return_value = sp.Symbol("x_1")
 
-            result = provider.num_rows(mock_key_provider, dataset)
+            result = provider.num_rows(lag, dataset)
 
             mock_num_rows.assert_called_once()
-            mock_metric.assert_called_once_with(mock_spec, mock_key_provider, dataset)
+            mock_metric.assert_called_once_with(mock_spec, lag, dataset)
             assert result == sp.Symbol("x_1")
 
     @patch("dqx.provider.specs.First")
@@ -285,7 +287,7 @@ class TestMetricProvider:
             result = provider.first(column)
 
             mock_first.assert_called_once_with(column)
-            mock_metric.assert_called_once_with(mock_spec, ANY, None)
+            mock_metric.assert_called_once_with(mock_spec, 0, None)
             assert result == sp.Symbol("x_1")
 
     @patch("dqx.provider.specs.Average")
@@ -411,7 +413,7 @@ class TestMetricProvider:
         # Check that the symbol was registered
         registered_metric = provider.get_symbol(symbol)
         assert registered_metric.name == "duplicate_count(session_id,user_id)"  # Should be sorted
-        assert isinstance(registered_metric.key_provider, ResultKeyProvider)
+        assert registered_metric.lag == 0
         assert registered_metric.dataset is None
         assert isinstance(registered_metric.metric_spec, specs.DuplicateCount)
         assert registered_metric.metric_spec.parameters == {"columns": ["session_id", "user_id"]}
@@ -452,10 +454,10 @@ class TestExtendedMetricProvider:
         mock_metric_spec.name = "test_metric"
         base_symbol = provider.metric(mock_metric_spec)
 
-        mock_key_provider = Mock(spec=ResultKeyProvider)
+        lag = 5
         dataset = "dataset1"
 
-        symbol = ext_provider.day_over_day(base_symbol, mock_key_provider, dataset)
+        symbol = ext_provider.day_over_day(base_symbol, lag, dataset)
 
         assert isinstance(symbol, sp.Symbol)
         # Don't check the exact symbol name as it depends on counter state
@@ -463,8 +465,8 @@ class TestExtendedMetricProvider:
 
         # Check that the symbol was registered
         registered_metric = ext_provider._provider.get_symbol(symbol)
-        assert registered_metric.name == "day_over_day(test_metric)"
-        assert registered_metric.key_provider == mock_key_provider
+        assert registered_metric.name == "day_over_day(test_metric, lag=5)"
+        assert registered_metric.lag == 5
         assert registered_metric.dataset == dataset
         assert registered_metric.metric_spec == mock_metric_spec
 
@@ -478,7 +480,8 @@ class TestExtendedMetricProvider:
         symbol = ext_provider.day_over_day(base_symbol)
 
         registered_metric = ext_provider._provider.get_symbol(symbol)
-        assert isinstance(registered_metric.key_provider, ResultKeyProvider)
+        assert registered_metric.name == "day_over_day(test_metric)"
+        assert registered_metric.lag == 0
         assert registered_metric.dataset is None
 
     @patch("dqx.provider.compute.stddev")
@@ -489,12 +492,11 @@ class TestExtendedMetricProvider:
         mock_metric_spec.name = "test_metric"
         base_symbol = provider.metric(mock_metric_spec)
 
-        mock_key_provider = Mock(spec=ResultKeyProvider)
-        dataset = "dataset1"
         lag = 5
         n = 10
+        dataset = "dataset1"
 
-        symbol = ext_provider.stddev(base_symbol, lag, n, mock_key_provider, dataset)
+        symbol = ext_provider.stddev(base_symbol, lag, n, dataset)
 
         assert isinstance(symbol, sp.Symbol)
         # Don't check the exact symbol name as it depends on counter state
@@ -502,8 +504,8 @@ class TestExtendedMetricProvider:
 
         # Check that the symbol was registered
         registered_metric = ext_provider._provider.get_symbol(symbol)
-        assert registered_metric.name == "stddev(test_metric)"
-        assert registered_metric.key_provider == mock_key_provider
+        assert registered_metric.name == "stddev(test_metric, lag=5, n=10)"
+        assert registered_metric.lag == 0  # stddev itself doesn't have lag, it creates lagged dependencies
         assert registered_metric.dataset == dataset
         assert registered_metric.metric_spec == mock_metric_spec
 
@@ -517,7 +519,8 @@ class TestExtendedMetricProvider:
         symbol = ext_provider.stddev(base_symbol, 3, 7)
 
         registered_metric = ext_provider._provider.get_symbol(symbol)
-        assert isinstance(registered_metric.key_provider, ResultKeyProvider)
+        assert registered_metric.name == "stddev(test_metric, lag=3, n=7)"
+        assert registered_metric.lag == 0
         assert registered_metric.dataset is None
 
     @patch("dqx.provider.compute.week_over_week")
@@ -530,10 +533,10 @@ class TestExtendedMetricProvider:
         mock_metric_spec.name = "test_metric"
         base_symbol = provider.metric(mock_metric_spec)
 
-        mock_key_provider = Mock(spec=ResultKeyProvider)
+        lag = 3
         dataset = "dataset1"
 
-        symbol = ext_provider.week_over_week(base_symbol, mock_key_provider, dataset)
+        symbol = ext_provider.week_over_week(base_symbol, lag, dataset)
 
         assert isinstance(symbol, sp.Symbol)
         # Don't check the exact symbol name as it depends on counter state
@@ -541,8 +544,8 @@ class TestExtendedMetricProvider:
 
         # Check that the symbol was registered
         registered_metric = ext_provider._provider.get_symbol(symbol)
-        assert registered_metric.name == "week_over_week(test_metric)"
-        assert registered_metric.key_provider == mock_key_provider
+        assert registered_metric.name == "week_over_week(test_metric, lag=3)"
+        assert registered_metric.lag == 3
         assert registered_metric.dataset == dataset
         assert registered_metric.metric_spec == mock_metric_spec
 
@@ -556,7 +559,8 @@ class TestExtendedMetricProvider:
         symbol = ext_provider.week_over_week(base_symbol)
 
         registered_metric = ext_provider._provider.get_symbol(symbol)
-        assert isinstance(registered_metric.key_provider, ResultKeyProvider)
+        assert registered_metric.name == "week_over_week(test_metric)"
+        assert registered_metric.lag == 0
         assert registered_metric.dataset is None
 
 

@@ -53,9 +53,9 @@ def test_extended_metrics_symbol_info_names(commerce_data_c1: pa.Table) -> None:
         f"Expected 'week_over_week(sum(price))' in symbol metrics, but got: {symbol_metrics}"
     )
 
-    # Verify stddev metric name is correct
-    assert any("stddev(average(price))" in metric for metric in symbol_metrics), (
-        f"Expected 'stddev(average(price))' in symbol metrics, but got: {symbol_metrics}"
+    # Verify stddev metric name is correct (includes lag and n parameters)
+    assert any("stddev(average(price), lag=1, n=7)" in metric for metric in symbol_metrics), (
+        f"Expected 'stddev(average(price), lag=1, n=7)' in symbol metrics, but got: {symbol_metrics}"
     )
 
     # Also verify the bug scenario from test_api_e2e

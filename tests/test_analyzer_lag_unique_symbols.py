@@ -29,8 +29,8 @@ class TestLagUniqueSymbols:
         def tax_check(mp: MetricProvider, ctx: Any) -> None:
             # Same metric (average tax) computed for different dates
             current_tax = mp.average("tax")
-            lag1_tax = mp.average("tax", key=ctx.key.lag(1))
-            lag2_tax = mp.average("tax", key=ctx.key.lag(2))
+            lag1_tax = mp.average("tax", lag=1)
+            lag2_tax = mp.average("tax", lag=2)
 
             # Use all three in assertions
             ctx.assert_that(current_tax).where(name="Current tax positive").is_positive()
@@ -94,9 +94,9 @@ class TestLagUniqueSymbols:
         def multi_check(mp: MetricProvider, ctx: Any) -> None:
             # Different metrics, some with lag
             avg_price = mp.average("price")
-            avg_price_lag = mp.average("price", key=ctx.key.lag(1))
+            avg_price_lag = mp.average("price", lag=1)
             sum_quantity = mp.sum("quantity")
-            sum_quantity_lag = mp.sum("quantity", key=ctx.key.lag(1))
+            sum_quantity_lag = mp.sum("quantity", lag=1)
 
             ctx.assert_that(avg_price).where(name="Avg price positive").is_positive()
             ctx.assert_that(avg_price_lag).where(name="Yesterday avg price positive").is_positive()
@@ -136,7 +136,7 @@ class TestLagUniqueSymbols:
         @check(name="Symbol Structure Check")
         def simple_check(mp: MetricProvider, ctx: Any) -> None:
             avg = mp.average("value")
-            avg_lag = mp.average("value", key=ctx.key.lag(1))
+            avg_lag = mp.average("value", lag=1)
             ctx.assert_that(avg).where(name="Current average").is_positive()
             ctx.assert_that(avg_lag).where(name="Previous average").is_positive()
 

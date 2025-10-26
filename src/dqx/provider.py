@@ -13,12 +13,12 @@ import sympy as sp
 from returns.result import Result
 
 from dqx import compute, specs
-from dqx.common import DQXError, ResultKey, ResultKeyProvider, RetrievalFn, Tags
+from dqx.common import DQXError, ResultKey, RetrievalFn, Tags
 from dqx.orm.repositories import MetricDB
 from dqx.specs import MetricSpec
 
 if TYPE_CHECKING:
-    pass
+    from dqx.graph.traversal import Graph
 
 __all__ = [
     "SymbolInfo",
@@ -61,10 +61,10 @@ class SymbolicMetric:
     name: str
     symbol: sp.Symbol
     fn: RetrievalFn
-    key_provider: ResultKeyProvider
     metric_spec: MetricSpec
+    lag: int = 0
     dataset: str | None = None
-    parent_symbol: sp.Symbol | None = None
+    required_metrics: list[sp.Symbol] = field(default_factory=list)
 
 
 class SymbolicMetricBase(ABC):
@@ -123,27 +123,30 @@ class SymbolicMetricBase(ABC):
         symbol: sp.Symbol,
         name: str,
         fn: RetrievalFn,
-        key: ResultKeyProvider,
         metric_spec: MetricSpec,
+        lag: int = 0,
         dataset: str | None = None,
-        parent: sp.Symbol | None = None,
+        required_metrics: list[sp.Symbol] | None = None,
     ) -> None:
-        """Register a symbolic metric and track parent-child relationships."""
-        metric = SymbolicMetric(
-            name=name,
-            symbol=symbol,
-            fn=fn,
-            key_provider=key,
-            metric_spec=metric_spec,
-            dataset=dataset,
-            parent_symbol=parent,
-        )
-        self._metrics.append(metric)
-        self._symbol_index[symbol] = metric
+        """Register a symbolic metric."""
+        required_metrics = required_metrics or []
 
-        # Update children map
-        if parent is not None:
-            self._children_map[parent].append(symbol)
+        self._metrics.append(
+            SymbolicMetric(
+                name=name,
+                symbol=symbol,
+                fn=fn,
+                metric_spec=metric_spec,
+                lag=lag,
+                dataset=dataset,
+                required_metrics=required_metrics,
+            )
+        )
+        self._symbol_index[symbol] = self._metrics[-1]
+
+        # Populate children map: the symbol has these required_metrics as children
+        if required_metrics:
+            self._children_map[symbol] = required_metrics.copy()
 
     def evaluate(self, symbol: sp.Symbol, key: ResultKey) -> Result[float, str]:
         return self._symbol_index[symbol].fn(key)
@@ -187,7 +190,7 @@ class SymbolicMetricBase(ABC):
         # Create all SymbolInfo objects
         for symbolic_metric in self.symbolic_metrics:
             # Calculate the effective key for this symbol
-            effective_key = symbolic_metric.key_provider.create(key)
+            effective_key = key.lag(symbolic_metric.lag)
 
             # Try to evaluate the symbol to get its value
             try:
@@ -238,6 +241,131 @@ class SymbolicMetricBase(ABC):
         symbols = self.collect_symbols(key)
         print_symbols(symbols)
 
+    def build_deduplication_map(self, context_key: ResultKey) -> dict[sp.Symbol, sp.Symbol]:
+        """Build symbol substitution map for deduplication.
+
+        This method identifies duplicate symbols that represent the same metric
+        computed for the same effective date and dataset. It returns a mapping
+        from duplicate symbols to their canonical representatives.
+
+        Args:
+            context_key: The analysis date context. Used to calculate effective
+                        dates for lagged metrics.
+
+        Returns:
+            Dict mapping duplicate symbols to canonical symbols. For example:
+            {
+                sp.Symbol('x_3'): sp.Symbol('x_1'),  # x_3 is duplicate of x_1
+                sp.Symbol('x_5'): sp.Symbol('x_2'),  # x_5 is duplicate of x_2
+            }
+
+            The canonical symbol is always the one with the lowest index number.
+            Empty dict if no duplicates found.
+
+        Example:
+            If we have:
+            - x_1: average(price) for 2024-01-15
+            - x_2: average(price) with lag=1 for 2024-01-16 (effective: 2024-01-15)
+            - x_3: average(price) for 2024-01-15 (duplicate of x_1)
+
+            This returns: {x_3: x_1, x_2: x_1}
+        """
+        from datetime import timedelta
+
+        groups: dict[tuple[str, str, str | None], list[sp.Symbol]] = {}
+
+        # Group symbols by identity
+        for sym_metric in self.symbolic_metrics:
+            # Calculate effective date for this symbol
+            effective_date = context_key.yyyy_mm_dd - timedelta(days=sym_metric.lag)
+
+            # Use the human-readable name (e.g., "day_over_day(maximum(tax))")
+            # instead of metric_spec.name to properly distinguish extended metrics
+            identity = (sym_metric.name, effective_date.isoformat(), sym_metric.dataset)
+
+            if identity not in groups:
+                groups[identity] = []
+            groups[identity].append(sym_metric.symbol)
+
+        # Build substitution map
+        substitutions = {}
+        for duplicates in groups.values():
+            if len(duplicates) > 1:
+                # Keep the lowest numbered symbol as canonical
+                duplicates_sorted = sorted(duplicates, key=lambda s: int(s.name.split("_")[1]))
+                canonical = duplicates_sorted[0]
+
+                for dup in duplicates_sorted[1:]:
+                    substitutions[dup] = canonical
+
+        return substitutions
+
+    def deduplicate_required_metrics(self, substitutions: dict[sp.Symbol, sp.Symbol]) -> None:
+        """Update required_metrics in all symbolic metrics after deduplication.
+
+        Args:
+            substitutions: Map of duplicate symbols to canonical symbols
+        """
+        for sym_metric in self.symbolic_metrics:
+            if sym_metric.required_metrics:
+                # Replace any duplicates in required_metrics
+                sym_metric.required_metrics = [substitutions.get(req, req) for req in sym_metric.required_metrics]
+
+                # Also update the children map
+                if sym_metric.symbol in self._children_map:
+                    self._children_map[sym_metric.symbol] = [
+                        substitutions.get(child, child) for child in self._children_map[sym_metric.symbol]
+                    ]
+
+    def prune_duplicate_symbols(self, substitutions: dict[sp.Symbol, sp.Symbol]) -> None:
+        """Remove duplicate symbols from the provider.
+
+        Args:
+            substitutions: Map from duplicate symbols to canonical symbols
+        """
+        if not substitutions:
+            return
+
+        to_remove = set(substitutions.keys())
+
+        # Remove duplicate symbols
+        self._metrics = [sm for sm in self._metrics if sm.symbol not in to_remove]
+
+        # Remove from index
+        for symbol in to_remove:
+            del self._symbol_index[symbol]
+
+    def symbol_deduplication(self, graph: "Graph", context_key: ResultKey) -> None:
+        """Apply symbol deduplication to graph and provider.
+
+        This method:
+        1. Builds a map of duplicate symbols
+        2. Applies deduplication to the graph
+        3. Updates required_metrics references
+        4. Prunes duplicate symbols
+
+        Args:
+            graph: The computation graph to apply deduplication to
+            context_key: The analysis date context for calculating effective dates
+        """
+        # Build deduplication map
+        substitutions = self.build_deduplication_map(context_key)
+
+        if not substitutions:
+            return
+
+        # Apply deduplication to graph
+        from dqx.graph.visitors.symbol_deduplication import SymbolDeduplicationVisitor
+
+        dedup_visitor = SymbolDeduplicationVisitor(substitutions)
+        graph.dfs(dedup_visitor)  # Use depth-first search to apply visitor
+
+        # Update required_metrics in remaining symbols
+        self.deduplicate_required_metrics(substitutions)
+
+        # Prune duplicate symbols
+        self.prune_duplicate_symbols(substitutions)
+
 
 class ExtendedMetricProvider:
     """A provider for derivative metrics that builds on top of primitive metrics."""
@@ -266,22 +394,10 @@ class ExtendedMetricProvider:
         symbolic_metric = self._provider.get_symbol(base_metric)
         metric_spec = symbolic_metric.metric_spec
 
-        # Create a new key_provider for the lag metric's symbol table registration
-        # This ensures the symbol table shows the correct lagged date
-        lag_key_provider = ResultKeyProvider()
-        lag_key_provider.lag(lag_days)
-
-        # For the computation function, use a fresh key_provider
-        # since lag_metric already applies the lag internally via nominal_key.lag(lag)
-        base_key_provider = ResultKeyProvider()
-
         # Create lag function that applies the lag to the key
-        def lag_metric(
-            db: MetricDB, metric: MetricSpec, lag: int, key_provider: ResultKeyProvider, nominal_key: ResultKey
-        ) -> Result[float, str]:
+        def lag_metric(db: MetricDB, metric: MetricSpec, lag: int, nominal_key: ResultKey) -> Result[float, str]:
             lagged_key = nominal_key.lag(lag)
-            key = key_provider.create(lagged_key)
-            value = db.get_metric_value(metric, key)
+            value = db.get_metric_value(metric, lagged_key)
             from returns.converters import maybe_to_result
 
             return maybe_to_result(value, f"Metric {metric.name} not found for lagged date!")
@@ -289,109 +405,91 @@ class ExtendedMetricProvider:
         self._provider._register(
             sym := self._next_symbol(),
             name=f"lag({lag_days})({base_metric})",
-            fn=partial(lag_metric, self._db, metric_spec, lag_days, base_key_provider),
-            key=lag_key_provider,
+            fn=partial(lag_metric, self._db, metric_spec, lag_days),
             metric_spec=metric_spec,
+            lag=lag_days,
             dataset=symbolic_metric.dataset,
-            parent=parent_metric,  # Now the parent is the derived metric
         )
         return sym
 
-    def day_over_day(
-        self, metric: sp.Symbol, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
-    ) -> sp.Symbol:
+    def day_over_day(self, metric: sp.Symbol, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
         # Get the full SymbolicMetric object
         symbolic_metric = self._provider.get_symbol(metric)
         metric_spec = symbolic_metric.metric_spec
 
-        # First register the day_over_day metric
+        # Create required lag metrics first
+        if lag > 0:
+            # For lagged DoD, we need base metric at lag and lag+1
+            base_lagged = self._provider._ensure_lagged_symbol(symbolic_metric, lag)
+            lag_sym = self._provider._ensure_lagged_symbol(symbolic_metric, lag + 1)
+            required = [base_lagged, lag_sym]
+            name = f"day_over_day({symbolic_metric.name}, lag={lag})"
+        else:
+            # Standard DoD: today vs yesterday
+            lag_sym = self._provider._ensure_lagged_symbol(symbolic_metric, 1)
+            required = [metric, lag_sym]
+            name = f"day_over_day({symbolic_metric.name})"
+
         self._provider._register(
             sym := self._next_symbol(),
-            name=f"day_over_day({metric_spec.name})",
-            fn=partial(compute.day_over_day, self._db, metric_spec, key),
-            key=key,
+            name=name,
+            fn=partial(compute.day_over_day, self._db, metric_spec, lag),
             metric_spec=metric_spec,
+            lag=lag,
             dataset=dataset,
-            parent=None,  # day_over_day is now the parent
+            required_metrics=required,
         )
-
-        # Update the base metric's parent to point to this extended metric
-        symbolic_metric.parent_symbol = sym
-
-        # Create lag(1) dependency with day_over_day as parent
-        self._create_lag_dependency(metric, 1, parent_metric=sym)
-
-        # Register base metric as child of day_over_day
-        if metric not in self._provider._children_map[sym]:
-            self._provider._children_map[sym].append(metric)
-
         return sym
 
-    def stddev(
-        self,
-        metric: sp.Symbol,
-        lag: int,
-        n: int,
-        key: ResultKeyProvider = ResultKeyProvider(),
-        dataset: str | None = None,
-    ) -> sp.Symbol:
+    def stddev(self, metric: sp.Symbol, lag: int, n: int, dataset: str | None = None) -> sp.Symbol:
         # Get the full SymbolicMetric object
         symbolic_metric = self._provider.get_symbol(metric)
         metric_spec = symbolic_metric.metric_spec
 
-        # First register the stddev metric
-        self._provider._register(
-            sym := self._next_symbol(),
-            name=f"stddev({metric_spec.name})",
-            fn=partial(compute.stddev, self._db, metric_spec, lag, n, key),
-            key=key,
-            metric_spec=metric_spec,
-            dataset=dataset,
-            parent=None,  # stddev is now the parent
-        )
-
-        # Update the base metric's parent to point to this extended metric
-        symbolic_metric.parent_symbol = sym
-
-        # Create lag dependencies for the window with stddev as parent
-        # stddev needs lag values from lag to lag+n-1
+        # Ensure required lag metrics exist
+        required = []
         for i in range(lag, lag + n):
-            self._create_lag_dependency(metric, i, parent_metric=sym)
+            lag_sym = self._provider._ensure_lagged_symbol(symbolic_metric, i)
+            required.append(lag_sym)
 
-        # Register base metric as child of stddev
-        if metric not in self._provider._children_map[sym]:
-            self._provider._children_map[sym].append(metric)
-
+        self._provider._register(
+            sym := self._next_symbol(),
+            name=f"stddev({symbolic_metric.name}, lag={lag}, n={n})",
+            fn=partial(compute.stddev, self._db, metric_spec, lag, n),
+            metric_spec=metric_spec,  # Keep original metric_spec
+            lag=0,
+            dataset=dataset,
+            required_metrics=required,
+        )
         return sym
 
-    def week_over_week(
-        self, metric: sp.Symbol, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
-    ) -> sp.Symbol:
+    def week_over_week(self, metric: sp.Symbol, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
         # Get the full SymbolicMetric object
         symbolic_metric = self._provider.get_symbol(metric)
         metric_spec = symbolic_metric.metric_spec
 
-        # First register the week_over_week metric
+        # Create required lag metrics first
+        if lag > 0:
+            # For lagged WoW, we need base metric at lag and lag+7
+            base_lagged = self._provider._ensure_lagged_symbol(symbolic_metric, lag)
+            lag_sym = self._provider._ensure_lagged_symbol(symbolic_metric, lag + 7)
+            required = [base_lagged, lag_sym]
+            name = f"week_over_week({symbolic_metric.name}, lag={lag})"
+        else:
+            # Standard WoW: today vs 7 days ago
+            lag_sym = self._provider._ensure_lagged_symbol(symbolic_metric, 7)
+            required = [metric, lag_sym]
+            name = f"week_over_week({symbolic_metric.name})"
+
         self._provider._register(
             sym := self._next_symbol(),
-            name=f"week_over_week({metric_spec.name})",
-            fn=partial(compute.week_over_week, self._db, metric_spec, key),
-            key=key,
+            name=name,
+            fn=partial(compute.week_over_week, self._db, metric_spec, lag),
             metric_spec=metric_spec,
+            lag=lag,
             dataset=dataset,
-            parent=None,  # week_over_week is now the parent
+            required_metrics=required,
         )
-
-        # Update the base metric's parent to point to this extended metric
-        symbolic_metric.parent_symbol = sym
-
-        # Create lag(7) dependency with week_over_week as parent
-        self._create_lag_dependency(metric, 7, parent_metric=sym)
-
-        # Register base metric as child of week_over_week
-        if metric not in self._provider._children_map[sym]:
-            self._provider._children_map[sym].append(metric)
-
         return sym
 
 
@@ -438,68 +536,79 @@ class MetricProvider(SymbolicMetricBase):
 
         return dict(metrics_by_date)
 
+    def _ensure_lagged_symbol(self, base: SymbolicMetric, lag: int) -> sp.Symbol:
+        """Get or create a lagged version of a base metric.
+
+        This method handles all metric types including nested extended metrics
+        like StdDev(Average("price")).
+
+        Args:
+            base: The base symbolic metric to create a lagged version of
+            lag: The lag offset to apply
+
+        Returns:
+            Symbol for the lagged metric (either existing or newly created)
+        """
+        # Check if it already exists
+        for sm in self._metrics:
+            if sm.metric_spec == base.metric_spec and sm.lag == lag and sm.dataset == base.dataset:
+                return sm.symbol
+
+        # Create new lagged metric using the generic metric() method
+        # This works for ANY metric spec, including nested ones
+        return self.metric(metric=base.metric_spec, lag=lag, dataset=base.dataset)
+
     def metric(
         self,
         metric: MetricSpec,
-        key: ResultKeyProvider = ResultKeyProvider(),
+        lag: int = 0,
         dataset: str | None = None,
-        parent: sp.Symbol | None = None,
     ) -> sp.Symbol:
+        # Include lag in the name if lag > 0
+        name = f"lag({lag})({metric.name})" if lag > 0 else metric.name
+
         self._register(
             sym := self._next_symbol(),
-            name=metric.name,
-            fn=partial(compute.simple_metric, self._db, metric, key),
-            key=key,
+            name=name,
+            fn=partial(compute.simple_metric, self._db, metric, lag),
             metric_spec=metric,
+            lag=lag,
             dataset=dataset,
-            parent=parent,
         )
         return sym
 
-    def num_rows(self, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None) -> sp.Symbol:
-        return self.metric(specs.NumRows(), key, dataset)
+    def num_rows(self, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        return self.metric(specs.NumRows(), lag, dataset)
 
-    def first(self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None) -> sp.Symbol:
-        return self.metric(specs.First(column), key, dataset)
+    def first(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        return self.metric(specs.First(column), lag, dataset)
 
-    def average(
-        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
-    ) -> sp.Symbol:
-        return self.metric(specs.Average(column), key, dataset)
+    def average(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        return self.metric(specs.Average(column), lag, dataset)
 
-    def minimum(
-        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
-    ) -> sp.Symbol:
-        return self.metric(specs.Minimum(column), key, dataset)
+    def minimum(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        return self.metric(specs.Minimum(column), lag, dataset)
 
-    def maximum(
-        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
-    ) -> sp.Symbol:
-        return self.metric(specs.Maximum(column), key, dataset)
+    def maximum(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        return self.metric(specs.Maximum(column), lag, dataset)
 
-    def sum(self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None) -> sp.Symbol:
-        return self.metric(specs.Sum(column), key, dataset)
+    def sum(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        return self.metric(specs.Sum(column), lag, dataset)
 
-    def null_count(
-        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
-    ) -> sp.Symbol:
-        return self.metric(specs.NullCount(column), key, dataset)
+    def null_count(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        return self.metric(specs.NullCount(column), lag, dataset)
 
-    def variance(
-        self, column: str, key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
-    ) -> sp.Symbol:
-        return self.metric(specs.Variance(column), key, dataset)
+    def variance(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        return self.metric(specs.Variance(column), lag, dataset)
 
-    def duplicate_count(
-        self, columns: list[str], key: ResultKeyProvider = ResultKeyProvider(), dataset: str | None = None
-    ) -> sp.Symbol:
-        return self.metric(specs.DuplicateCount(columns), key, dataset)
+    def duplicate_count(self, columns: list[str], lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        return self.metric(specs.DuplicateCount(columns), lag, dataset)
 
     def count_values(
         self,
         column: str,
         values: int | str | bool | list[int] | list[str],
-        key: ResultKeyProvider = ResultKeyProvider(),
+        lag: int = 0,
         dataset: str | None = None,
     ) -> sp.Symbol:
         """Count occurrences of specific value(s) in a column.
@@ -510,7 +619,7 @@ class MetricProvider(SymbolicMetricBase):
         Args:
             column: Column name to count values in
             values: Value(s) to count - single int/str/bool or list of int/str
-            key: Result key provider
+            lag: Lag offset in days
             dataset: Optional dataset name
 
         Returns:
@@ -537,4 +646,4 @@ class MetricProvider(SymbolicMetricBase):
             Counting multiple values with a list is more efficient than
             making multiple separate count_values calls.
         """
-        return self.metric(specs.CountValues(column, values), key, dataset)
+        return self.metric(specs.CountValues(column, values), lag, dataset)

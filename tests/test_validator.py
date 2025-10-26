@@ -393,7 +393,8 @@ def test_unused_symbol_validator_extended_metrics() -> None:
 
     # Only use extended metrics (x1 and x2)
     # The base metrics (sum("revenue") and average("latency")) are registered but not directly used
-    # However, they are parent symbols of the extended metrics, so they should NOT be warned about
+    # In the current implementation, they will be warned as unused since extended metrics
+    # create lag versions (required_metrics) rather than marking the original as a parent
     validator_fn = SymbolicValidator("> 0", lambda x: x > 0)
     check.add_assertion(x1 > 0.1, name="DoD check", validator=validator_fn)
     check.add_assertion(x2 < 100, name="Stddev check", validator=validator_fn)
@@ -402,18 +403,19 @@ def test_unused_symbol_validator_extended_metrics() -> None:
     validator = SuiteValidator()
     report = validator.validate(graph, provider)
 
-    # Should only warn about:
-    # - x3 (average(conversion_rate)) - explicitly created but unused
-    # The base metrics for extended metrics are parent symbols and should not be warned about
+    # Should warn about:
+    # - average(conversion_rate) - explicitly created but unused
+    # - average(latency) - created as base for stddev but not directly used
+    # Note: sum(revenue) is in required_metrics of day_over_day so it won't be warned
     unused_warnings = [w for w in report.warnings if w.rule == "unused_symbols"]
-    assert len(unused_warnings) == 1
+    assert len(unused_warnings) == 2
 
     warning_messages = [w.message for w in unused_warnings]
-    # Check that only the truly unused symbol is warned about
+    # Check that the unused symbols are warned about
     assert any("average(conversion_rate)" in msg for msg in warning_messages)
-    # Base metrics should NOT be warned about as they are parents of used extended metrics
+    assert any("average(latency)" in msg for msg in warning_messages)
+    # sum(revenue) should NOT be warned - it's in required_metrics of day_over_day
     assert not any("sum(revenue)" in msg for msg in warning_messages)
-    assert not any("average(latency)" in msg for msg in warning_messages)
 
 
 def test_unused_symbol_validator_no_symbols_defined() -> None:

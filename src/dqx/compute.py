@@ -6,7 +6,7 @@ from returns.pipeline import flow
 from returns.pointfree import bind
 from returns.result import Failure, Result, Success
 
-from dqx.common import ResultKey, ResultKeyProvider, TimeSeries
+from dqx.common import ResultKey, TimeSeries
 from dqx.orm.repositories import MetricDB
 from dqx.specs import MetricSpec
 
@@ -58,71 +58,66 @@ def _sparse_timeseries_check(
     return Failure(f"There are {len(missings)} dates with missing metrics: {missing_dates_str}.")
 
 
-def simple_metric(
-    db: MetricDB, metric: MetricSpec, key_provider: ResultKeyProvider, nominal_key: ResultKey
-) -> Result[float, str]:
-    key = key_provider.create(nominal_key)
+def simple_metric(db: MetricDB, metric: MetricSpec, lag: int, nominal_key: ResultKey) -> Result[float, str]:
+    key = nominal_key.lag(lag)
     value = db.get_metric_value(metric, key)
     return maybe_to_result(value, f"Metric {metric.name} not found!")
 
 
-def day_over_day(
-    db: MetricDB, metric: MetricSpec, key_provider: ResultKeyProvider, nominal_key: ResultKey
-) -> Result[float, str]:
-    key = key_provider.create(nominal_key)
+def day_over_day(db: MetricDB, metric: MetricSpec, lag: int, nominal_key: ResultKey) -> Result[float, str]:
+    # Apply lag to get the effective base date
+    base_key = nominal_key.lag(lag)
 
     def _dod(ts: TimeSeries) -> Result[float, str]:
         """Calculate the day over day metric."""
-        lag_0 = ts[key.yyyy_mm_dd]
-        lag_1 = ts[key.lag(1).yyyy_mm_dd]
+        lag_0 = ts[base_key.yyyy_mm_dd]
+        lag_1 = ts[base_key.lag(1).yyyy_mm_dd]
 
         # Checking for divide by zero
         if lag_1 == 0:
-            return Failure(f"Metric for {key.lag(1).yyyy_mm_dd.isoformat()} is zero.")
+            return Failure(f"Metric for {base_key.lag(1).yyyy_mm_dd.isoformat()} is zero.")
         return Success(lag_0 / lag_1)
 
     return flow(
-        db.get_metric_window(metric, key, lag=0, window=2),
+        db.get_metric_window(metric, base_key, lag=0, window=2),
         lambda ts: maybe_to_result(ts, METRIC_NOT_FOUND),
-        bind(lambda ts: _sparse_timeseries_check(ts, key.yyyy_mm_dd, [0, 1])),
+        bind(lambda ts: _sparse_timeseries_check(ts, base_key.yyyy_mm_dd, [0, 1])),
         bind(_dod),
     )
 
 
-def stddev(
-    db: MetricDB, metric: MetricSpec, lag: int, size: int, key_provider: ResultKeyProvider, nominal_key: ResultKey
-) -> Result[float, str]:
-    key = key_provider.create(nominal_key)
+def stddev(db: MetricDB, metric: MetricSpec, lag: int, size: int, nominal_key: ResultKey) -> Result[float, str]:
+    # Apply lag to get the effective base date
+    base_key = nominal_key.lag(lag)
 
     def _stddev(ts: TimeSeries) -> Result[float, str]:
         return Success(np.std(list(ts.values())).item())
 
     return flow(
-        db.get_metric_window(metric, key, lag, size),
+        db.get_metric_window(metric, base_key, lag=0, window=size),
         lambda ts: maybe_to_result(ts, METRIC_NOT_FOUND),
-        bind(lambda ts: _timeseries_check(ts, key.lag(lag).yyyy_mm_dd, size)),
+        bind(lambda ts: _timeseries_check(ts, base_key.yyyy_mm_dd, size)),
         bind(_stddev),
     )
 
 
-def week_over_week(
-    db: MetricDB, metric: MetricSpec, key_provider: ResultKeyProvider, nominal_key: ResultKey
-) -> Result[float, str]:
-    key = key_provider.create(nominal_key)
+def week_over_week(db: MetricDB, metric: MetricSpec, lag: int, nominal_key: ResultKey) -> Result[float, str]:
+    # Apply lag to get the effective base date
+    base_key = nominal_key.lag(lag)
 
     def _wow(ts: TimeSeries) -> Result[float, str]:
         """Calculate the week over week metric."""
-        lag_0 = ts[key.yyyy_mm_dd]
-        lag_7 = ts[key.lag(7).yyyy_mm_dd]
+        lag_0 = ts[base_key.yyyy_mm_dd]
+        lag_7 = ts[base_key.lag(7).yyyy_mm_dd]
 
         # Checking for divide by zero
         if lag_7 == 0:
-            return Failure(f"Metric for {key.lag(7).yyyy_mm_dd.isoformat()} is zero.")
+            return Failure(f"Metric for {base_key.lag(7).yyyy_mm_dd.isoformat()} is zero.")
         return Success(lag_0 / lag_7)
 
     return flow(
-        db.get_metric_window(metric, key, lag=0, window=8),
+        db.get_metric_window(metric, base_key, lag=0, window=8),
         lambda ts: maybe_to_result(ts, METRIC_NOT_FOUND),
-        bind(lambda ts: _sparse_timeseries_check(ts, key.yyyy_mm_dd, [0, 7])),
+        bind(lambda ts: _sparse_timeseries_check(ts, base_key.yyyy_mm_dd, [0, 7])),
         bind(_wow),
     )

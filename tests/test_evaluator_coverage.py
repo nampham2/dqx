@@ -26,8 +26,8 @@ def test_evaluator_sympify_non_basic_expression() -> None:
         name="x",
         symbol=x,
         fn=lambda k: Success(5.0),
-        key_provider=Mock(),
         metric_spec=Mock(__str__=Mock(return_value="test_metric")),
+        lag=0,
         dataset="test_dataset",
     )
 
@@ -91,8 +91,8 @@ def test_evaluator_infinity_result() -> None:
         name="x",
         symbol=x,
         fn=lambda k: Success(1e308),  # Very large number
-        key_provider=Mock(),
         metric_spec=Mock(__str__=Mock(return_value="metric_x")),
+        lag=0,
         dataset="dataset1",
     )
 
@@ -123,8 +123,8 @@ def test_evaluator_unexpected_exception() -> None:
         name="x",
         symbol=x,
         fn=lambda k: Success(5.0),
-        key_provider=Mock(),
         metric_spec=Mock(__str__=Mock(return_value="test_metric")),
+        lag=0,
         dataset="test_dataset",
     )
 
@@ -158,8 +158,8 @@ def test_evaluator_complex_infinity_zoo() -> None:
         name="x",
         symbol=x,
         fn=lambda k: Success(1.0),  # Use 1.0 instead of 0.0
-        key_provider=Mock(),
         metric_spec=Mock(__str__=Mock(return_value="test_metric")),
+        lag=0,
         dataset="test_dataset",
     )
 
@@ -195,8 +195,8 @@ def test_evaluator_complex_number_result() -> None:
         name="x",
         symbol=x,
         fn=lambda k: Success(-1.0),
-        key_provider=Mock(),
         metric_spec=Mock(__str__=Mock(return_value="test_metric")),
+        lag=0,
         dataset="test_dataset",
     )
 
@@ -229,8 +229,8 @@ def test_evaluator_expression_with_constants() -> None:
         name="x",
         symbol=x,
         fn=lambda k: Success(10.0),
-        key_provider=Mock(),
         metric_spec=Mock(__str__=Mock(return_value="test_metric")),
+        lag=0,
         dataset="test_dataset",
     )
 
@@ -261,16 +261,16 @@ def test_evaluator_collect_symbols() -> None:
         name="metric_x",  # This is what appears in si.metric
         symbol=x,
         fn=lambda k: Success(5.0),
-        key_provider=Mock(),
         metric_spec=Mock(),
+        lag=0,
         dataset="dataset1",
     )
     sm_y = SymbolicMetric(
         name="metric_y",  # This is what appears in si.metric
         symbol=y,
         fn=lambda k: Failure("Error loading y"),
-        key_provider=Mock(),
         metric_spec=Mock(),
+        lag=0,
         dataset="dataset2",
     )
 

@@ -5,11 +5,9 @@ from dqx.provider import MetricProvider
 
 
 def test_extended_metrics_have_parent_symbols() -> None:
-    """Test parent-child relationships with reversed hierarchy.
+    """Test parent-child relationships for extended metrics.
 
-    In the reversed relationship:
-    - Extended metrics (day_over_day) are parents (no parent_symbol)
-    - Base metrics they depend on are children
+    Extended metrics track their dependencies through required_metrics.
     """
     # GIVEN: A metric provider
     mp = MetricProvider(InMemoryMetricDB())
@@ -18,12 +16,13 @@ def test_extended_metrics_have_parent_symbols() -> None:
     base = mp.maximum("tax")
     dod = mp.ext.day_over_day(base)
 
-    # THEN: The extended metric is a parent (has no parent_symbol)
+    # THEN: The extended metric tracks its dependencies
     dod_metric = mp.get_symbol(dod)
-    assert hasattr(dod_metric, "parent_symbol")
-    assert dod_metric.parent_symbol is None
+    assert hasattr(dod_metric, "required_metrics")
+    assert base in dod_metric.required_metrics
 
-    # AND: The extended metric has children (base + lag metrics)
-    children = mp.get_children(dod)
-    assert base in children
-    assert len(children) == 2  # base and lag(1)
+    # AND: The extended metric has required metrics (base + lag)
+    assert len(dod_metric.required_metrics) == 2  # base and lag(1)
+
+    # Verify that one of them is the base metric
+    assert any(req == base for req in dod_metric.required_metrics)

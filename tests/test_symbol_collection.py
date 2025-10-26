@@ -73,8 +73,8 @@ class TestGetSymbolWithString:
             name="x_1",
             symbol=symbol,
             fn=lambda k: Success(100.0),
-            key_provider=Mock(),
             metric_spec=metric_spec,
+            lag=0,
             dataset="orders",
         )
 
@@ -96,8 +96,8 @@ class TestGetSymbolWithString:
             name="x_1",
             symbol=symbol,
             fn=lambda k: Success(100.0),
-            key_provider=Mock(),
             metric_spec=metric_spec,
+            lag=0,
             dataset="orders",
         )
 
@@ -140,16 +140,16 @@ class TestCollectSymbols:
             name="average(price)",  # This is what gets stored in SymbolInfo.metric
             symbol=x1,
             fn=lambda k: Success(100.0),
-            key_provider=Mock(),
             metric_spec=metric_spec1,
+            lag=0,
             dataset="orders",
         )
         sm2 = SymbolicMetric(
             name="sum(quantity)",  # This is what gets stored in SymbolInfo.metric
             symbol=x2,
             fn=lambda k: Success(50.0),
-            key_provider=Mock(),
             metric_spec=metric_spec2,
+            lag=0,
             dataset="inventory",
         )
 
@@ -196,16 +196,16 @@ class TestCollectSymbols:
             name="x_1",
             symbol=x1,
             fn=lambda k: Success(100.0),
-            key_provider=Mock(),
             metric_spec=metric_spec1,
+            lag=0,
             dataset="orders",
         )
         sm2 = SymbolicMetric(
             name="x_2",
             symbol=x2,
             fn=lambda k: Failure("Database error"),
-            key_provider=Mock(),
             metric_spec=metric_spec2,
+            lag=0,
             dataset="inventory",
         )
 
@@ -251,8 +251,8 @@ class TestCollectSymbols:
                 name=name,
                 symbol=sym,
                 fn=make_fn(value),
-                key_provider=Mock(),
                 metric_spec=metric_spec,
+                lag=0,
                 dataset=dataset,
             )
             symbolic_metrics[sym] = sm
@@ -302,8 +302,8 @@ class TestCollectSymbols:
                 name=str(sym),
                 symbol=sym,
                 fn=lambda k: Success(float(i + 1)),
-                key_provider=Mock(),
                 metric_spec=metric_spec,
+                lag=0,
                 dataset=f"dataset_{i + 1}",
             )
             if i == 0:
@@ -339,8 +339,8 @@ class TestEvaluatorWithContext:
             name="x_1",
             symbol=x1,
             fn=lambda k: Success(1000.0),
-            key_provider=Mock(),
             metric_spec=metric_spec,
+            lag=0,
             dataset="sales",
         )
 

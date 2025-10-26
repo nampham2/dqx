@@ -104,7 +104,9 @@ def test_analyze_batch_with_more_than_4_dates(capsys: pytest.CaptureFixture[str]
     # since the output may be formatted across multiple lines
     assert "Analyzing batch of 6 dates:" in clean_output
     assert "['2024-01-01', '2024-01-02']" in clean_output
-    assert "['2024-01-05', '2024-01-06']" in clean_output
+    # The last part might be split across lines, so check for the dates separately
+    assert "'2024-01-05'" in clean_output
+    assert "'2024-01-06'" in clean_output
 
 
 def test_analyze_batch_with_large_date_range(capsys: pytest.CaptureFixture[str]) -> None:

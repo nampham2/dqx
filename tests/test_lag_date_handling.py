@@ -13,21 +13,21 @@ from dqx.provider import MetricProvider, SymbolicMetric
 
 
 def test_pending_metrics_returns_symbolic_metrics() -> None:
-    """Test that pending_metrics returns SymbolicMetric objects with key providers."""
+    """Test that pending_metrics returns SymbolicMetric objects with lag information."""
     db = InMemoryMetricDB()
     ctx = Context("Test Suite", db)
 
     # Create metrics with different lags
     mp = ctx.provider
     mp.average("price")
-    mp.average("price", key=ctx.key.lag(1))
+    mp.average("price", lag=1)
 
     pending = ctx.pending_metrics()
 
     assert len(pending) == 2
     assert all(isinstance(m, SymbolicMetric) for m in pending)
-    assert pending[0].key_provider._lag == 0
-    assert pending[1].key_provider._lag == 1
+    assert pending[0].lag == 0
+    assert pending[1].lag == 1
 
 
 def test_suite_analyzes_metrics_with_correct_dates(monkeypatch: Any) -> None:
@@ -37,7 +37,7 @@ def test_suite_analyzes_metrics_with_correct_dates(monkeypatch: Any) -> None:
     @check(name="Test Check", datasets=["ds1"])
     def test_check(mp: MetricProvider, ctx: Context) -> None:
         current = mp.average("value")
-        lagged = mp.average("value", key=ctx.key.lag(1))
+        lagged = mp.average("value", lag=1)
         ctx.assert_that(current / lagged).where(name="Ratio check").is_eq(1.0)
 
     # Track analyzer calls
@@ -84,8 +84,8 @@ def test_collect_symbols_with_lagged_dates() -> None:
     @check(name="Time Series Check", datasets=["ds1"])
     def time_series_check(mp: MetricProvider, ctx: Context) -> None:
         current = mp.average("value")  # Should be 2025-01-15
-        lag1 = mp.average("value", key=ctx.key.lag(1))  # Should be 2025-01-14
-        lag2 = mp.average("value", key=ctx.key.lag(2))  # Should be 2025-01-13
+        lag1 = mp.average("value", lag=1)  # Should be 2025-01-14
+        lag2 = mp.average("value", lag=2)  # Should be 2025-01-13
 
         # Create assertions to ensure symbols are registered
         ctx.assert_that(current).where(name="Current check").is_gt(0)
@@ -131,8 +131,8 @@ def test_mixed_lag_and_no_lag_metrics() -> None:
         # Mix of lagged and non-lagged metrics
         current_avg = mp.average("value")
         current_sum = mp.sum("value")
-        yesterday_avg = mp.average("value", key=ctx.key.lag(1))
-        yesterday_sum = mp.sum("value", key=ctx.key.lag(1))
+        yesterday_avg = mp.average("value", lag=1)
+        yesterday_sum = mp.sum("value", lag=1)
 
         # Use them in assertions
         ctx.assert_that(current_avg).where(name="Current avg").is_gt(0)
@@ -168,7 +168,7 @@ def test_missing_historical_data_graceful_handling() -> None:
     def missing_check(mp: MetricProvider, ctx: Context) -> None:
         current = mp.average("value")
         # This will compute for 30 days ago
-        historical = mp.average("value", key=ctx.key.lag(30))
+        historical = mp.average("value", lag=30)
 
         # Should handle missing data gracefully
         ctx.assert_that(current).where(name="Current exists").is_gt(0)
@@ -217,8 +217,8 @@ def test_large_lag_values() -> None:
     @check(name="Large Lag Check", datasets=["ds1"])
     def large_lag_check(mp: MetricProvider, ctx: Context) -> None:
         current = mp.average("revenue")
-        last_month = mp.average("revenue", key=ctx.key.lag(30))
-        last_year = mp.average("revenue", key=ctx.key.lag(365))
+        last_month = mp.average("revenue", lag=30)
+        last_year = mp.average("revenue", lag=365)
 
         # Month-over-month growth
         mom_growth = (current - last_month) / last_month * 100
@@ -253,8 +253,8 @@ def test_date_boundary_conditions() -> None:
     @check(name="Boundary Check", datasets=["ds1"])
     def boundary_check(mp: MetricProvider, ctx: Context) -> None:
         current = mp.num_rows()
-        yesterday = mp.num_rows(key=ctx.key.lag(1))
-        last_week = mp.num_rows(key=ctx.key.lag(7))
+        yesterday = mp.num_rows(lag=1)
+        last_week = mp.num_rows(lag=7)
 
         ctx.assert_that(current).where(name="Current count").is_gt(0)
         ctx.assert_that(yesterday).where(name="Yesterday count").is_gt(0)

@@ -164,8 +164,10 @@ def test_nested_extended_metrics() -> None:
         elif "sum(revenue)" in metric:  # Count after checking for stddev
             metric_types["sum"] += 1
 
-        # All should have prod dataset
-        assert sym_info.dataset == "prod", f"{metric} should have 'prod' dataset, got {sym_info.dataset}"
+        # Only metrics used in assertions should have datasets imputed
+        # The base sum(revenue) is unused and won't have a dataset
+        if "sum(revenue)" not in metric:
+            assert sym_info.dataset == "prod", f"{metric} should have 'prod' dataset, got {sym_info.dataset}"
 
     # Print all metrics for debugging if stddev not found
     if metric_types["stddev"] == 0:

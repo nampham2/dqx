@@ -27,7 +27,8 @@ def test_extended_metrics_children_tracking() -> None:
     lag_symbols = [s for s in children if s != base]
     assert len(lag_symbols) == 1
     lag_metric = mp.get_symbol(lag_symbols[0])
-    assert "lag(1)" in lag_metric.name
+    assert lag_metric.lag == 1  # The lag metric has lag=1
+    assert lag_metric.metric_spec == mp.get_symbol(base).metric_spec  # Same metric spec
 
     # AND: The base metric should have no children (it's a leaf)
     assert mp.get_children(base) == []
@@ -44,7 +45,8 @@ def test_extended_metrics_children_tracking() -> None:
     lag_symbols = [s for s in wow_children if s != base]
     assert len(lag_symbols) == 1
     lag_metric = mp.get_symbol(lag_symbols[0])
-    assert "lag(7)" in lag_metric.name
+    assert lag_metric.lag == 7  # The lag metric has lag=7
+    assert lag_metric.metric_spec == mp.get_symbol(base).metric_spec  # Same metric spec
 
     # AND: The base metric still has no children
     assert mp.get_children(base) == []

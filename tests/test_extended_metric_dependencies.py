@@ -29,9 +29,8 @@ def test_day_over_day_creates_lag_dependency() -> None:
 
     # Verify the lag symbol has correct metadata
     lag_metric = mp.get_symbol(lag_symbol)
-    assert lag_metric.parent_symbol == dod  # lag's parent is the dod metric
     assert "lag(1)" in lag_metric.name
-    assert lag_metric.name == f"lag(1)({base})"
+    assert lag_metric.lag == 1
 
 
 def test_week_over_week_creates_lag_dependency() -> None:
@@ -56,9 +55,8 @@ def test_week_over_week_creates_lag_dependency() -> None:
 
     # Verify the lag symbol has correct metadata
     lag_metric = mp.get_symbol(lag_symbol)
-    assert lag_metric.parent_symbol == wow  # lag's parent is the wow metric
     assert "lag(7)" in lag_metric.name
-    assert lag_metric.name == f"lag(7)({base})"
+    assert lag_metric.lag == 7
 
 
 def test_dependency_symbols_are_collected() -> None:
@@ -82,8 +80,8 @@ def test_dependency_symbols_are_collected() -> None:
 
     # Verify the lag symbol has correct metadata
     lag_metric = mp.get_symbol(lag_symbol)
-    assert lag_metric.name == f"lag(1)({base})"
-    assert lag_metric.parent_symbol == dod  # lag's parent is the dod metric
+    assert "lag(1)" in lag_metric.name
+    assert lag_metric.lag == 1
 
     # Verify the lag metric can be evaluated
     from dqx.evaluator import Evaluator
