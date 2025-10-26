@@ -2,12 +2,13 @@
 
 from typing import TYPE_CHECKING, Sequence
 
+import pyarrow as pa
+
 from dqx.models import Metric
 from dqx.orm.repositories import MetricDB
+from dqx.provider import SymbolInfo
 
 if TYPE_CHECKING:
-    import pyarrow as pa
-
     from dqx.analyzer import AnalysisReport
 
 __all__ = [
@@ -67,7 +68,7 @@ def metrics_by_execution_id(db: MetricDB, execution_id: str) -> Sequence[Metric]
     return matching_metrics
 
 
-def metrics_to_pyarrow_table(metrics: Sequence[Metric], execution_id: str) -> "pa.Table":
+def metrics_to_pyarrow_table(metrics: Sequence[Metric], execution_id: str) -> pa.Table:
     """
     Transform metrics from metrics_by_execution_id to a PyArrow table.
 
@@ -123,7 +124,7 @@ def metrics_to_pyarrow_table(metrics: Sequence[Metric], execution_id: str) -> "p
     )
 
 
-def analysis_reports_to_pyarrow_table(reports: dict[str, "AnalysisReport"]) -> "pa.Table":
+def analysis_reports_to_pyarrow_table(reports: dict[str, "AnalysisReport"]) -> pa.Table:
     """
     Transform analysis reports from VerificationSuite to a PyArrow table.
 
@@ -193,7 +194,7 @@ def analysis_reports_to_pyarrow_table(reports: dict[str, "AnalysisReport"]) -> "
     )
 
 
-def symbols_to_pyarrow_table(symbols: list) -> "pa.Table":
+def symbols_to_pyarrow_table(symbols: list[SymbolInfo]) -> pa.Table:
     """
     Transform a list of SymbolInfo objects to a PyArrow table.
 
