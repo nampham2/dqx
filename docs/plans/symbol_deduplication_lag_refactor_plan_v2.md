@@ -308,39 +308,69 @@ def stddev(self, metric: sp.Symbol, lag: int, n: int, dataset: str | None = None
 **File**: `src/dqx/provider.py`
 
 ```python
-def day_over_day(self, metric: sp.Symbol, dataset: str | None = None) -> sp.Symbol:
-    """Create day-over-day comparison metric."""
+def day_over_day(self, metric: sp.Symbol, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+    """Create day-over-day comparison metric.
+
+    Args:
+        metric: Base metric to compare
+        lag: If specified, creates a lagged DoD metric (e.g., lag=1 means DoD as of yesterday)
+        dataset: Dataset assignment
+    """
     base = self._provider.get_symbol(metric)
 
-    # Create lag dependency
-    lag_sym = self._provider._ensure_lagged_symbol(base, 1)
+    if lag > 0:
+        # For lagged DoD, we need base metric at lag and lag+1
+        base_lagged = self._provider._ensure_lagged_symbol(base, lag)
+        lag_sym = self._provider._ensure_lagged_symbol(base, lag + 1)
+        required = [base_lagged, lag_sym]
+        name = f"day_over_day({base.name}, lag={lag})"
+    else:
+        # Standard DoD: today vs yesterday
+        lag_sym = self._provider._ensure_lagged_symbol(base, 1)
+        required = [metric, lag_sym]
+        name = f"day_over_day({base.name})"
 
     self._provider._register(
         sym := self._provider._next_symbol(),
-        name=f"day_over_day({base.name})",
+        name=name,
         fn=partial(compute.day_over_day, self._provider._db, base.metric_spec),
         metric_spec=base.metric_spec,
-        lag=0,
+        lag=lag,
         dataset=dataset,
-        required_metrics=[metric, lag_sym],
+        required_metrics=required,
     )
     return sym
 
-def week_over_week(self, metric: sp.Symbol, dataset: str | None = None) -> sp.Symbol:
-    """Create week-over-week comparison metric."""
+def week_over_week(self, metric: sp.Symbol, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+    """Create week-over-week comparison metric.
+
+    Args:
+        metric: Base metric to compare
+        lag: If specified, creates a lagged WoW metric (e.g., lag=1 means WoW as of yesterday)
+        dataset: Dataset assignment
+    """
     base = self._provider.get_symbol(metric)
 
-    # Create lag dependency
-    lag_sym = self._provider._ensure_lagged_symbol(base, 7)
+    if lag > 0:
+        # For lagged WoW, we need base metric at lag and lag+7
+        base_lagged = self._provider._ensure_lagged_symbol(base, lag)
+        lag_sym = self._provider._ensure_lagged_symbol(base, lag + 7)
+        required = [base_lagged, lag_sym]
+        name = f"week_over_week({base.name}, lag={lag})"
+    else:
+        # Standard WoW: today vs 7 days ago
+        lag_sym = self._provider._ensure_lagged_symbol(base, 7)
+        required = [metric, lag_sym]
+        name = f"week_over_week({base.name})"
 
     self._provider._register(
         sym := self._provider._next_symbol(),
-        name=f"week_over_week({base.name})",
+        name=name,
         fn=partial(compute.week_over_week, self._provider._db, base.metric_spec),
         metric_spec=base.metric_spec,
-        lag=0,
+        lag=lag,
         dataset=dataset,
-        required_metrics=[metric, lag_sym],
+        required_metrics=required,
     )
     return sym
 ```
@@ -407,6 +437,38 @@ def test_week_over_week_creates_explicit_dependency():
     assert lag_metric is not None
     assert lag_metric.metric_spec == mp.get_symbol(base).metric_spec
     assert lag_metric.lag == 7
+
+def test_lagged_day_over_day():
+    """Test day_over_day with lag parameter creates correct dependencies."""
+    mp = MetricProvider(db)
+    base = mp.average("price")
+
+    # Create DoD for yesterday (lag=1)
+    dod_lag1 = mp.ext.day_over_day(base, lag=1)
+
+    dod_metric = mp.get_symbol(dod_lag1)
+    assert dod_metric.lag == 1
+    assert len(dod_metric.required_metrics) == 2
+
+    # Should have dependencies on lag=1 and lag=2
+    lags = sorted([mp.get_symbol(req).lag for req in dod_metric.required_metrics])
+    assert lags == [1, 2]
+
+def test_lagged_week_over_week():
+    """Test week_over_week with lag parameter creates correct dependencies."""
+    mp = MetricProvider(db)
+    base = mp.average("price")
+
+    # Create WoW for 3 days ago (lag=3)
+    wow_lag3 = mp.ext.week_over_week(base, lag=3)
+
+    wow_metric = mp.get_symbol(wow_lag3)
+    assert wow_metric.lag == 3
+    assert len(wow_metric.required_metrics) == 2
+
+    # Should have dependencies on lag=3 and lag=10 (3+7)
+    lags = sorted([mp.get_symbol(req).lag for req in wow_metric.required_metrics])
+    assert lags == [3, 10]
 
 def test_nested_extended_metrics():
     """Test that nested extended metrics work correctly."""
@@ -482,44 +544,66 @@ def test_deduplication_with_nested_metrics():
 ```
 
 ### Task Group 4: Update Compute Functions
-**Goal**: Update compute functions to use lag parameter and add it to all functions for consistency
+**Goal**: Update compute functions to remove ResultKeyProvider dependency
 
-#### Task 4.1: Update ALL compute function signatures
+#### Task 4.1: Update compute function signatures
 **File**: `src/dqx/compute.py`
 
-Update all functions that currently use ResultKeyProvider:
+Update functions that currently use ResultKeyProvider:
 ```python
 def simple_metric(db: MetricDB, metric: MetricSpec, lag: int, key: ResultKey) -> Result[float, str]:
-    """Compute simple metric with lag applied."""
+    """Compute simple metric with lag applied.
+
+    This function computes a metric value for a specific date determined by the lag.
+    When lag=1, it computes the value for yesterday (key - 1 day).
+    """
     effective_key = key.lag(lag)
-    # ... rest of implementation
+    # Fetch and return the metric value for the effective date
+    return db.get(metric, effective_key)
 
-def day_over_day(db: MetricDB, metric: MetricSpec, lag: int, key: ResultKey) -> Result[float, str]:
-    """Compute day-over-day comparison with lag support.
+def day_over_day(db: MetricDB, metric: MetricSpec, key: ResultKey) -> Result[float, str]:
+    """Compute day-over-day comparison.
 
-    Compares metric value at 'lag' days ago vs 'lag+1' days ago.
-    For example, lag=0 compares today vs yesterday (standard behavior).
+    Always compares the metric value at 'key' date vs 'key - 1 day'.
+    This function has a fixed comparison pattern and doesn't need a lag parameter.
     """
-    current_key = key.lag(lag)
-    previous_key = key.lag(lag + 1)
-    # ... implementation using current_key and previous_key
+    current = db.get(metric, key)
+    previous = db.get(metric, key.lag(1))
 
-def week_over_week(db: MetricDB, metric: MetricSpec, lag: int, key: ResultKey) -> Result[float, str]:
-    """Compute week-over-week comparison with lag support.
+    if previous.is_failure() or current.is_failure():
+        return Result.failure("Cannot compute DoD: missing data")
 
-    Compares metric value at 'lag' days ago vs 'lag+7' days ago.
-    For example, lag=0 compares today vs 7 days ago (standard behavior).
+    if previous.value == 0:
+        return Result.failure("Cannot compute DoD: previous value is zero")
+
+    dod = (current.value - previous.value) / previous.value
+    return Result.success(dod)
+
+def week_over_week(db: MetricDB, metric: MetricSpec, key: ResultKey) -> Result[float, str]:
+    """Compute week-over-week comparison.
+
+    Always compares the metric value at 'key' date vs 'key - 7 days'.
+    This function has a fixed comparison pattern and doesn't need a lag parameter.
     """
-    current_key = key.lag(lag)
-    week_ago_key = key.lag(lag + 7)
-    # ... implementation using current_key and week_ago_key
+    current = db.get(metric, key)
+    week_ago = db.get(metric, key.lag(7))
+
+    if week_ago.is_failure() or current.is_failure():
+        return Result.failure("Cannot compute WoW: missing data")
+
+    if week_ago.value == 0:
+        return Result.failure("Cannot compute WoW: previous value is zero")
+
+    wow = (current.value - week_ago.value) / week_ago.value
+    return Result.success(wow)
 
 def stddev(db: MetricDB, metric: MetricSpec, lag: int, n: int, key: ResultKey) -> Result[float, str]:
     """Compute standard deviation over time window.
 
-    Computes stddev over the window [lag, lag+1, ..., lag+n-1].
+    Computes stddev over the window [key.lag(lag), key.lag(lag+1), ..., key.lag(lag+n-1)].
+    This function already has the lag parameter and works correctly.
     """
-    # ... implementation unchanged, already has lag parameter
+    # ... existing implementation unchanged
 ```
 
 #### Task 4.2: Test compute functions
