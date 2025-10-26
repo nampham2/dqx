@@ -87,13 +87,13 @@ class TestAnalysisReportSymbols:
 
         # Create metric spec and symbol lookup
         spec = Sum("col1")
-        symbol_lookup: dict[MetricSpec, str] = {spec: "total_sales"}
+        key = ResultKey(datetime.date(2024, 1, 1), {})
+        symbol_lookup: dict[tuple[MetricSpec, ResultKey], str] = {(spec, key): "total_sales"}
 
         # Create analyzer with symbol lookup
         analyzer = Analyzer(metadata=Metadata(), symbol_lookup=symbol_lookup)
 
         # Analyze with the metric
-        key = ResultKey(datetime.date(2024, 1, 1), {})
         metrics_by_key = {key: [spec]}
 
         # Mock the analyze_batch_sql_ops to set the value on the analyzer

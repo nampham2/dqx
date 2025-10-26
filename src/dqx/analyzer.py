@@ -271,7 +271,9 @@ class Analyzer:
     Note: This class is NOT thread-safe. Thread safety must be handled by callers if needed.
     """
 
-    def __init__(self, metadata: Metadata | None = None, symbol_lookup: dict[MetricSpec, str] | None = None) -> None:
+    def __init__(
+        self, metadata: Metadata | None = None, symbol_lookup: dict[tuple[MetricSpec, ResultKey], str] | None = None
+    ) -> None:
         # TODO(npham): Remove _report and make the analyzer stateless.
         self._report: AnalysisReport = AnalysisReport()
         self._metadata = metadata or Metadata()
@@ -432,7 +434,7 @@ class Analyzer:
                 report_data[metric_key] = models.Metric.build(metric, key, dataset=ds.name, metadata=self._metadata)
 
                 # Add symbol mapping if available
-                if metric in self._symbol_lookup:
-                    report.symbol_mapping[metric_key] = self._symbol_lookup[metric]
+                if metric_key in self._symbol_lookup:
+                    report.symbol_mapping[metric_key] = self._symbol_lookup[metric_key]
 
         return report

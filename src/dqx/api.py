@@ -521,25 +521,33 @@ class VerificationSuite:
             logger.warning(f"Suite validation warnings:\n{report}")
 
     def _analyze(self, datasources: list[SqlDataSource], key: ResultKey) -> None:
+        # Analyze ALL symbolic metrics, not just those with matching dataset
+        all_symbolic_metrics = self._context.provider.symbolic_metrics
+
+        # Group metrics by dataset (including None for unassigned)
+        metrics_by_dataset: dict[str | None, list[SymbolicMetric]] = defaultdict(list)
+        for sym_metric in all_symbolic_metrics:
+            metrics_by_dataset[sym_metric.dataset].append(sym_metric)
+
         for ds in datasources:
-            # Get all symbolic metrics for this dataset
-            symbolic_metrics = self._context.pending_metrics(ds.name)
+            # Get metrics that either match this dataset or have no dataset assigned
+            relevant_metrics = metrics_by_dataset.get(ds.name, []) + metrics_by_dataset.get(None, [])
 
             # Skip if no metrics for this dataset
-            if not symbolic_metrics:
+            if not relevant_metrics:
                 continue
 
-            # Create symbol lookup dictionary
-            symbol_lookup: dict[MetricSpec, str] = {}
+            # Create symbol lookup dictionary using (MetricSpec, ResultKey) as key
+            symbol_lookup: dict[tuple[MetricSpec, ResultKey], str] = {}
 
             # Group metrics by their effective date
             metrics_by_date: dict[ResultKey, list[MetricSpec]] = defaultdict(list)
-            for sym_metric in symbolic_metrics:
+            for sym_metric in relevant_metrics:
                 # Create the effective key from the provider
                 effective_key = sym_metric.key_provider.create(key)
                 metrics_by_date[effective_key].append(sym_metric.metric_spec)
-                # Add to symbol lookup
-                symbol_lookup[sym_metric.metric_spec] = str(sym_metric.symbol)
+                # Add to symbol lookup with (MetricSpec, ResultKey) as key
+                symbol_lookup[(sym_metric.metric_spec, effective_key)] = str(sym_metric.symbol)
 
             # Analyze each date group separately
             logger.info(f"Analyzing dataset '{ds.name}'...")
