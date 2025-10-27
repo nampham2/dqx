@@ -161,11 +161,15 @@ The current `MetricKey` type alias is defined as `tuple[MetricSpec, ResultKey]`,
   def get_metric_window(self, metric: MetricSpec, key: ResultKey, dataset: DatasetName, lag: int, window: int) -> Maybe[TimeSeries]:
       from_date, until_date = key.range(lag, window)
 
-      # Subquery to get latest metric for each date
-      subq = (
+      # Use window function to get the latest metric_id for each date
+      latest_metrics = (
           select(
               Metric.yyyy_mm_dd,
-              func.max(Metric.created).label('max_created')
+              Metric.metric_id,
+              func.row_number().over(
+                  partition_by=Metric.yyyy_mm_dd,
+                  order_by=Metric.created.desc()
+              ).label('rn')
           )
           .where(
               Metric.metric_type == metric.metric_type,
@@ -175,20 +179,14 @@ The current `MetricKey` type alias is defined as `tuple[MetricSpec, ResultKey]`,
               Metric.tags == key.tags,
               Metric.dataset == dataset,
           )
-          .group_by(Metric.yyyy_mm_dd)
-          .subquery()
-      )
+      ).cte('latest_metrics')
 
-      # Main query joining with subquery to get only latest records
+      # Get the actual metrics using the metric_ids
       query = select(Metric).join(
-          subq,
+          latest_metrics,
           sa.and_(
-              Metric.yyyy_mm_dd == subq.c.yyyy_mm_dd,
-              Metric.created == subq.c.max_created,
-              Metric.metric_type == metric.metric_type,
-              Metric.parameters == metric.parameters,
-              Metric.tags == key.tags,
-              Metric.dataset == dataset,
+              Metric.metric_id == latest_metrics.c.metric_id,
+              latest_metrics.c.rn == 1  # Only the latest one
           )
       )
 
@@ -203,6 +201,30 @@ The current `MetricKey` type alias is defined as `tuple[MetricSpec, ResultKey]`,
 - File: `src/dqx/compute.py`
 - Update all MetricDB method calls to include dataset parameter
 - This will require determining where to get the dataset from
+
+**Task 5.4: Write integration tests for multiple suite runs**
+- File: `tests/test_orm_multiple_runs.py` (create new)
+- Test `_get_by_key` with multiple suite runs:
+  ```python
+  def test_get_by_key_returns_latest_metric():
+      # Run suite 1 with value 10.0
+      # Run suite 2 with value 20.0
+      # Verify get_by_key returns metric with value 20.0
+  ```
+- Test `get_metric_value` with multiple suite runs:
+  ```python
+  def test_get_metric_value_returns_latest():
+      # Run suite 1 with value 10.0
+      # Run suite 2 with value 20.0
+      # Verify get_metric_value returns 20.0
+  ```
+- Test `get_metric_window` with multiple suite runs:
+  ```python
+  def test_get_metric_window_returns_latest_per_date():
+      # Run suite 1 with values for multiple dates
+      # Run suite 2 with different values for same dates
+      # Verify get_metric_window returns values from suite 2
+  ```
 
 ### Task Group 6: Integration Testing and Verification
 
