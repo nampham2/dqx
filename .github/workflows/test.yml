@@ -1,0 +1,170 @@
+name: Test & Coverage
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+
+    services:
+      bigquery-emulator:
+        image: ghcr.io/goccy/bigquery-emulator:latest
+        ports:
+          - 9050:9050
+        options: >-
+          --health-cmd "curl -f http://localhost:9050/discovery/v1/apis/bigquery/v2/rest || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.5.14"
+          enable-cache: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          uv sync --frozen
+          uv pip install ".[dev]"
+
+      - name: Run pre-commit hooks
+        run: |
+          uv run pre-commit install
+          uv run pre-commit run --all-files
+
+      - name: Check commit message (PR only)
+        if: github.event_name == 'pull_request'
+        run: |
+          # Get PR title as it will be the commit message
+          echo "${{ github.event.pull_request.title }}" > .commit_msg
+          uv run python src/scripts/check_commit_msg.py .commit_msg
+
+      - name: Run type checking with mypy
+        run: uv run mypy src tests
+
+      - name: Run type coverage analysis
+        id: type-coverage
+        run: |
+          # Install pyright for type coverage
+          uv pip install pyright
+
+          # Run pyright and capture output
+          uv run pyright --outputjson > pyright-output.json || true
+
+          # Calculate type coverage
+          python -c "
+          import json
+          try:
+              with open('pyright-output.json') as f:
+                  data = json.load(f)
+              total = data.get('summary', {}).get('filesAnalyzed', 0)
+              errors = data.get('summary', {}).get('errorCount', 0)
+              if total > 0:
+                  coverage = ((total - errors) / total) * 100
+                  print(f'Type Coverage: {coverage:.1f}%')
+                  print(f'::set-output name=coverage::{coverage:.1f}')
+              else:
+                  print('Type Coverage: N/A')
+                  print('::set-output name=coverage::0')
+          except:
+              print('Type Coverage: Error calculating')
+              print('::set-output name=coverage::0')
+          "
+
+      - name: Run tests with coverage
+        env:
+          BIGQUERY_EMULATOR_HOST: http://localhost:9050
+        run: |
+          uv run pytest tests/ \
+            --cov=src/dqx \
+            --cov-report=term-missing:skip-covered \
+            --cov-report=xml \
+            --cov-report=html \
+            -v
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: Generate coverage comment
+        if: github.event_name == 'pull_request'
+        uses: py-cov-action/python-coverage-comment-action@v3
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          MINIMUM_GREEN: 100
+          MINIMUM_ORANGE: 95
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: |
+            .coverage
+            coverage.xml
+            htmlcov/
+            pyright-output.json
+
+  type-coverage-badge:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: test-results-3.11
+
+      - name: Create type coverage badge
+        run: |
+          # Extract coverage from the last test run
+          COVERAGE=$(python -c "
+          import json
+          try:
+              with open('pyright-output.json') as f:
+                  data = json.load(f)
+              total = data.get('summary', {}).get('filesAnalyzed', 0)
+              errors = data.get('summary', {}).get('errorCount', 0)
+              if total > 0:
+                  coverage = ((total - errors) / total) * 100
+                  print(f'{coverage:.1f}')
+              else:
+                  print('0')
+          except:
+              print('0')
+          ")
+
+          echo "{\"schemaVersion\": 1, \"label\": \"type coverage\", \
+          \"message\": \"${COVERAGE}%\", \"color\": \"brightgreen\"}" > type-coverage.json
+
+      - name: Upload type coverage badge data
+        uses: actions/upload-artifact@v4
+        with:
+          name: type-coverage-badge
+          path: type-coverage.json

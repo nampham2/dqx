@@ -1,0 +1,189 @@
+# Release Drafter Configuration
+# Automatically generates release notes from PRs
+
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+
+categories:
+  - title: '🚨 Breaking Changes'
+    labels:
+      - 'breaking-change'
+      - 'breaking'
+
+  - title: '🚀 Features'
+    labels:
+      - 'feature'
+      - 'enhancement'
+      - 'feat'
+
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'fix'
+      - 'bugfix'
+      - 'bug'
+
+  - title: '🎨 Improvements'
+    labels:
+      - 'refactor'
+      - 'refactoring'
+      - 'improvement'
+
+  - title: '⚡ Performance'
+    labels:
+      - 'performance'
+      - 'perf'
+      - 'optimization'
+
+  - title: '📝 Documentation'
+    labels:
+      - 'docs'
+      - 'documentation'
+
+  - title: '🧪 Tests'
+    labels:
+      - 'test'
+      - 'tests'
+      - 'testing'
+
+  - title: '🏗️ Build System'
+    labels:
+      - 'build'
+      - 'ci'
+      - 'infrastructure'
+
+  - title: '📦 Dependencies'
+    labels:
+      - 'dependencies'
+      - 'deps'
+
+  - title: '🔧 Maintenance'
+    labels:
+      - 'chore'
+      - 'maintenance'
+
+# Exclude labels from release notes
+exclude-labels:
+  - 'skip-changelog'
+  - 'wip'
+  - 'duplicate'
+  - 'invalid'
+
+# Version resolver
+version-resolver:
+  major:
+    labels:
+      - 'breaking-change'
+      - 'breaking'
+  minor:
+    labels:
+      - 'feature'
+      - 'enhancement'
+      - 'feat'
+  patch:
+    labels:
+      - 'fix'
+      - 'bugfix'
+      - 'bug'
+      - 'perf'
+      - 'performance'
+      - 'docs'
+      - 'chore'
+      - 'refactor'
+  default: patch
+
+# Autolabeler rules (auto-apply labels based on PR content)
+autolabeler:
+  - label: 'documentation'
+    files:
+      - '*.md'
+      - 'docs/**/*'
+      - 'mkdocs.yml'
+
+  - label: 'tests'
+    files:
+      - 'tests/**/*'
+      - 'test_*.py'
+      - '*_test.py'
+
+  - label: 'ci'
+    files:
+      - '.github/**/*'
+      - '.readthedocs.yml'
+      - '.pre-commit-config.yaml'
+
+  - label: 'dependencies'
+    files:
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'requirements*.txt'
+
+  - label: 'build'
+    files:
+      - 'pyproject.toml'
+      - 'setup.py'
+      - 'setup.cfg'
+
+  # DQX-specific labels
+  - label: 'api'
+    files:
+      - 'src/dqx/api.py'
+      - 'src/dqx/api/**/*'
+
+  - label: 'analyzer'
+    files:
+      - 'src/dqx/analyzer/**/*'
+
+  - label: 'metrics'
+    files:
+      - 'src/dqx/specs/**/*'
+      - 'src/dqx/ops/**/*'
+
+  - label: 'validators'
+    files:
+      - 'src/dqx/validator/**/*'
+      - 'src/dqx/evaluator/**/*'
+
+# Template for the release notes
+template: |
+  ## DQX $RESOLVED_VERSION
+
+  ### What's Changed
+
+  $CHANGES
+
+  ### 📊 Release Stats
+  - **Contributors**: $CONTRIBUTORS
+  - **Pull Requests**: [$PULL_REQUESTS]
+
+  ### 🚀 Highlights
+
+  <!-- Add release highlights here -->
+
+  ### 📦 Installation
+
+  ```bash
+  pip install dqx==$RESOLVED_VERSION
+  ```
+
+  ### 🔗 Links
+  - [Documentation](https://dqx.readthedocs.io/en/v$RESOLVED_VERSION/)
+  - [PyPI Package](https://pypi.org/project/dqx/$RESOLVED_VERSION/)
+  - [Changelog](https://github.com/$OWNER/$REPOSITORY/blob/main/CHANGELOG.md)
+
+  ---
+  **Full Changelog**: https://github.com/$OWNER/$REPOSITORY/compare/$PREVIOUS_TAG...v$RESOLVED_VERSION
+
+# Configuration for change formatting
+change-template: '- $TITLE by @$AUTHOR (#$NUMBER)'
+
+# Configuration for no changes
+no-changes-template: 'No changes in this release.'
+
+# Sort direction for changes
+sort-direction: 'ascending'
+
+# Replacer rules for cleaning up PR titles
+replacers:
+  # Remove conventional commit prefixes for cleaner titles
+  - search: '/^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.*?\))?\:\s*/i'
+    replace: ''

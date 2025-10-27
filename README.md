@@ -53,6 +53,7 @@ from dqx.common import ResultKey
 from dqx.datasource import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 
+
 # Your business rules as code
 @check(name="Revenue integrity")
 def validate_revenue(mp: MetricProvider, ctx: Context) -> None:
@@ -62,16 +63,16 @@ def validate_revenue(mp: MetricProvider, ctx: Context) -> None:
     error_rate = sp.Abs(calculated - reported) / reported
 
     ctx.assert_that(error_rate).where(
-        name="Revenue calculation accuracy",
-        severity="P0"
-    ).is_lt(0.001)  # Less than 0.1% error
+        name="Revenue calculation accuracy", severity="P0"
+    ).is_lt(
+        0.001
+    )  # Less than 0.1% error
+
 
 # Load your data
-data = pa.Table.from_pydict({
-    "price": [10.5, 20.0, 15.5],
-    "quantity": [2, 1, 3],
-    "revenue": [21.0, 20.0, 46.5]
-})
+data = pa.Table.from_pydict(
+    {"price": [10.5, 20.0, 15.5], "quantity": [2, 1, 3], "revenue": [21.0, 20.0, 46.5]}
+)
 
 # Run validation
 db = InMemoryMetricDB()
@@ -93,8 +94,7 @@ def check_completeness(mp: MetricProvider, ctx: Context) -> None:
     # Flag if more than 5% of customer IDs are missing
     null_rate = mp.null_count("customer_id") / mp.num_rows()
     ctx.assert_that(null_rate).where(
-        name="Customer ID completeness",
-        severity="P0"
+        name="Customer ID completeness", severity="P0"
     ).is_lt(0.05)
 ```
 
@@ -107,15 +107,14 @@ def monitor_trends(mp: MetricProvider, ctx: Context) -> None:
     # Alert on >20% daily revenue changes
     daily_change = mp.sum("revenue") / mp.sum("revenue", lag=1)
     ctx.assert_that(daily_change).where(
-        name="Daily revenue stability",
-        severity="P0"
+        name="Daily revenue stability", severity="P0"
     ).is_between(0.8, 1.2)
 
     # Track week-over-week growth
     wow_change = mp.sum("revenue") / mp.sum("revenue", lag=7)
-    ctx.assert_that(wow_change).where(
-        name="Weekly revenue trend"
-    ).is_geq(0.95)  # Allow 5% decline
+    ctx.assert_that(wow_change).where(name="Weekly revenue trend").is_geq(
+        0.95
+    )  # Allow 5% decline
 ```
 
 ### 🔍 Data Integrity
@@ -126,8 +125,7 @@ def monitor_trends(mp: MetricProvider, ctx: Context) -> None:
 def check_integrity(mp: MetricProvider, ctx: Context) -> None:
     # No duplicate transaction IDs allowed
     ctx.assert_that(mp.duplicate_count(["transaction_id"])).where(
-        name="Transaction uniqueness",
-        severity="P0"
+        name="Transaction uniqueness", severity="P0"
     ).is_eq(0)
 
     # Validate business rules
@@ -146,9 +144,9 @@ def compare_environments(mp: MetricProvider, ctx: Context) -> None:
     prod_total = mp.sum("revenue", dataset="production")
     staging_total = mp.sum("revenue", dataset="staging")
 
-    ctx.assert_that(prod_total).where(
-        name="Prod-staging revenue match"
-    ).is_eq(staging_total, tol=0.01)  # 1% tolerance
+    ctx.assert_that(prod_total).where(name="Prod-staging revenue match").is_eq(
+        staging_total, tol=0.01
+    )  # 1% tolerance
 ```
 
 ## Core Concepts
@@ -190,10 +188,9 @@ max_payment = mp.maximum("payment_amount")
 avg_payment = mp.average("payment_amount")
 spike_ratio = max_payment / avg_payment
 
-ctx.assert_that(spike_ratio).where(
-    name="Payment spike detection",
-    severity="P1"
-).is_lt(100)  # Max should be <100x average
+ctx.assert_that(spike_ratio).where(name="Payment spike detection", severity="P1").is_lt(
+    100
+)  # Max should be <100x average
 ```
 
 ## Development & Tooling

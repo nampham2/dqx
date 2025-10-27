@@ -359,6 +359,6 @@ The plugin system is designed for extension. Potential future features:
 
 ## See Also
 
-- [Plugin Demo](../examples/plugin_demo.py) - Complete working example
-- [API Reference](api_reference.md) - Full API documentation
-- [Architecture](architecture.md) - System design details
+- [Plugin Demo](https://github.com/yourusername/dqx/tree/main/examples/plugin_demo.py) - Complete working example
+- [API Reference](api-reference.md) - Full API documentation
+- [Architecture](design.md) - System design details

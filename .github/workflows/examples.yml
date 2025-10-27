@@ -1,0 +1,212 @@
+name: Validate Examples
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'examples/**'
+      - 'src/**'
+      - 'pyproject.toml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'examples/**'
+      - 'src/**'
+      - 'pyproject.toml'
+
+jobs:
+  validate-examples:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "0.5.14"
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          uv sync --frozen
+          uv pip install ".[examples]"
+
+      - name: Run basic example
+        run: |
+          cd examples/basic
+          uv run python basic_validation.py
+
+      - name: Run advanced example
+        run: |
+          cd examples/advanced
+          uv run python custom_checks.py
+
+      - name: Run SQL example
+        run: |
+          cd examples/sql
+          # Set up test database
+          uv run python setup_test_db.py
+          # Run validation
+          uv run python sql_validation.py
+
+      - name: Run cloud example (mock)
+        env:
+          MOCK_CLOUD_STORAGE: "true"
+        run: |
+          cd examples/cloud
+          uv run python cloud_validation.py
+
+      - name: Validate all example outputs
+        run: |
+          # Check that all examples produced expected outputs
+          uv run python scripts/validate_example_outputs.py
+
+  notebook-examples:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: |
+          uv sync --frozen
+          uv pip install ".[examples,notebook]"
+
+      - name: Test Jupyter notebooks
+        run: |
+          # Convert and test notebooks
+          uv run jupyter nbconvert --to python examples/notebooks/*.ipynb
+
+          # Run converted scripts
+          for script in examples/notebooks/*.py; do
+            echo "Running $script"
+            uv run python "$script"
+          done
+
+      - name: Generate notebook outputs
+        run: |
+          # Execute notebooks and save outputs
+          for notebook in examples/notebooks/*.ipynb; do
+            uv run jupyter nbconvert --execute --to notebook \
+              --output-dir=examples/notebooks/outputs/ "$notebook"
+          done
+
+      - name: Upload notebook outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: notebook-outputs
+          path: examples/notebooks/outputs/
+
+  performance-examples:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: |
+          uv sync --frozen
+          uv pip install ".[examples,performance]"
+
+      - name: Run performance benchmarks
+        run: |
+          cd examples/performance
+
+          # Run small dataset benchmark
+          uv run python benchmark_small.py
+
+          # Run large dataset benchmark (with memory limit)
+          ulimit -v 4194304  # 4GB memory limit
+          uv run python benchmark_large.py
+
+          # Generate performance report
+          uv run python generate_report.py
+
+      - name: Upload performance results
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results
+          path: examples/performance/results/
+
+  integration-examples:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: |
+          uv sync --frozen
+          uv pip install ".[examples,integrations]"
+
+      - name: Run database integration examples
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test
+          REDIS_URL: redis://localhost:6379
+        run: |
+          cd examples/integrations
+
+          # Set up test data
+          uv run python setup_test_data.py
+
+          # Run PostgreSQL example
+          uv run python postgres_example.py
+
+          # Run Redis example
+          uv run python redis_example.py
+
+          # Run multi-source example
+          uv run python multi_source_example.py
+
+      - name: Validate integration results
+        run: |
+          cd examples/integrations
+          uv run python validate_results.py
