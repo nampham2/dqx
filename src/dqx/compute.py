@@ -64,25 +64,41 @@ def simple_metric(db: MetricDB, metric: MetricSpec, lag: int, nominal_key: Resul
     return maybe_to_result(value, f"Metric {metric.name} not found!")
 
 
-def day_over_day(db: MetricDB, metric: MetricSpec, lag: int, nominal_key: ResultKey) -> Result[float, str]:
-    # Apply lag to get the effective base date
-    base_key = nominal_key.lag(lag)
-
+def day_over_day(db: MetricDB, metric: MetricSpec, nominal_key: ResultKey) -> Result[float, str]:
     def _dod(ts: TimeSeries) -> Result[float, str]:
         """Calculate the day over day metric."""
-        lag_0 = ts[base_key.yyyy_mm_dd]
-        lag_1 = ts[base_key.lag(1).yyyy_mm_dd]
+        lag_0 = ts[nominal_key.yyyy_mm_dd]
+        lag_1 = ts[nominal_key.lag(1).yyyy_mm_dd]
 
         # Checking for divide by zero
         if lag_1 == 0:
-            return Failure(f"Metric for {base_key.lag(1).yyyy_mm_dd.isoformat()} is zero.")
+            return Failure(f"Metric for {nominal_key.lag(1).yyyy_mm_dd.isoformat()} is zero.")
         return Success(lag_0 / lag_1)
 
     return flow(
-        db.get_metric_window(metric, base_key, lag=0, window=2),
+        db.get_metric_window(metric, nominal_key, lag=0, window=2),
         lambda ts: maybe_to_result(ts, METRIC_NOT_FOUND),
-        bind(lambda ts: _sparse_timeseries_check(ts, base_key.yyyy_mm_dd, [0, 1])),
+        bind(lambda ts: _sparse_timeseries_check(ts, nominal_key.yyyy_mm_dd, [0, 1])),
         bind(_dod),
+    )
+
+
+def week_over_week(db: MetricDB, metric: MetricSpec, nominal_key: ResultKey) -> Result[float, str]:
+    def _wow(ts: TimeSeries) -> Result[float, str]:
+        """Calculate the week over week metric."""
+        lag_0 = ts[nominal_key.yyyy_mm_dd]
+        lag_7 = ts[nominal_key.lag(7).yyyy_mm_dd]
+
+        # Checking for divide by zero
+        if lag_7 == 0:
+            return Failure(f"Metric for {nominal_key.lag(7).yyyy_mm_dd.isoformat()} is zero.")
+        return Success(lag_0 / lag_7)
+
+    return flow(
+        db.get_metric_window(metric, nominal_key, lag=0, window=8),
+        lambda ts: maybe_to_result(ts, METRIC_NOT_FOUND),
+        bind(lambda ts: _sparse_timeseries_check(ts, nominal_key.yyyy_mm_dd, [0, 7])),
+        bind(_wow),
     )
 
 
@@ -98,26 +114,4 @@ def stddev(db: MetricDB, metric: MetricSpec, lag: int, size: int, nominal_key: R
         lambda ts: maybe_to_result(ts, METRIC_NOT_FOUND),
         bind(lambda ts: _timeseries_check(ts, base_key.yyyy_mm_dd, size)),
         bind(_stddev),
-    )
-
-
-def week_over_week(db: MetricDB, metric: MetricSpec, lag: int, nominal_key: ResultKey) -> Result[float, str]:
-    # Apply lag to get the effective base date
-    base_key = nominal_key.lag(lag)
-
-    def _wow(ts: TimeSeries) -> Result[float, str]:
-        """Calculate the week over week metric."""
-        lag_0 = ts[base_key.yyyy_mm_dd]
-        lag_7 = ts[base_key.lag(7).yyyy_mm_dd]
-
-        # Checking for divide by zero
-        if lag_7 == 0:
-            return Failure(f"Metric for {base_key.lag(7).yyyy_mm_dd.isoformat()} is zero.")
-        return Success(lag_0 / lag_7)
-
-    return flow(
-        db.get_metric_window(metric, base_key, lag=0, window=8),
-        lambda ts: maybe_to_result(ts, METRIC_NOT_FOUND),
-        bind(lambda ts: _sparse_timeseries_check(ts, base_key.yyyy_mm_dd, [0, 7])),
-        bind(_wow),
     )

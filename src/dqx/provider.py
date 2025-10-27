@@ -108,15 +108,26 @@ class MetricRegistry:
         if isinstance(symbol, str):
             symbol = sp.Symbol(symbol)
 
-        first_or_none = next(filter(lambda s: s.symbol == symbol, self._metrics), None)
-        if not first_or_none:
+        if symbol not in self.index:
             raise DQXError(f"Symbol {symbol} not found.")
 
-        return first_or_none
+        return self.index[symbol]
+
+    def remove(self, symbol: sp.Symbol) -> None:
+        """Remove a symbolic metric from the registry.
+
+        Args:
+            symbol: The symbolic metric to remove
+        """
+        # Remove from metrics list
+        self._metrics = [sm for sm in self._metrics if sm.symbol != symbol]
+
+        # Remove from index
+        if symbol in self.index:
+            del self.index[symbol]
 
     def register(
         self,
-        name: str,
         fn: RetrievalFn,
         metric_spec: MetricSpec,
         lag: int = 0,
@@ -124,23 +135,22 @@ class MetricRegistry:
         required_metrics: list[sp.Symbol] | None = None,
     ) -> sp.Symbol:
         """Register a symbolic metric."""
-        required_metrics = required_metrics or []
         sym = self._next_symbol()
 
         self._metrics.append(
             sm := SymbolicMetric(
-                name=name,
+                name=metric_spec.name,
                 symbol=sym,
                 fn=fn,
                 metric_spec=metric_spec,
                 lag=lag,
                 dataset=dataset,
-                required_metrics=required_metrics,
+                required_metrics=required_metrics or [],
             )
         )
 
         # Update the reversed index
-        self._symbol_index[sym] = sm
+        self.index[sym] = sm
 
         return sym
 
@@ -219,6 +229,9 @@ class RegistryMixin:
 
     def get_symbol(self, symbol: sp.Symbol | str) -> SymbolicMetric:
         return self.registry.get(symbol)
+
+    def remove_symbol(self, symbol: sp.Symbol) -> None:
+        self.registry.remove(symbol)
 
     def collect_symbols(self, key: ResultKey) -> list[SymbolInfo]:
         return self.registry.collect_symbols(key)
@@ -396,6 +409,10 @@ class ExtendedMetricProvider(RegistryMixin):
         self._provider = provider
 
     @property
+    def provider(self) -> MetricProvider:
+        return self._provider
+
+    @property
     def registry(self) -> MetricRegistry:
         return self._provider.registry
 
@@ -403,76 +420,50 @@ class ExtendedMetricProvider(RegistryMixin):
     def db(self) -> MetricDB:
         return self._provider._db
 
-    def day_over_day(self, metric: sp.Symbol, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+    def day_over_day(self, metric: sp.Symbol, dataset: str | None = None) -> sp.Symbol:
         # Get the full SymbolicMetric object
         symbolic_metric = self._provider.get_symbol(metric)
-        metric_spec = symbolic_metric.metric_spec
+        spec = symbolic_metric.metric_spec
 
-        # Create required lag metrics first
-        if lag > 0:
-            # For lagged DoD, we need base metric at lag and lag+1
-            base_lagged = self._provider._ensure_lagged_symbol(symbolic_metric, lag)
-            lag_sym = self._provider._ensure_lagged_symbol(symbolic_metric, lag + 1)
-            required = [base_lagged, lag_sym]
-            name = f"day_over_day({symbolic_metric.name}, lag={lag})"
-        else:
-            # Standard DoD: today vs yesterday
-            lag_sym = self._provider._ensure_lagged_symbol(symbolic_metric, 1)
-            required = [metric, lag_sym]
-            name = f"day_over_day({symbolic_metric.name})"
+        # For lagged DoD, we need base metric at lag and lag+1
+        lag_0 = self.provider.metric(spec, lag=0, dataset=symbolic_metric.dataset)
+        lag_1 = self.provider.metric(spec, lag=1, dataset=symbolic_metric.dataset)
 
         return self.registry.register(
-            name=name,
-            fn=partial(compute.day_over_day, self.db, metric_spec, lag),
-            metric_spec=metric_spec,
-            lag=lag,
+            fn=partial(compute.day_over_day, self.db, spec),
+            metric_spec=specs.DayOverDay.from_base_spec(spec),
             dataset=dataset,
-            required_metrics=required,
+            required_metrics=[lag_0, lag_1],
+        )
+
+    def week_over_week(self, metric: sp.Symbol, dataset: str | None = None) -> sp.Symbol:
+        # Get the full SymbolicMetric object
+        symbolic_metric = self._provider.get_symbol(metric)
+        spec = symbolic_metric.metric_spec
+
+        # Create required lag metrics first
+        lag_0 = self.provider.metric(spec, lag=0, dataset=symbolic_metric.dataset)
+        lag_7 = self.provider.metric(spec, lag=7, dataset=symbolic_metric.dataset)
+
+        return self.registry.register(
+            fn=partial(compute.week_over_week, self.db, spec),
+            metric_spec=specs.WeekOverWeek.from_base_spec(spec),
+            dataset=dataset,
+            required_metrics=[lag_0, lag_7],
         )
 
     def stddev(self, metric: sp.Symbol, lag: int, n: int, dataset: str | None = None) -> sp.Symbol:
         # Get the full SymbolicMetric object
         symbolic_metric = self._provider.get_symbol(metric)
-        metric_spec = symbolic_metric.metric_spec
+        spec = symbolic_metric.metric_spec
 
         # Ensure required lag metrics exist
-        required = []
-        for i in range(lag, lag + n):
-            lag_sym = self._provider._ensure_lagged_symbol(symbolic_metric, i)
-            required.append(lag_sym)
+        required = [self.provider.metric(spec, lag=i, dataset=symbolic_metric.dataset) for i in range(lag, lag + n)]
 
         return self.registry.register(
-            name=f"stddev({symbolic_metric.name}, lag={lag}, n={n})",
-            fn=partial(compute.stddev, self.db, metric_spec, lag, n),
-            metric_spec=metric_spec,  # Keep original metric_spec
+            fn=partial(compute.stddev, self.db, spec, lag, n),
+            metric_spec=specs.Stddev.from_base_spec(spec, lag, n),
             lag=0,
-            dataset=dataset,
-            required_metrics=required,
-        )
-
-    def week_over_week(self, metric: sp.Symbol, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
-        # Get the full SymbolicMetric object
-        symbolic_metric = self._provider.get_symbol(metric)
-        metric_spec = symbolic_metric.metric_spec
-
-        # Create required lag metrics first
-        if lag > 0:
-            # For lagged WoW, we need base metric at lag and lag+7
-            base_lagged = self._provider._ensure_lagged_symbol(symbolic_metric, lag)
-            lag_sym = self._provider._ensure_lagged_symbol(symbolic_metric, lag + 7)
-            required = [base_lagged, lag_sym]
-            name = f"week_over_week({symbolic_metric.name}, lag={lag})"
-        else:
-            # Standard WoW: today vs 7 days ago
-            lag_sym = self._provider._ensure_lagged_symbol(symbolic_metric, 7)
-            required = [metric, lag_sym]
-            name = f"week_over_week({symbolic_metric.name})"
-
-        return self.registry.register(
-            name=name,
-            fn=partial(compute.week_over_week, self.db, metric_spec, lag),
-            metric_spec=metric_spec,
-            lag=lag,
             dataset=dataset,
             required_metrics=required,
         )
@@ -487,38 +478,13 @@ class MetricProvider(SymbolicMetricBase):
     def ext(self) -> ExtendedMetricProvider:
         return ExtendedMetricProvider(self)
 
-    def _ensure_lagged_symbol(self, base: SymbolicMetric, lag: int) -> sp.Symbol:
-        """Get or create a lagged version of a base metric.
-
-        This method handles all metric types including nested extended metrics
-        like StdDev(Average("price")).
-
-        Args:
-            base: The base symbolic metric to create a lagged version of
-            lag: The lag offset to apply
-
-        Returns:
-            Symbol for the lagged metric (either existing or newly created)
-        """
-        # Check if it already exists
-        for sm in self._registry._metrics:
-            if sm.metric_spec == base.metric_spec and sm.lag == lag and sm.dataset == base.dataset:
-                return sm.symbol
-
-        # Create new lagged metric using the generic metric() method
-        # This works for ANY metric spec, including nested ones
-        return self.metric(metric=base.metric_spec, lag=lag, dataset=base.dataset)
-
     def metric(
         self,
         metric: MetricSpec,
         lag: int = 0,
         dataset: str | None = None,
     ) -> sp.Symbol:
-        name = metric.name
-
         return self.registry.register(
-            name=name,
             fn=partial(compute.simple_metric, self._db, metric, lag),
             metric_spec=metric,
             lag=lag,

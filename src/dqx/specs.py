@@ -1,6 +1,7 @@
 import inspect
+import typing
 from collections.abc import Sequence
-from typing import Any, Literal, Protocol, Type, runtime_checkable
+from typing import Any, Literal, Protocol, Self, Type, runtime_checkable
 
 from dqx import ops, states
 from dqx.common import Parameters
@@ -17,6 +18,9 @@ MetricType = Literal[
     "NegativeCount",
     "DuplicateCount",
     "CountValues",
+    "DayOverDay",
+    "WeekOverWeek",
+    "Stddev",
 ]
 
 
@@ -468,6 +472,185 @@ class CountValues:
         if not isinstance(other, CountValues):
             return False
         return self.name == other.name and self.parameters == other.parameters
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class DayOverDay:
+    metric_type: MetricType = "DayOverDay"
+
+    def __init__(self, base_metric_type: str, base_parameters: dict[str, Any]) -> None:
+        self._base_metric_type = base_metric_type
+        self._base_parameters = base_parameters
+        self._analyzers = ()
+
+    @classmethod
+    def from_base_spec(cls, base_spec: MetricSpec) -> Self:
+        return cls(base_metric_type=base_spec.metric_type, base_parameters=base_spec.parameters)
+
+    @property
+    def base_spec(self) -> MetricSpec:
+        """Helper to reconstruct the base spec when needed"""
+        metric_type = typing.cast(MetricType, self._base_metric_type)
+        return registry[metric_type](**self._base_parameters)
+
+    @property
+    def name(self) -> str:
+        return f"dod({self.base_spec.name})"
+
+    @property
+    def parameters(self) -> Parameters:
+        return {
+            "base_metric_type": self._base_metric_type,
+            "base_parameters": self._base_parameters,
+        }
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return ()
+
+    def state(self) -> states.SimpleAdditiveState:
+        return states.SimpleAdditiveState(value=0.0)
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.SimpleAdditiveState.deserialize(state)
+
+    def __hash__(self) -> int:
+        # Convert lists to tuples for hashing
+        return hash((self._base_metric_type, tuple(sorted(self._base_parameters.items()))))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, DayOverDay):
+            return False
+        return self._base_metric_type == other._base_metric_type and self._base_parameters == other._base_parameters
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class WeekOverWeek:
+    metric_type: MetricType = "WeekOverWeek"
+
+    def __init__(self, base_metric_type: str, base_parameters: dict[str, Any]) -> None:
+        self._base_metric_type = base_metric_type
+        self._base_parameters = base_parameters
+        self._analyzers = ()
+
+    @classmethod
+    def from_base_spec(cls, base_spec: MetricSpec) -> Self:
+        return cls(base_metric_type=base_spec.metric_type, base_parameters=base_spec.parameters)
+
+    @property
+    def base_spec(self) -> MetricSpec:
+        """Helper to reconstruct the base spec when needed"""
+        metric_type = typing.cast(MetricType, self._base_metric_type)
+        return registry[metric_type](**self._base_parameters)
+
+    @property
+    def name(self) -> str:
+        return f"wow({self.base_spec.name})"
+
+    @property
+    def parameters(self) -> Parameters:
+        return {
+            "base_metric_type": self._base_metric_type,
+            "base_parameters": self._base_parameters,
+        }
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return ()
+
+    def state(self) -> states.SimpleAdditiveState:
+        return states.SimpleAdditiveState(value=0.0)
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.SimpleAdditiveState.deserialize(state)
+
+    def __hash__(self) -> int:
+        # Convert lists to tuples for hashing
+        return hash((self._base_metric_type, tuple(sorted(self._base_parameters.items()))))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, WeekOverWeek):
+            return False
+        return self._base_metric_type == other._base_metric_type and self._base_parameters == other._base_parameters
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class Stddev:
+    metric_type: MetricType = "Stddev"
+
+    def __init__(self, base_metric_type: str, base_parameters: dict[str, Any], lag: int, n: int) -> None:
+        self._base_metric_type = base_metric_type
+        self._base_parameters = base_parameters
+        self._lag = lag
+        self._n = n
+        self._analyzers = ()
+
+    @classmethod
+    def from_base_spec(cls, base_spec: MetricSpec, lag: int, n: int) -> Self:
+        return cls(
+            base_metric_type=base_spec.metric_type,
+            base_parameters=base_spec.parameters,
+            lag=lag,
+            n=n,
+        )
+
+    @property
+    def base_spec(self) -> MetricSpec:
+        """Helper to reconstruct the base spec when needed"""
+        metric_type = typing.cast(MetricType, self._base_metric_type)
+        return registry[metric_type](**self._base_parameters)
+
+    @property
+    def name(self) -> str:
+        return f"stddev({self.base_spec.name}, lag={self._lag}, n={self._n})"
+
+    @property
+    def parameters(self) -> Parameters:
+        return {
+            "base_metric_type": self._base_metric_type,
+            "base_parameters": self._base_parameters,
+            "lag": self._lag,
+            "n": self._n,
+        }
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return ()
+
+    def state(self) -> states.SimpleAdditiveState:
+        return states.SimpleAdditiveState(value=0.0)
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.SimpleAdditiveState.deserialize(state)
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self._base_metric_type,
+                tuple(sorted(self._base_parameters.items())),
+                self._lag,
+                self._n,
+            )
+        )
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, Stddev):
+            return False
+        return (
+            self._base_metric_type == other._base_metric_type
+            and self._base_parameters == other._base_parameters
+            and self._lag == other._lag
+            and self._n == other._n
+        )
 
     def __str__(self) -> str:
         return self.name

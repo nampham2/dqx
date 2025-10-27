@@ -182,7 +182,7 @@ def test_day_over_day_success(
     mock_result_key.lag = mock_lag  # type: ignore[assignment]
     mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 1)  # type: ignore[misc]
 
-    result = compute.day_over_day(mock_db, mock_metric, lag=0, nominal_key=mock_result_key)
+    result = compute.day_over_day(mock_db, mock_metric, nominal_key=mock_result_key)
 
     assert isinstance(result, Success)
     # Expected: 100.0 / 95.0 ≈ 1.0526
@@ -204,7 +204,7 @@ def test_day_over_day_no_data(
     mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
     mock_db.get_metric_window.return_value = Nothing  # type: ignore[attr-defined]
 
-    result = compute.day_over_day(mock_db, mock_metric, lag=0, nominal_key=mock_result_key)
+    result = compute.day_over_day(mock_db, mock_metric, nominal_key=mock_result_key)
 
     assert isinstance(result, Failure)
     assert result.failure() == compute.METRIC_NOT_FOUND
@@ -229,7 +229,7 @@ def test_day_over_day_missing_dates(
     mock_result_key.lag = mock_lag  # type: ignore[assignment]
     mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 1)  # type: ignore[misc]
 
-    result = compute.day_over_day(mock_db, mock_metric, lag=0, nominal_key=mock_result_key)
+    result = compute.day_over_day(mock_db, mock_metric, nominal_key=mock_result_key)
 
     assert isinstance(result, Failure)
     error_msg = result.failure()
@@ -258,7 +258,7 @@ def test_day_over_day_divide_by_zero(
     mock_result_key.lag = mock_lag  # type: ignore[assignment]
     mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 1)  # type: ignore[misc]
 
-    result = compute.day_over_day(mock_db, mock_metric, lag=0, nominal_key=mock_result_key)
+    result = compute.day_over_day(mock_db, mock_metric, nominal_key=mock_result_key)
 
     assert isinstance(result, Failure)
     error_msg = result.failure()
@@ -564,7 +564,7 @@ def test_day_over_day_edge_cases(
     }
     mock_db.get_metric_window.return_value = Some(small_ts)  # type: ignore[attr-defined]
 
-    result = compute.day_over_day(mock_db, mock_metric, lag=0, nominal_key=mock_result_key)
+    result = compute.day_over_day(mock_db, mock_metric, nominal_key=mock_result_key)
 
     assert isinstance(result, Success)
     # Should be 0.001 / 0.0001 = 10.0
@@ -638,7 +638,7 @@ def test_week_over_week_success(
     mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 15)  # type: ignore[misc]
 
     # Call with lag=0 (default)
-    result = compute.week_over_week(mock_db, mock_metric, lag=0, nominal_key=mock_result_key)
+    result = compute.week_over_week(mock_db, mock_metric, nominal_key=mock_result_key)
 
     assert isinstance(result, Success)
     # Expected: 140.0 / 100.0 = 1.4
@@ -660,7 +660,7 @@ def test_week_over_week_no_data(
     mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
     mock_db.get_metric_window.return_value = Nothing  # type: ignore[attr-defined]
 
-    result = compute.week_over_week(mock_db, mock_metric, lag=0, nominal_key=mock_result_key)
+    result = compute.week_over_week(mock_db, mock_metric, nominal_key=mock_result_key)
 
     assert isinstance(result, Failure)
     assert result.failure() == compute.METRIC_NOT_FOUND
@@ -689,7 +689,7 @@ def test_week_over_week_missing_dates(
     mock_result_key.lag = mock_lag  # type: ignore[assignment]
     mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 15)  # type: ignore[misc]
 
-    result = compute.week_over_week(mock_db, mock_metric, lag=0, nominal_key=mock_result_key)
+    result = compute.week_over_week(mock_db, mock_metric, nominal_key=mock_result_key)
 
     assert isinstance(result, Failure)
     error_msg = result.failure()
@@ -724,7 +724,7 @@ def test_week_over_week_divide_by_zero(
     mock_result_key.lag = mock_lag  # type: ignore[assignment]
     mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 15)  # type: ignore[misc]
 
-    result = compute.week_over_week(mock_db, mock_metric, lag=0, nominal_key=mock_result_key)
+    result = compute.week_over_week(mock_db, mock_metric, nominal_key=mock_result_key)
 
     assert isinstance(result, Failure)
     error_msg = result.failure()
@@ -762,7 +762,7 @@ def test_week_over_week_edge_cases(
     }
     mock_db.get_metric_window.return_value = Some(negative_ts)  # type: ignore[attr-defined]
 
-    result = compute.week_over_week(mock_db, mock_metric, lag=0, nominal_key=mock_result_key)
+    result = compute.week_over_week(mock_db, mock_metric, nominal_key=mock_result_key)
 
     assert isinstance(result, Success)
     # Expected: -140.0 / -100.0 = 1.4
@@ -781,7 +781,7 @@ def test_week_over_week_edge_cases(
     }
     mock_db.get_metric_window.return_value = Some(small_ts)  # type: ignore[attr-defined]
 
-    result = compute.week_over_week(mock_db, mock_metric, lag=0, nominal_key=mock_result_key)
+    result = compute.week_over_week(mock_db, mock_metric, nominal_key=mock_result_key)
 
     assert isinstance(result, Success)
     # Should be 0.007 / 0.0001 = 70.0
@@ -800,7 +800,7 @@ def test_week_over_week_edge_cases(
     }
     mock_db.get_metric_window.return_value = Some(identical_ts)  # type: ignore[attr-defined]
 
-    result = compute.week_over_week(mock_db, mock_metric, lag=0, nominal_key=mock_result_key)
+    result = compute.week_over_week(mock_db, mock_metric, nominal_key=mock_result_key)
 
     assert isinstance(result, Success)
     # Should be 100.0 / 100.0 = 1.0

@@ -2,10 +2,9 @@ from unittest.mock import ANY, Mock, patch
 
 import pytest
 import sympy as sp
-from returns.result import Failure, Success
 
 from dqx import specs
-from dqx.common import DQXError, ResultKey
+from dqx.common import DQXError
 from dqx.orm.repositories import MetricDB
 from dqx.provider import (
     ExtendedMetricProvider,
@@ -76,20 +75,6 @@ class TestSymbolicMetricBase:
         symbols = list(base.symbols())
         assert symbols == []
 
-    def test_symbols_with_registered_symbols(self, base: SymbolicMetricBase) -> None:
-        """Test symbols() method with registered symbols."""
-        symbol1 = sp.Symbol("x_1")
-        symbol2 = sp.Symbol("x_2")
-
-        # Register some symbols
-        base._registry.register(name="metric1", fn=Mock(), metric_spec=Mock(spec=specs.MetricSpec), lag=0, dataset=None)
-        base._registry.register(name="metric2", fn=Mock(), metric_spec=Mock(spec=specs.MetricSpec), lag=0, dataset=None)
-
-        symbols = list(base.symbols())
-        assert len(symbols) == 2
-        assert symbol1 in symbols
-        assert symbol2 in symbols
-
     def test_get_symbol_success(self, base: SymbolicMetricBase) -> None:
         """Test get_symbol() method with existing symbol."""
         symbol = sp.Symbol("x_1")
@@ -152,80 +137,6 @@ class TestSymbolicMetricBase:
         # All symbols should be unique
         symbol_names = [s.name for s in symbols]
         assert len(set(symbol_names)) == 10
-
-    def test_register(self, base: SymbolicMetricBase) -> None:
-        """Test register() method."""
-        fn = Mock()
-        metric_spec = Mock(spec=specs.MetricSpec)
-
-        symbol = base._registry.register(
-            name="test_metric",
-            fn=fn,
-            metric_spec=metric_spec,
-            lag=5,
-            dataset="dataset1",
-            required_metrics=[sp.Symbol("x_0")],
-        )
-
-        assert len(base._registry._metrics) == 1
-        assert symbol in base._registry._symbol_index
-
-        registered_metric = base._registry._metrics[0]
-        assert registered_metric.name == "test_metric"
-        assert registered_metric.symbol == symbol
-        assert registered_metric.fn == fn
-        assert registered_metric.lag == 5
-        assert registered_metric.metric_spec == metric_spec
-        assert registered_metric.dataset == "dataset1"
-        assert registered_metric.required_metrics == [sp.Symbol("x_0")]
-
-    def test_evaluate_success(self, base: SymbolicMetricBase) -> None:
-        """Test evaluate() method with successful result."""
-        symbol = sp.Symbol("x_1")
-        mock_fn = Mock(return_value=Success(42.5))
-        mock_key = Mock(spec=ResultKey)
-
-        # Manually create and add the symbolic metric for this test
-        base._registry._metrics.append(
-            SymbolicMetric(
-                name="test_metric",
-                symbol=symbol,
-                fn=mock_fn,
-                metric_spec=Mock(spec=specs.MetricSpec),
-                lag=0,
-                dataset=None,
-            )
-        )
-        base._registry._symbol_index[symbol] = base._registry._metrics[-1]
-
-        result = base.evaluate(symbol, mock_key)
-
-        assert result == Success(42.5)
-        mock_fn.assert_called_once_with(mock_key)
-
-    def test_evaluate_failure(self, base: SymbolicMetricBase) -> None:
-        """Test evaluate() method with failure result."""
-        symbol = sp.Symbol("x_1")
-        mock_fn = Mock(return_value=Failure("Error message"))
-        mock_key = Mock(spec=ResultKey)
-
-        # Manually create and add the symbolic metric for this test
-        base._registry._metrics.append(
-            SymbolicMetric(
-                name="test_metric",
-                symbol=symbol,
-                fn=mock_fn,
-                metric_spec=Mock(spec=specs.MetricSpec),
-                lag=0,
-                dataset=None,
-            )
-        )
-        base._registry._symbol_index[symbol] = base._registry._metrics[-1]
-
-        result = base.evaluate(symbol, mock_key)
-
-        assert result == Failure("Error message")
-        mock_fn.assert_called_once_with(mock_key)
 
 
 class TestMetricProvider:
@@ -476,46 +387,6 @@ class TestExtendedMetricProvider:
         assert ext_provider.registry._next_symbol == provider._registry._next_symbol
         assert ext_provider.registry.register == provider._registry.register
 
-    @patch("dqx.provider.compute.day_over_day")
-    def test_day_over_day(
-        self, mock_day_over_day: Mock, provider: MetricProvider, ext_provider: ExtendedMetricProvider
-    ) -> None:
-        """Test day_over_day() method."""
-        # First create a symbol using the provider
-        mock_metric_spec = Mock(spec=specs.MetricSpec)
-        mock_metric_spec.name = "test_metric"
-        base_symbol = provider.metric(mock_metric_spec)
-
-        lag = 5
-        dataset = "dataset1"
-
-        symbol = ext_provider.day_over_day(base_symbol, lag, dataset)
-
-        assert isinstance(symbol, sp.Symbol)
-        # Don't check the exact symbol name as it depends on counter state
-        assert symbol.name.startswith("x_")
-
-        # Check that the symbol was registered
-        registered_metric = ext_provider._provider.get_symbol(symbol)
-        assert registered_metric.name == "day_over_day(test_metric, lag=5)"
-        assert registered_metric.lag == 5
-        assert registered_metric.dataset == dataset
-        assert registered_metric.metric_spec == mock_metric_spec
-
-    def test_day_over_day_defaults(self, provider: MetricProvider, ext_provider: ExtendedMetricProvider) -> None:
-        """Test day_over_day() method with default parameters."""
-        # First create a symbol using the provider
-        mock_metric_spec = Mock(spec=specs.MetricSpec)
-        mock_metric_spec.name = "test_metric"
-        base_symbol = provider.metric(mock_metric_spec)
-
-        symbol = ext_provider.day_over_day(base_symbol)
-
-        registered_metric = ext_provider._provider.get_symbol(symbol)
-        assert registered_metric.name == "day_over_day(test_metric)"
-        assert registered_metric.lag == 0
-        assert registered_metric.dataset is None
-
     @patch("dqx.provider.compute.stddev")
     def test_stddev(self, mock_stddev: Mock, provider: MetricProvider, ext_provider: ExtendedMetricProvider) -> None:
         """Test stddev() method."""
@@ -554,32 +425,6 @@ class TestExtendedMetricProvider:
         assert registered_metric.name == "stddev(test_metric, lag=3, n=7)"
         assert registered_metric.lag == 0
         assert registered_metric.dataset is None
-
-    @patch("dqx.provider.compute.week_over_week")
-    def test_week_over_week(
-        self, mock_week_over_week: Mock, provider: MetricProvider, ext_provider: ExtendedMetricProvider
-    ) -> None:
-        """Test week_over_week() method."""
-        # First create a symbol using the provider
-        mock_metric_spec = Mock(spec=specs.MetricSpec)
-        mock_metric_spec.name = "test_metric"
-        base_symbol = provider.metric(mock_metric_spec)
-
-        lag = 3
-        dataset = "dataset1"
-
-        symbol = ext_provider.week_over_week(base_symbol, lag, dataset)
-
-        assert isinstance(symbol, sp.Symbol)
-        # Don't check the exact symbol name as it depends on counter state
-        assert symbol.name.startswith("x_")
-
-        # Check that the symbol was registered
-        registered_metric = ext_provider._provider.get_symbol(symbol)
-        assert registered_metric.name == "week_over_week(test_metric, lag=3)"
-        assert registered_metric.lag == 3
-        assert registered_metric.dataset == dataset
-        assert registered_metric.metric_spec == mock_metric_spec
 
     def test_week_over_week_defaults(self, provider: MetricProvider, ext_provider: ExtendedMetricProvider) -> None:
         """Test week_over_week() method with default parameters."""

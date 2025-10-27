@@ -14,10 +14,13 @@ Available Validators:
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
+
+import sympy as sp
 
 from dqx.graph.base import BaseNode
 from dqx.graph.nodes import AssertionNode, CheckNode
@@ -25,6 +28,9 @@ from dqx.graph.traversal import Graph
 
 if TYPE_CHECKING:
     from dqx.provider import MetricProvider
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -314,7 +320,7 @@ class UnusedSymbolValidator(BaseValidator):
         """Initialize validator with provider."""
         super().__init__()
         self._provider = provider
-        self._used_symbols: set[Any] = set()  # Using Any to avoid import issues with sp.Symbol
+        self._used_symbols: set[sp.Symbol] = set()
 
     def process_node(self, node: BaseNode) -> None:
         """Collect symbols used in assertions."""
@@ -330,31 +336,8 @@ class UnusedSymbolValidator(BaseValidator):
         # Find unused symbols
         unused_symbols = defined_symbols - self._used_symbols
 
-        # Build a set of symbols that are parent symbols of used extended metrics
-        parent_symbols_of_used = set()
-        for used_symbol in self._used_symbols:
-            try:
-                # Get the metric for this used symbol
-                used_metric = self._provider.get_symbol(used_symbol)
-                # If this metric has parent_symbols attribute, they are indirectly used
-                if hasattr(used_metric, "parent_symbols") and used_metric.parent_symbols:
-                    parent_symbols_of_used.update(used_metric.parent_symbols)
-            except Exception:
-                # Symbol not found - skip
-                continue
-
         # Generate warnings for each unused symbol, excluding dependencies
         for symbol in unused_symbols:
-            try:
-                metric = self._provider.get_symbol(symbol)
-            except Exception:
-                # Symbol not found - skip
-                continue
-
-            # Skip symbols that are parent symbols of used extended metrics
-            if symbol in parent_symbols_of_used:
-                continue
-
             # Skip symbols that are required by other metrics
             is_required = False
             for other_metric in self._provider.metrics:
@@ -366,7 +349,7 @@ class UnusedSymbolValidator(BaseValidator):
                 continue
 
             # Format: symbol_name ← metric_name
-            symbol_repr = f"{symbol} ← {metric.name}"
+            symbol_repr = f"{symbol} ← {self._provider.get_symbol(symbol).name}"
 
             self._issues.append(
                 ValidationIssue(
@@ -375,6 +358,10 @@ class UnusedSymbolValidator(BaseValidator):
                     node_path=["root", symbol_repr],
                 )
             )
+
+            # Remove the orphaned symbol from the provider to keep things clean
+            logger.info("Removed unused symbol: %s", symbol_repr)
+            self._provider.remove_symbol(symbol)
 
     def reset(self) -> None:
         """Reset validator state."""
