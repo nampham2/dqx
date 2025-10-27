@@ -323,8 +323,8 @@ def test_collect_symbols_with_evaluation_error() -> None:
     suite._key = key
 
     # Get the registered metric
-    assert len(suite._context.provider.symbolic_metrics) > 0
-    metric = suite._context.provider.symbolic_metrics[0]
+    assert len(suite._context.provider._registry._metrics) > 0
+    metric = suite._context.provider._registry._metrics[0]
 
     # Mock the fn to raise an exception
     with patch.object(metric, "fn", side_effect=RuntimeError("Test error")):

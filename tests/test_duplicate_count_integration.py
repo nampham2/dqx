@@ -111,7 +111,7 @@ class TestDuplicateCountIntegration:
             duplicate_count = mp.duplicate_count(["order_id"])
 
             # Mock the evaluation
-            mp._symbol_index[duplicate_count].fn = lambda k: Success(0.0)
+            mp.index[duplicate_count].fn = lambda k: Success(0.0)
 
             ctx.assert_that(duplicate_count).where(name="No duplicate orders").is_eq(0.0)
 

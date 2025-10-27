@@ -24,7 +24,7 @@ class TestEvaluatorValidation:
 
         # Create a metric that returns 100
         x1 = provider.average("price", dataset="orders")
-        provider._symbol_index[x1].fn = lambda k: Success(100.0)
+        provider.index[x1].fn = lambda k: Success(100.0)
 
         # Create graph with assertion that should pass
         root = RootNode("test_suite")
@@ -52,7 +52,7 @@ class TestEvaluatorValidation:
 
         # Create a metric that returns 10
         x1 = provider.average("price", dataset="orders")
-        provider._symbol_index[x1].fn = lambda k: Success(10.0)
+        provider.index[x1].fn = lambda k: Success(10.0)
 
         # Create graph with assertion that should fail
         root = RootNode("test_suite")
@@ -80,7 +80,7 @@ class TestEvaluatorValidation:
 
         # Create a metric that fails
         x1 = provider.average("price", dataset="orders")
-        provider._symbol_index[x1].fn = lambda k: Failure("Database error")
+        provider.index[x1].fn = lambda k: Failure("Database error")
 
         # Create graph with assertion
         root = RootNode("test_suite")
@@ -107,7 +107,7 @@ class TestEvaluatorValidation:
 
         # Create a metric
         x1 = provider.average("price", dataset="orders")
-        provider._symbol_index[x1].fn = lambda k: Success(100.0)
+        provider.index[x1].fn = lambda k: Success(100.0)
 
         # Create graph with assertion that has a failing validator
         root = RootNode("test_suite")
@@ -136,13 +136,13 @@ class TestEvaluatorValidation:
 
         # Create metrics
         x1 = provider.average("price", dataset="orders")
-        provider._symbol_index[x1].fn = lambda k: Success(100.0)
+        provider.index[x1].fn = lambda k: Success(100.0)
 
         x2 = provider.minimum("quantity", dataset="inventory")
-        provider._symbol_index[x2].fn = lambda k: Success(5.0)
+        provider.index[x2].fn = lambda k: Success(5.0)
 
         x3 = provider.maximum("discount", dataset="orders")
-        provider._symbol_index[x3].fn = lambda k: Success(0.8)
+        provider.index[x3].fn = lambda k: Success(0.8)
 
         # Create graph
         root = RootNode("test_suite")
@@ -180,10 +180,10 @@ class TestEvaluatorValidation:
 
         # Create metrics
         x1 = provider.average("price", dataset="orders")
-        provider._symbol_index[x1].fn = lambda k: Success(100.0)
+        provider.index[x1].fn = lambda k: Success(100.0)
 
         x2 = provider.average("cost", dataset="orders")
-        provider._symbol_index[x2].fn = lambda k: Success(60.0)
+        provider.index[x2].fn = lambda k: Success(60.0)
 
         # Create graph with complex expression
         root = RootNode("test_suite")
@@ -213,10 +213,10 @@ class TestEvaluatorValidation:
 
         # Create all metrics upfront (before evaluator is created)
         x1 = provider.sum("zero_col", dataset="data")
-        provider._symbol_index[x1].fn = lambda k: Success(0.0)
+        provider.index[x1].fn = lambda k: Success(0.0)
 
         x2 = provider.sum("negative_col", dataset="data")
-        provider._symbol_index[x2].fn = lambda k: Success(-10.0)
+        provider.index[x2].fn = lambda k: Success(-10.0)
 
         root = RootNode("test_suite")
         check = root.add_check("edge_cases", datasets=["data"])
@@ -254,7 +254,7 @@ class TestValidationExpressions:
         suite = VerificationSuite([test_check], db, "Test Suite")
 
         # Mock the provider and evaluator behavior
-        suite.provider._symbol_index = {}
+        suite.provider.index.clear()
 
         # Run suite which will build graph internally
         key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})

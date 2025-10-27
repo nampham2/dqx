@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import datetime
 from abc import ABC
-from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import timedelta
 from functools import partial
 from threading import Lock
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, overload
 
 import sympy as sp
 from returns.result import Result
@@ -59,21 +58,40 @@ class SymbolicMetric:
     required_metrics: list[sp.Symbol] = field(default_factory=list)
 
 
-class SymbolicMetricBase(ABC):
+class MetricRegistry:
     def __init__(self) -> None:
         self._metrics: list[SymbolicMetric] = []
         self._symbol_index: SymbolIndex = {}
+
         self._curr_index: int = 0
         self._mutex = Lock()
 
     @property
-    def symbolic_metrics(self) -> list[SymbolicMetric]:
+    def symbolic_metrics(self) -> Iterable[SymbolicMetric]:
         return self._metrics
 
-    def symbols(self) -> Iterable[sp.Symbol]:
-        return self._symbol_index.keys()
+    @property
+    def index(self) -> SymbolIndex:
+        return self._symbol_index
 
-    def get_symbol(self, symbol: sp.Symbol | str) -> SymbolicMetric:
+    @property
+    def metrics(self) -> list[SymbolicMetric]:
+        return self._metrics
+
+    def _next_symbol(self, prefix: str = "x") -> sp.Symbol:
+        """Generate the next symbolic metric.
+
+        Args:
+            prefix (str, optional): symbol prefix. Defaults to "x".
+
+        Returns:
+            str:
+        """
+        with self._mutex:
+            self._curr_index += 1
+            return sp.Symbol(f"{prefix}_{self._curr_index}")
+
+    def get(self, symbol: sp.Symbol | str) -> SymbolicMetric:
         """Find the first symbol data that matches the given symbol.
 
         Args:
@@ -96,36 +114,23 @@ class SymbolicMetricBase(ABC):
 
         return first_or_none
 
-    def _next_symbol(self, prefix: str = "x") -> sp.Symbol:
-        """Generate the next symbolic metric.
-
-        Args:
-            prefix (str, optional): symbol prefix. Defaults to "x".
-
-        Returns:
-            str:
-        """
-        with self._mutex:
-            self._curr_index += 1
-            return sp.Symbol(f"{prefix}_{self._curr_index}")
-
-    def _register(
+    def register(
         self,
-        symbol: sp.Symbol,
         name: str,
         fn: RetrievalFn,
         metric_spec: MetricSpec,
         lag: int = 0,
         dataset: str | None = None,
         required_metrics: list[sp.Symbol] | None = None,
-    ) -> None:
+    ) -> sp.Symbol:
         """Register a symbolic metric."""
         required_metrics = required_metrics or []
+        sym = self._next_symbol()
 
         self._metrics.append(
             sm := SymbolicMetric(
                 name=name,
-                symbol=symbol,
+                symbol=sym,
                 fn=fn,
                 metric_spec=metric_spec,
                 lag=lag,
@@ -133,10 +138,11 @@ class SymbolicMetricBase(ABC):
                 required_metrics=required_metrics,
             )
         )
-        self._symbol_index[symbol] = sm
 
-    def evaluate(self, symbol: sp.Symbol, key: ResultKey) -> Result[float, str]:
-        return self._symbol_index[symbol].fn(key)
+        # Update the reversed index
+        self._symbol_index[sym] = sm
+
+        return sym
 
     def collect_symbols(self, key: ResultKey) -> list[SymbolInfo]:
         """
@@ -164,7 +170,7 @@ class SymbolicMetricBase(ABC):
         symbols = []
 
         # Create all SymbolInfo objects
-        for symbolic_metric in self.symbolic_metrics:
+        for symbolic_metric in self.metrics:
             # Calculate the effective key for this symbol
             effective_key = key.lag(symbolic_metric.lag)
 
@@ -193,6 +199,54 @@ class SymbolicMetricBase(ABC):
         sorted_symbols = sorted(symbols, key=lambda s: int(s.name.split("_")[1]))
 
         return sorted_symbols
+
+
+class RegistryMixin:
+    @property
+    def registry(self) -> MetricRegistry:
+        raise NotImplementedError("Subclasses must implement registry property.")
+
+    @property
+    def metrics(self) -> list[SymbolicMetric]:
+        return self.registry._metrics
+
+    @property
+    def index(self) -> SymbolIndex:
+        return self.registry._symbol_index
+
+    def symbols(self) -> Iterable[sp.Symbol]:
+        return self.registry._symbol_index.keys()
+
+    def get_symbol(self, symbol: sp.Symbol | str) -> SymbolicMetric:
+        return self.registry.get(symbol)
+
+    def collect_symbols(self, key: ResultKey) -> list[SymbolInfo]:
+        return self.registry.collect_symbols(key)
+
+
+class SymbolicMetricBase(ABC, RegistryMixin):
+    def __init__(self) -> None:
+        self._registry: MetricRegistry = MetricRegistry()
+
+    @property
+    def registry(self) -> MetricRegistry:
+        return self._registry
+
+    def evaluate(self, symbol: sp.Symbol, key: ResultKey) -> Result[float, str]:
+        """
+        Evaluate the given symbolic metric.
+
+        This method takes a symbolic metric and an evaluation context (date and tags)
+        and returns the computed value of the metric along with its metadata.
+
+        Args:
+            symbol: The symbolic metric to evaluate.
+            key: The ResultKey for evaluation context (date and tags).
+
+        Returns:
+            Result containing the computed value of the metric along with its metadata.
+        """
+        return self.index[symbol].fn(key)
 
     def print_symbols(self, key: ResultKey) -> None:
         """
@@ -249,7 +303,7 @@ class SymbolicMetricBase(ABC):
         groups: dict[tuple[str, str, str | None], list[sp.Symbol]] = {}
 
         # Group symbols by identity
-        for sym_metric in self.symbolic_metrics:
+        for sym_metric in self.metrics:
             # Calculate effective date for this symbol
             effective_date = context_key.yyyy_mm_dd - timedelta(days=sym_metric.lag)
 
@@ -280,7 +334,7 @@ class SymbolicMetricBase(ABC):
         Args:
             substitutions: Map of duplicate symbols to canonical symbols
         """
-        for sym_metric in self.symbolic_metrics:
+        for sym_metric in self.metrics:
             if sym_metric.required_metrics:
                 # Replace any duplicates in required_metrics
                 sym_metric.required_metrics = [substitutions.get(req, req) for req in sym_metric.required_metrics]
@@ -297,11 +351,11 @@ class SymbolicMetricBase(ABC):
         to_remove = set(substitutions.keys())
 
         # Remove duplicate symbols
-        self._metrics = [sm for sm in self._metrics if sm.symbol not in to_remove]
+        self._registry._metrics = [sm for sm in self.metrics if sm.symbol not in to_remove]
 
         # Remove from index
         for symbol in to_remove:
-            del self._symbol_index[symbol]
+            del self.index[symbol]
 
     def symbol_deduplication(self, graph: "Graph", context_key: ResultKey) -> None:
         """Apply symbol deduplication to graph and provider.
@@ -335,16 +389,19 @@ class SymbolicMetricBase(ABC):
         self.prune_duplicate_symbols(substitutions)
 
 
-class ExtendedMetricProvider:
+class ExtendedMetricProvider(RegistryMixin):
     """A provider for derivative metrics that builds on top of primitive metrics."""
 
     def __init__(self, provider: MetricProvider) -> None:
         self._provider = provider
 
-        # Mapping provider utilities here for easier access
-        self._db = self._provider._db
-        self._next_symbol = self._provider._next_symbol
-        self._register = self._provider._register
+    @property
+    def registry(self) -> MetricRegistry:
+        return self._provider.registry
+
+    @property
+    def db(self) -> MetricDB:
+        return self._provider._db
 
     def _create_lag_dependency(
         self, base_metric: sp.Symbol, lag_days: int, parent_metric: sp.Symbol | None = None
@@ -370,15 +427,13 @@ class ExtendedMetricProvider:
 
             return maybe_to_result(value, f"Metric {metric.name} not found for lagged date!")
 
-        self._provider._register(
-            sym := self._next_symbol(),
+        return self.registry.register(
             name=f"lag({lag_days})({base_metric})",
-            fn=partial(lag_metric, self._db, metric_spec, lag_days),
+            fn=partial(lag_metric, self.db, metric_spec, lag_days),
             metric_spec=metric_spec,
             lag=lag_days,
             dataset=symbolic_metric.dataset,
         )
-        return sym
 
     def day_over_day(self, metric: sp.Symbol, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
         # Get the full SymbolicMetric object
@@ -398,16 +453,14 @@ class ExtendedMetricProvider:
             required = [metric, lag_sym]
             name = f"day_over_day({symbolic_metric.name})"
 
-        self._provider._register(
-            sym := self._next_symbol(),
+        return self.registry.register(
             name=name,
-            fn=partial(compute.day_over_day, self._db, metric_spec, lag),
+            fn=partial(compute.day_over_day, self.db, metric_spec, lag),
             metric_spec=metric_spec,
             lag=lag,
             dataset=dataset,
             required_metrics=required,
         )
-        return sym
 
     def stddev(self, metric: sp.Symbol, lag: int, n: int, dataset: str | None = None) -> sp.Symbol:
         # Get the full SymbolicMetric object
@@ -420,16 +473,14 @@ class ExtendedMetricProvider:
             lag_sym = self._provider._ensure_lagged_symbol(symbolic_metric, i)
             required.append(lag_sym)
 
-        self._provider._register(
-            sym := self._next_symbol(),
+        return self.registry.register(
             name=f"stddev({symbolic_metric.name}, lag={lag}, n={n})",
-            fn=partial(compute.stddev, self._db, metric_spec, lag, n),
+            fn=partial(compute.stddev, self.db, metric_spec, lag, n),
             metric_spec=metric_spec,  # Keep original metric_spec
             lag=0,
             dataset=dataset,
             required_metrics=required,
         )
-        return sym
 
     def week_over_week(self, metric: sp.Symbol, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
         # Get the full SymbolicMetric object
@@ -449,16 +500,14 @@ class ExtendedMetricProvider:
             required = [metric, lag_sym]
             name = f"week_over_week({symbolic_metric.name})"
 
-        self._provider._register(
-            sym := self._next_symbol(),
+        return self.registry.register(
             name=name,
-            fn=partial(compute.week_over_week, self._db, metric_spec, lag),
+            fn=partial(compute.week_over_week, self.db, metric_spec, lag),
             metric_spec=metric_spec,
             lag=lag,
             dataset=dataset,
             required_metrics=required,
         )
-        return sym
 
 
 class MetricProvider(SymbolicMetricBase):
@@ -469,39 +518,6 @@ class MetricProvider(SymbolicMetricBase):
     @property
     def ext(self) -> ExtendedMetricProvider:
         return ExtendedMetricProvider(self)
-
-    def get_metrics_by_date(self, dataset: str | None = None) -> dict[datetime.date, list[SymbolicMetric]]:
-        """Get metrics grouped by their effective date.
-
-        This helper method organizes symbolic metrics by the date they apply to,
-        taking into account any lag specified in their key provider.
-
-        Args:
-            dataset: Optional dataset name to filter metrics. If None, returns all metrics.
-
-        Returns:
-            Dictionary mapping dates to lists of symbolic metrics that apply to that date.
-
-        Example:
-            >>> metrics_by_date = provider.get_metrics_by_date("sales")
-            >>> for date, metrics in metrics_by_date.items():
-            ...     print(f"{date}: {len(metrics)} metrics")
-        """
-
-        metrics_by_date: dict[datetime.date, list[SymbolicMetric]] = defaultdict(list)
-
-        # Filter metrics by dataset if specified
-        metrics = self.symbolic_metrics
-        if dataset:
-            metrics = [m for m in metrics if m.dataset == dataset]
-
-        # Group by effective date (considering lag)
-        # Note: This requires a reference date to calculate effective dates
-        # The actual grouping would be done in the context where we have a ResultKey
-        # For now, we return the ungrouped metrics as this is a simplified helper
-        # The real grouping happens in the API when we have the ResultKey context
-
-        return dict(metrics_by_date)
 
     def _ensure_lagged_symbol(self, base: SymbolicMetric, lag: int) -> sp.Symbol:
         """Get or create a lagged version of a base metric.
@@ -517,7 +533,7 @@ class MetricProvider(SymbolicMetricBase):
             Symbol for the lagged metric (either existing or newly created)
         """
         # Check if it already exists
-        for sm in self._metrics:
+        for sm in self._registry._metrics:
             if sm.metric_spec == base.metric_spec and sm.lag == lag and sm.dataset == base.dataset:
                 return sm.symbol
 
@@ -534,15 +550,13 @@ class MetricProvider(SymbolicMetricBase):
         # Include lag in the name if lag > 0
         name = f"lag({lag})({metric.name})" if lag > 0 else metric.name
 
-        self._register(
-            sym := self._next_symbol(),
+        return self.registry.register(
             name=name,
             fn=partial(compute.simple_metric, self._db, metric, lag),
             metric_spec=metric,
             lag=lag,
             dataset=dataset,
         )
-        return sym
 
     def num_rows(self, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
         return self.metric(specs.NumRows(), lag, dataset)
@@ -570,6 +584,21 @@ class MetricProvider(SymbolicMetricBase):
 
     def duplicate_count(self, columns: list[str], lag: int = 0, dataset: str | None = None) -> sp.Symbol:
         return self.metric(specs.DuplicateCount(columns), lag, dataset)
+
+    @overload
+    def count_values(self, column: str, values: bool, lag: int = 0, dataset: str | None = ...) -> sp.Symbol: ...
+
+    @overload
+    def count_values(self, column: str, values: int, lag: int = 0, dataset: str | None = ...) -> sp.Symbol: ...
+
+    @overload
+    def count_values(self, column: str, values: str, lag: int = 0, dataset: str | None = ...) -> sp.Symbol: ...
+
+    @overload
+    def count_values(self, column: str, values: list[int], lag: int = 0, dataset: str | None = ...) -> sp.Symbol: ...
+
+    @overload
+    def count_values(self, column: str, values: list[str], lag: int = 0, dataset: str | None = ...) -> sp.Symbol: ...
 
     def count_values(
         self,

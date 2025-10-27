@@ -357,7 +357,7 @@ class UnusedSymbolValidator(BaseValidator):
 
             # Skip symbols that are required by other metrics
             is_required = False
-            for other_metric in self._provider.symbolic_metrics:
+            for other_metric in self._provider.metrics:
                 if symbol in other_metric.required_metrics:
                     is_required = True
                     break

@@ -66,10 +66,10 @@ class TestSymbolicMetricBase:
 
     def test_init(self, base: SymbolicMetricBase) -> None:
         """Test initialization of SymbolicMetricBase."""
-        assert base._metrics == []
-        assert base._symbol_index == {}
-        assert base._curr_index == 0
-        assert base._mutex is not None
+        assert base._registry._metrics == []
+        assert base._registry._symbol_index == {}
+        assert base._registry._curr_index == 0
+        assert base._registry._mutex is not None
 
     def test_symbols_empty(self, base: SymbolicMetricBase) -> None:
         """Test symbols() method when no symbols are registered."""
@@ -82,8 +82,8 @@ class TestSymbolicMetricBase:
         symbol2 = sp.Symbol("x_2")
 
         # Register some symbols
-        base._register(symbol1, "metric1", Mock(), Mock(spec=specs.MetricSpec), lag=0, dataset=None)
-        base._register(symbol2, "metric2", Mock(), Mock(spec=specs.MetricSpec), lag=0, dataset=None)
+        base._registry.register(name="metric1", fn=Mock(), metric_spec=Mock(spec=specs.MetricSpec), lag=0, dataset=None)
+        base._registry.register(name="metric2", fn=Mock(), metric_spec=Mock(spec=specs.MetricSpec), lag=0, dataset=None)
 
         symbols = list(base.symbols())
         assert len(symbols) == 2
@@ -96,7 +96,11 @@ class TestSymbolicMetricBase:
         fn = Mock()
         metric_spec = Mock(spec=specs.MetricSpec)
 
-        base._register(symbol, "test_metric", fn, metric_spec, lag=3, dataset="dataset1")
+        # Manually create and add the symbolic metric for this test
+        base._registry._metrics.append(
+            SymbolicMetric(name="test_metric", symbol=symbol, fn=fn, metric_spec=metric_spec, lag=3, dataset="dataset1")
+        )
+        base._registry._symbol_index[symbol] = base._registry._metrics[-1]
 
         result = base.get_symbol(symbol)
         assert result.name == "test_metric"
@@ -114,21 +118,21 @@ class TestSymbolicMetricBase:
 
     def test_next_symbol_default_prefix(self, base: SymbolicMetricBase) -> None:
         """Test _next_symbol() method with default prefix."""
-        symbol1 = base._next_symbol()
-        symbol2 = base._next_symbol()
+        symbol1 = base._registry._next_symbol()
+        symbol2 = base._registry._next_symbol()
 
         assert symbol1.name == "x_1"
         assert symbol2.name == "x_2"
-        assert base._curr_index == 2
+        assert base._registry._curr_index == 2
 
     def test_next_symbol_custom_prefix(self, base: SymbolicMetricBase) -> None:
         """Test _next_symbol() method with custom prefix."""
-        symbol1 = base._next_symbol("metric")
-        symbol2 = base._next_symbol("test")
+        symbol1 = base._registry._next_symbol("metric")
+        symbol2 = base._registry._next_symbol("test")
 
         assert symbol1.name == "metric_1"
         assert symbol2.name == "test_2"
-        assert base._curr_index == 2
+        assert base._registry._curr_index == 2
 
     def test_next_symbol_thread_safety(self, base: SymbolicMetricBase) -> None:
         """Test that _next_symbol() is thread-safe."""
@@ -137,7 +141,7 @@ class TestSymbolicMetricBase:
         symbols = []
 
         def generate_symbol() -> None:
-            symbols.append(base._next_symbol())
+            symbols.append(base._registry._next_symbol())
 
         threads = [threading.Thread(target=generate_symbol) for _ in range(10)]
         for thread in threads:
@@ -150,19 +154,23 @@ class TestSymbolicMetricBase:
         assert len(set(symbol_names)) == 10
 
     def test_register(self, base: SymbolicMetricBase) -> None:
-        """Test _register() method."""
-        symbol = sp.Symbol("x_1")
+        """Test register() method."""
         fn = Mock()
         metric_spec = Mock(spec=specs.MetricSpec)
 
-        base._register(
-            symbol, "test_metric", fn, metric_spec, lag=5, dataset="dataset1", required_metrics=[sp.Symbol("x_0")]
+        symbol = base._registry.register(
+            name="test_metric",
+            fn=fn,
+            metric_spec=metric_spec,
+            lag=5,
+            dataset="dataset1",
+            required_metrics=[sp.Symbol("x_0")],
         )
 
-        assert len(base._metrics) == 1
-        assert symbol in base._symbol_index
+        assert len(base._registry._metrics) == 1
+        assert symbol in base._registry._symbol_index
 
-        registered_metric = base._metrics[0]
+        registered_metric = base._registry._metrics[0]
         assert registered_metric.name == "test_metric"
         assert registered_metric.symbol == symbol
         assert registered_metric.fn == fn
@@ -177,7 +185,18 @@ class TestSymbolicMetricBase:
         mock_fn = Mock(return_value=Success(42.5))
         mock_key = Mock(spec=ResultKey)
 
-        base._register(symbol, "test_metric", mock_fn, Mock(spec=specs.MetricSpec), lag=0, dataset=None)
+        # Manually create and add the symbolic metric for this test
+        base._registry._metrics.append(
+            SymbolicMetric(
+                name="test_metric",
+                symbol=symbol,
+                fn=mock_fn,
+                metric_spec=Mock(spec=specs.MetricSpec),
+                lag=0,
+                dataset=None,
+            )
+        )
+        base._registry._symbol_index[symbol] = base._registry._metrics[-1]
 
         result = base.evaluate(symbol, mock_key)
 
@@ -190,7 +209,18 @@ class TestSymbolicMetricBase:
         mock_fn = Mock(return_value=Failure("Error message"))
         mock_key = Mock(spec=ResultKey)
 
-        base._register(symbol, "test_metric", mock_fn, Mock(spec=specs.MetricSpec), lag=0, dataset=None)
+        # Manually create and add the symbolic metric for this test
+        base._registry._metrics.append(
+            SymbolicMetric(
+                name="test_metric",
+                symbol=symbol,
+                fn=mock_fn,
+                metric_spec=Mock(spec=specs.MetricSpec),
+                lag=0,
+                dataset=None,
+            )
+        )
+        base._registry._symbol_index[symbol] = base._registry._metrics[-1]
 
         result = base.evaluate(symbol, mock_key)
 
@@ -215,9 +245,9 @@ class TestMetricProvider:
         """Test MetricProvider initialization."""
         provider = MetricProvider(mock_db)
         assert provider._db == mock_db
-        assert provider._metrics == []
-        assert provider._symbol_index == {}
-        assert provider._curr_index == 0
+        assert provider._registry._metrics == []
+        assert provider._registry._symbol_index == {}
+        assert provider._registry._curr_index == 0
 
     def test_ext_property(self, provider: MetricProvider) -> None:
         """Test the ext property."""
@@ -440,9 +470,11 @@ class TestExtendedMetricProvider:
     def test_init(self, provider: MetricProvider, ext_provider: ExtendedMetricProvider) -> None:
         """Test ExtendedMetricProvider initialization."""
         assert ext_provider._provider == provider
-        assert ext_provider._db == provider._db
-        assert ext_provider._next_symbol == provider._next_symbol
-        assert ext_provider._register == provider._register
+        assert ext_provider.db == provider._db
+        # ExtendedMetricProvider.registry returns provider._registry
+        assert ext_provider.registry == provider._registry
+        assert ext_provider.registry._next_symbol == provider._registry._next_symbol
+        assert ext_provider.registry.register == provider._registry.register
 
     @patch("dqx.provider.compute.day_over_day")
     def test_day_over_day(

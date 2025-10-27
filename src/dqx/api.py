@@ -300,7 +300,7 @@ class Context:
         Returns SymbolicMetric objects that contain both the metric specification
         and the key provider with lag information.
         """
-        all_metrics = self.provider.symbolic_metrics
+        all_metrics = self.provider.metrics
         if dataset:
             return [metric for metric in all_metrics if metric.dataset == dataset]
         return all_metrics
@@ -522,7 +522,7 @@ class VerificationSuite:
 
     def _analyze(self, datasources: list[SqlDataSource], key: ResultKey) -> None:
         # Analyze ALL symbolic metrics, not just those with matching dataset
-        all_symbolic_metrics = self._context.provider.symbolic_metrics
+        all_symbolic_metrics = self._context.provider.metrics
 
         # Group metrics by dataset (including None for unassigned)
         metrics_by_dataset: dict[str | None, list[SymbolicMetric]] = defaultdict(list)
