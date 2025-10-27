@@ -6,12 +6,12 @@ from unittest.mock import Mock, patch
 
 from dqx.api import Context, VerificationSuite, check
 from dqx.common import (
-    PluginExecutionContext,
     PluginMetadata,
     ResultKey,
 )
 from dqx.graph.base import NodeVisitor
 from dqx.orm.repositories import MetricDB
+from dqx.plugins import PluginExecutionContext
 from dqx.provider import MetricProvider
 
 
@@ -97,9 +97,13 @@ def test_enable_plugins_true_by_default() -> None:
             with patch.object(suite._context._graph, "bfs", side_effect=mock_bfs):
                 MockEvaluator.return_value = mock_evaluator
 
-                # Run suite - plugins should be enabled by default
-                key = ResultKey(datetime.now().date(), {})
-                suite.run([datasource], key)
+                # Mock the metric trace method to return empty table
+                import pyarrow as pa
+
+                with patch.object(suite, "metric_trace", return_value=pa.table({})):
+                    # Run suite - plugins should be enabled by default
+                    key = ResultKey(datetime.now().date(), {})
+                    suite.run([datasource], key)
 
     # Plugin should have been called
     assert plugin_called
@@ -165,13 +169,17 @@ def test_enable_plugins_false_disables_plugins() -> None:
                     assertion._result = "OK"
                     assertion._metric = Success(1.0)
 
-            # Patch bfs method
-            with patch.object(suite._context._graph, "bfs", side_effect=mock_bfs):
-                MockEvaluator.return_value = mock_evaluator
+                # Patch bfs method
+                with patch.object(suite._context._graph, "bfs", side_effect=mock_bfs):
+                    MockEvaluator.return_value = mock_evaluator
 
-                # Run suite with plugins disabled
-                key = ResultKey(datetime.now().date(), {})
-                suite.run([datasource], key, enable_plugins=False)
+                    # Mock the metric trace method to return empty table
+                    import pyarrow as pa
+
+                    with patch.object(suite, "metric_trace", return_value=pa.table({})):
+                        # Run suite with plugins disabled
+                        key = ResultKey(datetime.now().date(), {})
+                        suite.run([datasource], key, enable_plugins=False)
 
     # Plugin should NOT have been called
     assert not plugin_called
@@ -241,9 +249,13 @@ def test_enable_plugins_true_explicit() -> None:
             with patch.object(suite._context._graph, "bfs", side_effect=mock_bfs):
                 MockEvaluator.return_value = mock_evaluator
 
-                # Run suite with plugins explicitly enabled
-                key = ResultKey(datetime.now().date(), {})
-                suite.run([datasource], key, enable_plugins=True)
+                # Mock the metric trace method to return empty table
+                import pyarrow as pa
+
+                with patch.object(suite, "metric_trace", return_value=pa.table({})):
+                    # Run suite with plugins explicitly enabled
+                    key = ResultKey(datetime.now().date(), {})
+                    suite.run([datasource], key, enable_plugins=True)
 
     # Plugin should have been called
     assert plugin_called
@@ -305,9 +317,13 @@ def test_process_plugins_not_called_when_disabled() -> None:
             with patch.object(suite._context._graph, "bfs", side_effect=mock_bfs):
                 MockEvaluator.return_value = mock_evaluator
 
-                # Run suite with plugins disabled
-                key = ResultKey(datetime.now().date(), {})
-                suite.run([datasource], key, enable_plugins=False)
+                # Mock the metric trace method to return empty table
+                import pyarrow as pa
+
+                with patch.object(suite, "metric_trace", return_value=pa.table({})):
+                    # Run suite with plugins disabled
+                    key = ResultKey(datetime.now().date(), {})
+                    suite.run([datasource], key, enable_plugins=False)
 
     # _process_plugins should NOT have been called
     assert not process_plugins_called

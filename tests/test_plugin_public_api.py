@@ -3,14 +3,19 @@
 import time
 from datetime import datetime
 
+import pyarrow as pa
 import pytest
 
 from dqx.common import (
-    PluginExecutionContext,
     PluginMetadata,
     ResultKey,
 )
-from dqx.plugins import PluginManager
+from dqx.plugins import PluginExecutionContext, PluginManager
+
+
+def _create_empty_trace() -> pa.Table:
+    """Create an empty PyArrow table for trace parameter."""
+    return pa.table({})
 
 
 # Module-level test plugin classes
@@ -222,6 +227,7 @@ class TestPluginPublicAPI:
             duration_ms=0.0,
             results=[],
             symbols=[],
+            trace=_create_empty_trace(),
         )
 
         manager.process_all(context)

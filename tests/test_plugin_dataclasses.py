@@ -3,16 +3,22 @@
 from dataclasses import FrozenInstanceError
 from datetime import date
 
+import pyarrow as pa
 import pytest
 from returns.result import Failure, Success
 
 from dqx.common import (
     AssertionResult,
-    PluginExecutionContext,
     PluginMetadata,
     ResultKey,
 )
+from dqx.plugins import PluginExecutionContext
 from dqx.provider import SymbolInfo
+
+
+def _create_empty_trace() -> pa.Table:
+    """Create an empty PyArrow table for trace parameter."""
+    return pa.table({})
 
 
 def test_plugin_metadata_frozen() -> None:
@@ -88,6 +94,7 @@ def test_plugin_execution_context_creation() -> None:
         duration_ms=2500.0,
         results=results,
         symbols=symbols,
+        trace=_create_empty_trace(),
     )
 
     assert context.suite_name == "test"
@@ -123,6 +130,7 @@ def test_context_total_assertions() -> None:
             for _ in range(5)
         ],
         symbols=[],
+        trace=_create_empty_trace(),
     )
 
     assert context.total_assertions() == 5
@@ -153,6 +161,7 @@ def test_context_failed_assertions() -> None:
         duration_ms=0.0,
         results=results,
         symbols=[],
+        trace=_create_empty_trace(),
     )
 
     assert context.failed_assertions() == 3
@@ -185,6 +194,7 @@ def test_context_assertion_pass_rate() -> None:
         duration_ms=0.0,
         results=results,
         symbols=[],
+        trace=_create_empty_trace(),
     )
 
     assert context.assertion_pass_rate() == 60.0
@@ -198,6 +208,7 @@ def test_context_assertion_pass_rate() -> None:
         duration_ms=0.0,
         results=[],
         symbols=[],
+        trace=_create_empty_trace(),
     )
 
     assert empty_context.assertion_pass_rate() == 100.0
@@ -225,6 +236,7 @@ def test_context_symbol_methods() -> None:
         duration_ms=0.0,
         results=[],
         symbols=symbols,
+        trace=_create_empty_trace(),
     )
 
     assert context.total_symbols() == 5
@@ -256,6 +268,7 @@ def test_context_assertions_by_severity() -> None:
         duration_ms=0.0,
         results=results,
         symbols=[],
+        trace=_create_empty_trace(),
     )
 
     by_severity = context.assertions_by_severity()
@@ -287,6 +300,7 @@ def test_context_failures_by_severity() -> None:
         duration_ms=0.0,
         results=results,
         symbols=[],
+        trace=_create_empty_trace(),
     )
 
     failures = context.failures_by_severity()

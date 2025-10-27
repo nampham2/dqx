@@ -3,18 +3,23 @@
 import time
 from datetime import datetime
 
+import pyarrow as pa
 import pytest
 from returns.result import Failure, Success
 
 from dqx.common import (
     AssertionResult,
     EvaluationFailure,
-    PluginExecutionContext,
     PluginMetadata,
     ResultKey,
 )
-from dqx.plugins import AuditPlugin, PluginManager
+from dqx.plugins import AuditPlugin, PluginExecutionContext, PluginManager
 from dqx.provider import SymbolInfo
+
+
+def _create_empty_trace() -> pa.Table:
+    """Create an empty PyArrow table for trace parameter."""
+    return pa.table({})
 
 
 class ValidInstancePlugin:
@@ -141,6 +146,7 @@ class TestPluginManager:
             duration_ms=100.0,
             results=[],
             symbols=[],
+            trace=_create_empty_trace(),
         )
 
         context2 = PluginExecutionContext(
@@ -151,6 +157,7 @@ class TestPluginManager:
             duration_ms=200.0,
             results=[],
             symbols=[],
+            trace=_create_empty_trace(),
         )
 
         # Process through manager
@@ -308,7 +315,7 @@ class TestPluginManager:
         assert audit_meta.name == "audit"
         assert audit_meta.version == "1.0.0"
         assert audit_meta.author == "DQX Team"
-        assert "console_output" in audit_meta.capabilities
+        assert "verification" in audit_meta.capabilities
 
     def test_process_all_with_no_plugins(self) -> None:
         """Test process_all when no plugins are loaded."""
@@ -324,6 +331,7 @@ class TestPluginManager:
             duration_ms=0.0,
             results=[],
             symbols=[],
+            trace=_create_empty_trace(),
         )
 
         # Should not raise any errors
@@ -357,6 +365,7 @@ class TestPluginManager:
             duration_ms=0.0,
             results=[],
             symbols=[],
+            trace=_create_empty_trace(),
         )
 
         # Clear the plugins and add only our failing plugin
@@ -393,6 +402,7 @@ class TestPluginManager:
             duration_ms=0.0,
             results=[],
             symbols=[],
+            trace=_create_empty_trace(),
         )
 
         # Clear the plugins and add only our slow plugin
@@ -442,6 +452,7 @@ class TestPluginManager:
             duration_ms=100.0,
             results=[],
             symbols=[],
+            trace=_create_empty_trace(),
         )
 
         # Clear the plugins and add only our success plugin
@@ -574,7 +585,7 @@ class TestAuditPlugin:
         assert metadata.name == "audit"
         assert metadata.version == "1.0.0"
         assert metadata.author == "DQX Team"
-        assert "console_output" in metadata.capabilities
+        assert "verification" in metadata.capabilities
         assert "statistics" in metadata.capabilities
 
     def test_audit_plugin_process(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -638,6 +649,7 @@ class TestAuditPlugin:
             duration_ms=250.5,
             results=results,
             symbols=symbols,
+            trace=_create_empty_trace(),
         )
 
         # Process the context
@@ -689,6 +701,7 @@ class TestAuditPlugin:
             duration_ms=50.0,
             results=[],
             symbols=[],
+            trace=_create_empty_trace(),
         )
 
         plugin.process(context)
@@ -720,6 +733,7 @@ class TestAuditPlugin:
             duration_ms=30.0,
             results=[],
             symbols=[],
+            trace=_create_empty_trace(),
         )
 
         plugin.process(context)
@@ -752,6 +766,7 @@ class TestAuditPlugin:
             duration_ms=10.0,
             results=[],
             symbols=[],
+            trace=_create_empty_trace(),
         )
 
         # Should not raise any errors
@@ -875,6 +890,7 @@ class TestAuditPlugin:
             duration_ms=500.0,
             results=results,
             symbols=symbols,
+            trace=_create_empty_trace(),
         )
 
         # Process the context
@@ -979,6 +995,7 @@ class TestPluginInstanceEdgeCases:
             duration_ms=0.0,
             results=[],
             symbols=[],
+            trace=_create_empty_trace(),
         )
 
         # Process
@@ -1098,6 +1115,7 @@ class TestPluginIntegration:
             duration_ms=0.0,
             results=[],
             symbols=[],
+            trace=_create_empty_trace(),
         )
 
         # Process all

@@ -3,9 +3,9 @@
 import time
 
 from dqx.common import (
-    PluginExecutionContext,
     PluginMetadata,
 )
+from dqx.plugins import PluginExecutionContext
 
 
 class CustomPlugin:

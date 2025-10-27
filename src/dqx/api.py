@@ -18,7 +18,6 @@ from dqx.common import (
     AssertionResult,
     DQXError,
     Metadata,
-    PluginExecutionContext,
     ResultKey,
     ResultKeyProvider,
     SeverityLevel,
@@ -29,7 +28,7 @@ from dqx.evaluator import Evaluator
 from dqx.graph.nodes import CheckNode, RootNode
 from dqx.graph.traversal import Graph
 from dqx.orm.repositories import MetricDB
-from dqx.plugins import PluginManager
+from dqx.plugins import PluginExecutionContext, PluginManager
 from dqx.provider import MetricProvider, SymbolicMetric
 from dqx.specs import MetricSpec
 from dqx.timer import Registry
@@ -789,6 +788,7 @@ class VerificationSuite:
             duration_ms=duration_ms,
             results=self.collect_results(),
             symbols=self.provider.collect_symbols(self.key),
+            trace=self.metric_trace(self.provider._db),
         )
 
         # Process through all plugins

@@ -3,20 +3,90 @@
 import importlib
 import importlib.metadata
 import logging
-from typing import Protocol, overload, runtime_checkable
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Protocol, overload, runtime_checkable
 
+import pyarrow as pa
 from rich.console import Console
 
 from dqx.common import (
-    PluginExecutionContext,
+    AssertionResult,
     PluginMetadata,
+    ResultKey,
 )
+from dqx.provider import SymbolInfo
 from dqx.timer import TimeLimitExceededError, TimeLimiting
+
+if TYPE_CHECKING:
+    from dqx.data import MetricTraceStats
 
 logger = logging.getLogger(__name__)
 
 # Hard time limit for plugin execution
 PLUGIN_TIMEOUT_SECONDS = 60
+
+
+@dataclass
+class PluginExecutionContext:
+    """Execution context passed to plugins."""
+
+    suite_name: str  # Suite name is now part of context
+    datasources: list[str]
+    key: ResultKey
+    timestamp: float
+    duration_ms: float
+    results: list[AssertionResult]
+    symbols: list[SymbolInfo]
+    trace: pa.Table
+
+    def total_assertions(self) -> int:
+        """Total number of assertions."""
+        return len(self.results)
+
+    def failed_assertions(self) -> int:
+        """Number of failed assertions."""
+        return sum(1 for r in self.results if r.status == "FAILURE")
+
+    def passed_assertions(self) -> int:
+        """Number of passed assertions."""
+        return sum(1 for r in self.results if r.status == "OK")
+
+    def assertion_pass_rate(self) -> float:
+        """Pass rate as percentage (0-100)."""
+        if not self.results:
+            return 100.0
+        return (self.passed_assertions() / len(self.results)) * 100
+
+    def total_symbols(self) -> int:
+        """Total number of symbols."""
+        return len(self.symbols)
+
+    def failed_symbols(self) -> int:
+        """Number of symbols with failed computations."""
+        from returns.result import Failure
+
+        return sum(1 for s in self.symbols if isinstance(s.value, Failure))
+
+    def assertions_by_severity(self) -> dict[str, int]:
+        """Count of assertions grouped by severity."""
+        from collections import Counter
+
+        return dict(Counter(r.severity for r in self.results))
+
+    def failures_by_severity(self) -> dict[str, int]:
+        """Count of failures grouped by severity."""
+        from collections import Counter
+
+        failures = [r for r in self.results if r.status == "FAILURE"]
+        return dict(Counter(f.severity for f in failures))
+
+    def data_discrepancy_stats(self) -> "MetricTraceStats | None":
+        """Get data discrepancy statistics from trace table."""
+        if self.trace is None or self.trace.num_rows == 0:
+            return None
+        from dqx.data import metric_trace_stats
+
+        return metric_trace_stats(self.trace)
 
 
 @runtime_checkable
@@ -226,7 +296,7 @@ class AuditPlugin:
             version="1.0.0",
             author="DQX Team",
             description="Display execution audit report in text format with Rich color markup",
-            capabilities={"console_output", "statistics"},
+            capabilities={"verification", "statistics"},
         )
 
     def __init__(self) -> None:
@@ -283,6 +353,29 @@ class AuditPlugin:
             self.console.print(
                 f"  Symbols: {total_symbols} total, [green]{successful_symbols} successful ({success_rate:.1f}%)[/green], [red]{failed_symbols} failed ({100 - success_rate:.1f}%)[/red]"
             )
+
+        # Data discrepancy line
+        discrepancy_stats = context.data_discrepancy_stats()
+        if discrepancy_stats:
+            if discrepancy_stats.discrepancy_count == 0:
+                self.console.print("  Data Integrity: [green]✓ No discrepancies found[/green]")
+            else:
+                # Count discrepancy types
+                from collections import Counter
+
+                discrepancy_types: Counter[str] = Counter()
+                for detail in discrepancy_stats.discrepancy_details:
+                    for discrepancy in detail["discrepancies"]:
+                        discrepancy_types[discrepancy] += 1
+
+                # Format the discrepancy summary compactly
+                type_summary = ", ".join(
+                    f"{count}x {disc.replace('_', '').replace('value', '').replace(' != ', '≠')}"
+                    for disc, count in discrepancy_types.most_common()
+                )
+                self.console.print(
+                    f"  Data Integrity: [yellow]⚠️  {discrepancy_stats.discrepancy_count} discrepancies ({type_summary})[/yellow]"
+                )
 
         self.console.print("[bold blue]══════════════════════[/bold blue]")
         self.console.print()

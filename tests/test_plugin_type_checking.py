@@ -9,8 +9,8 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 
-from dqx.common import PluginExecutionContext, PluginMetadata
-from dqx.plugins import PluginManager, PostProcessor
+from dqx.common import PluginMetadata
+from dqx.plugins import PluginExecutionContext, PluginManager, PostProcessor
 
 if TYPE_CHECKING:
     # Type checking utilities
@@ -98,6 +98,8 @@ class TestPluginTypeChecking:
         import time
         from datetime import datetime
 
+        import pyarrow as pa
+
         from dqx.common import ResultKey
 
         context = PluginExecutionContext(
@@ -108,6 +110,7 @@ class TestPluginTypeChecking:
             duration_ms=100.5,
             results=[],
             symbols=[],
+            trace=pa.table({}),
         )
 
         # Verify method return types
