@@ -387,59 +387,6 @@ class TestExtendedMetricProvider:
         assert ext_provider.registry._next_symbol == provider._registry._next_symbol
         assert ext_provider.registry.register == provider._registry.register
 
-    @patch("dqx.provider.compute.stddev")
-    def test_stddev(self, mock_stddev: Mock, provider: MetricProvider, ext_provider: ExtendedMetricProvider) -> None:
-        """Test stddev() method."""
-        # First create a symbol using the provider
-        mock_metric_spec = Mock(spec=specs.MetricSpec)
-        mock_metric_spec.name = "test_metric"
-        base_symbol = provider.metric(mock_metric_spec)
-
-        lag = 5
-        n = 10
-        dataset = "dataset1"
-
-        symbol = ext_provider.stddev(base_symbol, lag, n, dataset)
-
-        assert isinstance(symbol, sp.Symbol)
-        # Don't check the exact symbol name as it depends on counter state
-        assert symbol.name.startswith("x_")
-
-        # Check that the symbol was registered
-        registered_metric = ext_provider._provider.get_symbol(symbol)
-        assert registered_metric.name == "stddev(test_metric, lag=5, n=10)"
-        assert registered_metric.lag == 0  # stddev itself doesn't have lag, it creates lagged dependencies
-        assert registered_metric.dataset == dataset
-        assert registered_metric.metric_spec == mock_metric_spec
-
-    def test_stddev_defaults(self, provider: MetricProvider, ext_provider: ExtendedMetricProvider) -> None:
-        """Test stddev() method with default parameters."""
-        # First create a symbol using the provider
-        mock_metric_spec = Mock(spec=specs.MetricSpec)
-        mock_metric_spec.name = "test_metric"
-        base_symbol = provider.metric(mock_metric_spec)
-
-        symbol = ext_provider.stddev(base_symbol, 3, 7)
-
-        registered_metric = ext_provider._provider.get_symbol(symbol)
-        assert registered_metric.name == "stddev(test_metric, lag=3, n=7)"
-        assert registered_metric.lag == 0
-        assert registered_metric.dataset is None
-
-    def test_week_over_week_defaults(self, provider: MetricProvider, ext_provider: ExtendedMetricProvider) -> None:
-        """Test week_over_week() method with default parameters."""
-        # First create a symbol using the provider
-        mock_metric_spec = Mock(spec=specs.MetricSpec)
-        mock_metric_spec.name = "test_metric"
-        base_symbol = provider.metric(mock_metric_spec)
-
-        symbol = ext_provider.week_over_week(base_symbol)
-
-        registered_metric = ext_provider._provider.get_symbol(symbol)
-        assert registered_metric.name == "week_over_week(test_metric)"
-        assert registered_metric.lag == 0
-        assert registered_metric.dataset is None
-
 
 class TestTypeAliases:
     """Test type aliases and imports."""

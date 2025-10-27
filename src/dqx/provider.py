@@ -458,12 +458,12 @@ class ExtendedMetricProvider(RegistryMixin):
         spec = symbolic_metric.metric_spec
 
         # Ensure required lag metrics exist
-        required = [self.provider.metric(spec, lag=i, dataset=symbolic_metric.dataset) for i in range(lag, lag + n)]
+        required = [self.provider.metric(spec, dataset=symbolic_metric.dataset) for i in range(lag, lag + n)]
 
         return self.registry.register(
-            fn=partial(compute.stddev, self.db, spec, lag, n),
+            fn=partial(compute.stddev, self.db, spec, n),
             metric_spec=specs.Stddev.from_base_spec(spec, lag, n),
-            lag=0,
+            lag=lag,
             dataset=dataset,
             required_metrics=required,
         )

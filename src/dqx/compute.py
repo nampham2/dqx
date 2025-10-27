@@ -102,16 +102,13 @@ def week_over_week(db: MetricDB, metric: MetricSpec, nominal_key: ResultKey) -> 
     )
 
 
-def stddev(db: MetricDB, metric: MetricSpec, lag: int, size: int, nominal_key: ResultKey) -> Result[float, str]:
-    # Apply lag to get the effective base date
-    base_key = nominal_key.lag(lag)
-
+def stddev(db: MetricDB, metric: MetricSpec, size: int, nominal_key: ResultKey) -> Result[float, str]:
     def _stddev(ts: TimeSeries) -> Result[float, str]:
         return Success(np.std(list(ts.values())).item())
 
     return flow(
-        db.get_metric_window(metric, base_key, lag=0, window=size),
+        db.get_metric_window(metric, nominal_key, lag=0, window=size),
         lambda ts: maybe_to_result(ts, METRIC_NOT_FOUND),
-        bind(lambda ts: _timeseries_check(ts, base_key.yyyy_mm_dd, size)),
+        bind(lambda ts: _timeseries_check(ts, nominal_key.yyyy_mm_dd, size)),
         bind(_stddev),
     )

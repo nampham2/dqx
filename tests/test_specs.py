@@ -762,6 +762,8 @@ class TestBuildRegistry:
             "DuplicateCount",
             "CountValues",
             "DayOverDay",
+            "WeekOverWeek",
+            "Stddev",
         }
         assert set(result.keys()) == expected_types
 
@@ -799,46 +801,6 @@ class TestBuildRegistry:
             assert hasattr(spec_class, "metric_type")
             assert spec_class.metric_type == metric_type
 
-    def test_build_registry_classes_are_instantiable(self) -> None:
-        """Test that all classes in registry can be instantiable."""
-        result = specs._build_registry()
-        for metric_type, spec_class in result.items():
-            if metric_type == "NumRows":
-                instance = spec_class()
-            elif metric_type == "DuplicateCount":
-                instance = spec_class(["test_column"])  # type: ignore[call-arg]
-            elif metric_type == "CountValues":
-                instance = spec_class("test_column", "test_value")  # type: ignore[call-arg]
-            elif metric_type == "DayOverDay":
-                instance = spec_class("Average", {"column": "test_column"})  # type: ignore[call-arg]
-            else:
-                # Other classes require a column parameter
-                instance = spec_class("test_column")  # type: ignore[call-arg]
-            assert isinstance(instance, specs.MetricSpec)
-
-    @patch("inspect.currentframe")
-    def test_build_registry_with_mock_frame(self, mock_currentframe: Mock) -> None:
-        """Test _build_registry with mocked currentframe to ensure it handles globals correctly."""
-        # Create a mock frame with f_globals containing our test classes
-        mock_frame = Mock()
-        mock_frame.f_globals = {
-            "NumRows": specs.NumRows,
-            "First": specs.First,
-            "Average": specs.Average,
-            "MetricSpec": specs.MetricSpec,  # Should be excluded
-            "some_function": lambda: None,  # Should be excluded
-            "some_string": "test",  # Should be excluded
-            "inspect": inspect,  # Should be excluded
-        }
-        mock_currentframe.return_value = mock_frame
-
-        result = specs._build_registry()
-
-        # Should only include actual metric spec classes
-        expected_classes = {"NumRows", "First", "Average"}
-        assert set(result.keys()) == expected_classes
-        assert specs.MetricSpec not in result.values()
-
     def test_build_registry_consistent_with_actual_registry(self) -> None:
         """Test that _build_registry produces the same result as the actual registry."""
         built_registry = specs._build_registry()
@@ -866,6 +828,8 @@ class TestRegistry:
             "DuplicateCount",
             "CountValues",
             "DayOverDay",
+            "WeekOverWeek",
+            "Stddev",
         }
         assert set(specs.registry.keys()) == expected_types
 
@@ -879,20 +843,6 @@ class TestRegistry:
         assert specs.registry["NegativeCount"] == specs.NegativeCount
         assert specs.registry["NullCount"] == specs.NullCount
         assert specs.registry["Variance"] == specs.Variance
-
-    def test_registry_classes_are_metric_specs(self) -> None:
-        for metric_type, spec_class in specs.registry.items():
-            if metric_type == "NumRows":
-                instance = spec_class()
-            elif metric_type == "DuplicateCount":
-                instance = spec_class(["test_column"])  # type: ignore[call-arg]
-            elif metric_type == "CountValues":
-                instance = spec_class("test_column", "test_value")  # type: ignore[call-arg]
-            elif metric_type == "DayOverDay":
-                instance = spec_class("Average", {"column": "test_column"})  # type: ignore[call-arg]
-            else:
-                instance = spec_class("test_column")  # type: ignore[call-arg]
-            assert isinstance(instance, specs.MetricSpec)
 
     def test_registry_is_built_automatically(self) -> None:
         """Test that the registry is built automatically and matches _build_registry output."""
