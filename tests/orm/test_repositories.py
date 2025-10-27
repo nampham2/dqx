@@ -57,14 +57,14 @@ def test_search_by_parameter(metric_1: Metric) -> None:
 def test_get_metric_value(metric_1: Metric, key: ResultKey) -> None:
     db = InMemoryMetricDB()
     db.persist([metric_1])
-    value = db.get_metric_value(specs.Average("page_views"), key)
+    value = db.get_metric_value(specs.Average("page_views"), key, dataset="test_dataset")
     assert value == Some(pytest.approx(5.2))
 
 
 def test_get_metric_window(metric_window: list[Metric], key: ResultKey) -> None:
     db = InMemoryMetricDB()
     db.persist(metric_window)
-    value = db.get_metric_window(specs.Average("page_views"), key, lag=1, window=5).unwrap()
+    value = db.get_metric_window(specs.Average("page_views"), key, lag=1, window=5, dataset="test_dataset").unwrap()
     assert len(value) == 5
     assert min(value.keys()) == dt.date.fromisoformat("2025-01-30")
     assert max(value.keys()) == dt.date.fromisoformat("2025-02-03")
@@ -115,7 +115,7 @@ def test_get_metric_value_missing(key: ResultKey) -> None:
     """Test getting value for non-existent metric returns empty Maybe."""
     db = InMemoryMetricDB()
     spec = specs.Average("non_existent_column")
-    result = db.get_metric_value(spec, key)
+    result = db.get_metric_value(spec, key, dataset="test_dataset")
     assert result == Nothing
 
 
@@ -123,7 +123,7 @@ def test_get_metric_window_missing(key: ResultKey) -> None:
     """Test getting window for non-existent metric returns Some with empty dict."""
     db = InMemoryMetricDB()
     spec = specs.Average("non_existent_column")
-    result = db.get_metric_window(spec, key, lag=1, window=5)
+    result = db.get_metric_window(spec, key, lag=1, window=5, dataset="test_dataset")
     assert result == Some({})
 
 
@@ -154,5 +154,5 @@ def test_get_metric_window_with_no_scalars_result(key: ResultKey) -> None:
         mock_session_instance.scalars.return_value = None
         mock_session.return_value = mock_session_instance
 
-        result = db.get_metric_window(spec, key, lag=1, window=5)
+        result = db.get_metric_window(spec, key, lag=1, window=5, dataset="test_dataset")
         assert result == Nothing

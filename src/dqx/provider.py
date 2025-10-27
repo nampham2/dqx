@@ -8,10 +8,10 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from functools import partial
 from threading import Lock
-from typing import TYPE_CHECKING, overload
+from typing import TYPE_CHECKING, Callable, overload
 
 import sympy as sp
-from returns.result import Result
+from returns.result import Failure, Result
 
 from dqx import compute, specs
 from dqx.common import DQXError, ResultKey, RetrievalFn, Tags
@@ -59,6 +59,77 @@ class SymbolicMetric:
     lag: int = 0
     dataset: str | None = None
     required_metrics: list[sp.Symbol] = field(default_factory=list)
+
+
+def _create_lazy_retrieval_fn(provider: "MetricProvider", metric_spec: MetricSpec, symbol: sp.Symbol) -> RetrievalFn:
+    """Create a lazy retrieval function that resolves dataset at evaluation time.
+
+    This factory creates a retrieval function that defers dataset resolution
+    until the metric is actually evaluated. This allows metrics to be created
+    before their dataset is known (during imputation), while ensuring the
+    correct dataset is used during evaluation.
+
+    Args:
+        provider: The MetricProvider instance containing the symbol registry.
+        metric_spec: The metric specification to evaluate.
+        symbol: The symbol representing this metric.
+
+    Returns:
+        A retrieval function that looks up the dataset from the SymbolicMetric
+        at evaluation time and uses it to fetch the correct metric value.
+    """
+
+    def lazy_retrieval_fn(key: ResultKey) -> Result[float, str]:
+        # Look up the current dataset from the SymbolicMetric
+        try:
+            symbolic_metric = provider.get_symbol(symbol)
+        except DQXError as e:
+            return Failure(f"Failed to resolve symbol {symbol}: {str(e)}")
+
+        if symbolic_metric.dataset is None:
+            return Failure(f"Dataset not imputed for metric {symbolic_metric.name}")
+
+        # Call the compute function with the resolved dataset
+        return compute.simple_metric(provider._db, metric_spec, symbolic_metric.dataset, key)
+
+    return lazy_retrieval_fn
+
+
+def _create_lazy_extended_fn(
+    provider: "MetricProvider",
+    compute_fn: Callable[[MetricDB, MetricSpec, str, ResultKey], Result[float, str]],
+    metric_spec: MetricSpec,
+    symbol: sp.Symbol,
+) -> RetrievalFn:
+    """Create a lazy retrieval function for extended metrics (DoD, WoW, etc).
+
+    Similar to _create_lazy_retrieval_fn but for extended metrics that
+    need to call specialized compute functions.
+
+    Args:
+        provider: The MetricProvider instance.
+        compute_fn: The compute function to use (e.g., compute.day_over_day).
+        metric_spec: The base metric specification.
+        symbol: The symbol representing this metric.
+
+    Returns:
+        A lazy retrieval function for the extended metric.
+    """
+
+    def lazy_extended_fn(key: ResultKey) -> Result[float, str]:
+        # Look up the current dataset
+        try:
+            symbolic_metric = provider.get_symbol(symbol)
+        except DQXError as e:
+            return Failure(f"Failed to resolve symbol {symbol}: {str(e)}")
+
+        if symbolic_metric.dataset is None:
+            return Failure(f"Dataset not imputed for metric {symbolic_metric.name}")
+
+        # Call the compute function with the resolved dataset
+        return compute_fn(provider._db, metric_spec, symbolic_metric.dataset, key)
+
+    return lazy_extended_fn
 
 
 class MetricRegistry:
@@ -444,12 +515,29 @@ class ExtendedMetricProvider(RegistryMixin):
         lag_0 = self.provider.metric(spec, lag=0, dataset=symbolic_metric.dataset)
         lag_1 = self.provider.metric(spec, lag=1, dataset=symbolic_metric.dataset)
 
-        return self.registry.register(
-            fn=partial(compute.day_over_day, self.db, spec),
-            metric_spec=specs.DayOverDay.from_base_spec(spec),
-            dataset=dataset,
-            required_metrics=[lag_0, lag_1],
+        # Generate symbol first
+        sym = self.registry._next_symbol()
+
+        # Create lazy function for DoD
+        fn = _create_lazy_extended_fn(self._provider, compute.day_over_day, spec, sym)
+
+        # Register with lazy function
+        self.registry._metrics.append(
+            sm := SymbolicMetric(
+                name=specs.DayOverDay.from_base_spec(spec).name,
+                symbol=sym,
+                fn=fn,
+                metric_spec=specs.DayOverDay.from_base_spec(spec),
+                lag=0,
+                dataset=dataset,
+                required_metrics=[lag_0, lag_1],
+            )
         )
+
+        # Update index
+        self.registry.index[sym] = sm
+
+        return sym
 
     def week_over_week(self, metric: sp.Symbol, dataset: str | None = None) -> sp.Symbol:
         # Get the full SymbolicMetric object
@@ -460,12 +548,29 @@ class ExtendedMetricProvider(RegistryMixin):
         lag_0 = self.provider.metric(spec, lag=0, dataset=symbolic_metric.dataset)
         lag_7 = self.provider.metric(spec, lag=7, dataset=symbolic_metric.dataset)
 
-        return self.registry.register(
-            fn=partial(compute.week_over_week, self.db, spec),
-            metric_spec=specs.WeekOverWeek.from_base_spec(spec),
-            dataset=dataset,
-            required_metrics=[lag_0, lag_7],
+        # Generate symbol first
+        sym = self.registry._next_symbol()
+
+        # Create lazy function for WoW
+        fn = _create_lazy_extended_fn(self._provider, compute.week_over_week, spec, sym)
+
+        # Register with lazy function
+        self.registry._metrics.append(
+            sm := SymbolicMetric(
+                name=specs.WeekOverWeek.from_base_spec(spec).name,
+                symbol=sym,
+                fn=fn,
+                metric_spec=specs.WeekOverWeek.from_base_spec(spec),
+                lag=0,
+                dataset=dataset,
+                required_metrics=[lag_0, lag_7],
+            )
         )
+
+        # Update index
+        self.registry.index[sym] = sm
+
+        return sym
 
     def stddev(self, metric: sp.Symbol, lag: int, n: int, dataset: str | None = None) -> sp.Symbol:
         # Get the full SymbolicMetric object
@@ -475,13 +580,29 @@ class ExtendedMetricProvider(RegistryMixin):
         # Ensure required lag metrics exist
         required = [self.provider.metric(spec, dataset=symbolic_metric.dataset) for i in range(lag, lag + n)]
 
-        return self.registry.register(
-            fn=partial(compute.stddev, self.db, spec, n),
-            metric_spec=specs.Stddev.from_base_spec(spec, lag, n),
-            lag=lag,
-            dataset=dataset,
-            required_metrics=required,
+        # Generate symbol first
+        sym = self.registry._next_symbol()
+
+        # Create lazy function for stddev
+        fn = _create_lazy_extended_fn(self._provider, partial(compute.stddev, size=n), spec, sym)
+
+        # Register with lazy function
+        self.registry._metrics.append(
+            sm := SymbolicMetric(
+                name=specs.Stddev.from_base_spec(spec, lag, n).name,
+                symbol=sym,
+                fn=fn,
+                metric_spec=specs.Stddev.from_base_spec(spec, lag, n),
+                lag=lag,
+                dataset=dataset,
+                required_metrics=required,
+            )
         )
+
+        # Update index
+        self.registry.index[sym] = sm
+
+        return sym
 
 
 class MetricProvider(SymbolicMetricBase):
@@ -499,12 +620,43 @@ class MetricProvider(SymbolicMetricBase):
         lag: int = 0,
         dataset: str | None = None,
     ) -> sp.Symbol:
-        return self.registry.register(
-            fn=partial(compute.simple_metric, self._db, metric),
-            metric_spec=metric,
-            lag=lag,
-            dataset=dataset,
+        """Register a metric symbol with lazy dataset resolution.
+
+        Creates a symbolic metric that can be evaluated later. If dataset is not
+        provided at registration time, it will be resolved during imputation and
+        used at evaluation time through lazy retrieval.
+
+        Args:
+            metric: The metric specification to register.
+            lag: Number of days to lag the metric evaluation.
+            dataset: Optional dataset name. Can be provided now or imputed later.
+
+        Returns:
+            A Symbol representing this metric in expressions.
+        """
+        # Generate symbol first
+        sym = self.registry._next_symbol()
+
+        # Create lazy retrieval function that will resolve dataset at evaluation time
+        fn = _create_lazy_retrieval_fn(self, metric, sym)
+
+        # Register with the lazy function
+        self.registry._metrics.append(
+            sm := SymbolicMetric(
+                name=metric.name,
+                symbol=sym,
+                fn=fn,
+                metric_spec=metric,
+                lag=lag,
+                dataset=dataset,
+                required_metrics=[],
+            )
         )
+
+        # Update index
+        self.registry.index[sym] = sm
+
+        return sym
 
     def num_rows(self, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
         return self.metric(specs.NumRows(), lag, dataset)
