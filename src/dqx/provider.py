@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime
+import logging
 from abc import ABC
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -19,6 +20,8 @@ from dqx.specs import MetricSpec
 
 if TYPE_CHECKING:
     from dqx.graph.traversal import Graph
+
+logger = logging.getLogger(__name__)
 
 SymbolIndex = dict[sp.Symbol, "SymbolicMetric"]
 
@@ -379,6 +382,7 @@ class SymbolicMetricBase(ABC, RegistryMixin):
 
         # Remove from index
         for symbol in to_remove:
+            logger.info("Pruned duplicate symbol: %s", symbol)
             del self.index[symbol]
 
     def symbol_deduplication(self, graph: "Graph", context_key: ResultKey) -> None:
