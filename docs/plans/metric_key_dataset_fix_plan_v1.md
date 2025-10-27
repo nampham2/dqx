@@ -10,13 +10,16 @@ The current `MetricKey` type alias is defined as `tuple[MetricSpec, ResultKey]`,
 
 2. **Database Query Issue**: The MetricDB interface methods (`get_metric_value`, `get_metric_window`, etc.) don't include dataset in their WHERE clauses, potentially returning arbitrary results when multiple datasets have the same metric.
 
+3. **Multiple Execution IDs**: When multiple execution IDs exist for the same metric (from different runs), the database queries don't select the latest record, returning an arbitrary one instead.
+
 ## Solution Overview
 
 1. Add a `DatasetName` type alias for semantic clarity
 2. Update `MetricKey` to include dataset: `tuple[MetricSpec, ResultKey, DatasetName]`
 3. Update all MetricKey creation and usage sites
-4. Fix MetricDB interface to include dataset parameter
+4. Fix MetricDB interface to include dataset parameter and select latest records
 5. Add comprehensive tests to prevent regression
+6. **No backward compatibility required** - clean implementation without legacy support
 
 ## Implementation Tasks
 
@@ -101,12 +104,83 @@ The current `MetricKey` type alias is defined as `tuple[MetricSpec, ResultKey]`,
   def get_metric_window(self, metric: MetricSpec, key: ResultKey, dataset: DatasetName, lag: int, window: int) -> Maybe[TimeSeries]:
   ```
 
-**Task 5.2: Update database queries**
+**Task 5.2: Update database queries to include dataset and handle multiple execution IDs**
 - File: `src/dqx/orm/repositories.py`
-- Add `Metric.dataset == dataset` to WHERE clauses in:
-  - `_get_by_key` method
-  - `get_metric_value` method
-  - `get_metric_window` method
+- Update `_get_by_key` method:
+  ```python
+  def _get_by_key(self, key: ResultKey, spec: MetricSpec, dataset: DatasetName) -> Maybe[models.Metric]:
+      query = select(Metric).where(
+          Metric.metric_type == spec.metric_type,
+          Metric.parameters == spec.parameters,
+          Metric.yyyy_mm_dd == key.yyyy_mm_dd,
+          Metric.tags == key.tags,
+          Metric.dataset == dataset,
+      ).order_by(Metric.created.desc()).limit(1)  # Get latest record
+
+      result = self.new_session().scalar(query)
+
+      if result:
+          return Maybe.from_value(result.to_model())
+
+      return Maybe.empty
+  ```
+
+- Update `get_metric_value` method:
+  ```python
+  def get_metric_value(self, metric: MetricSpec, key: ResultKey, dataset: DatasetName) -> Maybe[float]:
+      query = select(Metric.value).where(
+          Metric.metric_type == metric.metric_type,
+          Metric.parameters == metric.parameters,
+          Metric.yyyy_mm_dd == key.yyyy_mm_dd,
+          Metric.tags == key.tags,
+          Metric.dataset == dataset,
+      ).order_by(Metric.created.desc()).limit(1)  # Get latest record
+
+      return Maybe.from_optional(self.new_session().scalar(query))
+  ```
+
+- Update `get_metric_window` method:
+  ```python
+  def get_metric_window(self, metric: MetricSpec, key: ResultKey, dataset: DatasetName, lag: int, window: int) -> Maybe[TimeSeries]:
+      from_date, until_date = key.range(lag, window)
+
+      # Subquery to get latest metric for each date
+      subq = (
+          select(
+              Metric.yyyy_mm_dd,
+              func.max(Metric.created).label('max_created')
+          )
+          .where(
+              Metric.metric_type == metric.metric_type,
+              Metric.parameters == metric.parameters,
+              Metric.yyyy_mm_dd >= from_date,
+              Metric.yyyy_mm_dd <= until_date,
+              Metric.tags == key.tags,
+              Metric.dataset == dataset,
+          )
+          .group_by(Metric.yyyy_mm_dd)
+          .subquery()
+      )
+
+      # Main query joining with subquery to get only latest records
+      query = select(Metric).join(
+          subq,
+          sa.and_(
+              Metric.yyyy_mm_dd == subq.c.yyyy_mm_dd,
+              Metric.created == subq.c.max_created,
+              Metric.metric_type == metric.metric_type,
+              Metric.parameters == metric.parameters,
+              Metric.tags == key.tags,
+              Metric.dataset == dataset,
+          )
+      )
+
+      result = self.new_session().scalars(query)
+      if result is None:
+          return Nothing
+
+      return Some({r.yyyy_mm_dd: r.value for r in result.all()})
+  ```
 
 **Task 5.3: Update compute.py to pass dataset**
 - File: `src/dqx/compute.py`
@@ -123,7 +197,7 @@ The current `MetricKey` type alias is defined as `tuple[MetricSpec, ResultKey]`,
 **Task 6.2: Update existing tests**
 - Search for tests that create MetricKey tuples directly
 - Update them to use 3-tuple format
-- Ensure backward compatibility where needed
+- No backward compatibility needed - update all tests to new format
 
 **Task 6.3: Run full test suite**
 - Run: `uv run pytest tests/ -v`
@@ -160,7 +234,7 @@ The current `MetricKey` type alias is defined as `tuple[MetricSpec, ResultKey]`,
 
 3. **Regression Tests**: Ensure existing functionality works
    - Single dataset analysis
-   - Backward compatibility where applicable
+   - Multiple execution ID handling
 
 ## Rollback Plan
 
