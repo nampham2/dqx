@@ -270,7 +270,7 @@ class TestMetricProvider:
 
         # Check that the symbol was registered
         registered_metric = provider.get_symbol(symbol)
-        assert registered_metric.name == "lag(7)(test_metric)"
+        assert registered_metric.name == "test_metric"  # No lag prefix with new naming convention
         assert registered_metric.lag == 7
         assert registered_metric.dataset == dataset
         assert registered_metric.metric_spec == mock_metric_spec

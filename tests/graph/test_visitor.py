@@ -583,9 +583,9 @@ class TestDatasetImputationRecursiveProcessing:
         parent_metric.name = "week_over_week(average(tax))"
         parent_metric.dataset = None  # Will be imputed
 
-        # x_2: lag(7) metric (child of x_1, created by week_over_week)
+        # x_2: average(tax) metric with lag=7 (child of x_1, created by week_over_week)
         child_metric = Mock(spec=SymbolicMetric)
-        child_metric.name = "lag(7)(x_3)"
+        child_metric.name = "average(tax)"  # No lag prefix with new naming convention
         child_metric.dataset = None  # Should be imputed through recursive processing
 
         # x_3: average(tax) metric (grandchild - base metric for lag)
@@ -716,7 +716,7 @@ class TestDatasetImputationRecursiveProcessing:
 
         # Child with conflicting dataset
         child_metric = Mock(spec=SymbolicMetric)
-        child_metric.name = "lag(7)(sum(revenue))"
+        child_metric.name = "sum(revenue)"  # No lag prefix with new naming convention
         child_metric.dataset = "staging"  # Conflicts with parent's "prod"
 
         provider.get_symbol.side_effect = lambda s: parent_metric if str(s) == "x_1" else child_metric
@@ -740,7 +740,7 @@ class TestDatasetImputationRecursiveProcessing:
         # Check that we have both types of errors
         error_messages = " ".join(errors)
         assert "Child symbol" in error_messages  # Parent-child mismatch error
-        assert "lag(7)" in error_messages
+        assert "sum(revenue)" in error_messages  # No lag prefix with new naming convention
         assert "staging" in error_messages
         assert "prod" in error_messages
 

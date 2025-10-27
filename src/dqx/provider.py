@@ -403,38 +403,6 @@ class ExtendedMetricProvider(RegistryMixin):
     def db(self) -> MetricDB:
         return self._provider._db
 
-    def _create_lag_dependency(
-        self, base_metric: sp.Symbol, lag_days: int, parent_metric: sp.Symbol | None = None
-    ) -> sp.Symbol:
-        """Create a lag dependency symbol for the base metric.
-
-        Args:
-            base_metric: The base metric symbol to create lag for
-            lag_days: Number of days to lag
-            parent_metric: The parent metric that depends on this lag (for dataset propagation)
-
-        Returns:
-            Symbol representing the lag dependency
-        """
-        symbolic_metric = self._provider.get_symbol(base_metric)
-        metric_spec = symbolic_metric.metric_spec
-
-        # Create lag function that applies the lag to the key
-        def lag_metric(db: MetricDB, metric: MetricSpec, lag: int, nominal_key: ResultKey) -> Result[float, str]:
-            lagged_key = nominal_key.lag(lag)
-            value = db.get_metric_value(metric, lagged_key)
-            from returns.converters import maybe_to_result
-
-            return maybe_to_result(value, f"Metric {metric.name} not found for lagged date!")
-
-        return self.registry.register(
-            name=f"lag({lag_days})({base_metric})",
-            fn=partial(lag_metric, self.db, metric_spec, lag_days),
-            metric_spec=metric_spec,
-            lag=lag_days,
-            dataset=symbolic_metric.dataset,
-        )
-
     def day_over_day(self, metric: sp.Symbol, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
         # Get the full SymbolicMetric object
         symbolic_metric = self._provider.get_symbol(metric)
@@ -547,8 +515,7 @@ class MetricProvider(SymbolicMetricBase):
         lag: int = 0,
         dataset: str | None = None,
     ) -> sp.Symbol:
-        # Include lag in the name if lag > 0
-        name = f"lag({lag})({metric.name})" if lag > 0 else metric.name
+        name = metric.name
 
         return self.registry.register(
             name=name,
