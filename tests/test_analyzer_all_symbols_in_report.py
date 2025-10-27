@@ -67,7 +67,7 @@ class TestAllSymbolsInReport:
         suite.run([ds1, ds2], key)
 
         # Collect all symbols from provider
-        provider_symbols = [str(s.symbol) for s in suite.provider.symbolic_metrics]
+        provider_symbols = [str(s.symbol) for s in suite.provider._registry._metrics]
 
         # Collect all symbols from all analysis reports
         all_report_symbols: list[str] = []
@@ -116,7 +116,7 @@ class TestAllSymbolsInReport:
         assert len(report.symbol_mapping) == 3, f"Expected 3 symbols in report, got {len(report.symbol_mapping)}"
 
         # Verify all provider metrics are in the report
-        provider_metrics = suite.provider.symbolic_metrics
+        provider_metrics = suite.provider._registry._metrics
         assert len(provider_metrics) == 3, f"Expected 3 provider metrics, got {len(provider_metrics)}"
 
     def test_mixed_dataset_assignment(self) -> None:

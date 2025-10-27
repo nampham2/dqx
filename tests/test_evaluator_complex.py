@@ -21,7 +21,7 @@ class TestEvaluatorComplexNumberHandling:
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
         negative_metric = provider.sum("returns", dataset="financials")
-        provider._symbol_index[negative_metric].fn = lambda k: Success(-100.0)
+        provider.index[negative_metric].fn = lambda k: Success(-100.0)
 
         evaluator = Evaluator(provider, key, "Test Suite")
 
@@ -40,7 +40,7 @@ class TestEvaluatorComplexNumberHandling:
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
         negative_balance = provider.sum("balance", dataset="accounts")
-        provider._symbol_index[negative_balance].fn = lambda k: Success(-50.0)
+        provider.index[negative_balance].fn = lambda k: Success(-50.0)
 
         evaluator = Evaluator(provider, key, "Test Suite")
 
@@ -61,7 +61,7 @@ class TestEvaluatorComplexNumberHandling:
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
         negative_value = provider.sum("value", dataset="metrics")
-        provider._symbol_index[negative_value].fn = lambda k: Success(-8.0)
+        provider.index[negative_value].fn = lambda k: Success(-8.0)
 
         evaluator = Evaluator(provider, key, "Test Suite")
 
@@ -80,7 +80,7 @@ class TestEvaluatorComplexNumberHandling:
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
         positive_metric = provider.sum("revenue", dataset="sales")
-        provider._symbol_index[positive_metric].fn = lambda k: Success(100.0)
+        provider.index[positive_metric].fn = lambda k: Success(100.0)
 
         evaluator = Evaluator(provider, key, "Test Suite")
 
@@ -97,7 +97,7 @@ class TestEvaluatorComplexNumberHandling:
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
         real_metric = provider.sum("real_part", dataset="complex_data")
-        provider._symbol_index[real_metric].fn = lambda k: Success(5.0)
+        provider.index[real_metric].fn = lambda k: Success(5.0)
 
         evaluator = Evaluator(provider, key, "Test Suite")
 
@@ -117,8 +117,8 @@ class TestEvaluatorComplexNumberHandling:
 
         metric_a = provider.sum("a", dataset="test")
         metric_b = provider.sum("b", dataset="test")
-        provider._symbol_index[metric_a].fn = lambda k: Success(-1.0)
-        provider._symbol_index[metric_b].fn = lambda k: Success(2.0)
+        provider.index[metric_a].fn = lambda k: Success(-1.0)
+        provider.index[metric_b].fn = lambda k: Success(2.0)
 
         evaluator = Evaluator(provider, key, "Test Suite")
 

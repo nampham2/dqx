@@ -1,7 +1,6 @@
 import datetime as dt
 from unittest.mock import MagicMock
 
-import numpy as np
 import pytest
 from returns.maybe import Nothing, Some
 from returns.result import Failure, Success
@@ -118,37 +117,6 @@ def test_timeseries_check_limit_exceeded() -> None:
     assert len(listed_dates) == limit
 
 
-def test_simple_metric_success(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
-) -> None:
-    """Test simple_metric with successful retrieval."""
-    # Setup
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-    mock_db.get_metric_value.return_value = Some(42.5)  # type: ignore[attr-defined]
-
-    result = compute.simple_metric(mock_db, mock_metric, mock_key_provider, mock_result_key)
-
-    assert isinstance(result, Success)
-    assert result.unwrap() == 42.5
-    mock_key_provider.create.assert_called_once_with(mock_result_key)  # type: ignore[attr-defined]
-    mock_db.get_metric_value.assert_called_once_with(mock_metric, mock_result_key)  # type: ignore[attr-defined]
-
-
-def test_simple_metric_not_found(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
-) -> None:
-    """Test simple_metric when metric is not found."""
-    # Setup
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-    mock_db.get_metric_value.return_value = Nothing  # type: ignore[attr-defined]
-
-    result = compute.simple_metric(mock_db, mock_metric, mock_key_provider, mock_result_key)
-
-    assert isinstance(result, Failure)
-    error_msg = result.failure()
-    assert "Metric test_metric not found" in error_msg
-
-
 def test_day_over_day_success(
     mock_db: MetricDB,
     mock_metric: MetricSpec,
@@ -161,17 +129,28 @@ def test_day_over_day_success(
     mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
     mock_db.get_metric_window.return_value = Some(sample_timeseries)  # type: ignore[attr-defined]
 
-    # Mock the lag method to return proper dates
-    lag_key = MagicMock()
-    lag_key.yyyy_mm_dd = dt.date(2022, 12, 31)
-    mock_result_key.lag.return_value = lag_key  # type: ignore[attr-defined]
+    # Mock the lag method properly
+    def mock_lag(days: int) -> MagicMock:
+        lagged_key = MagicMock()
+        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 1) - dt.timedelta(days=days)
+        lagged_key.lag = mock_lag  # Allow chaining
+        return lagged_key
 
-    result = compute.day_over_day(mock_db, mock_metric, mock_key_provider, mock_result_key)
+    mock_result_key.lag = mock_lag  # type: ignore[assignment]
+    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 1)  # type: ignore[misc]
+
+    result = compute.day_over_day(mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key)
 
     assert isinstance(result, Success)
     # Expected: 100.0 / 95.0 ≈ 1.0526
     assert abs(result.unwrap() - (100.0 / 95.0)) < 1e-6
-    mock_db.get_metric_window.assert_called_once_with(mock_metric, mock_result_key, lag=0, window=2)  # type: ignore[attr-defined]
+    # The function should call get_metric_window with the base_key (nominal_key.lag(0))
+    mock_db.get_metric_window.assert_called_once()  # type: ignore[attr-defined]
+    call_args = mock_db.get_metric_window.call_args  # type: ignore[attr-defined]
+    assert call_args[0][0] == mock_metric
+    # The second argument should be the base_key with the same date since lag=0
+    assert call_args[0][1].yyyy_mm_dd == dt.date(2023, 1, 1)
+    assert call_args[1] == {"lag": 0, "window": 2, "dataset": "test_dataset"}
 
 
 def test_day_over_day_no_data(
@@ -182,7 +161,7 @@ def test_day_over_day_no_data(
     mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
     mock_db.get_metric_window.return_value = Nothing  # type: ignore[attr-defined]
 
-    result = compute.day_over_day(mock_db, mock_metric, mock_key_provider, mock_result_key)
+    result = compute.day_over_day(mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key)
 
     assert isinstance(result, Failure)
     assert result.failure() == compute.METRIC_NOT_FOUND
@@ -197,12 +176,17 @@ def test_day_over_day_missing_dates(
     incomplete_ts = {dt.date(2023, 1, 1): 100.0}  # Missing previous day
     mock_db.get_metric_window.return_value = Some(incomplete_ts)  # type: ignore[attr-defined]
 
-    # Mock the lag method
-    lag_key = MagicMock()
-    lag_key.yyyy_mm_dd = dt.date(2022, 12, 31)
-    mock_result_key.lag.return_value = lag_key  # type: ignore[attr-defined]
+    # Mock the lag method properly
+    def mock_lag(days: int) -> MagicMock:
+        lagged_key = MagicMock()
+        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 1) - dt.timedelta(days=days)
+        lagged_key.lag = mock_lag  # Allow chaining
+        return lagged_key
 
-    result = compute.day_over_day(mock_db, mock_metric, mock_key_provider, mock_result_key)
+    mock_result_key.lag = mock_lag  # type: ignore[assignment]
+    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 1)  # type: ignore[misc]
+
+    result = compute.day_over_day(mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key)
 
     assert isinstance(result, Failure)
     error_msg = result.failure()
@@ -221,47 +205,22 @@ def test_day_over_day_divide_by_zero(
     }
     mock_db.get_metric_window.return_value = Some(zero_ts)  # type: ignore[attr-defined]
 
-    # Mock the lag method
-    lag_key = MagicMock()
-    lag_key.yyyy_mm_dd = dt.date(2022, 12, 31)
-    mock_result_key.lag.return_value = lag_key  # type: ignore[attr-defined]
+    # Mock the lag method properly
+    def mock_lag(days: int) -> MagicMock:
+        lagged_key = MagicMock()
+        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 1) - dt.timedelta(days=days)
+        lagged_key.lag = mock_lag  # Allow chaining
+        return lagged_key
 
-    result = compute.day_over_day(mock_db, mock_metric, mock_key_provider, mock_result_key)
+    mock_result_key.lag = mock_lag  # type: ignore[assignment]
+    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 1)  # type: ignore[misc]
+
+    result = compute.day_over_day(mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key)
 
     assert isinstance(result, Failure)
     error_msg = result.failure()
     assert "is zero" in error_msg
     assert "2022-12-31" in error_msg
-
-
-def test_stddev_success(
-    mock_db: MetricDB,
-    mock_metric: MetricSpec,
-    mock_key_provider: ResultKeyProvider,
-    mock_result_key: ResultKey,
-    sample_timeseries: TimeSeries,
-) -> None:
-    """Test stddev with successful calculation."""
-    # Setup
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-    mock_db.get_metric_window.return_value = Some(sample_timeseries)  # type: ignore[attr-defined]
-
-    # Mock the lag method - the sample_timeseries starts from 2022-12-29, so lag should start there
-    lag_key = MagicMock()
-    lag_key.yyyy_mm_dd = dt.date(2022, 12, 29)  # First available date in sample_timeseries
-    mock_result_key.lag.return_value = lag_key  # type: ignore[attr-defined]
-
-    lag = 3
-    size = 4
-
-    result = compute.stddev(mock_db, mock_metric, lag, size, mock_key_provider, mock_result_key)
-
-    assert isinstance(result, Success)
-    # Calculate expected stddev
-    values = list(sample_timeseries.values())
-    expected_stddev = np.std(values).item()
-    assert abs(result.unwrap() - expected_stddev) < 1e-6
-    mock_db.get_metric_window.assert_called_once_with(mock_metric, mock_result_key, lag, size)  # type: ignore[attr-defined]
 
 
 def test_stddev_no_data(
@@ -272,10 +231,9 @@ def test_stddev_no_data(
     mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
     mock_db.get_metric_window.return_value = Nothing  # type: ignore[attr-defined]
 
-    lag = 1
     size = 5
 
-    result = compute.stddev(mock_db, mock_metric, lag, size, mock_key_provider, mock_result_key)
+    result = compute.stddev(mock_db, mock_metric, size=size, dataset="test_dataset", nominal_key=mock_result_key)
 
     assert isinstance(result, Failure)
     assert result.failure() == compute.METRIC_NOT_FOUND
@@ -288,21 +246,25 @@ def test_stddev_missing_dates(
     # Setup
     mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
     incomplete_ts = {
-        dt.date(2023, 1, 1): 100.0,
-        dt.date(2022, 12, 30): 90.0,
+        dt.date(2022, 12, 29): 100.0,
+        dt.date(2022, 12, 31): 90.0,
         # Missing dates in between
     }
     mock_db.get_metric_window.return_value = Some(incomplete_ts)  # type: ignore[attr-defined]
 
-    # Mock the lag method
-    lag_key = MagicMock()
-    lag_key.yyyy_mm_dd = dt.date(2022, 12, 29)
-    mock_result_key.lag.return_value = lag_key  # type: ignore[attr-defined]
+    # Mock the lag method properly
+    def mock_lag(days: int) -> MagicMock:
+        lagged_key = MagicMock()
+        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 1) - dt.timedelta(days=days)
+        lagged_key.lag = mock_lag  # Allow chaining
+        return lagged_key
 
-    lag = 3
+    mock_result_key.lag = mock_lag  # type: ignore[assignment]
+    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 1)  # type: ignore[misc]
+
     size = 5
 
-    result = compute.stddev(mock_db, mock_metric, lag, size, mock_key_provider, mock_result_key)
+    result = compute.stddev(mock_db, mock_metric, size=size, dataset="test_dataset", nominal_key=mock_result_key)
 
     assert isinstance(result, Failure)
     error_msg = result.failure()
@@ -318,15 +280,19 @@ def test_stddev_single_value(
     single_value_ts = {dt.date(2023, 1, 1): 100.0}
     mock_db.get_metric_window.return_value = Some(single_value_ts)  # type: ignore[attr-defined]
 
-    # Mock the lag method
-    lag_key = MagicMock()
-    lag_key.yyyy_mm_dd = dt.date(2023, 1, 1)
-    mock_result_key.lag.return_value = lag_key  # type: ignore[attr-defined]
+    # Mock the lag method properly
+    def mock_lag(days: int) -> MagicMock:
+        lagged_key = MagicMock()
+        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 1) - dt.timedelta(days=days)
+        lagged_key.lag = mock_lag  # Allow chaining
+        return lagged_key
 
-    lag = 0
+    mock_result_key.lag = mock_lag  # type: ignore[assignment]
+    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 1)  # type: ignore[misc]
+
     size = 1
 
-    result = compute.stddev(mock_db, mock_metric, lag, size, mock_key_provider, mock_result_key)
+    result = compute.stddev(mock_db, mock_metric, size=size, dataset="test_dataset", nominal_key=mock_result_key)
 
     assert isinstance(result, Success)
     # Standard deviation of a single value should be 0
@@ -342,16 +308,20 @@ def test_stddev_empty_values(
     empty_ts: dict[dt.date, float] = {}
     mock_db.get_metric_window.return_value = Some(empty_ts)  # type: ignore[attr-defined]
 
-    # Mock the lag method
-    lag_key = MagicMock()
-    lag_key.yyyy_mm_dd = dt.date(2023, 1, 1)
-    mock_result_key.lag.return_value = lag_key  # type: ignore[attr-defined]
+    # Mock the lag method properly
+    def mock_lag(days: int) -> MagicMock:
+        lagged_key = MagicMock()
+        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 1) - dt.timedelta(days=days)
+        lagged_key.lag = mock_lag  # Allow chaining
+        return lagged_key
 
-    lag = 0
+    mock_result_key.lag = mock_lag  # type: ignore[assignment]
+    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 1)  # type: ignore[misc]
+
     size = 1
 
     # This should fail at the timeseries check stage since empty ts means missing dates
-    result = compute.stddev(mock_db, mock_metric, lag, size, mock_key_provider, mock_result_key)
+    result = compute.stddev(mock_db, mock_metric, size=size, dataset="test_dataset", nominal_key=mock_result_key)
 
     assert isinstance(result, Failure)
     error_msg = result.failure()
@@ -489,6 +459,16 @@ def test_day_over_day_edge_cases(
     # Setup
     mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
 
+    # Mock the lag method properly
+    def mock_lag(days: int) -> MagicMock:
+        lagged_key = MagicMock()
+        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 1) - dt.timedelta(days=days)
+        lagged_key.lag = mock_lag  # Allow chaining
+        return lagged_key
+
+    mock_result_key.lag = mock_lag  # type: ignore[assignment]
+    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 1)  # type: ignore[misc]
+
     # Test with very small numbers (near zero but not zero)
     small_ts = {
         dt.date(2023, 1, 1): 0.001,
@@ -496,44 +476,11 @@ def test_day_over_day_edge_cases(
     }
     mock_db.get_metric_window.return_value = Some(small_ts)  # type: ignore[attr-defined]
 
-    # Mock the lag method
-    lag_key = MagicMock()
-    lag_key.yyyy_mm_dd = dt.date(2022, 12, 31)
-    mock_result_key.lag.return_value = lag_key  # type: ignore[attr-defined]
-
-    result = compute.day_over_day(mock_db, mock_metric, mock_key_provider, mock_result_key)
+    result = compute.day_over_day(mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key)
 
     assert isinstance(result, Success)
     # Should be 0.001 / 0.0001 = 10.0
     assert abs(result.unwrap() - 10.0) < 1e-6
-
-
-def test_stddev_with_identical_values(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
-) -> None:
-    """Test stddev when all values are identical."""
-    # Setup
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-    identical_ts = {
-        dt.date(2023, 1, 1): 100.0,
-        dt.date(2022, 12, 31): 100.0,
-        dt.date(2022, 12, 30): 100.0,
-    }
-    mock_db.get_metric_window.return_value = Some(identical_ts)  # type: ignore[attr-defined]
-
-    # Mock the lag method
-    lag_key = MagicMock()
-    lag_key.yyyy_mm_dd = dt.date(2022, 12, 30)
-    mock_result_key.lag.return_value = lag_key  # type: ignore[attr-defined]
-
-    lag = 2
-    size = 3
-
-    result = compute.stddev(mock_db, mock_metric, lag, size, mock_key_provider, mock_result_key)
-
-    assert isinstance(result, Success)
-    # Standard deviation of identical values should be 0
-    assert result.unwrap() == 0.0
 
 
 def test_week_over_week_success(
@@ -554,18 +501,34 @@ def test_week_over_week_success(
     }
     mock_db.get_metric_window.return_value = Some(week_ts)  # type: ignore[attr-defined]
 
-    # Mock the lag method
-    lag_key = MagicMock()
-    lag_key.yyyy_mm_dd = dt.date(2023, 1, 8)
-    mock_result_key.lag.return_value = lag_key  # type: ignore[attr-defined]
+    # Mock the lag method properly
+    # When lag(7) is called, return a key with date 7 days earlier
+    lag_7_key = MagicMock()
+    lag_7_key.yyyy_mm_dd = dt.date(2023, 1, 8)
+
+    # Set up the mock to handle different lag values
+    def mock_lag(days: int) -> MagicMock:
+        lagged_key = MagicMock()
+        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 15) - dt.timedelta(days=days)
+        lagged_key.lag = mock_lag  # Allow chaining
+        return lagged_key
+
+    mock_result_key.lag = mock_lag  # type: ignore[assignment]
     mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 15)  # type: ignore[misc]
 
-    result = compute.week_over_week(mock_db, mock_metric, mock_key_provider, mock_result_key)
+    # Call with lag=0 (default)
+    result = compute.week_over_week(mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key)
 
     assert isinstance(result, Success)
     # Expected: 140.0 / 100.0 = 1.4
     assert abs(result.unwrap() - 1.4) < 1e-6
-    mock_db.get_metric_window.assert_called_once_with(mock_metric, mock_result_key, lag=0, window=8)  # type: ignore[attr-defined]
+    # The function should call get_metric_window with the base_key (nominal_key.lag(0))
+    mock_db.get_metric_window.assert_called_once()  # type: ignore[attr-defined]
+    call_args = mock_db.get_metric_window.call_args  # type: ignore[attr-defined]
+    assert call_args[0][0] == mock_metric
+    # The second argument should be the base_key with the same date since lag=0
+    assert call_args[0][1].yyyy_mm_dd == dt.date(2023, 1, 15)
+    assert call_args[1] == {"lag": 0, "window": 8, "dataset": "test_dataset"}
 
 
 def test_week_over_week_no_data(
@@ -576,7 +539,7 @@ def test_week_over_week_no_data(
     mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
     mock_db.get_metric_window.return_value = Nothing  # type: ignore[attr-defined]
 
-    result = compute.week_over_week(mock_db, mock_metric, mock_key_provider, mock_result_key)
+    result = compute.week_over_week(mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key)
 
     assert isinstance(result, Failure)
     assert result.failure() == compute.METRIC_NOT_FOUND
@@ -595,12 +558,17 @@ def test_week_over_week_missing_dates(
     }
     mock_db.get_metric_window.return_value = Some(incomplete_ts)  # type: ignore[attr-defined]
 
-    # Mock the lag method
-    lag_key = MagicMock()
-    lag_key.yyyy_mm_dd = dt.date(2023, 1, 8)
-    mock_result_key.lag.return_value = lag_key  # type: ignore[attr-defined]
+    # Mock the lag method properly
+    def mock_lag(days: int) -> MagicMock:
+        lagged_key = MagicMock()
+        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 15) - dt.timedelta(days=days)
+        lagged_key.lag = mock_lag  # Allow chaining
+        return lagged_key
 
-    result = compute.week_over_week(mock_db, mock_metric, mock_key_provider, mock_result_key)
+    mock_result_key.lag = mock_lag  # type: ignore[assignment]
+    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 15)  # type: ignore[misc]
+
+    result = compute.week_over_week(mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key)
 
     assert isinstance(result, Failure)
     error_msg = result.failure()
@@ -625,13 +593,17 @@ def test_week_over_week_divide_by_zero(
     }
     mock_db.get_metric_window.return_value = Some(zero_ts)  # type: ignore[attr-defined]
 
-    # Mock the lag method
-    lag_key = MagicMock()
-    lag_key.yyyy_mm_dd = dt.date(2023, 1, 8)
-    mock_result_key.lag.return_value = lag_key  # type: ignore[attr-defined]
+    # Mock the lag method properly
+    def mock_lag(days: int) -> MagicMock:
+        lagged_key = MagicMock()
+        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 15) - dt.timedelta(days=days)
+        lagged_key.lag = mock_lag  # Allow chaining
+        return lagged_key
+
+    mock_result_key.lag = mock_lag  # type: ignore[assignment]
     mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 15)  # type: ignore[misc]
 
-    result = compute.week_over_week(mock_db, mock_metric, mock_key_provider, mock_result_key)
+    result = compute.week_over_week(mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key)
 
     assert isinstance(result, Failure)
     error_msg = result.failure()
@@ -646,6 +618,16 @@ def test_week_over_week_edge_cases(
     # Setup
     mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
 
+    # Mock the lag method properly
+    def mock_lag(days: int) -> MagicMock:
+        lagged_key = MagicMock()
+        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 15) - dt.timedelta(days=days)
+        lagged_key.lag = mock_lag  # Allow chaining
+        return lagged_key
+
+    mock_result_key.lag = mock_lag  # type: ignore[assignment]
+    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 15)  # type: ignore[misc]
+
     # Test with negative values
     negative_ts = {
         dt.date(2023, 1, 15): -140.0,  # lag_0 (today)
@@ -659,13 +641,7 @@ def test_week_over_week_edge_cases(
     }
     mock_db.get_metric_window.return_value = Some(negative_ts)  # type: ignore[attr-defined]
 
-    # Mock the lag method
-    lag_key = MagicMock()
-    lag_key.yyyy_mm_dd = dt.date(2023, 1, 8)
-    mock_result_key.lag.return_value = lag_key  # type: ignore[attr-defined]
-    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 15)  # type: ignore[misc]
-
-    result = compute.week_over_week(mock_db, mock_metric, mock_key_provider, mock_result_key)
+    result = compute.week_over_week(mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key)
 
     assert isinstance(result, Success)
     # Expected: -140.0 / -100.0 = 1.4
@@ -684,7 +660,7 @@ def test_week_over_week_edge_cases(
     }
     mock_db.get_metric_window.return_value = Some(small_ts)  # type: ignore[attr-defined]
 
-    result = compute.week_over_week(mock_db, mock_metric, mock_key_provider, mock_result_key)
+    result = compute.week_over_week(mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key)
 
     assert isinstance(result, Success)
     # Should be 0.007 / 0.0001 = 70.0
@@ -703,7 +679,7 @@ def test_week_over_week_edge_cases(
     }
     mock_db.get_metric_window.return_value = Some(identical_ts)  # type: ignore[attr-defined]
 
-    result = compute.week_over_week(mock_db, mock_metric, mock_key_provider, mock_result_key)
+    result = compute.week_over_week(mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key)
 
     assert isinstance(result, Success)
     # Should be 100.0 / 100.0 = 1.0

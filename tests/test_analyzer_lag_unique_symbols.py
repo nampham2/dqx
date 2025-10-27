@@ -29,8 +29,8 @@ class TestLagUniqueSymbols:
         def tax_check(mp: MetricProvider, ctx: Any) -> None:
             # Same metric (average tax) computed for different dates
             current_tax = mp.average("tax")
-            lag1_tax = mp.average("tax", key=ctx.key.lag(1))
-            lag2_tax = mp.average("tax", key=ctx.key.lag(2))
+            lag1_tax = mp.average("tax", lag=1)
+            lag2_tax = mp.average("tax", lag=2)
 
             # Use all three in assertions
             ctx.assert_that(current_tax).where(name="Current tax positive").is_positive()
@@ -94,9 +94,9 @@ class TestLagUniqueSymbols:
         def multi_check(mp: MetricProvider, ctx: Any) -> None:
             # Different metrics, some with lag
             avg_price = mp.average("price")
-            avg_price_lag = mp.average("price", key=ctx.key.lag(1))
+            avg_price_lag = mp.average("price", lag=1)
             sum_quantity = mp.sum("quantity")
-            sum_quantity_lag = mp.sum("quantity", key=ctx.key.lag(1))
+            sum_quantity_lag = mp.sum("quantity", lag=1)
 
             ctx.assert_that(avg_price).where(name="Avg price positive").is_positive()
             ctx.assert_that(avg_price_lag).where(name="Yesterday avg price positive").is_positive()
@@ -131,12 +131,12 @@ class TestLagUniqueSymbols:
         assert len(set(symbols)) == 4, f"Expected all unique symbols, got duplicates: {symbols}"
 
     def test_symbol_mapping_structure(self) -> None:
-        """Test that symbol mapping uses (MetricSpec, ResultKey) as key."""
+        """Test that symbol mapping uses (MetricSpec, ResultKey, dataset) as key."""
 
         @check(name="Symbol Structure Check")
         def simple_check(mp: MetricProvider, ctx: Any) -> None:
             avg = mp.average("value")
-            avg_lag = mp.average("value", key=ctx.key.lag(1))
+            avg_lag = mp.average("value", lag=1)
             ctx.assert_that(avg).where(name="Current average").is_positive()
             ctx.assert_that(avg_lag).where(name="Previous average").is_positive()
 
@@ -162,13 +162,14 @@ class TestLagUniqueSymbols:
 
         # Verify the structure of symbol_mapping keys
         for mapping_key in report.symbol_mapping.keys():
-            # Key should be tuple of (MetricSpec, ResultKey)
+            # Key should be tuple of (MetricSpec, ResultKey, dataset)
             assert isinstance(mapping_key, tuple), f"Expected tuple key, got {type(mapping_key)}"
-            assert len(mapping_key) == 2, f"Expected 2-element tuple, got {len(mapping_key)}"
+            assert len(mapping_key) == 3, f"Expected 3-element tuple, got {len(mapping_key)}"
 
-            metric_spec, result_key = mapping_key
+            metric_spec, result_key, dataset_name = mapping_key
             assert isinstance(metric_spec, Average), f"Expected Average spec, got {type(metric_spec)}"
             assert isinstance(result_key, ResultKey), f"Expected ResultKey, got {type(result_key)}"
+            assert dataset_name == "test_data", f"Expected dataset 'test_data', got {dataset_name}"
 
         # Verify we have mappings for both dates
         result_keys = [key[1] for key in report.symbol_mapping.keys()]

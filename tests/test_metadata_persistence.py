@@ -56,7 +56,7 @@ class TestMetadataPersistence:
         report.persist(db)
 
         # Verify metadata was persisted
-        for metric_spec, result_key in report:
+        for metric_spec, result_key, dataset_name in report:
             metric = db.get(result_key, metric_spec)
             assert metric is not None
             persisted = metric.unwrap()
@@ -78,7 +78,7 @@ class TestMetadataPersistence:
         report.persist(db)
 
         # Verify default metadata
-        for metric_spec, result_key in report:
+        for metric_spec, result_key, dataset_name in report:
             metric = db.get(result_key, metric_spec)
             assert metric is not None
             persisted = metric.unwrap()

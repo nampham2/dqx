@@ -323,8 +323,8 @@ def test_collect_symbols_with_evaluation_error() -> None:
     suite._key = key
 
     # Get the registered metric
-    assert len(suite._context.provider.symbolic_metrics) > 0
-    metric = suite._context.provider.symbolic_metrics[0]
+    assert len(suite._context.provider._registry._metrics) > 0
+    metric = suite._context.provider._registry._metrics[0]
 
     # Mock the fn to raise an exception
     with patch.object(metric, "fn", side_effect=RuntimeError("Test error")):
@@ -607,7 +607,7 @@ def test_verification_suite_run_full_execution() -> None:
     @check(name="Check 3", datasets=["ds1"])
     def check3(mp: MetricProvider, ctx: Context) -> None:
         # This will create a metric for ds1 with lag
-        ctx.assert_that(mp.num_rows(key=ctx.key.lag(1))).where(name="Count rows lag").is_geq(100)
+        ctx.assert_that(mp.num_rows(lag=1)).where(name="Count rows lag").is_geq(100)
 
     suite = VerificationSuite([check1, check2, check3], db, "Test Suite")
 

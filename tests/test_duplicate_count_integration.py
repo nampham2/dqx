@@ -92,7 +92,7 @@ class TestDuplicateCountIntegration:
         report = analyzer.analyze(data_source, {key: [dc_spec]})
 
         # Get the metric from the report
-        metric = report[(dc_spec, key)]
+        metric = report[(dc_spec, key, "test_data")]
 
         # Verify the value
         # 5 rows - 3 unique combinations = 2 duplicates
@@ -111,7 +111,7 @@ class TestDuplicateCountIntegration:
             duplicate_count = mp.duplicate_count(["order_id"])
 
             # Mock the evaluation
-            mp._symbol_index[duplicate_count].fn = lambda k: Success(0.0)
+            mp.index[duplicate_count].fn = lambda k: Success(0.0)
 
             ctx.assert_that(duplicate_count).where(name="No duplicate orders").is_eq(0.0)
 

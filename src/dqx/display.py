@@ -217,12 +217,16 @@ def print_metric_trace(trace_table: pa.Table, execution_id: str) -> None:
     Display metric trace table with discrepancy highlighting.
 
     Shows how metric values flow from DB through analysis reports to final symbol values.
-    Rows with differing values are highlighted to identify discrepancies.
+    Rows with differing values are highlighted to identify discrepancies (excluding extended metrics).
     The table is sorted by symbol indices (x_1, x_2, ..., x_10, ...) with non-symbol rows at the end.
+
+    Extended metrics (DayOverDay, WeekOverWeek, Stddev) show green dashes for Value DB and
+    Value Analysis columns to indicate they are computed metrics.
 
     Args:
         trace_table: PyArrow table from metric_trace() with columns:
-                    date, metric, symbol, type, dataset, value_db, value_analysis, value_final, error, tags
+                    date, metric, symbol, type, dataset, value_db, value_analysis, value_final,
+                    error, tags, is_extended
         execution_id: The execution ID to display in the title
 
     Example:
@@ -241,8 +245,8 @@ def print_metric_trace(trace_table: pa.Table, execution_id: str) -> None:
     table.add_column("Metric", style="yellow", no_wrap=True)
     table.add_column("Symbol", style="yellow", no_wrap=True)
     table.add_column("Dataset", style="magenta")
-    table.add_column("Value DB", style="dim")
     table.add_column("Value Analysis", style="dim")
+    table.add_column("Value DB", style="dim")
     table.add_column("Value Final", style="dim")
     table.add_column("Error", style="red")
     table.add_column("Tags", style="dim")
@@ -267,41 +271,49 @@ def print_metric_trace(trace_table: pa.Table, execution_id: str) -> None:
     row_indices.sort(key=symbol_sort_key)
 
     # Process each row in sorted order
+    non_extended_discrepancy_count = 0
+
     for i in row_indices:
         # Extract values
         value_db = data["value_db"][i]
         value_analysis = data["value_analysis"][i]
         value_final = data["value_final"][i]
         error = data["error"][i]
+        is_extended = data["is_extended"][i] if "is_extended" in data else False
 
-        # Check for discrepancies
+        # Check for discrepancies (only for non-extended metrics)
         has_discrepancy = False
-        if value_db is not None and value_analysis is not None and value_db != value_analysis:
-            has_discrepancy = True
-        if value_db is not None and value_final is not None and value_db != value_final:
-            has_discrepancy = True
-        if value_analysis is not None and value_final is not None and value_analysis != value_final:
-            has_discrepancy = True
+        if not is_extended:
+            if value_db is not None and value_analysis is not None and value_db != value_analysis:
+                has_discrepancy = True
+            if value_db is not None and value_final is not None and value_db != value_final:
+                has_discrepancy = True
+            if value_analysis is not None and value_final is not None and value_analysis != value_final:
+                has_discrepancy = True
+            if has_discrepancy:
+                non_extended_discrepancy_count += 1
 
         # Format values with colors
-        def format_value(value: float | None, highlight: bool = False) -> str:
+        def format_value(value: float | None, highlight: bool = False, is_extended: bool = False) -> str:
+            if is_extended:
+                return "[green]-[/green]"
             if value is None:
                 return "-"
             if highlight:
                 return f"[bold red]{value}[/bold red]"
             return f"[green]{value}[/green]"
 
-        value_db_display = format_value(value_db, has_discrepancy)
-        value_analysis_display = format_value(value_analysis, has_discrepancy)
-        value_final_display = format_value(value_final, has_discrepancy)
+        value_db_display = format_value(value_db, has_discrepancy, is_extended)
+        value_analysis_display = format_value(value_analysis, has_discrepancy, is_extended)
+        value_final_display = format_value(value_final, has_discrepancy and not is_extended)
 
-        # Format error
-        error_display = error if error else "-"
+        # Format error - show green dash if no error
+        error_display = "[green]-[/green]" if not error else error
 
         # Format other fields
         symbol_display = data["symbol"][i] if data["symbol"][i] else "-"
 
-        # Add row with discrepancy highlighting
+        # Add row with discrepancy highlighting (only for non-extended metrics)
         if has_discrepancy:
             # Highlight entire row with warning style
             table.add_row(
@@ -309,8 +321,8 @@ def print_metric_trace(trace_table: pa.Table, execution_id: str) -> None:
                 data["metric"][i],
                 symbol_display,
                 data["dataset"][i],
-                value_db_display,
                 value_analysis_display,
+                value_db_display,
                 value_final_display,
                 error_display,
                 data["tags"][i],
@@ -322,8 +334,8 @@ def print_metric_trace(trace_table: pa.Table, execution_id: str) -> None:
                 data["metric"][i],
                 symbol_display,
                 data["dataset"][i],
-                value_db_display,
                 value_analysis_display,
+                value_db_display,
                 value_final_display,
                 error_display,
                 data["tags"][i],
@@ -333,28 +345,11 @@ def print_metric_trace(trace_table: pa.Table, execution_id: str) -> None:
     console = Console()
     console.print(table)
 
-    # Print summary of discrepancies
-    total_rows = trace_table.num_rows
-    discrepancy_count = sum(
-        1
-        for i in range(total_rows)
-        if any(
-            [
-                data["value_db"][i] is not None
-                and data["value_analysis"][i] is not None
-                and data["value_db"][i] != data["value_analysis"][i],
-                data["value_db"][i] is not None
-                and data["value_final"][i] is not None
-                and data["value_db"][i] != data["value_final"][i],
-                data["value_analysis"][i] is not None
-                and data["value_final"][i] is not None
-                and data["value_analysis"][i] != data["value_final"][i],
-            ]
+    # Print summary of discrepancies (only counting non-extended metrics)
+    if non_extended_discrepancy_count > 0:
+        console.print(
+            f"\n[bold yellow]⚠️  Found {non_extended_discrepancy_count} row(s) with value discrepancies (excluding extended metrics)[/bold yellow]"
         )
-    )
-
-    if discrepancy_count > 0:
-        console.print(f"\n[bold yellow]⚠️  Found {discrepancy_count} row(s) with value discrepancies[/bold yellow]")
 
 
 def print_metrics_by_execution_id(metrics: Sequence[Metric], execution_id: str) -> None:

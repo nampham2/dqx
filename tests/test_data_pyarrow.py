@@ -64,8 +64,8 @@ def sample_analysis_reports() -> dict[str, AnalysisReport]:
 
     # Create report with symbol mappings
     report1 = AnalysisReport()
-    metric_key1 = (specs.Average("price"), key1)
-    metric_key2 = (specs.Sum("quantity"), key2)
+    metric_key1 = (specs.Average("price"), key1, "sales")
+    metric_key2 = (specs.Sum("quantity"), key2, "inventory")
 
     report1[metric_key1] = metric1
     report1[metric_key2] = metric2
@@ -83,9 +83,9 @@ def test_metrics_to_pyarrow_basic(sample_metrics: Sequence[Metric]) -> None:
     table = metrics_to_pyarrow_table(sample_metrics, execution_id)
 
     # Verify schema
-    assert table.schema.names == ["Date", "Metric Name", "Type", "Dataset", "Value", "Tags"]
-    assert table.schema.field("Date").type == pa.date32()
-    assert table.schema.field("Value").type == pa.float64()
+    assert table.schema.names == ["date", "metric", "type", "dataset", "value", "tags"]
+    assert table.schema.field("date").type == pa.date32()
+    assert table.schema.field("value").type == pa.float64()
 
     # Verify data
     assert table.num_rows == 3
@@ -94,12 +94,12 @@ def test_metrics_to_pyarrow_basic(sample_metrics: Sequence[Metric]) -> None:
     result = table.to_pydict()
 
     # Check first row (should be 2024-01-26 due to sorting)
-    assert result["Date"][0] == dt.date(2024, 1, 26)
-    assert result["Metric Name"][0] == "average(price)"
-    assert result["Type"][0] == "Average"
-    assert result["Dataset"][0] == "sales"
-    assert result["Value"][0] == pytest.approx(25.5)
-    assert result["Tags"][0] == "env=prod"
+    assert result["date"][0] == dt.date(2024, 1, 26)
+    assert result["metric"][0] == "average(price)"
+    assert result["type"][0] == "Average"
+    assert result["dataset"][0] == "sales"
+    assert result["value"][0] == pytest.approx(25.5)
+    assert result["tags"][0] == "env=prod"
 
 
 def test_metrics_to_pyarrow_sorting(sample_metrics: Sequence[Metric]) -> None:
@@ -108,8 +108,8 @@ def test_metrics_to_pyarrow_sorting(sample_metrics: Sequence[Metric]) -> None:
     result = table.to_pydict()
 
     # Verify sorting: 2024-01-26 entries come before 2024-01-25
-    dates = result["Date"]
-    names = result["Metric Name"]
+    dates = result["date"]
+    names = result["metric"]
 
     # Find indices
     idx_26 = [i for i, d in enumerate(dates) if d == dt.date(2024, 1, 26)]
@@ -128,7 +128,7 @@ def test_metrics_to_pyarrow_tag_formatting(sample_metrics: Sequence[Metric]) -> 
     table = metrics_to_pyarrow_table(sample_metrics, "exec-id")
     result = table.to_pydict()
 
-    tags = result["Tags"]
+    tags = result["tags"]
 
     # Empty tags should be "-"
     assert "-" in tags
@@ -148,7 +148,7 @@ def test_metrics_to_pyarrow_empty_input() -> None:
     table = metrics_to_pyarrow_table([], "empty-exec")
 
     # Should have schema but no rows
-    assert table.schema.names == ["Date", "Metric Name", "Type", "Dataset", "Value", "Tags"]
+    assert table.schema.names == ["date", "metric", "type", "dataset", "value", "tags"]
     assert table.num_rows == 0
 
 
@@ -157,10 +157,10 @@ def test_analysis_reports_to_pyarrow_basic(sample_analysis_reports: dict[str, An
     table = analysis_reports_to_pyarrow_table(sample_analysis_reports)
 
     # Verify schema
-    expected_columns = ["Date", "Metric Name", "Symbol", "Type", "Dataset", "Value", "Tags"]
+    expected_columns = ["date", "metric", "symbol", "type", "dataset", "value", "tags"]
     assert table.schema.names == expected_columns
-    assert table.schema.field("Date").type == pa.date32()
-    assert table.schema.field("Value").type == pa.float64()
+    assert table.schema.field("date").type == pa.date32()
+    assert table.schema.field("value").type == pa.float64()
 
     # Verify data
     assert table.num_rows == 2
@@ -168,10 +168,10 @@ def test_analysis_reports_to_pyarrow_basic(sample_analysis_reports: dict[str, An
     result = table.to_pydict()
 
     # Check data integrity
-    assert dt.date(2024, 1, 26) in result["Date"]
-    assert dt.date(2024, 1, 25) in result["Date"]
-    assert "average(price)" in result["Metric Name"]
-    assert "sum(quantity)" in result["Metric Name"]
+    assert dt.date(2024, 1, 26) in result["date"]
+    assert dt.date(2024, 1, 25) in result["date"]
+    assert "average(price)" in result["metric"]
+    assert "sum(quantity)" in result["metric"]
 
 
 def test_analysis_reports_to_pyarrow_symbol_mapping(sample_analysis_reports: dict[str, AnalysisReport]) -> None:
@@ -179,15 +179,15 @@ def test_analysis_reports_to_pyarrow_symbol_mapping(sample_analysis_reports: dic
     table = analysis_reports_to_pyarrow_table(sample_analysis_reports)
     result = table.to_pydict()
 
-    names = result["Metric Name"]
+    names = result["metric"]
 
     # Find symbol for average(price) - should have mapping
     avg_idx = names.index("average(price)")
-    assert result["Symbol"][avg_idx] == "avg_price"
+    assert result["symbol"][avg_idx] == "avg_price"
 
     # Find symbol for sum(quantity) - should be "-" (no mapping)
     sum_idx = names.index("sum(quantity)")
-    assert result["Symbol"][sum_idx] == "-"
+    assert result["symbol"][sum_idx] == "-"
 
 
 def test_analysis_reports_to_pyarrow_empty_reports() -> None:
@@ -195,7 +195,7 @@ def test_analysis_reports_to_pyarrow_empty_reports() -> None:
     # Empty dict
     table = analysis_reports_to_pyarrow_table({})
     assert table.num_rows == 0
-    assert table.schema.names == ["Date", "Metric Name", "Symbol", "Type", "Dataset", "Value", "Tags"]
+    assert table.schema.names == ["date", "metric", "symbol", "type", "dataset", "value", "tags"]
 
     # Dict with empty report
     empty_report = AnalysisReport()
@@ -220,18 +220,18 @@ def test_analysis_reports_to_pyarrow_multiple_datasources() -> None:
     )
 
     report1 = AnalysisReport()
-    report1[(specs.NullCount("orders"), key)] = metric1
+    report1[(specs.NullCount("orders"), key, "sales")] = metric1
 
     report2 = AnalysisReport()
-    report2[(specs.NullCount("users"), key)] = metric2
+    report2[(specs.NullCount("users"), key, "users")] = metric2
 
     reports = {"datasource1": report1, "datasource2": report2}
     table = analysis_reports_to_pyarrow_table(reports)
 
     assert table.num_rows == 2
     result = table.to_pydict()
-    assert "null_count(orders)" in result["Metric Name"]
-    assert "null_count(users)" in result["Metric Name"]
+    assert "null_count(orders)" in result["metric"]
+    assert "null_count(users)" in result["metric"]
 
 
 def test_analysis_reports_to_pyarrow_missing_dataset() -> None:
@@ -247,13 +247,13 @@ def test_analysis_reports_to_pyarrow_missing_dataset() -> None:
     metric.dataset = None  # type: ignore[assignment]
 
     report = AnalysisReport()
-    report[(specs.NullCount("test"), key)] = metric
+    report[(specs.NullCount("test"), key, "-")] = metric
 
     table = analysis_reports_to_pyarrow_table({"test": report})
     result = table.to_pydict()
 
     # Should show "-" for missing dataset
-    assert result["Dataset"][0] == "-"
+    assert result["dataset"][0] == "-"
 
 
 # Tests for symbols_to_pyarrow_table
@@ -294,11 +294,11 @@ def test_symbols_to_pyarrow_basic() -> None:
     table = symbols_to_pyarrow_table(symbols)
 
     # Verify schema
-    expected_columns = ["Date", "Symbol", "Metric", "Dataset", "Value", "Error", "Tags"]
+    expected_columns = ["date", "symbol", "metric", "dataset", "value", "error", "tags"]
     assert table.schema.names == expected_columns
-    assert table.schema.field("Date").type == pa.date32()
-    assert table.schema.field("Value").type == pa.float64()
-    assert table.schema.field("Error").type == pa.string()
+    assert table.schema.field("date").type == pa.date32()
+    assert table.schema.field("value").type == pa.float64()
+    assert table.schema.field("error").type == pa.string()
 
     # Verify data
     assert table.num_rows == 3
@@ -306,20 +306,20 @@ def test_symbols_to_pyarrow_basic() -> None:
     result = table.to_pydict()
 
     # Check first row (success case)
-    assert result["Date"][0] == dt.date(2024, 1, 26)
-    assert result["Symbol"][0] == "x_1"
-    assert result["Metric"][0] == "average(price)"
-    assert result["Dataset"][0] == "sales"
-    assert result["Value"][0] == pytest.approx(25.5)
-    assert result["Error"][0] is None
-    assert result["Tags"][0] == "env=prod"
+    assert result["date"][0] == dt.date(2024, 1, 26)
+    assert result["symbol"][0] == "x_1"
+    assert result["metric"][0] == "average(price)"
+    assert result["dataset"][0] == "sales"
+    assert result["value"][0] == pytest.approx(25.5)
+    assert result["error"][0] is None
+    assert result["tags"][0] == "env=prod"
 
     # Check second row (failure case)
-    assert result["Symbol"][1] == "x_2"
-    assert result["Dataset"][1] == "-"  # None becomes "-"
-    assert result["Value"][1] is None
-    assert result["Error"][1] == "Metric not found"
-    assert result["Tags"][1] == "-"  # Empty tags become "-"
+    assert result["symbol"][1] == "x_2"
+    assert result["dataset"][1] == "-"  # None becomes "-"
+    assert result["value"][1] is None
+    assert result["error"][1] == "Metric not found"
+    assert result["tags"][1] == "-"  # Empty tags become "-"
 
 
 def test_symbols_to_pyarrow_value_error_split() -> None:
@@ -352,12 +352,12 @@ def test_symbols_to_pyarrow_value_error_split() -> None:
     result = table.to_pydict()
 
     # Success case: value in Value column, null in Error column
-    assert result["Value"][0] == pytest.approx(100.0)
-    assert result["Error"][0] is None
+    assert result["value"][0] == pytest.approx(100.0)
+    assert result["error"][0] is None
 
     # Failure case: null in Value column, error message in Error column
-    assert result["Value"][1] is None
-    assert result["Error"][1] == "Division by zero"
+    assert result["value"][1] is None
+    assert result["error"][1] == "Division by zero"
 
 
 def test_symbols_to_pyarrow_empty_input() -> None:
@@ -367,7 +367,7 @@ def test_symbols_to_pyarrow_empty_input() -> None:
     table = symbols_to_pyarrow_table([])
 
     # Should have schema but no rows
-    expected_columns = ["Date", "Symbol", "Metric", "Dataset", "Value", "Error", "Tags"]
+    expected_columns = ["date", "symbol", "metric", "dataset", "value", "error", "tags"]
     assert table.schema.names == expected_columns
     assert table.num_rows == 0
 
@@ -397,7 +397,7 @@ def test_symbols_to_pyarrow_preserves_order() -> None:
     result = table.to_pydict()
 
     # Verify order is preserved
-    assert result["Symbol"] == ["x_1", "x_2", "x_10", "x_11"]
+    assert result["symbol"] == ["x_1", "x_2", "x_10", "x_11"]
 
 
 def test_symbols_to_pyarrow_tag_formatting() -> None:
@@ -438,13 +438,13 @@ def test_symbols_to_pyarrow_tag_formatting() -> None:
     result = table.to_pydict()
 
     # Empty tags -> "-"
-    assert result["Tags"][0] == "-"
+    assert result["tags"][0] == "-"
 
     # Single tag
-    assert result["Tags"][1] == "env=prod"
+    assert result["tags"][1] == "env=prod"
 
     # Multiple tags (comma-separated)
-    tags_multi = result["Tags"][2]
+    tags_multi = result["tags"][2]
     assert "env=staging" in tags_multi
     assert "region=us-west" in tags_multi
     assert ", " in tags_multi

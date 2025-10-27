@@ -14,10 +14,13 @@ Available Validators:
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
+
+import sympy as sp
 
 from dqx.graph.base import BaseNode
 from dqx.graph.nodes import AssertionNode, CheckNode
@@ -25,6 +28,9 @@ from dqx.graph.traversal import Graph
 
 if TYPE_CHECKING:
     from dqx.provider import MetricProvider
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -131,10 +137,6 @@ class BaseValidator(ABC):
         """Get all issues found by this validator."""
         return self._issues
 
-    def reset(self) -> None:
-        """Reset the validator state."""
-        self._issues = []
-
 
 class DuplicateCheckNameValidator(BaseValidator):
     """Detects duplicate check names in the suite."""
@@ -163,11 +165,6 @@ class DuplicateCheckNameValidator(BaseValidator):
                         node_path=["root", f"check:{name}"],
                     )
                 )
-
-    def reset(self) -> None:
-        """Reset validator state."""
-        super().reset()
-        self._check_names.clear()
 
 
 class EmptyCheckValidator(BaseValidator):
@@ -244,7 +241,11 @@ class DatasetValidator(BaseValidator):
         symbols = node.actual.free_symbols
 
         for symbol in symbols:
-            metric = self._provider.get_symbol(symbol)
+            try:
+                metric = self._provider.get_symbol(symbol)
+            except Exception:
+                # Symbol not found in provider - skip validation for this symbol
+                continue
 
             if metric.dataset is None:
                 # If check has multiple datasets, this is ambiguous
@@ -277,20 +278,23 @@ class DatasetValidator(BaseValidator):
                     )
                 )
 
-            # Check that children have consistent datasets with their parent
-            children = self._provider.get_children(symbol)
-            for child_symbol in children:
-                child_metric = self._provider.get_symbol(child_symbol)
+            # Check required_metrics for dataset consistency
+            for required_symbol in metric.required_metrics:
+                try:
+                    required_metric = self._provider.get_symbol(required_symbol)
+                except Exception:
+                    # Required symbol not found - skip validation
+                    continue
 
-                # Both parent and child have datasets specified
-                if metric.dataset and child_metric.dataset and metric.dataset != child_metric.dataset:
+                # Both metric and required metric have datasets specified
+                if metric.dataset and required_metric.dataset and metric.dataset != required_metric.dataset:
                     self._issues.append(
                         ValidationIssue(
                             rule=self.name,
                             message=(
-                                f"Dependent metric '{child_metric.name}' has dataset '{child_metric.dataset}' "
-                                f"but its parent metric '{metric.name}' requires dataset '{metric.dataset}'. "
-                                f"Dependent metrics must use the same dataset as their parent."
+                                f"Required metric '{required_metric.name}' has dataset '{required_metric.dataset}' "
+                                f"but metric '{metric.name}' has dataset '{metric.dataset}'. "
+                                f"Required metrics must use the same dataset as their parent."
                             ),
                             node_path=["root", f"check:{parent_check.name}", f"assertion:{node.name}"],
                         )
@@ -307,7 +311,7 @@ class UnusedSymbolValidator(BaseValidator):
         """Initialize validator with provider."""
         super().__init__()
         self._provider = provider
-        self._used_symbols: set[Any] = set()  # Using Any to avoid import issues with sp.Symbol
+        self._used_symbols: set[sp.Symbol] = set()
 
     def process_node(self, node: BaseNode) -> None:
         """Collect symbols used in assertions."""
@@ -323,27 +327,20 @@ class UnusedSymbolValidator(BaseValidator):
         # Find unused symbols
         unused_symbols = defined_symbols - self._used_symbols
 
-        # Build a set of symbols that are used through their parents
-        indirectly_used = set()
-        for used_symbol in self._used_symbols:
-            # Get children of used symbols - these are indirectly used
-            children = self._provider.get_children(used_symbol)
-            indirectly_used.update(children)
-
         # Generate warnings for each unused symbol, excluding dependencies
         for symbol in unused_symbols:
-            metric = self._provider.get_symbol(symbol)
+            # Skip symbols that are required by other metrics
+            is_required = False
+            for other_metric in self._provider.metrics:
+                if symbol in other_metric.required_metrics:
+                    is_required = True
+                    break
 
-            # Skip symbols that have parents (they are dependencies/children)
-            if metric.parent_symbol is not None:
-                continue
-
-            # Skip symbols that are indirectly used through their parent
-            if symbol in indirectly_used:
+            if is_required:
                 continue
 
             # Format: symbol_name ← metric_name
-            symbol_repr = f"{symbol} ← {metric.name}"
+            symbol_repr = f"{symbol} ← {self._provider.get_symbol(symbol).name}"
 
             self._issues.append(
                 ValidationIssue(
@@ -353,10 +350,9 @@ class UnusedSymbolValidator(BaseValidator):
                 )
             )
 
-    def reset(self) -> None:
-        """Reset validator state."""
-        super().reset()
-        self._used_symbols.clear()
+            # Remove the orphaned symbol from the provider to keep things clean
+            logger.info("Removed unused symbol: %s", symbol_repr)
+            self._provider.remove_symbol(symbol)
 
 
 class CompositeValidationVisitor:
@@ -414,12 +410,6 @@ class CompositeValidationVisitor:
         Since validation is synchronous, this just delegates to visit.
         """
         self.visit(node)
-
-    def reset(self) -> None:
-        """Reset the composite visitor and all validators."""
-        self._nodes = []
-        for validator in self._validators:
-            validator.reset()
 
 
 class SuiteValidator:

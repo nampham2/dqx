@@ -145,13 +145,26 @@ class MetricDB:
 
         return Maybe.empty
 
-    def _get_by_key(self, key: ResultKey, spec: MetricSpec) -> Maybe[models.Metric]:
+    def _get_by_key(self, key: ResultKey, spec: MetricSpec, dataset: str | None = None) -> Maybe[models.Metric]:
+        """Get a metric by its specification and result key, optionally filtered by dataset.
+
+        Args:
+            key: The result key containing date and tags.
+            spec: The metric specification.
+            dataset: Optional dataset name to filter by.
+
+        Returns:
+            Maybe containing the metric if found, Nothing otherwise.
+        """
         query = select(Metric).where(
             Metric.metric_type == spec.metric_type,
             Metric.parameters == spec.parameters,
             Metric.yyyy_mm_dd == key.yyyy_mm_dd,
             Metric.tags == key.tags,
         )
+
+        if dataset is not None:
+            query = query.where(Metric.dataset == dataset)
 
         result = self.new_session().scalar(query)
 
@@ -172,30 +185,50 @@ class MetricDB:
             query = delete(Metric).where(Metric.metric_id == metric_id)
             self.new_session().execute(query)
 
-    def get_metric_value(self, metric: MetricSpec, key: ResultKey) -> Maybe[float]:
-        """
-        Get a single metric value based on the provided metric and the result key.
+    def get_metric_value(self, metric: MetricSpec, key: ResultKey, dataset: str) -> Maybe[float]:
+        """Get a single metric value for a specific dataset.
+
+        Retrieves the value of a metric for the given specification, result key,
+        and dataset. The dataset parameter is mandatory to ensure metrics from
+        different datasets are not confused.
 
         Args:
-            metric (MetricCore): The core metric information to search for.
-            key (ResultKey): The key containing specific parameters to identify the metric.
+            metric: The metric specification defining type and parameters.
+            key: The result key containing date and tags for the metric.
+            dataset: The dataset name where the metric was computed.
 
         Returns:
-            models.Metric: The found metric model.
-
-        Raises:
-            DQGuardError: If no metric is found matching the provided criteria.
+            Maybe containing the metric value if found, Nothing otherwise.
         """
         query = select(Metric.value).where(
             Metric.metric_type == metric.metric_type,
             Metric.parameters == metric.parameters,
             Metric.yyyy_mm_dd == key.yyyy_mm_dd,
             Metric.tags == key.tags,
+            Metric.dataset == dataset,
         )
 
         return Maybe.from_optional(self.new_session().scalar(query))
 
-    def get_metric_window(self, metric: MetricSpec, key: ResultKey, lag: int, window: int) -> Maybe[TimeSeries]:
+    def get_metric_window(
+        self, metric: MetricSpec, key: ResultKey, lag: int, window: int, dataset: str
+    ) -> Maybe[TimeSeries]:
+        """Get metric values over a time window for a specific dataset.
+
+        Retrieves a time series of metric values within the specified window
+        for the given dataset. The dataset parameter ensures isolation between
+        metrics computed on different datasets.
+
+        Args:
+            metric: The metric specification defining type and parameters.
+            key: The result key containing the end date and tags.
+            lag: Number of days to lag from the key date.
+            window: Size of the time window in days.
+            dataset: The dataset name where metrics were computed.
+
+        Returns:
+            Maybe containing a TimeSeries dict mapping dates to values, or Nothing if no data found.
+        """
         from_date, until_date = key.range(lag, window)
 
         query = select(Metric).where(
@@ -204,6 +237,7 @@ class MetricDB:
             Metric.yyyy_mm_dd >= from_date,
             Metric.yyyy_mm_dd <= until_date,
             Metric.tags == key.tags,
+            Metric.dataset == dataset,
         )
 
         result = self.new_session().scalars(query)

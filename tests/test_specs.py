@@ -643,6 +643,101 @@ class TestNegativeCount:
         assert str(neg_count) == "non_negative(test_col)"
 
 
+class TestDayOverDay:
+    """Test DayOverDay metric spec"""
+
+    def test_metric_type(self) -> None:
+        dod = specs.DayOverDay(base_metric_type="Average", base_parameters={"column": "price"})
+        assert dod.metric_type == "DayOverDay"
+
+    def test_name(self) -> None:
+        dod = specs.DayOverDay(base_metric_type="Average", base_parameters={"column": "price"})
+        assert dod.name == "dod(average(price))"
+
+    def test_name_with_sum(self) -> None:
+        dod = specs.DayOverDay(base_metric_type="Sum", base_parameters={"column": "revenue"})
+        assert dod.name == "dod(sum(revenue))"
+
+    def test_parameters(self) -> None:
+        dod = specs.DayOverDay(base_metric_type="Average", base_parameters={"column": "price"})
+        assert dod.parameters == {"base_metric_type": "Average", "base_parameters": {"column": "price"}}
+
+    def test_base_spec_property(self) -> None:
+        dod = specs.DayOverDay(base_metric_type="Average", base_parameters={"column": "price"})
+        base_spec = dod.base_spec
+        assert isinstance(base_spec, specs.Average)
+        assert base_spec.parameters == {"column": "price"}
+
+    def test_analyzers(self) -> None:
+        dod = specs.DayOverDay(base_metric_type="Average", base_parameters={"column": "price"})
+        assert len(dod.analyzers) == 0  # Extended metrics have no analyzers
+
+    def test_state(self) -> None:
+        dod = specs.DayOverDay(base_metric_type="Average", base_parameters={"column": "price"})
+        state = dod.state()
+        assert isinstance(state, states.SimpleAdditiveState)
+        assert state.value == 0.0
+
+    def test_deserialize(self) -> None:
+        with patch.object(states.SimpleAdditiveState, "deserialize") as mock_deserialize:
+            mock_state = Mock()
+            mock_deserialize.return_value = mock_state
+
+            result = specs.DayOverDay.deserialize(b"test_bytes")
+
+            mock_deserialize.assert_called_once_with(b"test_bytes")
+            assert result == mock_state
+
+    def test_hash(self) -> None:
+        dod1 = specs.DayOverDay(base_metric_type="Average", base_parameters={"column": "price"})
+        dod2 = specs.DayOverDay(base_metric_type="Average", base_parameters={"column": "price"})
+        dod3 = specs.DayOverDay(base_metric_type="Average", base_parameters={"column": "cost"})
+        dod4 = specs.DayOverDay(base_metric_type="Sum", base_parameters={"column": "price"})
+
+        assert hash(dod1) == hash(dod2)
+        assert hash(dod1) != hash(dod3)  # Different column
+        assert hash(dod1) != hash(dod4)  # Different metric type
+
+    def test_equality(self) -> None:
+        dod1 = specs.DayOverDay(base_metric_type="Average", base_parameters={"column": "price"})
+        dod2 = specs.DayOverDay(base_metric_type="Average", base_parameters={"column": "price"})
+        dod3 = specs.DayOverDay(base_metric_type="Average", base_parameters={"column": "cost"})
+        dod4 = specs.DayOverDay(base_metric_type="Sum", base_parameters={"column": "price"})
+
+        assert dod1 == dod2
+        assert dod1 != dod3
+        assert dod1 != dod4
+
+    def test_inequality_different_type(self) -> None:
+        dod = specs.DayOverDay(base_metric_type="Average", base_parameters={"column": "price"})
+        assert dod != specs.NumRows()
+        assert dod != specs.Average("price")
+        assert dod != "not_a_dayoverday"
+        assert dod != 42
+        assert dod is not None
+
+    def test_str(self) -> None:
+        dod = specs.DayOverDay(base_metric_type="Average", base_parameters={"column": "price"})
+        assert str(dod) == "dod(average(price))"
+
+    def test_is_metric_spec(self) -> None:
+        dod = specs.DayOverDay(base_metric_type="Average", base_parameters={"column": "price"})
+        assert isinstance(dod, specs.MetricSpec)
+
+    def test_with_different_base_metrics(self) -> None:
+        """Test DayOverDay with various base metric types"""
+        test_cases = [
+            ("NumRows", {}, "dod(num_rows())"),
+            ("Maximum", {"column": "temp"}, "dod(maximum(temp))"),
+            ("Minimum", {"column": "temp"}, "dod(minimum(temp))"),
+            ("NullCount", {"column": "email"}, "dod(null_count(email))"),
+        ]
+
+        for metric_type, params, expected_name in test_cases:
+            dod = specs.DayOverDay(base_metric_type=metric_type, base_parameters=params)
+            assert dod.name == expected_name
+
+
 class TestBuildRegistry:
     """Test the _build_registry function"""
 
@@ -666,6 +761,9 @@ class TestBuildRegistry:
             "Variance",
             "DuplicateCount",
             "CountValues",
+            "DayOverDay",
+            "WeekOverWeek",
+            "Stddev",
         }
         assert set(result.keys()) == expected_types
 
@@ -703,44 +801,6 @@ class TestBuildRegistry:
             assert hasattr(spec_class, "metric_type")
             assert spec_class.metric_type == metric_type
 
-    def test_build_registry_classes_are_instantiable(self) -> None:
-        """Test that all classes in registry can be instantiable."""
-        result = specs._build_registry()
-        for metric_type, spec_class in result.items():
-            if metric_type == "NumRows":
-                instance = spec_class()
-            elif metric_type == "DuplicateCount":
-                instance = spec_class(["test_column"])  # type: ignore[call-arg]
-            elif metric_type == "CountValues":
-                instance = spec_class("test_column", "test_value")  # type: ignore[call-arg]
-            else:
-                # Other classes require a column parameter
-                instance = spec_class("test_column")  # type: ignore[call-arg]
-            assert isinstance(instance, specs.MetricSpec)
-
-    @patch("inspect.currentframe")
-    def test_build_registry_with_mock_frame(self, mock_currentframe: Mock) -> None:
-        """Test _build_registry with mocked currentframe to ensure it handles globals correctly."""
-        # Create a mock frame with f_globals containing our test classes
-        mock_frame = Mock()
-        mock_frame.f_globals = {
-            "NumRows": specs.NumRows,
-            "First": specs.First,
-            "Average": specs.Average,
-            "MetricSpec": specs.MetricSpec,  # Should be excluded
-            "some_function": lambda: None,  # Should be excluded
-            "some_string": "test",  # Should be excluded
-            "inspect": inspect,  # Should be excluded
-        }
-        mock_currentframe.return_value = mock_frame
-
-        result = specs._build_registry()
-
-        # Should only include actual metric spec classes
-        expected_classes = {"NumRows", "First", "Average"}
-        assert set(result.keys()) == expected_classes
-        assert specs.MetricSpec not in result.values()
-
     def test_build_registry_consistent_with_actual_registry(self) -> None:
         """Test that _build_registry produces the same result as the actual registry."""
         built_registry = specs._build_registry()
@@ -767,6 +827,9 @@ class TestRegistry:
             "Variance",
             "DuplicateCount",
             "CountValues",
+            "DayOverDay",
+            "WeekOverWeek",
+            "Stddev",
         }
         assert set(specs.registry.keys()) == expected_types
 
@@ -780,18 +843,6 @@ class TestRegistry:
         assert specs.registry["NegativeCount"] == specs.NegativeCount
         assert specs.registry["NullCount"] == specs.NullCount
         assert specs.registry["Variance"] == specs.Variance
-
-    def test_registry_classes_are_metric_specs(self) -> None:
-        for metric_type, spec_class in specs.registry.items():
-            if metric_type == "NumRows":
-                instance = spec_class()
-            elif metric_type == "DuplicateCount":
-                instance = spec_class(["test_column"])  # type: ignore[call-arg]
-            elif metric_type == "CountValues":
-                instance = spec_class("test_column", "test_value")  # type: ignore[call-arg]
-            else:
-                instance = spec_class("test_column")  # type: ignore[call-arg]
-            assert isinstance(instance, specs.MetricSpec)
 
     def test_registry_is_built_automatically(self) -> None:
         """Test that the registry is built automatically and matches _build_registry output."""

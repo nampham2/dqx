@@ -40,7 +40,7 @@ def null_percentage(mp: MetricProvider, ctx: Context) -> None:
 @check(name="Manual Day Over Day", datasets=["ds1"])
 def manual_day_over_day(mp: MetricProvider, ctx: Context) -> None:
     tax_avg = mp.average("tax")
-    tax_avg_lag = mp.average("tax", key=ctx.key.lag(1))
+    tax_avg_lag = mp.average("tax", lag=1)
     ctx.assert_that(tax_avg / tax_avg_lag).where(name="Tax average day-over-day equals 1.0").is_eq(1.0, tol=0.01)
 
 

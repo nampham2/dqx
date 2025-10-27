@@ -6,6 +6,24 @@ The DQX (Data Quality eXtensions) library is a comprehensive data quality valida
 
 ## Recently Completed Work
 
+### 2025-10-26: Symbol Deduplication and Lag Refactoring
+- **What**: Implemented symbol deduplication for batch analysis and refactored lag handling throughout the codebase
+- **Why**:
+  - Symbol deduplication reduces redundant SQL operations in batch analysis, improving performance
+  - The old ResultKeyProvider API was complex and error-prone; the new lag parameter API is simpler
+- **Changes**:
+  - Created `SymbolDeduplicationVisitor` to collect unique operations across multiple dates
+  - Integrated deduplication into `Analyzer._analyze_batch_sql_ops()`
+  - Removed `ResultKeyProvider` from the public API
+  - Changed all metric methods to use `lag: int = 0` parameter instead of `key` parameter
+  - Updated `compute` module functions to accept `nominal_key: ResultKey` instead of provider
+  - Updated extended metrics to compute lag internally based on nominal key
+  - Created automated test update script to migrate all tests to new API
+- **Impact**:
+  - This is a breaking change - all code using `key=` parameter must be updated to use `lag=`
+  - Performance improvement: Batch analysis now deduplicates operations across dates
+  - Simpler API: Users no longer need to understand ResultKeyProvider
+
 ### 2025-01-26: Added print_metrics_by_execution_id Display Function
 - **What**: Created a new display function to format and print metrics retrieved by execution ID
 - **Why**: Users needed a convenient way to display metrics from `data.metrics_by_execution_id()` in a readable format
@@ -45,12 +63,13 @@ The DQX (Data Quality eXtensions) library is a comprehensive data quality valida
 - **Datasets**: Support for multiple data sources via Apache Arrow
 - **Validation**: Rule-based data quality validation
 - **SQL Generation**: Optimized SQL generation with dialect support (DuckDB, BigQuery)
-- **Batch Processing**: Efficient processing of large datasets
+- **Batch Processing**: Efficient processing of large datasets with deduplication
 - **Plugin System**: Extensible architecture for custom post-processing
 
 ### Advanced Features
 - **Extended Metrics**: Custom metrics with dependency resolution
 - **Symbol Collection**: Track and analyze metric computations
+- **Symbol Deduplication**: Optimize batch analysis by removing redundant operations
 - **Result Persistence**: Store validation results in database
 - **Critical Level Detection**: Identify P0 failures automatically
 - **Rich Display**: Beautiful console output for results
@@ -66,13 +85,15 @@ The DQX (Data Quality eXtensions) library is a comprehensive data quality valida
 3. **Evaluator** (`evaluator.py`): Expression evaluation engine
 4. **Dialect System** (`dialect.py`): SQL generation for different databases
 5. **Plugin System** (`plugins.py`): Extensible post-processing
+6. **Graph Visitors** (`graph/visitors/`): Traversal algorithms including symbol deduplication
 
 ### Data Flow
 1. User defines checks using the fluent API
 2. Metrics are computed via SQL or in-memory operations
-3. Assertions are evaluated using the expression engine
-4. Results are collected and can be persisted
-5. Plugins process results for reporting/alerting
+3. Batch analysis applies symbol deduplication for efficiency
+4. Assertions are evaluated using the expression engine
+5. Results are collected and can be persisted
+6. Plugins process results for reporting/alerting
 
 ## Known Issues
 
@@ -83,6 +104,7 @@ None currently identified.
 1. **Performance Optimizations**
    - Further optimize batch processing for very large datasets
    - Add query result caching
+   - Explore parallel execution of independent metric computations
 
 2. **Feature Additions**
    - Add more built-in metrics (percentiles, stddev, etc.)
@@ -95,6 +117,16 @@ None currently identified.
    - Add webhook support for alerts
 
 ## Technical Decisions
+
+### Why Symbol Deduplication?
+- Batch analysis was generating redundant SQL operations for the same metric across dates
+- Deduplication reduces SQL query complexity and improves performance
+- The visitor pattern allows clean separation of concerns
+
+### Why Remove ResultKeyProvider?
+- The API was complex and required users to understand key creation and lag operations
+- The new `lag` parameter is intuitive and aligns with user mental models
+- Simplifies the codebase by removing an abstraction layer
 
 ### Why Remove suite from SymbolInfo?
 - The suite information is contextual and available where symbols are collected

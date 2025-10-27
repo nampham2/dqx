@@ -192,14 +192,15 @@ def test_dataset_validator_detects_parent_child_mismatch() -> None:
     # Check both errors have the right content
     for issue in issues:
         assert issue.rule == "dataset_mismatch"
-        assert "Dependent metric" in issue.message
+        assert "Required metric" in issue.message
         assert "staging" in issue.message
         assert "production" in issue.message
 
     # Check we have errors for both base and lag metrics
     error_messages = [issue.message for issue in issues]
-    assert any("sum(revenue)" in msg for msg in error_messages)
-    assert any("lag(1)" in msg for msg in error_messages)
+    # With the new naming convention, lag metrics no longer have "lag(1)" prefix
+    # Both errors should mention "sum(revenue)" since that's the metric name
+    assert sum("sum(revenue)" in msg for msg in error_messages) == 2
 
 
 def test_dataset_validator_allows_consistent_parent_child_datasets() -> None:
@@ -291,11 +292,10 @@ def test_dataset_validator_checks_multiple_children() -> None:
 
     # Check error messages contain expected content
     error_messages = [issue.message for issue in issues]
-    assert all("Dependent metric" in msg for msg in error_messages)
+    assert all("Required metric" in msg for msg in error_messages)
     assert all("testing" in msg for msg in error_messages)
     assert all("production" in msg for msg in error_messages)
 
     # Check we have errors for both base and lag metrics
-    assert any("sum(revenue)" in msg for msg in error_messages)
-    assert any("lag(1)" in msg for msg in error_messages)
-    assert any("lag(7)" in msg for msg in error_messages)
+    # With the new naming convention, all lag metrics show as "sum(revenue)"
+    assert sum("sum(revenue)" in msg for msg in error_messages) == 4

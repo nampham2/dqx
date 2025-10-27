@@ -27,16 +27,16 @@ class TestEvaluatorIntegration:
         # Add successful metrics
         x1 = provider.average("price", dataset="orders")
         # Mock the metric to return success
-        provider._symbol_index[x1].fn = lambda k: Success(100.0)
+        provider.index[x1].fn = lambda k: Success(100.0)
 
         x2 = provider.sum("quantity", dataset="inventory")
         # Mock the metric to return success
-        provider._symbol_index[x2].fn = lambda k: Success(50.0)
+        provider.index[x2].fn = lambda k: Success(50.0)
 
         # Add failing metric
         x3 = provider.average("cost", dataset="orders")
         # Mock the metric to return failure
-        provider._symbol_index[x3].fn = lambda k: Failure("Database connection error")
+        provider.index[x3].fn = lambda k: Failure("Database connection error")
 
         # Create graph structure
         root = RootNode("test_suite")
@@ -89,10 +89,10 @@ class TestEvaluatorIntegration:
 
         # Create metrics that will produce NaN
         x1 = provider.average("col1", dataset="dataset1")
-        provider._symbol_index[x1].fn = lambda k: Success(0.0)
+        provider.index[x1].fn = lambda k: Success(0.0)
 
         x2 = provider.sum("col2", dataset="dataset1")
-        provider._symbol_index[x2].fn = lambda k: Success(0.0)
+        provider.index[x2].fn = lambda k: Success(0.0)
 
         # Create graph with assertion that produces NaN
         root = RootNode("nan_test_suite")
@@ -121,13 +121,13 @@ class TestEvaluatorIntegration:
 
         # Metrics from different datasets
         orders_metric = provider.sum("amount", dataset="orders")
-        provider._symbol_index[orders_metric].fn = lambda k: Success(1000.0)
+        provider.index[orders_metric].fn = lambda k: Success(1000.0)
 
         inventory_metric = provider.sum("quantity", dataset="inventory")
-        provider._symbol_index[inventory_metric].fn = lambda k: Success(500.0)
+        provider.index[inventory_metric].fn = lambda k: Success(500.0)
 
         users_metric = provider.sum("active", dataset="users")
-        provider._symbol_index[users_metric].fn = lambda k: Success(100.0)
+        provider.index[users_metric].fn = lambda k: Success(100.0)
 
         # Complex expression across datasets
         expr = (orders_metric / users_metric) - (inventory_metric / users_metric)
@@ -146,7 +146,7 @@ class TestEvaluatorIntegration:
 
         # Create a failing metric with detailed info
         symbol = provider.average("revenue", dataset="transactions")
-        provider._symbol_index[symbol].fn = lambda k: Failure("Query timeout after 30s")
+        provider.index[symbol].fn = lambda k: Failure("Query timeout after 30s")
 
         evaluator = Evaluator(provider, key, "Test Suite")
         result = evaluator.evaluate(symbol * 2)

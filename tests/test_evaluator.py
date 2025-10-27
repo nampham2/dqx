@@ -26,7 +26,6 @@ class TestEvaluatorFailureHandling:
             name="average(price)",
             symbol=symbol,
             fn=lambda k: Failure("Database error"),
-            key_provider=Mock(),
             metric_spec=Average("price"),
             dataset="orders",
         )
@@ -76,7 +75,6 @@ class TestEvaluatorFailureHandling:
             name="average(price)",
             symbol=x1,
             fn=lambda k: Success(0.0),
-            key_provider=Mock(),
             metric_spec=metric_spec1,
             dataset="orders",
         )
@@ -84,7 +82,6 @@ class TestEvaluatorFailureHandling:
             name="sum(quantity)",
             symbol=x2,
             fn=lambda k: Success(0.0),
-            key_provider=Mock(),
             metric_spec=metric_spec2,
             dataset="inventory",
         )
@@ -164,7 +161,6 @@ class TestEvaluatorFailureHandling:
                 name=str(sym),
                 symbol=sym,
                 fn=metric_fn,
-                key_provider=Mock(),
                 metric_spec=Mock(name=name),
                 dataset=dataset,
             )

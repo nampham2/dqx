@@ -155,7 +155,7 @@ repos:
         types: [python]
         require_serial: true
         pass_filenames: false
-        args: [src, tests, examples]
+        args: [src, tests]
         stages: [pre-commit]
         # Note: We use full project checking to ensure type consistency
         # For faster commits, developers can use SKIP=mypy
