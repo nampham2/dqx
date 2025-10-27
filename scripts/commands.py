@@ -167,3 +167,135 @@ Note: This includes shellcheck for shell scripts (.sh, .bash files)""",
         if not args.fix:
             print_color("Tip: Use 'uv run hooks --fix' to run only auto-fixing hooks", "yellow")
         sys.exit(1)
+
+
+def run_cleanup() -> None:
+    """Clean up cache files and directories from the project.
+
+    This command removes various cache directories and files that are
+    generated during development, testing, and building.
+    """
+    parser = argparse.ArgumentParser(
+        description="Clean up cache files and directories",
+        epilog="""Examples:
+  uv run cleanup                  # Clean all cache files
+  uv run cleanup --dry-run        # Show what would be deleted
+  uv run cleanup --verbose        # Show detailed progress
+  uv run cleanup --quiet          # Suppress output except errors
+
+Warning: Use --all flag with caution as it will also remove .venv directory!""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    parser.add_argument("--dry-run", action="store_true", help="Show what would be deleted without actually deleting")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Show detailed progress")
+    parser.add_argument("--quiet", "-q", action="store_true", help="Suppress output except errors")
+    parser.add_argument("--all", action="store_true", help="Include .venv directory (dangerous!)")
+
+    args = parser.parse_args()
+
+    # ANSI color codes
+    colors = {
+        "green": "\033[0;32m",
+        "red": "\033[0;31m",
+        "yellow": "\033[1;33m",
+        "blue": "\033[0;34m",
+        "reset": "\033[0m",
+    }
+
+    def print_color(message: str, color: str = "reset") -> None:
+        """Print message with color unless quiet mode."""
+        if not args.quiet:
+            print(f"{colors[color]}{message}{colors['reset']}")
+
+    # Define what to clean
+    cleanup_patterns = {
+        "Python cache": ["**/__pycache__", "**/*.pyc", "**/*.pyo", "**/*.pyd"],
+        "Test cache": [".pytest_cache", ".coverage", ".cov", "htmlcov"],
+        "Type checking cache": [".mypy_cache"],
+        "Linting cache": [".ruff_cache"],
+        "Build artifacts": ["build", "dist", "*.egg-info", "**/*.egg-info"],
+        "Temporary files": [".tmp", "**/.DS_Store"],
+    }
+
+    if args.all:
+        cleanup_patterns["Virtual environment"] = [".venv"]
+        print_color("⚠️  WARNING: --all flag will also remove .venv directory!", "yellow")
+
+    # Track statistics
+    total_size = 0
+    total_items = 0
+    items_by_category = {}
+
+    print_color("🧹 Cleaning project cache files...", "blue")
+
+    # Process each category
+    for category, patterns in cleanup_patterns.items():
+        category_size = 0
+        category_items = 0
+
+        for pattern in patterns:
+            # Use Path.glob for pattern matching
+            for path in Path(".").glob(pattern):
+                # Skip if path is under .venv (unless --all is specified)
+                if not args.all and ".venv" in path.parts:
+                    continue
+
+                try:
+                    if path.is_dir():
+                        # Calculate directory size
+                        dir_size = sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+                        category_size += dir_size
+                        category_items += 1
+
+                        if args.verbose:
+                            size_str = f"{dir_size / 1024:.1f} KB" if dir_size > 0 else "empty"
+                            print(f"  {'Would remove' if args.dry_run else 'Removing'} directory: {path} ({size_str})")
+
+                        if not args.dry_run:
+                            shutil.rmtree(path, ignore_errors=True)
+
+                    elif path.is_file():
+                        # Get file size
+                        file_size = path.stat().st_size
+                        category_size += file_size
+                        category_items += 1
+
+                        if args.verbose:
+                            size_str = f"{file_size / 1024:.1f} KB" if file_size > 0 else "empty"
+                            print(f"  {'Would remove' if args.dry_run else 'Removing'} file: {path} ({size_str})")
+
+                        if not args.dry_run:
+                            path.unlink(missing_ok=True)
+
+                except (OSError, PermissionError) as e:
+                    if not args.quiet:
+                        print_color(f"  Error removing {path}: {e}", "red")
+
+        if category_items > 0:
+            items_by_category[category] = (category_items, category_size)
+            total_size += category_size
+            total_items += category_items
+
+    # Print summary
+    if not args.quiet:
+        print_color("\n📊 Cleanup Summary:", "blue")
+        for category, (items, size) in items_by_category.items():
+            size_mb = size / (1024 * 1024)
+            if size_mb >= 1:
+                size_str = f"{size_mb:.1f} MB"
+            else:
+                size_str = f"{size / 1024:.1f} KB"
+            print(f"  {category}: {items} items ({size_str})")
+
+        total_mb = total_size / (1024 * 1024)
+        if total_mb >= 1:
+            total_str = f"{total_mb:.1f} MB"
+        else:
+            total_str = f"{total_size / 1024:.1f} KB"
+
+        if args.dry_run:
+            print_color(f"\n✨ Would remove {total_items} items totaling {total_str}", "yellow")
+            print_color("Run without --dry-run to actually delete these files.", "yellow")
+        else:
+            print_color(f"\n✨ Cleaned {total_items} items totaling {total_str}", "green")
