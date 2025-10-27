@@ -500,7 +500,7 @@ class MetricProvider(SymbolicMetricBase):
         dataset: str | None = None,
     ) -> sp.Symbol:
         return self.registry.register(
-            fn=partial(compute.simple_metric, self._db, metric, lag),
+            fn=partial(compute.simple_metric, self._db, metric),
             metric_spec=metric,
             lag=lag,
             dataset=dataset,

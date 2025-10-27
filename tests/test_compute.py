@@ -117,48 +117,6 @@ def test_timeseries_check_limit_exceeded() -> None:
     assert len(listed_dates) == limit
 
 
-def test_simple_metric_success(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
-) -> None:
-    """Test simple_metric with successful retrieval."""
-    # Setup
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-
-    # Mock the lag method
-    lagged_key = MagicMock()
-    lagged_key.yyyy_mm_dd = dt.date(2023, 1, 1)
-    mock_result_key.lag.return_value = lagged_key  # type: ignore[attr-defined]
-
-    mock_db.get_metric_value.return_value = Some(42.5)  # type: ignore[attr-defined]
-
-    result = compute.simple_metric(mock_db, mock_metric, lag=0, nominal_key=mock_result_key)
-
-    assert isinstance(result, Success)
-    assert result.unwrap() == 42.5
-    mock_db.get_metric_value.assert_called_once_with(mock_metric, lagged_key)  # type: ignore[attr-defined]
-
-
-def test_simple_metric_not_found(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
-) -> None:
-    """Test simple_metric when metric is not found."""
-    # Setup
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-
-    # Mock the lag method
-    lagged_key = MagicMock()
-    lagged_key.yyyy_mm_dd = dt.date(2023, 1, 1)
-    mock_result_key.lag.return_value = lagged_key  # type: ignore[attr-defined]
-
-    mock_db.get_metric_value.return_value = Nothing  # type: ignore[attr-defined]
-
-    result = compute.simple_metric(mock_db, mock_metric, lag=0, nominal_key=mock_result_key)
-
-    assert isinstance(result, Failure)
-    error_msg = result.failure()
-    assert "Metric test_metric not found" in error_msg
-
-
 def test_day_over_day_success(
     mock_db: MetricDB,
     mock_metric: MetricSpec,

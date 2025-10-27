@@ -58,10 +58,9 @@ def _sparse_timeseries_check(
     return Failure(f"There are {len(missings)} dates with missing metrics: {missing_dates_str}.")
 
 
-def simple_metric(db: MetricDB, metric: MetricSpec, lag: int, nominal_key: ResultKey) -> Result[float, str]:
-    key = nominal_key.lag(lag)
-    value = db.get_metric_value(metric, key)
-    return maybe_to_result(value, f"Metric {metric.name} not found!")
+def simple_metric(db: MetricDB, metric: MetricSpec, nominal_key: ResultKey) -> Result[float, str]:
+    value = db.get_metric_value(metric, nominal_key)
+    return maybe_to_result(value, f"Metric {metric.name} for {nominal_key.yyyy_mm_dd.isoformat()} not found!")
 
 
 def day_over_day(db: MetricDB, metric: MetricSpec, nominal_key: ResultKey) -> Result[float, str]:
