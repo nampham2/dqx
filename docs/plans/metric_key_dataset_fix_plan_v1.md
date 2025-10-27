@@ -41,44 +41,72 @@ The current `MetricKey` type alias is defined as `tuple[MetricSpec, ResultKey]`,
 - Add test case `test_report_with_dataset_in_key` in `TestAnalysisReport`
 - Verify that MetricKey with dataset prevents collisions
 
-### Task Group 2: Analyzer Updates
+### Task Group 2: Type Alias Consistency Updates
 
-**Task 2.1: Update metric_key creation in analyzer**
+**Task 2.1: Update api.py to use MetricKey type alias**
+- File: `src/dqx/api.py` (~line 656)
+- Change: `symbol_lookup: dict[tuple[MetricSpec, ResultKey], str] = {}`
+- To: `symbol_lookup: dict[MetricKey, str] = {}`
+- Import MetricKey from analyzer: `from dqx.analyzer import MetricKey`
+
+**Task 2.2: Update data.py to use MetricKey type alias**
+- File: `src/dqx/data.py`
+- Import MetricKey: `from dqx.analyzer import MetricKey`
+- Update type annotations:
+  - Change: `all_items: list[tuple[tuple[MetricSpec, ResultKey], Metric, str]] = []`
+  - To: `all_items: list[tuple[MetricKey, Metric, str]] = []`
+  - Change: `def symbol_sort_key(item: tuple[tuple[MetricSpec, ResultKey], Metric, str]) -> tuple[int, int, str]:`
+  - To: `def symbol_sort_key(item: tuple[MetricKey, Metric, str]) -> tuple[int, int, str]:`
+
+**Task 2.3: Update analyzer.py to use MetricKey consistently**
+- File: `src/dqx/analyzer.py` (~line 266)
+- Change: `symbol_lookup: dict[tuple[MetricSpec, ResultKey], str] | None = None`
+- To: `symbol_lookup: dict[MetricKey, str] | None = None`
+
+**Task 2.4: Update test files to use MetricKey type alias**
+- File: `tests/test_analysis_report_symbols.py`
+- Import MetricKey: `from dqx.analyzer import MetricKey`
+- Change: `symbol_lookup: dict[tuple[MetricSpec, ResultKey], str] = {(spec, key): "total_sales"}`
+- To: `symbol_lookup: dict[MetricKey, str] = {(spec, key): "total_sales"}`
+
+### Task Group 3: Analyzer Updates
+
+**Task 3.1: Update metric_key creation in analyzer**
 - File: `src/dqx/analyzer.py` (~line 418)
 - Change: `metric_key = (metric, key)`
 - To: `metric_key = (metric, key, ds.name)`
 
-**Task 2.2: Update Analyzer constructor**
+**Task 3.2: Update Analyzer constructor**
 - File: `src/dqx/analyzer.py` (~line 266)
 - Update symbol_lookup parameter type:
   ```python
-  symbol_lookup: dict[tuple[MetricSpec, ResultKey, DatasetName], str] | None = None
+  symbol_lookup: dict[MetricKey, str] | None = None
   ```
 
-**Task 2.3: Add cross-dataset analyzer test**
+**Task 3.3: Add cross-dataset analyzer test**
 - File: `tests/test_analyzer.py`
 - Add test `test_analyzer_multiple_datasets_same_metrics` in `TestAnalyzer`
 - Verify no collision when same metrics used across datasets
 
-### Task Group 3: API and Symbol Lookup Updates
+### Task Group 4: API and Symbol Lookup Updates
 
-**Task 3.1: Update symbol lookup in api.py**
+**Task 4.1: Update symbol lookup in api.py**
 - File: `src/dqx/api.py` (~line 656)
-- Update type annotation: `symbol_lookup: dict[tuple[MetricSpec, ResultKey, DatasetName], str] = {}`
+- Update type annotation: `symbol_lookup: dict[MetricKey, str] = {}`
 - Update assignment: `symbol_lookup[(sym_metric.metric_spec, effective_key, ds.name)] = str(sym_metric.symbol)`
 
-**Task 3.2: Add symbol mapping test**
+**Task 4.2: Add symbol mapping test**
 - File: `tests/test_analyzer.py`
 - Add test `test_analyzer_symbol_mapping_with_datasets`
 - Verify symbol mapping works with dataset in MetricKey
 
-**Task 3.3: Run tests and fix any issues**
+**Task 4.3: Run tests and fix any issues**
 - Run: `uv run pytest tests/test_analyzer.py -v`
 - Fix any failing tests
 
-### Task Group 4: Data Display Updates
+### Task Group 5: Data Display Updates
 
-**Task 4.1: Update MetricKey unpacking in data.py**
+**Task 5.1: Update MetricKey unpacking in data.py**
 - File: `src/dqx/data.py`
 - Update `analysis_reports_to_pyarrow_table` function (~line 156):
   ```python
@@ -101,18 +129,18 @@ The current `MetricKey` type alias is defined as `tuple[MetricSpec, ResultKey]`,
           is_extended_map[metric_spec.name] = metric_spec.is_extended
   ```
 
-**Task 4.2: Write display tests**
+**Task 5.2: Write display tests**
 - File: `tests/test_data.py` (or create if doesn't exist)
 - Add test for display functions handling 3-tuple MetricKey
 - Verify display works correctly with new key format
 
-**Task 4.3: Run tests and verify display**
+**Task 5.3: Run tests and verify display**
 - Run: `uv run pytest tests/test_data*.py -v`
 - Fix any display-related issues
 
-### Task Group 5: Database Interface Updates
+### Task Group 6: Database Interface Updates
 
-**Task 5.1: Update MetricDB method signatures**
+**Task 6.1: Update MetricDB method signatures**
 - File: `src/dqx/orm/repositories.py`
 - Update methods to include dataset parameter:
   ```python
@@ -121,7 +149,7 @@ The current `MetricKey` type alias is defined as `tuple[MetricSpec, ResultKey]`,
   def get_metric_window(self, metric: MetricSpec, key: ResultKey, dataset: DatasetName, lag: int, window: int) -> Maybe[TimeSeries]:
   ```
 
-**Task 5.2: Update database queries to include dataset and handle multiple execution IDs**
+**Task 6.2: Update database queries to include dataset and handle multiple execution IDs**
 - File: `src/dqx/orm/repositories.py`
 - Update `_get_by_key` method:
   ```python
@@ -197,12 +225,12 @@ The current `MetricKey` type alias is defined as `tuple[MetricSpec, ResultKey]`,
       return Some({r.yyyy_mm_dd: r.value for r in result.all()})
   ```
 
-**Task 5.3: Update compute.py to pass dataset**
+**Task 6.3: Update compute.py to pass dataset**
 - File: `src/dqx/compute.py`
 - Update all MetricDB method calls to include dataset parameter
 - This will require determining where to get the dataset from
 
-**Task 5.4: Write integration tests for multiple suite runs**
+**Task 6.4: Write integration tests for multiple suite runs**
 - File: `tests/test_orm_multiple_runs.py` (create new)
 - Test `_get_by_key` with multiple suite runs:
   ```python
@@ -226,34 +254,34 @@ The current `MetricKey` type alias is defined as `tuple[MetricSpec, ResultKey]`,
       # Verify get_metric_window returns values from suite 2
   ```
 
-### Task Group 6: Integration Testing and Verification
+### Task Group 7: Integration Testing and Verification
 
-**Task 6.1: Add integration test for cross-dataset verification**
+**Task 7.1: Add integration test for cross-dataset verification**
 - File: `tests/test_api_e2e.py` or similar
 - Create a test similar to the failing e2e test
 - Verify the fix resolves the symbol collision issue
 
-**Task 6.2: Update existing tests**
+**Task 7.2: Update existing tests**
 - Search for tests that create MetricKey tuples directly
 - Update them to use 3-tuple format
 - No backward compatibility needed - update all tests to new format
 
-**Task 6.3: Run full test suite**
+**Task 7.3: Run full test suite**
 - Run: `uv run pytest tests/ -v`
 - Run: `bin/run-hooks.sh`
 - Ensure all tests pass and no linting issues
 
-### Task Group 7: Final Verification
+### Task Group 8: Final Verification
 
-**Task 7.1: Run the original failing test**
+**Task 8.1: Run the original failing test**
 - Run: `uv run pytest tests/e2e/test_api_e2e.py::test_cross_dataset_verification_suite -xvs`
 - Verify it now passes
 
-**Task 7.2: Clean up debug files**
+**Task 8.2: Clean up debug files**
 - Remove any temporary debug files created during investigation
 - Clean up any debug print statements
 
-**Task 7.3: Final checks**
+**Task 8.3: Final checks**
 - Run: `uv run mypy src/`
 - Run: `uv run ruff check --fix`
 - Run: `uv run pytest tests/ -v --cov=dqx`
