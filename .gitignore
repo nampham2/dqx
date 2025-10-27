@@ -15,3 +15,6 @@ wheels/
 
 # Virtual environments
 .venv
+
+# MkDocs generated site
+site/

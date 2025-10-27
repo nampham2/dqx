@@ -1,0 +1,259 @@
+# MkDocs Configuration for DQX
+
+# Project information
+site_name: DQX - Data Quality Excellence
+site_description: Transform data validation into mathematical expressions. Find issues before they find you.
+site_author: Nam Pham
+site_url: https://dqx.readthedocs.io
+
+# Repository
+repo_name: dqx
+repo_url: https://github.com/yourusername/dqx  # Update with your GitHub URL
+edit_uri: edit/main/docs/
+
+# Copyright
+copyright: Copyright &copy; 2024 Nam Pham
+
+# Theme configuration
+theme:
+  name: material
+  language: en
+
+  # Color palette
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: orange
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: orange
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+
+  # Font configuration
+  font:
+    text: Roboto
+    code: Roboto Mono
+
+  # Logo and favicon
+  logo: assets/logo.png  # Add your logo
+  favicon: assets/favicon.png
+
+  # Features
+  features:
+    # Navigation
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.prune
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+
+    # Table of contents
+    - toc.follow
+    - toc.integrate
+
+    # Search
+    - search.suggest
+    - search.highlight
+    - search.share
+
+    # Code blocks
+    - content.code.copy
+    - content.code.annotate
+    - content.code.select
+
+    # Content
+    - content.tabs.link
+    - content.tooltips
+    - content.footnote.tooltips
+
+    # Actions
+    - content.action.edit
+    - content.action.view
+
+    # Announce
+    - announce.dismiss
+
+# Navigation
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: installation.md
+      - Quick Start: quickstart.md
+  - User Guide:
+      - Overview: user-guide.md
+      - Plugin System: plugin_system.md
+  - Development:
+      - Architecture: design.md
+      - CI/CD:
+          - Overview: ci-cd-setup.md
+          - Setup Guide: github-cicd-setup-guide.md
+          - Operations Guide: github-cicd-operations-guide.md
+  - Reference:
+      - DQGuard Comparison: dqguard-to-dqx-comparison.md
+      - API Reference: api-reference.md
+  - Changelog: changelog.md
+
+# Plugins
+plugins:
+  # Search
+  - search:
+      separator: '[\s\-\.]+'
+
+  # API documentation generation
+  - mkdocstrings:
+      default_handler: python
+      handlers:
+        python:
+          paths: [src]
+          options:
+            # Rendering options
+            show_source: true
+            show_root_heading: true
+            show_root_toc_entry: true
+            show_object_full_path: false
+            show_category_heading: true
+            show_if_no_docstring: false
+
+            # Members options
+            inherited_members: true
+            members_order: source
+            group_by_category: true
+            show_submodules: false
+
+            # Docstring options
+            docstring_style: google
+            docstring_section_style: table
+            merge_init_into_class: true
+            show_docstring_attributes: true
+            show_docstring_functions: true
+            show_docstring_classes: true
+            show_docstring_modules: true
+            show_docstring_description: true
+            show_docstring_examples: true
+            show_docstring_other_parameters: true
+            show_docstring_parameters: true
+            show_docstring_raises: true
+            show_docstring_returns: true
+            show_docstring_yields: true
+
+            # Signature options
+            line_length: 80
+            show_signature: true
+            show_signature_annotations: true
+            separate_signature: true
+
+            # Heading options
+            heading_level: 2
+
+  # Git information
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: timeago
+      enable_git_follow: false
+
+  # Minify HTML
+  - minify:
+      minify_html: true
+      minify_js: true
+      minify_css: true
+      htmlmin_opts:
+        remove_comments: true
+
+  # Awesome pages (better navigation)
+  - awesome-pages:
+      collapse_single_pages: false
+
+# Extensions
+markdown_extensions:
+  # Python Markdown
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - toc:
+      permalink: true
+      permalink_title: Anchor link to this section for reference
+
+  # Python Markdown Extensions
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+  - pymdownx.tabbed:
+      alternate_style: true
+      combine_header_slug: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+  - pymdownx.snippets:
+      check_paths: true
+
+# Extra CSS
+extra_css:
+  - stylesheets/extra.css
+
+# Extra JavaScript
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+# Social links
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/yourusername/dqx
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/dqx/
+    - icon: fontawesome/solid/book
+      link: https://dqx.readthedocs.io
+
+  # Version provider
+  version:
+    provider: mike
+    default: stable
+
+  # Consent
+  consent:
+    title: Cookie consent
+    description: >-
+      We use cookies to recognize your repeated visits and preferences, as well
+      as to measure the effectiveness of our documentation and whether users
+      find what they're searching for. With your consent, you're helping us to
+      make our documentation better.
+
+# Watch for changes
+watch:
+  - src/dqx
+  - docs
