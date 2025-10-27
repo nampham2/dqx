@@ -137,10 +137,6 @@ class BaseValidator(ABC):
         """Get all issues found by this validator."""
         return self._issues
 
-    def reset(self) -> None:
-        """Reset the validator state."""
-        self._issues = []
-
 
 class DuplicateCheckNameValidator(BaseValidator):
     """Detects duplicate check names in the suite."""
@@ -169,11 +165,6 @@ class DuplicateCheckNameValidator(BaseValidator):
                         node_path=["root", f"check:{name}"],
                     )
                 )
-
-    def reset(self) -> None:
-        """Reset validator state."""
-        super().reset()
-        self._check_names.clear()
 
 
 class EmptyCheckValidator(BaseValidator):
@@ -363,11 +354,6 @@ class UnusedSymbolValidator(BaseValidator):
             logger.info("Removed unused symbol: %s", symbol_repr)
             self._provider.remove_symbol(symbol)
 
-    def reset(self) -> None:
-        """Reset validator state."""
-        super().reset()
-        self._used_symbols.clear()
-
 
 class CompositeValidationVisitor:
     """Runs multiple validators in a single graph traversal for performance."""
@@ -424,12 +410,6 @@ class CompositeValidationVisitor:
         Since validation is synchronous, this just delegates to visit.
         """
         self.visit(node)
-
-    def reset(self) -> None:
-        """Reset the composite visitor and all validators."""
-        self._nodes = []
-        for validator in self._validators:
-            validator.reset()
 
 
 class SuiteValidator:

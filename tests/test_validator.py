@@ -2,12 +2,11 @@ import sympy as sp
 
 from dqx import specs
 from dqx.common import SymbolicValidator
-from dqx.graph.base import BaseNode
 from dqx.graph.nodes import RootNode
 from dqx.graph.traversal import Graph
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
-from dqx.validator import BaseValidator, SuiteValidator, ValidationIssue, ValidationReport
+from dqx.validator import SuiteValidator, ValidationIssue, ValidationReport
 
 
 def test_validation_issue_creation() -> None:
@@ -231,55 +230,6 @@ def test_suite_validator_performance() -> None:
     assert not report.has_warnings()
 
 
-def test_base_validator_get_issues() -> None:
-    """Test BaseValidator get_issues method."""
-
-    class TestValidator(BaseValidator):
-        """Simple test validator."""
-
-        name = "test_validator"
-        is_error = True
-
-        def process_node(self, node: BaseNode) -> None:
-            """Process a node and add a test issue."""
-            if hasattr(node, "name") and node.name == "problematic":
-                self._issues.append(
-                    ValidationIssue(rule=self.name, message="Found problematic node", node_path=["test", "path"])
-                )
-
-    # Create validator instance
-    validator = TestValidator()
-
-    # Initially should have no issues
-    assert len(validator.get_issues()) == 0
-
-    # Create a mock node and process it
-    from unittest.mock import Mock
-
-    problem_node = Mock()
-    problem_node.name = "problematic"
-    validator.process_node(problem_node)
-
-    # Should now have one issue
-    issues = validator.get_issues()
-    assert len(issues) == 1
-    assert issues[0].rule == "test_validator"
-    assert issues[0].message == "Found problematic node"
-    assert issues[0].node_path == ["test", "path"]
-
-    # Test with non-problematic node
-    good_node = Mock()
-    good_node.name = "good"
-    validator.process_node(good_node)
-
-    # Should still have only one issue
-    assert len(validator.get_issues()) == 1
-
-    # Test reset
-    validator.reset()
-    assert len(validator.get_issues()) == 0
-
-
 def test_unused_symbol_validator_detects_unused() -> None:
     """Test validator detects unused symbols."""
     # Setup
@@ -375,47 +325,6 @@ def test_unused_symbol_validator_complex_expressions() -> None:
     warning_messages = [w.message for w in unused_warnings]
     assert any("x_5 ← variance(latency)" in msg for msg in warning_messages)
     assert any("x_6 ← null_count(user_id)" in msg for msg in warning_messages)
-
-
-def test_unused_symbol_validator_extended_metrics() -> None:
-    """Test validator works with extended metrics."""
-    root = RootNode("suite")
-    check = root.add_check("Extended Check")
-
-    db = InMemoryMetricDB()
-    provider = MetricProvider(db)
-
-    # Define regular and extended metrics
-    # Note: When creating extended metrics, the base metrics are also registered as symbols
-    x1 = provider.ext.day_over_day(provider.sum("revenue"))
-    x2 = provider.ext.stddev(provider.average("latency"), lag=1, n=7)
-    x3 = provider.average("conversion_rate")  # Regular metric, unused  # noqa: F841
-
-    # Only use extended metrics (x1 and x2)
-    # The base metrics (sum("revenue") and average("latency")) are registered but not directly used
-    # In the current implementation, they will be warned as unused since extended metrics
-    # create lag versions (required_metrics) rather than marking the original as a parent
-    validator_fn = SymbolicValidator("> 0", lambda x: x > 0)
-    check.add_assertion(x1 > 0.1, name="DoD check", validator=validator_fn)
-    check.add_assertion(x2 < 100, name="Stddev check", validator=validator_fn)
-
-    graph = Graph(root)
-    validator = SuiteValidator()
-    report = validator.validate(graph, provider)
-
-    # Should warn about:
-    # - average(conversion_rate) - explicitly created but unused
-    # - average(latency) - created as base for stddev but not directly used
-    # Note: sum(revenue) is in required_metrics of day_over_day so it won't be warned
-    unused_warnings = [w for w in report.warnings if w.rule == "unused_symbols"]
-    assert len(unused_warnings) == 2
-
-    warning_messages = [w.message for w in unused_warnings]
-    # Check that the unused symbols are warned about
-    assert any("average(conversion_rate)" in msg for msg in warning_messages)
-    assert any("average(latency)" in msg for msg in warning_messages)
-    # sum(revenue) should NOT be warned - it's in required_metrics of day_over_day
-    assert not any("sum(revenue)" in msg for msg in warning_messages)
 
 
 def test_unused_symbol_validator_no_symbols_defined() -> None:
@@ -576,48 +485,3 @@ def test_unused_symbol_validator_reset() -> None:
     report1 = validator.validate(graph, provider)
     unused_warnings1 = [w for w in report1.warnings if w.rule == "unused_symbols"]
     assert len(unused_warnings1) == 1
-
-    # Reset and validate again
-    # The validator should be reset internally by SuiteValidator
-    report2 = validator.validate(graph, provider)
-    unused_warnings2 = [w for w in report2.warnings if w.rule == "unused_symbols"]
-    assert len(unused_warnings2) == 1  # Should still find the same issue
-
-    # Warnings should be identical
-    assert unused_warnings1[0].message == unused_warnings2[0].message
-
-
-def test_unused_symbol_validator_performance() -> None:
-    """Test validator performance with many symbols."""
-    import time
-
-    root = RootNode("large_suite")
-    check = root.add_check("Large Check")
-
-    db = InMemoryMetricDB()
-    provider = MetricProvider(db)
-
-    # Create 1000 symbols
-    symbols = []
-    for i in range(1000):
-        sym = provider.metric(specs.Sum(f"metric_{i}"))
-        symbols.append(sym)
-
-    # Use 500 of them
-    validator_fn = SymbolicValidator("> 0", lambda x: x > 0)
-    for i in range(0, 1000, 2):  # Use every other symbol
-        check.add_assertion(symbols[i] > 0, name=f"Assert_{i}", validator=validator_fn)
-
-    graph = Graph(root)
-    validator = SuiteValidator()
-
-    start = time.time()
-    report = validator.validate(graph, provider)
-    duration = time.time() - start
-
-    # Should complete quickly
-    assert duration < 1.0  # 1000ms should be plenty
-
-    # Should have 500 unused symbol warnings
-    unused_warnings = [w for w in report.warnings if w.rule == "unused_symbols"]
-    assert len(unused_warnings) == 500

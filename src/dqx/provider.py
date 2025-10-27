@@ -126,6 +126,13 @@ class MetricRegistry:
         if symbol in self.index:
             del self.index[symbol]
 
+    def _exists(self, spec: MetricSpec, lag: int, dataset: str) -> sp.Symbol | None:
+        for sm in self._metrics:
+            if sm.metric_spec == spec and sm.lag == lag and sm.dataset == dataset:
+                return sm.symbol
+
+        return None
+
     def register(
         self,
         fn: RetrievalFn,
@@ -136,6 +143,10 @@ class MetricRegistry:
     ) -> sp.Symbol:
         """Register a symbolic metric."""
         sym = self._next_symbol()
+
+        # Check if symbol already exists, returns the existing one
+        if dataset and (existing_sym := self._exists(metric_spec, lag, dataset)) is not None:
+            return existing_sym
 
         self._metrics.append(
             sm := SymbolicMetric(
