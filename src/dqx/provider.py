@@ -21,15 +21,6 @@ from dqx.specs import MetricSpec
 if TYPE_CHECKING:
     from dqx.graph.traversal import Graph
 
-__all__ = [
-    "SymbolInfo",
-    "SymbolicMetric",
-    "SymbolicMetricBase",
-    "ExtendedMetricProvider",
-    "MetricProvider",
-    "SymbolIndex",
-]
-
 SymbolIndex = dict[sp.Symbol, "SymbolicMetric"]
 
 
@@ -132,7 +123,7 @@ class SymbolicMetricBase(ABC):
         required_metrics = required_metrics or []
 
         self._metrics.append(
-            SymbolicMetric(
+            sm := SymbolicMetric(
                 name=name,
                 symbol=symbol,
                 fn=fn,
@@ -142,7 +133,7 @@ class SymbolicMetricBase(ABC):
                 required_metrics=required_metrics,
             )
         )
-        self._symbol_index[symbol] = self._metrics[-1]
+        self._symbol_index[symbol] = sm
 
     def evaluate(self, symbol: sp.Symbol, key: ResultKey) -> Result[float, str]:
         return self._symbol_index[symbol].fn(key)
