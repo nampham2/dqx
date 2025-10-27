@@ -254,6 +254,10 @@ extra:
       find what they're searching for. With your consent, you're helping us to
       make our documentation better.
 
+# Exclude patterns
+exclude_docs: |
+  plans/
+
 # Watch for changes
 watch:
   - src/dqx
