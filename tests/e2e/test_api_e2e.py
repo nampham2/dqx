@@ -83,11 +83,6 @@ def test_e2e_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> No
     suite.graph.print_tree()
 
     print_assertion_results(suite.collect_results())
+    print_metric_trace(trace := suite.metric_trace(db), suite.execution_id)
 
-    trace = data.metric_trace(
-        data.metrics_by_execution_id(db, suite.execution_id),
-        suite.execution_id,
-        suite.analysis_reports,
-        suite.provider.collect_symbols(suite.key),
-    )
-    print_metric_trace(trace, suite.execution_id)
+    assert data.metric_trace_stats(trace).discrepancy_count == 0, "There should be no discrepancies in the metrics"
