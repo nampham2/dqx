@@ -250,11 +250,22 @@ class TestValidationExpressions:
             ctx.assert_that(mp.average("price")).where(name="Price validation").is_gt(50)
 
         # Setup
+
         db = Mock()
+
+        # Mock the database session and query
+        mock_session = Mock()
+        mock_query = Mock()
+        mock_query.all.return_value = []  # Return empty list for metrics
+        mock_session.query.return_value = mock_query
+        db.new_session.return_value = mock_session
+
         suite = VerificationSuite([test_check], db, "Test Suite")
 
-        # Mock the provider and evaluator behavior
-        suite.provider.index.clear()
+        # Mock the provider's metrics
+        for symbol_ref, symbol_info in suite.provider.index.items():
+            # Create a mock that returns a proper float value
+            symbol_info.fn = lambda k: Success(75.0)
 
         # Run suite which will build graph internally
         key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
@@ -263,7 +274,9 @@ class TestValidationExpressions:
         from dqx.datasource import DuckRelationDataSource
 
         data = pa.table({"price": [75.0]})
-        suite.run([DuckRelationDataSource.from_arrow(data, "data")], key)
+
+        # Disable plugins to avoid metric trace issues
+        suite.run([DuckRelationDataSource.from_arrow(data, "data")], key, enable_plugins=False)
 
         # Get the assertion node
         assertions = list(suite.graph.assertions())

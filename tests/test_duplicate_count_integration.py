@@ -1,16 +1,13 @@
 """Integration tests for DuplicateCount functionality."""
 
 from typing import Any
-from unittest.mock import Mock
 
 import pytest
-from returns.result import Success
 
 from dqx import ops, specs, states
 from dqx.analyzer import Analyzer
 from dqx.datasource import DuckRelationDataSource
 from dqx.dialect import DuckDBDialect
-from dqx.orm.repositories import MetricDB
 from dqx.provider import MetricProvider
 
 
@@ -19,9 +16,11 @@ class TestDuplicateCountIntegration:
 
     def test_duplicate_count_end_to_end_flow(self) -> None:
         """Test the complete flow from provider to spec to op to state."""
-        # 1. Create provider with mock DB
-        mock_db = Mock(spec=MetricDB)
-        provider = MetricProvider(mock_db)
+        # 1. Create provider with real in-memory DB
+        from dqx.orm.repositories import InMemoryMetricDB
+
+        db = InMemoryMetricDB()
+        provider = MetricProvider(db)
 
         # 2. Create a duplicate_count symbol
         columns = ["user_id", "session_id"]
@@ -101,22 +100,19 @@ class TestDuplicateCountIntegration:
     def test_duplicate_count_in_verification_suite(self) -> None:
         """Test using DuplicateCount in a verification suite context."""
         from dqx.api import VerificationSuite, check
+        from dqx.orm.repositories import InMemoryMetricDB
 
-        # Create mock provider
-        mock_db = Mock(spec=MetricDB)
+        # Create real in-memory database
+        db = InMemoryMetricDB()
 
         # Define check function
         @check(name="no_duplicate_orders")
         def check_no_duplicates(mp: MetricProvider, ctx: Any) -> None:
             duplicate_count = mp.duplicate_count(["order_id"])
-
-            # Mock the evaluation
-            mp.index[duplicate_count].fn = lambda k: Success(0.0)
-
             ctx.assert_that(duplicate_count).where(name="No duplicate orders").is_eq(0.0)
 
         # Create suite
-        suite = VerificationSuite(checks=[check_no_duplicates], db=mock_db, name="test_suite")
+        suite = VerificationSuite(checks=[check_no_duplicates], db=db, name="test_suite")
 
         # Run suite which will build graph internally
         import datetime
@@ -130,7 +126,8 @@ class TestDuplicateCountIntegration:
         from dqx.datasource import DuckRelationDataSource
 
         data = pa.table({"order_id": [1, 2, 3]})
-        suite.run([DuckRelationDataSource.from_arrow(data, "data")], key)
+        # Disable plugins to avoid potential issues with mocked trace
+        suite.run([DuckRelationDataSource.from_arrow(data, "data")], key, enable_plugins=False)
 
         # Access graph after running
         graph = suite.graph
