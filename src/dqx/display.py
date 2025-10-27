@@ -245,8 +245,8 @@ def print_metric_trace(trace_table: pa.Table, execution_id: str) -> None:
     table.add_column("Metric", style="yellow", no_wrap=True)
     table.add_column("Symbol", style="yellow", no_wrap=True)
     table.add_column("Dataset", style="magenta")
-    table.add_column("Value DB", style="dim")
     table.add_column("Value Analysis", style="dim")
+    table.add_column("Value DB", style="dim")
     table.add_column("Value Final", style="dim")
     table.add_column("Error", style="red")
     table.add_column("Tags", style="dim")
@@ -321,8 +321,8 @@ def print_metric_trace(trace_table: pa.Table, execution_id: str) -> None:
                 data["metric"][i],
                 symbol_display,
                 data["dataset"][i],
-                value_db_display,
                 value_analysis_display,
+                value_db_display,
                 value_final_display,
                 error_display,
                 data["tags"][i],
@@ -334,8 +334,8 @@ def print_metric_trace(trace_table: pa.Table, execution_id: str) -> None:
                 data["metric"][i],
                 symbol_display,
                 data["dataset"][i],
-                value_db_display,
                 value_analysis_display,
+                value_db_display,
                 value_final_display,
                 error_display,
                 data["tags"][i],
