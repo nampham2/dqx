@@ -166,7 +166,8 @@ class TestBigQueryDialect:
         """Test batch CTE query with single date."""
         from datetime import date
 
-        from dqx.models import BatchCTEData, ResultKey
+        from dqx.common import ResultKey
+        from dqx.dialect import BatchCTEData
         from dqx.ops import Average, NumRows
 
         dialect = BigQueryDialect()
@@ -192,7 +193,8 @@ class TestBigQueryDialect:
         """Test batch CTE query with multiple dates."""
         from datetime import date
 
-        from dqx.models import BatchCTEData, ResultKey
+        from dqx.common import ResultKey
+        from dqx.dialect import BatchCTEData
         from dqx.ops import Average, Maximum, Minimum, NumRows
 
         dialect = BigQueryDialect()
@@ -224,7 +226,8 @@ class TestBigQueryDialect:
 
         import pytest
 
-        from dqx.models import BatchCTEData, ResultKey
+        from dqx.common import ResultKey
+        from dqx.dialect import BatchCTEData
 
         dialect = BigQueryDialect()
         key = ResultKey(yyyy_mm_dd=date(2024, 1, 1), tags={})

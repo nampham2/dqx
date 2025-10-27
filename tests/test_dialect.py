@@ -9,8 +9,9 @@ from datetime import date
 import pytest
 
 from dqx import ops
-from dqx.common import DQXError
+from dqx.common import DQXError, ResultKey
 from dqx.dialect import (
+    BatchCTEData,
     BigQueryDialect,
     DuckDBDialect,
     auto_register,
@@ -18,7 +19,6 @@ from dqx.dialect import (
     get_dialect,
     register_dialect,
 )
-from dqx.models import BatchCTEData, ResultKey
 
 
 def test_build_cte_query() -> None:

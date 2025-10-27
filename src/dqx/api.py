@@ -9,6 +9,7 @@ from collections.abc import Callable, Sequence
 from contextlib import contextmanager
 from typing import Any, Protocol, cast, runtime_checkable
 
+import pyarrow as pa
 import sympy as sp
 
 from dqx import functions, get_logger
@@ -720,6 +721,53 @@ class VerificationSuite:
                 return True
 
         return False
+
+    def metric_trace(self, db: MetricDB) -> "pa.Table":
+        """
+        Generate a metric trace table showing how metrics flow through the system.
+
+        This method creates a trace showing metric values from the database,
+        through analysis reports, to final symbol values. It performs joins
+        to match metrics across these different stages.
+
+        Args:
+            db: The MetricDB instance to query for persisted metrics
+
+        Returns:
+            PyArrow table with columns: date, metric, symbol, type, dataset,
+            value_db, value_analysis, value_final, error, tags, is_extended
+
+        Raises:
+            DQXError: If called before run() has been executed
+
+        Example:
+            >>> suite = VerificationSuite(checks, db, "My Suite")
+            >>> datasources = [DuckRelationDataSource.from_arrow(data, "my_data")]
+            >>> suite.run(datasources, key)
+            >>> trace = suite.metric_trace(db)
+            >>> # Analyze the trace
+            >>> from dqx.data import metric_trace_stats
+            >>> stats = metric_trace_stats(trace)
+            >>> print(f"Found {stats.discrepancy_count} discrepancies")
+        """
+        from dqx import data
+
+        # Ensure suite has been evaluated
+        self.assert_is_evaluated()
+
+        # Get metrics from database for this execution
+        metrics = data.metrics_by_execution_id(db, self.execution_id)
+
+        # Get symbols from the provider
+        symbols = self.provider.collect_symbols(self.key)
+
+        # Generate and return the trace table
+        return data.metric_trace(
+            metrics=metrics,
+            execution_id=self.execution_id,
+            reports=self._analysis_reports,
+            symbols=symbols,
+        )
 
     def _process_plugins(self, datasources: list[SqlDataSource]) -> None:
         """

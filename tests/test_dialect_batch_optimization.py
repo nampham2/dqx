@@ -7,8 +7,8 @@ ensuring it works correctly with the DuckDB and BigQuery dialects.
 from datetime import date
 
 from dqx import ops
-from dqx.dialect import BigQueryDialect, DuckDBDialect
-from dqx.models import BatchCTEData, ResultKey
+from dqx.common import ResultKey
+from dqx.dialect import BatchCTEData, BigQueryDialect, DuckDBDialect
 
 
 def test_batch_optimization_with_count_values_duckdb() -> None:

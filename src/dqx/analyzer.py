@@ -229,7 +229,7 @@ def analyze_batch_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> No
     dialect_instance = get_dialect(ds.dialect)
 
     # Build CTE data using dataclass
-    from dqx.models import BatchCTEData
+    from dqx.dialect import BatchCTEData
 
     cte_data = [BatchCTEData(key=key, cte_sql=ds.cte(key.yyyy_mm_dd), ops=ops) for key, ops in ops_by_key.items()]
 

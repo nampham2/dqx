@@ -11,16 +11,7 @@ from dqx.common import DQXError, Metadata, ResultKey
 from dqx.states import State
 
 if TYPE_CHECKING:
-    from dqx.ops import SqlOp
-
-
-@dataclass
-class BatchCTEData:
-    """Data for building a batch CTE query."""
-
-    key: ResultKey
-    cte_sql: str
-    ops: Sequence[SqlOp]
+    pass
 
 
 @dataclass

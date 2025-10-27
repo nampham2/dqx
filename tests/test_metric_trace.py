@@ -419,3 +419,194 @@ class TestMetricTrace:
         # Test trace table
         trace = metric_trace(metrics, "exec-123", reports, symbols)
         assert all(col.islower() for col in trace.column_names)
+
+
+class TestMetricTraceStats:
+    """Test cases for metric_trace_stats function."""
+
+    def test_empty_trace(self) -> None:
+        """Test metric_trace_stats with empty trace table."""
+        from dqx.data import metric_trace_stats
+
+        # Create empty trace
+        trace = metric_trace([], "exec-123", {}, [])
+        stats = metric_trace_stats(trace)
+
+        assert stats.total_rows == 0
+        assert stats.discrepancy_count == 0
+        assert stats.discrepancy_rows == []
+        assert stats.discrepancy_details == []
+
+    def test_no_discrepancies(self) -> None:
+        """Test metric_trace_stats with matching values."""
+        from dqx.data import metric_trace_stats
+
+        test_date = date(2024, 1, 1)
+
+        # Create data with matching values
+        metrics = [
+            Metric.build(
+                specs.NumRows(),
+                ResultKey(yyyy_mm_dd=test_date, tags={}),
+                dataset="sales_table",
+                state=SimpleAdditiveState(100.0),
+                metadata=Metadata(execution_id="exec-123"),
+            )
+        ]
+
+        spec = specs.NumRows()
+        key = ResultKey(yyyy_mm_dd=test_date, tags={})
+        report = AnalysisReport()
+        report[(spec, key, "sales_table")] = Metric.build(
+            spec, key, dataset="sales_table", state=SimpleAdditiveState(100.0)
+        )
+        reports = {"sales_table": report}
+
+        trace = metric_trace(metrics, "exec-123", reports, [])
+        stats = metric_trace_stats(trace)
+
+        assert stats.total_rows == 1
+        assert stats.discrepancy_count == 0
+        assert stats.discrepancy_rows == []
+        assert stats.discrepancy_details == []
+
+    def test_with_discrepancies(self) -> None:
+        """Test metric_trace_stats with value discrepancies."""
+        from dqx.data import metric_trace_stats
+
+        test_date = date(2024, 1, 1)
+
+        # Create data with discrepancies
+        metrics = [
+            Metric.build(
+                specs.NumRows(),
+                ResultKey(yyyy_mm_dd=test_date, tags={}),
+                dataset="sales_table",
+                state=SimpleAdditiveState(100.0),
+                metadata=Metadata(execution_id="exec-123"),
+            )
+        ]
+
+        spec = specs.NumRows()
+        key = ResultKey(yyyy_mm_dd=test_date, tags={})
+        report = AnalysisReport()
+        report[(spec, key, "sales_table")] = Metric.build(
+            spec, key, dataset="sales_table", state=SimpleAdditiveState(101.0)
+        )
+        report.symbol_mapping[(spec, key, "sales_table")] = "x_1"
+        reports = {"sales_table": report}
+
+        symbols = [
+            SymbolInfo(
+                name="x_1",
+                metric="num_rows()",
+                dataset="sales_table",
+                value=Success(102.0),
+                yyyy_mm_dd=test_date,
+                tags={},
+            )
+        ]
+
+        trace = metric_trace(metrics, "exec-123", reports, symbols)
+        stats = metric_trace_stats(trace)
+
+        assert stats.total_rows == 1
+        assert stats.discrepancy_count == 1
+        assert stats.discrepancy_rows == [0]
+        assert len(stats.discrepancy_details) == 1
+
+        detail = stats.discrepancy_details[0]
+        assert detail["row_index"] == 0
+        assert detail["value_db"] == 100.0
+        assert detail["value_analysis"] == 101.0
+        assert detail["value_final"] == 102.0
+        assert "value_db != value_analysis" in detail["discrepancies"]
+        assert "value_db != value_final" in detail["discrepancies"]
+        assert "value_analysis != value_final" in detail["discrepancies"]
+
+    def test_extended_metrics_excluded(self) -> None:
+        """Test that extended metrics are excluded from discrepancy counts."""
+        from dqx.data import metric_trace_stats
+
+        test_date = date(2024, 1, 1)
+
+        # Create data with discrepancies for extended metric
+        base_spec = specs.NumRows()
+        dod_spec = specs.DayOverDay.from_base_spec(base_spec)
+
+        metrics = [
+            Metric.build(
+                dod_spec,  # Extended metric
+                ResultKey(yyyy_mm_dd=test_date, tags={}),
+                dataset="sales_table",
+                state=SimpleAdditiveState(100.0),
+                metadata=Metadata(execution_id="exec-123"),
+            )
+        ]
+
+        spec = dod_spec
+        key = ResultKey(yyyy_mm_dd=test_date, tags={})
+        report = AnalysisReport()
+        report[(spec, key, "sales_table")] = Metric.build(
+            spec, key, dataset="sales_table", state=SimpleAdditiveState(101.0)
+        )
+        reports = {"sales_table": report}
+
+        trace = metric_trace(metrics, "exec-123", reports, [])
+        stats = metric_trace_stats(trace)
+
+        # Extended metrics should not count as discrepancies
+        assert stats.total_rows == 1
+        assert stats.discrepancy_count == 0
+        assert stats.discrepancy_rows == []
+        assert stats.discrepancy_details == []
+
+    def test_mixed_discrepancies(self) -> None:
+        """Test with mix of discrepancies and matching values."""
+        from dqx.data import metric_trace_stats
+
+        test_date = date(2024, 1, 1)
+
+        # Create metrics with mixed results
+        metrics = [
+            Metric.build(
+                specs.NumRows(),
+                ResultKey(yyyy_mm_dd=test_date, tags={}),
+                dataset="sales_table",
+                state=SimpleAdditiveState(100.0),
+                metadata=Metadata(execution_id="exec-123"),
+            ),
+            Metric.build(
+                specs.Average("price"),
+                ResultKey(yyyy_mm_dd=test_date, tags={}),
+                dataset="sales_table",
+                state=SimpleAdditiveState(50.0),
+                metadata=Metadata(execution_id="exec-123"),
+            ),
+        ]
+
+        # Create reports with one discrepancy
+        report = AnalysisReport()
+        spec1 = specs.NumRows()
+        spec2 = specs.Average("price")
+        key = ResultKey(yyyy_mm_dd=test_date, tags={})
+
+        report[(spec1, key, "sales_table")] = Metric.build(
+            spec1,
+            key,
+            dataset="sales_table",
+            state=SimpleAdditiveState(101.0),  # Discrepancy
+        )
+        report[(spec2, key, "sales_table")] = Metric.build(
+            spec2,
+            key,
+            dataset="sales_table",
+            state=SimpleAdditiveState(50.0),  # Match
+        )
+        reports = {"sales_table": report}
+
+        trace = metric_trace(metrics, "exec-123", reports, [])
+        stats = metric_trace_stats(trace)
+
+        assert stats.total_rows == 2
+        assert stats.discrepancy_count == 1  # Only num_rows has discrepancy

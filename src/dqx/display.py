@@ -237,6 +237,11 @@ def print_metric_trace(trace_table: pa.Table, execution_id: str) -> None:
 
     from rich.table import Table
 
+    from dqx.data import metric_trace_stats
+
+    # Get discrepancy statistics
+    stats = metric_trace_stats(trace_table)
+
     # Create table with title
     table = Table(title=f"Metric Trace for Execution: {execution_id}", show_lines=True)
 
@@ -270,9 +275,10 @@ def print_metric_trace(trace_table: pa.Table, execution_id: str) -> None:
     # Sort row indices by symbol
     row_indices.sort(key=symbol_sort_key)
 
-    # Process each row in sorted order
-    non_extended_discrepancy_count = 0
+    # Create a set of discrepancy row indices for quick lookup
+    discrepancy_set = set(stats.discrepancy_rows)
 
+    # Process each row in sorted order
     for i in row_indices:
         # Extract values
         value_db = data["value_db"][i]
@@ -281,17 +287,8 @@ def print_metric_trace(trace_table: pa.Table, execution_id: str) -> None:
         error = data["error"][i]
         is_extended = data["is_extended"][i] if "is_extended" in data else False
 
-        # Check for discrepancies (only for non-extended metrics)
-        has_discrepancy = False
-        if not is_extended:
-            if value_db is not None and value_analysis is not None and value_db != value_analysis:
-                has_discrepancy = True
-            if value_db is not None and value_final is not None and value_db != value_final:
-                has_discrepancy = True
-            if value_analysis is not None and value_final is not None and value_analysis != value_final:
-                has_discrepancy = True
-            if has_discrepancy:
-                non_extended_discrepancy_count += 1
+        # Check if this row has discrepancy
+        has_discrepancy = i in discrepancy_set
 
         # Format values with colors
         def format_value(value: float | None, highlight: bool = False, is_extended: bool = False) -> str:
@@ -345,10 +342,10 @@ def print_metric_trace(trace_table: pa.Table, execution_id: str) -> None:
     console = Console()
     console.print(table)
 
-    # Print summary of discrepancies (only counting non-extended metrics)
-    if non_extended_discrepancy_count > 0:
+    # Print summary of discrepancies using stats
+    if stats.discrepancy_count > 0:
         console.print(
-            f"\n[bold yellow]⚠️  Found {non_extended_discrepancy_count} row(s) with value discrepancies (excluding extended metrics)[/bold yellow]"
+            f"\n[bold yellow]⚠️  Found {stats.discrepancy_count} row(s) with value discrepancies (excluding extended metrics)[/bold yellow]"
         )
 
 

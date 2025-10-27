@@ -525,3 +525,106 @@ def test_noop_assertion_workflow() -> None:
     suite = VerificationSuite([collection_check], db, "test")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
     suite.build_graph(context, key=key)
+
+
+def test_verification_suite_metric_trace() -> None:
+    """Test VerificationSuite.metric_trace method."""
+    import pyarrow as pa
+
+    from dqx.datasource import DuckRelationDataSource
+
+    db = InMemoryMetricDB()
+
+    @check(name="Test Check", datasets=["test_data"])
+    def test_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(mp.num_rows()).where(name="Row count is positive").is_gt(0)
+        ctx.assert_that(mp.average("value")).where(name="Average is reasonable").is_between(0, 100)
+
+    suite = VerificationSuite([test_check], db, "Test Suite")
+
+    # Create test data
+    data = pa.table({"id": [1, 2, 3, 4, 5], "value": [10, 20, 30, 40, 50]})
+    datasource = DuckRelationDataSource.from_arrow(data, "test_data")
+
+    # Should raise error before run
+    with pytest.raises(DQXError, match="Verification suite has not been executed yet!"):
+        _ = suite.metric_trace(db)
+
+    # Run the suite
+    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={"test": "true"})
+    suite.run([datasource], key)
+
+    # Now metric_trace should work
+    trace = suite.metric_trace(db)
+
+    # Verify it's a PyArrow table
+    assert isinstance(trace, pa.Table)
+
+    # Verify expected columns
+    expected_columns = {
+        "date",
+        "metric",
+        "symbol",
+        "type",
+        "dataset",
+        "value_db",
+        "value_analysis",
+        "value_final",
+        "error",
+        "tags",
+        "is_extended",
+    }
+    assert set(trace.column_names) == expected_columns
+
+    # Should have rows for the metrics
+    assert trace.num_rows > 0
+
+    # Check that execution_id matches
+    from dqx import data
+
+    metrics = data.metrics_by_execution_id(db, suite.execution_id)
+    assert len(metrics) > 0  # Should have persisted metrics
+
+
+def test_verification_suite_metric_trace_stats() -> None:
+    """Test metric_trace_stats with VerificationSuite results."""
+    import pyarrow as pa
+
+    from dqx.datasource import DuckRelationDataSource
+
+    db = InMemoryMetricDB()
+
+    @check(name="Test Check", datasets=["test_data"])
+    def test_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(mp.num_rows()).where(name="Row count check").is_gt(0)
+
+    suite = VerificationSuite([test_check], db, "Test Suite")
+
+    # Create test data
+    data = pa.table({"id": [1, 2, 3]})
+    datasource = DuckRelationDataSource.from_arrow(data, "test_data")
+
+    # Run the suite
+    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+    suite.run([datasource], key)
+
+    # Get trace and stats
+    trace = suite.metric_trace(db)
+
+    from dqx.data import metric_trace_stats
+
+    stats = metric_trace_stats(trace)
+
+    # Verify stats structure
+    assert hasattr(stats, "total_rows")
+    assert hasattr(stats, "discrepancy_count")
+    assert hasattr(stats, "discrepancy_rows")
+    assert hasattr(stats, "discrepancy_details")
+
+    # Should have at least one row
+    assert stats.total_rows > 0
+
+    # In a clean run, there shouldn't be discrepancies
+    assert stats.discrepancy_count == 0
+    assert len(stats.discrepancy_rows) == 0
+    assert len(stats.discrepancy_details) == 0

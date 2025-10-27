@@ -81,13 +81,25 @@ This allows the same DQX code to work across different databases.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Protocol, Type, runtime_checkable
 
 from dqx import ops
-from dqx.common import DQXError
+from dqx.common import DQXError, ResultKey
 
 if TYPE_CHECKING:
-    from dqx.models import BatchCTEData
+    from dqx.ops import SqlOp
+
+
+@dataclass
+class BatchCTEData:
+    """Data for building a batch CTE query."""
+
+    key: ResultKey
+    cte_sql: str
+    ops: Sequence[SqlOp]
+
 
 # Dialect Registry
 _DIALECT_REGISTRY: dict[str, Type[Dialect]] = {}

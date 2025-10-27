@@ -8,8 +8,7 @@ import duckdb
 from dqx import ops
 from dqx.analyzer import Analyzer, analyze_batch_sql_ops
 from dqx.common import ResultKey
-from dqx.dialect import DuckDBDialect
-from dqx.models import BatchCTEData
+from dqx.dialect import BatchCTEData, DuckDBDialect
 
 
 class TestAnalyzerBatchOptimization:

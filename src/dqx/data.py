@@ -1,6 +1,7 @@
 """Data retrieval module for DQX metrics."""
 
-from typing import TYPE_CHECKING, Sequence
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any, Sequence
 
 import pyarrow as pa
 
@@ -16,12 +17,32 @@ if TYPE_CHECKING:
 # Define MetricKey type alias to match analyzer.py
 MetricKey = tuple[MetricSpec, ResultKey, str]
 
+
+@dataclass
+class MetricTraceStats:
+    """Statistics about discrepancies in a metric trace.
+
+    Attributes:
+        total_rows: Total number of rows in the trace
+        discrepancy_count: Number of rows with value mismatches (excluding extended metrics)
+        discrepancy_rows: List of row indices with discrepancies
+        discrepancy_details: List of detailed information for each discrepancy row
+    """
+
+    total_rows: int
+    discrepancy_count: int
+    discrepancy_rows: list[int]
+    discrepancy_details: list[dict[str, Any]]
+
+
 __all__ = [
     "metrics_by_execution_id",
     "metrics_to_pyarrow_table",
     "analysis_reports_to_pyarrow_table",
     "symbols_to_pyarrow_table",
     "metric_trace",
+    "metric_trace_stats",
+    "MetricTraceStats",
 ]
 
 
@@ -505,3 +526,72 @@ def metric_trace(
         )
 
     return result
+
+
+def metric_trace_stats(trace_table: pa.Table) -> MetricTraceStats:
+    """
+    Analyze a metric trace table for discrepancies.
+
+    Identifies rows where values differ between database, analysis,
+    and final stages. Extended metrics are excluded from discrepancy
+    counts as they are computed metrics.
+
+    Args:
+        trace_table: PyArrow table from metric_trace()
+
+    Returns:
+        MetricTraceStats object with discrepancy analysis
+    """
+    # Convert PyArrow table to dict for easier processing
+    data = trace_table.to_pydict()
+    total_rows = trace_table.num_rows
+
+    discrepancy_rows: list[int] = []
+    discrepancy_details: list[dict[str, Any]] = []
+
+    # Process each row
+    for i in range(total_rows):
+        # Extract values
+        value_db = data["value_db"][i]
+        value_analysis = data["value_analysis"][i]
+        value_final = data["value_final"][i]
+        is_extended = data["is_extended"][i] if "is_extended" in data else False
+
+        # Check for discrepancies (only for non-extended metrics)
+        if not is_extended:
+            has_discrepancy = False
+            discrepancy_info = {
+                "row_index": i,
+                "date": data["date"][i],
+                "metric": data["metric"][i],
+                "symbol": data["symbol"][i],
+                "dataset": data["dataset"][i],
+                "value_db": value_db,
+                "value_analysis": value_analysis,
+                "value_final": value_final,
+                "discrepancies": [],
+            }
+
+            # Check each pair of values
+            if value_db is not None and value_analysis is not None and value_db != value_analysis:
+                has_discrepancy = True
+                discrepancy_info["discrepancies"].append("value_db != value_analysis")
+
+            if value_db is not None and value_final is not None and value_db != value_final:
+                has_discrepancy = True
+                discrepancy_info["discrepancies"].append("value_db != value_final")
+
+            if value_analysis is not None and value_final is not None and value_analysis != value_final:
+                has_discrepancy = True
+                discrepancy_info["discrepancies"].append("value_analysis != value_final")
+
+            if has_discrepancy:
+                discrepancy_rows.append(i)
+                discrepancy_details.append(discrepancy_info)
+
+    return MetricTraceStats(
+        total_rows=total_rows,
+        discrepancy_count=len(discrepancy_rows),
+        discrepancy_rows=discrepancy_rows,
+        discrepancy_details=discrepancy_details,
+    )
