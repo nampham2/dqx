@@ -46,8 +46,8 @@ class TestAnalysisReportSymbols:
         state1 = SimpleAdditiveState(value=100.0)
         metric1 = Metric(spec=spec1, key=key1, state=state1, dataset="default")
 
-        report1 = AnalysisReport({(spec1, key1): metric1})
-        report1.symbol_mapping[(spec1, key1)] = "total_col1"
+        report1 = AnalysisReport({(spec1, key1, "default"): metric1})
+        report1.symbol_mapping[(spec1, key1, "default")] = "total_col1"
 
         # Create second report with different data and mappings
         spec2 = Average("col2")
@@ -55,21 +55,21 @@ class TestAnalysisReportSymbols:
         state2 = AverageState(avg=50.0, n=10)
         metric2 = Metric(spec=spec2, key=key2, state=state2, dataset="default")
 
-        report2 = AnalysisReport({(spec2, key2): metric2})
-        report2.symbol_mapping[(spec2, key2)] = "average_col2"
+        report2 = AnalysisReport({(spec2, key2, "default"): metric2})
+        report2.symbol_mapping[(spec2, key2, "default")] = "average_col2"
 
         # Merge reports
         merged = report1.merge(report2)
 
         # Check that merged report has both mappings
         assert len(merged.symbol_mapping) == 2
-        assert merged.symbol_mapping[(spec1, key1)] == "total_col1"
-        assert merged.symbol_mapping[(spec2, key2)] == "average_col2"
+        assert merged.symbol_mapping[(spec1, key1, "default")] == "total_col1"
+        assert merged.symbol_mapping[(spec2, key2, "default")] == "average_col2"
 
         # Check that data is also merged
         assert len(merged) == 2
-        assert (spec1, key1) in merged
-        assert (spec2, key2) in merged
+        assert (spec1, key1, "default") in merged
+        assert (spec2, key2, "default") in merged
 
     def test_analyzer_with_symbol_lookup(self) -> None:
         """Test that Analyzer accepts symbol_lookup and populates mappings."""
@@ -88,7 +88,7 @@ class TestAnalysisReportSymbols:
         # Create metric spec and symbol lookup
         spec = Sum("col1")
         key = ResultKey(datetime.date(2024, 1, 1), {})
-        symbol_lookup: dict[tuple[MetricSpec, ResultKey], str] = {(spec, key): "total_sales"}
+        symbol_lookup: dict[tuple[MetricSpec, ResultKey, str], str] = {(spec, key, "test_ds"): "total_sales"}
 
         # Create analyzer with symbol lookup
         analyzer = Analyzer(metadata=Metadata(), symbol_lookup=symbol_lookup)
@@ -107,8 +107,8 @@ class TestAnalysisReportSymbols:
             report = analyzer.analyze(mock_ds, metrics_by_key)
 
         # Check that symbol mapping was populated
-        assert (spec, key) in report.symbol_mapping
-        assert report.symbol_mapping[(spec, key)] == "total_sales"
+        assert (spec, key, "test_ds") in report.symbol_mapping
+        assert report.symbol_mapping[(spec, key, "test_ds")] == "total_sales"
 
     def test_verification_suite_stores_analysis_reports(self) -> None:
         """Test that VerificationSuite stores analysis reports by datasource."""
@@ -154,9 +154,9 @@ class TestAnalysisReportSymbols:
         metric2 = Metric(spec=spec2, key=key2, state=state2, dataset="products_db")
 
         # Create report with symbol mappings
-        report = AnalysisReport({(spec1, key1): metric1, (spec2, key2): metric2})
-        report.symbol_mapping[(spec1, key1)] = "total_revenue"
-        report.symbol_mapping[(spec2, key2)] = "average_price"
+        report = AnalysisReport({(spec1, key1, "sales_db"): metric1, (spec2, key2, "products_db"): metric2})
+        report.symbol_mapping[(spec1, key1, "sales_db")] = "total_revenue"
+        report.symbol_mapping[(spec2, key2, "products_db")] = "average_price"
 
         # Print the report
         print_analysis_report({"main": report})
@@ -188,8 +188,8 @@ class TestAnalysisReportSymbols:
         state = SimpleAdditiveState(value=42.0)
         metric = Metric(spec=spec, key=key, state=state, dataset="test_ds")
 
-        report = AnalysisReport({(spec, key): metric})
-        report.symbol_mapping[(spec, key)] = "record_count"
+        report = AnalysisReport({(spec, key, "test_ds"): metric})
+        report.symbol_mapping[(spec, key, "test_ds")] = "record_count"
 
         # Call show method
         report.show("my_datasource")
@@ -243,7 +243,7 @@ class TestAnalysisReportSymbols:
 
         # The symbols will be x_1, x_2, etc. - not the variable names from the check
         # This is because Python doesn't provide a way to capture local variable names
-        # The symbol mapping maps (MetricSpec, ResultKey) -> symbol_name
+        # The symbol mapping maps (MetricSpec, ResultKey, dataset) -> symbol_name
         assert all(isinstance(s, str) and s.startswith("x_") for s in symbols)
 
         # Verify we have the right metric specs in the mapping

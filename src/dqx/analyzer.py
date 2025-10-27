@@ -11,6 +11,7 @@ import sqlparse
 
 from dqx import models
 from dqx.common import (
+    DatasetName,
     DQXError,
     Metadata,
     ResultKey,
@@ -24,7 +25,7 @@ from dqx.specs import MetricSpec
 DEFAULT_BATCH_SIZE = 7  # Maximum dates per analysis SQL query
 
 ColumnName = str
-MetricKey = tuple[MetricSpec, ResultKey]
+MetricKey = tuple[MetricSpec, ResultKey, DatasetName]
 
 T = TypeVar("T", bound=SqlDataSource)
 
@@ -271,9 +272,7 @@ class Analyzer:
     Note: This class is NOT thread-safe. Thread safety must be handled by callers if needed.
     """
 
-    def __init__(
-        self, metadata: Metadata | None = None, symbol_lookup: dict[tuple[MetricSpec, ResultKey], str] | None = None
-    ) -> None:
+    def __init__(self, metadata: Metadata | None = None, symbol_lookup: dict[MetricKey, str] | None = None) -> None:
         # TODO(npham): Remove _report and make the analyzer stateless.
         self._report: AnalysisReport = AnalysisReport()
         self._metadata = metadata or Metadata()
@@ -430,7 +429,7 @@ class Analyzer:
 
         for key, metrics in metrics_by_key.items():
             for metric in metrics:
-                metric_key = (metric, key)
+                metric_key = (metric, key, ds.name)
                 report_data[metric_key] = models.Metric.build(metric, key, dataset=ds.name, metadata=self._metadata)
 
                 # Add symbol mapping if available

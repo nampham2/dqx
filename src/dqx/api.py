@@ -12,7 +12,7 @@ from typing import Any, Protocol, cast, runtime_checkable
 import sympy as sp
 
 from dqx import functions, get_logger
-from dqx.analyzer import AnalysisReport, Analyzer
+from dqx.analyzer import AnalysisReport, Analyzer, MetricKey
 from dqx.common import (
     AssertionResult,
     DQXError,
@@ -537,8 +537,8 @@ class VerificationSuite:
             if not relevant_metrics:
                 continue
 
-            # Create symbol lookup dictionary using (MetricSpec, ResultKey) as key
-            symbol_lookup: dict[tuple[MetricSpec, ResultKey], str] = {}
+            # Create symbol lookup dictionary using MetricKey
+            symbol_lookup: dict[MetricKey, str] = {}
 
             # Group metrics by their effective date
             metrics_by_date: dict[ResultKey, list[MetricSpec]] = defaultdict(list)
@@ -546,8 +546,8 @@ class VerificationSuite:
                 # Use lag directly instead of key_provider
                 effective_key = key.lag(sym_metric.lag)
                 metrics_by_date[effective_key].append(sym_metric.metric_spec)
-                # Add to symbol lookup with (MetricSpec, ResultKey) as key
-                symbol_lookup[(sym_metric.metric_spec, effective_key)] = str(sym_metric.symbol)
+                # Add to symbol lookup with MetricKey including dataset
+                symbol_lookup[(sym_metric.metric_spec, effective_key, ds.name)] = str(sym_metric.symbol)
 
             # Analyze each date group separately
             logger.info(f"Analyzing dataset '{ds.name}'...")

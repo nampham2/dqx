@@ -17,6 +17,10 @@ if TYPE_CHECKING:
     from dqx.specs import MetricSpec
 
 
+# Type aliases
+DatasetName = str
+
+
 @dataclass
 class EvaluationFailure:
     """Failure information for evaluation errors"""

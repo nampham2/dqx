@@ -92,7 +92,7 @@ class TestDuplicateCountIntegration:
         report = analyzer.analyze(data_source, {key: [dc_spec]})
 
         # Get the metric from the report
-        metric = report[(dc_spec, key)]
+        metric = report[(dc_spec, key, "test_data")]
 
         # Verify the value
         # 5 rows - 3 unique combinations = 2 duplicates

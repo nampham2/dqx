@@ -88,13 +88,13 @@ class TestMetricTrace:
         key = ResultKey(yyyy_mm_dd=test_date, tags={"env": "prod"})
 
         report = AnalysisReport()
-        report[(spec, key)] = Metric.build(
+        report[(spec, key, "sales_table")] = Metric.build(
             spec,
             key,
             dataset="sales_table",
             state=SimpleAdditiveState(100.0),
         )
-        report.symbol_mapping[(spec, key)] = "x_1"
+        report.symbol_mapping[(spec, key, "sales_table")] = "x_1"
 
         reports = {"sales_table": report}
         result = metric_trace([], "exec-123", reports, [])
@@ -174,10 +174,14 @@ class TestMetricTrace:
         key = ResultKey(yyyy_mm_dd=test_date, tags={"env": "prod"})
 
         report = AnalysisReport()
-        report[(spec1, key)] = Metric.build(spec1, key, dataset="sales_table", state=SimpleAdditiveState(100.0))
-        report[(spec2, key)] = Metric.build(spec2, key, dataset="sales_table", state=SimpleAdditiveState(5.0))
-        report.symbol_mapping[(spec1, key)] = "x_1"
-        report.symbol_mapping[(spec2, key)] = "x_2"
+        report[(spec1, key, "sales_table")] = Metric.build(
+            spec1, key, dataset="sales_table", state=SimpleAdditiveState(100.0)
+        )
+        report[(spec2, key, "sales_table")] = Metric.build(
+            spec2, key, dataset="sales_table", state=SimpleAdditiveState(5.0)
+        )
+        report.symbol_mapping[(spec1, key, "sales_table")] = "x_1"
+        report.symbol_mapping[(spec2, key, "sales_table")] = "x_2"
 
         reports = {"sales_table": report}
         result = metric_trace(metrics, "exec-123", reports, [])
@@ -226,8 +230,10 @@ class TestMetricTrace:
         spec = specs.NumRows()
         key = ResultKey(yyyy_mm_dd=test_date, tags={"env": "prod"})
         report = AnalysisReport()
-        report[(spec, key)] = Metric.build(spec, key, dataset="sales_table", state=SimpleAdditiveState(101.0))
-        report.symbol_mapping[(spec, key)] = "x_1"
+        report[(spec, key, "sales_table")] = Metric.build(
+            spec, key, dataset="sales_table", state=SimpleAdditiveState(101.0)
+        )
+        report.symbol_mapping[(spec, key, "sales_table")] = "x_1"
         reports = {"sales_table": report}
 
         # Symbols (including one that doesn't match)
@@ -289,8 +295,10 @@ class TestMetricTrace:
         spec = specs.NumRows()
         key = ResultKey(yyyy_mm_dd=test_date, tags={})
         report = AnalysisReport()
-        report[(spec, key)] = Metric.build(spec, key, dataset="sales_table", state=SimpleAdditiveState(101.0))
-        report.symbol_mapping[(spec, key)] = "x_1"
+        report[(spec, key, "sales_table")] = Metric.build(
+            spec, key, dataset="sales_table", state=SimpleAdditiveState(101.0)
+        )
+        report.symbol_mapping[(spec, key, "sales_table")] = "x_1"
         reports = {"sales_table": report}
 
         symbols = [
@@ -347,7 +355,7 @@ class TestMetricTrace:
             ds = m.dataset
             if ds not in reports:
                 reports[ds] = AnalysisReport()
-            reports[ds][(m.spec, m.key)] = m
+            reports[ds][(m.spec, m.key, ds)] = m
 
         result = metric_trace(metrics, "exec-123", reports, [])
 
@@ -451,7 +459,9 @@ class TestMetricTrace:
         spec = specs.Average("test_column")
         key = ResultKey(yyyy_mm_dd=test_date, tags={})
         report = AnalysisReport()
-        report[(spec, key)] = Metric.build(spec, key, dataset="test_dataset", state=SimpleAdditiveState(100.0))
+        report[(spec, key, "test_dataset")] = Metric.build(
+            spec, key, dataset="test_dataset", state=SimpleAdditiveState(100.0)
+        )
         reports = {"test_dataset": report}
 
         symbols = [

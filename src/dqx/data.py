@@ -4,12 +4,17 @@ from typing import TYPE_CHECKING, Sequence
 
 import pyarrow as pa
 
+from dqx.common import ResultKey
 from dqx.models import Metric
 from dqx.orm.repositories import MetricDB
 from dqx.provider import SymbolInfo
+from dqx.specs import MetricSpec
 
 if TYPE_CHECKING:
     from dqx.analyzer import AnalysisReport
+
+# Define MetricKey type alias to match analyzer.py
+MetricKey = tuple[MetricSpec, ResultKey, str]
 
 __all__ = [
     "metrics_by_execution_id",
@@ -143,20 +148,17 @@ def analysis_reports_to_pyarrow_table(reports: dict[str, "AnalysisReport"]) -> p
 
     import pyarrow as pa
 
-    from dqx.common import ResultKey
-    from dqx.specs import MetricSpec
-
     # Collect all items from all reports
-    all_items: list[tuple[tuple[MetricSpec, ResultKey], Metric, str]] = []
+    all_items: list[tuple[MetricKey, Metric, str]] = []
 
     for ds_name, ds_report in reports.items():
         for metric_key, metric in ds_report.items():
-            # metric_key is (MetricSpec, ResultKey)
+            # metric_key is (MetricSpec, ResultKey, DatasetName)
             symbol = ds_report.symbol_mapping.get(metric_key, "-")
             all_items.append((metric_key, metric, symbol))
 
     # Sort by symbol indices (x_1, x_2, ..., x_10, ..., x_20, ...)
-    def symbol_sort_key(item: tuple[tuple[MetricSpec, ResultKey], Metric, str]) -> tuple[int, int, str]:
+    def symbol_sort_key(item: tuple[MetricKey, Metric, str]) -> tuple[int, int, str]:
         symbol = item[2]
         if symbol and symbol != "-":
             # Extract numeric part from x_N pattern
@@ -164,6 +166,7 @@ def analysis_reports_to_pyarrow_table(reports: dict[str, "AnalysisReport"]) -> p
             if match:
                 return (0, int(match.group(1)), "")  # (0, N, "") for symbols
         # For non-symbols, use metric name as secondary sort
+        # metric_key[0] is MetricSpec in the 3-tuple
         return (1, 0, item[0][0].name)  # (1, 0, metric_name) for non-symbols
 
     sorted_items = sorted(all_items, key=symbol_sort_key)
@@ -177,12 +180,14 @@ def analysis_reports_to_pyarrow_table(reports: dict[str, "AnalysisReport"]) -> p
     values: list[float] = []
     tags: list[str] = []
 
-    for (metric_spec, result_key), metric, symbol in sorted_items:
+    for metric_key, metric, symbol in sorted_items:
+        # Unpack the 3-tuple MetricKey
+        metric_spec, result_key, dataset_name = metric_key
         dates.append(result_key.yyyy_mm_dd)
         metric_names.append(metric_spec.name)
         symbols.append(symbol)
         types.append(metric_spec.metric_type)
-        datasets.append(metric.dataset or "-")
+        datasets.append(dataset_name)
         values.append(metric.value)
 
         # Format tags
@@ -307,7 +312,9 @@ def metric_trace(
 
     # Process metrics from analysis reports
     for ds_name, ds_report in reports.items():
-        for (metric_spec, result_key), metric in ds_report.items():
+        for metric_key, metric in ds_report.items():
+            # Unpack the 3-tuple MetricKey
+            metric_spec, result_key, dataset_name = metric_key
             is_extended_map[metric_spec.name] = metric_spec.is_extended
 
     # Get individual tables

@@ -64,8 +64,8 @@ def sample_analysis_reports() -> dict[str, AnalysisReport]:
 
     # Create report with symbol mappings
     report1 = AnalysisReport()
-    metric_key1 = (specs.Average("price"), key1)
-    metric_key2 = (specs.Sum("quantity"), key2)
+    metric_key1 = (specs.Average("price"), key1, "sales")
+    metric_key2 = (specs.Sum("quantity"), key2, "inventory")
 
     report1[metric_key1] = metric1
     report1[metric_key2] = metric2
@@ -220,10 +220,10 @@ def test_analysis_reports_to_pyarrow_multiple_datasources() -> None:
     )
 
     report1 = AnalysisReport()
-    report1[(specs.NullCount("orders"), key)] = metric1
+    report1[(specs.NullCount("orders"), key, "sales")] = metric1
 
     report2 = AnalysisReport()
-    report2[(specs.NullCount("users"), key)] = metric2
+    report2[(specs.NullCount("users"), key, "users")] = metric2
 
     reports = {"datasource1": report1, "datasource2": report2}
     table = analysis_reports_to_pyarrow_table(reports)
@@ -247,7 +247,7 @@ def test_analysis_reports_to_pyarrow_missing_dataset() -> None:
     metric.dataset = None  # type: ignore[assignment]
 
     report = AnalysisReport()
-    report[(specs.NullCount("test"), key)] = metric
+    report[(specs.NullCount("test"), key, "-")] = metric
 
     table = analysis_reports_to_pyarrow_table({"test": report})
     result = table.to_pydict()

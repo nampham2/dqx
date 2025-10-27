@@ -16,6 +16,7 @@ def test_analyzer_metrics_without_analyzers() -> None:
     """Test analyzing metrics that have no analyzers."""
     # Create a mock data source
     ds = Mock(spec=SqlDataSource)
+    ds.name = "test_dataset"  # Add dataset name
 
     # Create a mock metric with no analyzers
     metric = Mock(spec=MetricSpec)
@@ -37,10 +38,13 @@ def test_analyzer_metrics_without_analyzers() -> None:
     # Should return a report with the metric (even if no analyzers)
     # The analyzer now processes all metrics and creates states for them
     assert len(report) == 1
-    assert (metric, key) in report
+    # Use 3-tuple key format: (metric, key, dataset)
+    assert (metric, key, "test_dataset") in report
 
     # Verify the metric in the report
-    result_metric = report[(metric, key)]
+    # Access using the metric_key variable to avoid mypy errors with Mock
+    metric_key = (metric, key, "test_dataset")
+    result_metric = report[metric_key]  # type: ignore[index]
     assert result_metric.spec == metric
     assert result_metric.state == mock_state
     assert result_metric.key == key

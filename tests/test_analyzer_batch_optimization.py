@@ -104,6 +104,7 @@ class TestAnalyzerBatchOptimization:
 
         ds = Mock()
         ds.dialect = "duckdb"
+        ds.name = "test_dataset"  # Add dataset name
 
         # Mock the cte method to return SQL that selects from a test table
         def mock_cte(date: datetime.date) -> str:
@@ -163,14 +164,14 @@ class TestAnalyzerBatchOptimization:
         # Verify report contains all metrics
         assert len(report) == 9  # 3 metrics × 3 dates
 
-        # Check specific values
+        # Check specific values using 3-tuple keys
         key1 = ResultKey(datetime.date(2024, 1, 1), {})
         # Sum of all amounts for 2024-01-01: 100 + 200 + 150 = 450
-        assert report[(metrics_by_key[key1][0], key1)].value == 450.0  # type: ignore[index]
+        assert report[(metrics_by_key[key1][0], key1, "test_dataset")].value == 450.0  # type: ignore[index]
         # Average of all amounts for 2024-01-01: (100 + 200 + 150) / 3 = 150
-        assert report[(metrics_by_key[key1][1], key1)].value == 150.0  # type: ignore[index]
+        assert report[(metrics_by_key[key1][1], key1, "test_dataset")].value == 150.0  # type: ignore[index]
         # NumRows for 2024-01-01: 3 rows
-        assert report[(metrics_by_key[key1][2], key1)].value == 3.0  # type: ignore[index]
+        assert report[(metrics_by_key[key1][2], key1, "test_dataset")].value == 3.0  # type: ignore[index]
 
         conn.close()
 
