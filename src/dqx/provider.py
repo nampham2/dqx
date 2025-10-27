@@ -6,7 +6,6 @@ from abc import ABC
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import timedelta
-from functools import partial
 from threading import Lock
 from typing import TYPE_CHECKING, Callable, overload
 
@@ -578,13 +577,15 @@ class ExtendedMetricProvider(RegistryMixin):
         spec = symbolic_metric.metric_spec
 
         # Ensure required lag metrics exist
-        required = [self.provider.metric(spec, dataset=symbolic_metric.dataset) for i in range(lag, lag + n)]
+        required = [self.provider.metric(spec, lag=i, dataset=symbolic_metric.dataset) for i in range(lag, lag + n)]
 
         # Generate symbol first
         sym = self.registry._next_symbol()
 
-        # Create lazy function for stddev
-        fn = _create_lazy_extended_fn(self._provider, partial(compute.stddev, size=n), spec, sym)
+        # Create lazy function for stddev using lambda to handle the size parameter
+        fn = _create_lazy_extended_fn(
+            self._provider, lambda db, metric, dataset, key: compute.stddev(db, metric, n, dataset, key), spec, sym
+        )
 
         # Register with lazy function
         self.registry._metrics.append(
