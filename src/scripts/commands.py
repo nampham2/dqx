@@ -11,8 +11,21 @@ from pathlib import Path
 
 def run_coverage() -> None:
     """Run pytest with coverage reporting."""
-    # Get command line arguments
-    args = sys.argv[1:]  # Skip the script name
+    parser = argparse.ArgumentParser(
+        description="Run pytest with coverage reporting for dqx",
+        epilog="""Examples:
+  uv run coverage                     # Run coverage for all tests
+  uv run coverage tests/test_api.py   # Run coverage for specific test file
+  uv run coverage tests/ -k "test_"   # Run coverage with pytest filters
+  uv run coverage -v                  # Run with verbose output
+
+Note: All additional arguments are passed directly to pytest""",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    # Parse known args to handle --help, pass unknown args to pytest
+    _, pytest_args = parser.parse_known_args()
+
     # Setup coverage directory
     cov_dir = Path(".cov")
     if cov_dir.exists():
@@ -26,9 +39,9 @@ def run_coverage() -> None:
     # Run pytest with coverage
     pytest_cmd = ["uv", "run", "pytest", "--cov-report=", "--cov=dqx"]
 
-    # Add command line arguments or default to 'tests'
-    if args:
-        pytest_cmd.extend(args)
+    # Add pytest arguments or default to 'tests'
+    if pytest_args:
+        pytest_cmd.extend(pytest_args)
     else:
         pytest_cmd.append("tests")
 
@@ -141,9 +154,9 @@ Note: This includes shellcheck for shell scripts (.sh, .bash files)""",
             elif args.files:
                 cmd.extend(["--files"] + args.files)
 
-            result = run_hook_command(cmd)
-            if result != 0:
-                exit_code = result
+            hook_exit_code = run_hook_command(cmd)
+            if hook_exit_code != 0:
+                exit_code = hook_exit_code
     else:
         # Run all hooks
         cmd = base_cmd.copy()
