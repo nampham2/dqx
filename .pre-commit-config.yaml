@@ -123,10 +123,10 @@ repos:
       # Commitizen - Conventional commit validation
       - id: commitizen-check
         name: Check commit message follows conventional format
-        entry: ./bin/check-commit-msg.sh
+        entry: python src/scripts/check_commit_msg.py
         language: system
         stages: [commit-msg]
-        pass_filenames: false
+        pass_filenames: true
         always_run: true
 
       # Ruff - Format first (modifies files)
