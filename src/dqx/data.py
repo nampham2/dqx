@@ -294,9 +294,21 @@ def metric_trace(
 
     Returns:
         PyArrow table with columns: date, metric, symbol, type, dataset,
-        value_db, value_analysis, value_final, error, tags
+        value_db, value_analysis, value_final, error, tags, is_extended
     """
     import pyarrow.compute as pc
+
+    # Build a mapping of metric name to is_extended flag
+    is_extended_map: dict[str, bool] = {}
+
+    # Process metrics from DB
+    for metric in metrics:
+        is_extended_map[metric.spec.name] = metric.spec.is_extended
+
+    # Process metrics from analysis reports
+    for ds_name, ds_report in reports.items():
+        for (metric_spec, result_key), metric in ds_report.items():
+            is_extended_map[metric_spec.name] = metric_spec.is_extended
 
     # Get individual tables
     metrics_table = metrics_to_pyarrow_table(metrics, execution_id)
@@ -334,6 +346,7 @@ def metric_trace(
                 "value_final": pa.array([], type=pa.float64()),
                 "error": pa.array([], type=pa.string()),
                 "tags": pa.array([], type=pa.string()),
+                "is_extended": pa.array([], type=pa.bool_()),
             }
         )
 
@@ -412,6 +425,12 @@ def metric_trace(
             else pa.array([None] * final_join.num_rows, type=pa.float64())
         )
 
+        # Look up is_extended flag for each metric
+        is_extended_values = []
+        metric_names = final_join["metric"].to_pylist()
+        for metric_name in metric_names:
+            is_extended_values.append(is_extended_map.get(metric_name, False))
+
         result = pa.table(
             {
                 "date": final_join["date"],
@@ -424,10 +443,17 @@ def metric_trace(
                 "value_final": final_join["value_final"],
                 "error": final_join["error"],
                 "tags": tags_col,
+                "is_extended": pa.array(is_extended_values, type=pa.bool_()),
             }
         )
     elif symbols_table.num_rows > 0:
         # Only symbols data
+        # Look up is_extended flag for each metric
+        is_extended_values = []
+        metric_names = symbols_table["metric"].to_pylist()
+        for metric_name in metric_names:
+            is_extended_values.append(is_extended_map.get(metric_name, False))
+
         result = pa.table(
             {
                 "date": symbols_table["date"],
@@ -440,6 +466,7 @@ def metric_trace(
                 "value_final": symbols_table["value_final"],
                 "error": symbols_table["error"],
                 "tags": symbols_table["tags"],
+                "is_extended": pa.array(is_extended_values, type=pa.bool_()),
             }
         )
     else:
@@ -448,6 +475,12 @@ def metric_trace(
         result = result.append_column("error", pa.array([None] * first_join.num_rows, type=pa.string()))
 
         # Reorder columns to match expected schema
+        # Look up is_extended flag for each metric
+        is_extended_values = []
+        metric_names = result["metric"].to_pylist()
+        for metric_name in metric_names:
+            is_extended_values.append(is_extended_map.get(metric_name, False))
+
         result = pa.table(
             {
                 "date": result["date"],
@@ -460,6 +493,7 @@ def metric_trace(
                 "value_final": result["value_final"],
                 "error": result["error"],
                 "tags": result["tags"],
+                "is_extended": pa.array(is_extended_values, type=pa.bool_()),
             }
         )
 

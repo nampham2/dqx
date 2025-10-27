@@ -36,6 +36,7 @@ class TestMetricTrace:
             "value_final",
             "error",
             "tags",
+            "is_extended",
         }
 
     def test_metrics_only(self) -> None:
@@ -374,6 +375,7 @@ class TestMetricTrace:
                 "value_final": [102.0, None],
                 "error": [None, "Failed check"],
                 "tags": ["env=prod", "-"],
+                "is_extended": [False, False],
             }
         )
 
@@ -406,6 +408,7 @@ class TestMetricTrace:
                 "value_final": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
                 "error": [None] * 6,
                 "tags": ["-"] * 6,
+                "is_extended": [False] * 6,
             }
         )
 
