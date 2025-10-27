@@ -1,57 +1,56 @@
 # Active Context
 
 ## Current Work Focus
-- Successfully implemented `print_metrics_by_execution_id` display function
-- This function displays metrics for a specific suite execution in a formatted table
-- Complements the existing `metrics_by_execution_id` data retrieval function
+- Successfully implemented `uv run hooks` command to replace the shell script `bin/run-hooks.sh`
+- The new Python command provides identical functionality with better argument parsing and error handling
 
-## Recent Changes (2025-01-26)
-### Earlier Work:
-- Fixed lag metric date handling in symbol collection
-- Lag metrics now correctly show their effective date (nominal date - lag days) in the symbol table
-- Modified `_create_lag_dependency` in `src/dqx/provider.py` to pass correct lagged dates
-
+## Recent Changes (2025-01-27)
 ### Just Completed:
-- Added `print_metrics_by_execution_id` function to `src/dqx/display.py`:
-  - Takes a list of Metric objects and execution ID as parameters
-  - Displays metrics in a Rich table with columns: Date, Metric Name, Type, Dataset, Value, Tags
-  - Sorts metrics by date (newest first) then alphabetically by name
-  - Formats values in green and tags as key=value pairs
-  - Consistent styling with other display functions
+- Added `run_hooks()` function to `scripts/commands.py`:
+  - Uses argparse for robust argument parsing with automatic --help
+  - Supports all options: `--all`, `--fast`, `--fix`, `--check-commit`, `--help`
+  - Accepts file paths as positional arguments
+  - Maintains the same colored output using ANSI codes
+  - DRY implementation with shared functions and clean code structure
 
-- Created comprehensive tests in `tests/test_display_metrics_by_execution_id.py`:
-  - Tests basic functionality with multiple metrics
-  - Tests handling of multiple tags
-  - Tests display when metrics have no tags
-  - Tests sorting behavior (newest dates first, then alphabetical)
-  - Tests empty list handling
-  - All tests passing with mock MetricSpec objects
+- Updated `pyproject.toml`:
+  - Added `hooks = "scripts.commands:run_hooks"` to `[project.scripts]` section
+  - Command is now accessible via `uv run hooks`
 
-- Created demo in `examples/metrics_by_execution_id_demo.py`:
-  - Demonstrates using `data.metrics_by_execution_id` to retrieve metrics
-  - Shows using `display.print_metrics_by_execution_id` to display them
-  - Includes examples with different tags and metric types
+- Removed `bin/run-hooks.sh`:
+  - Shell script successfully replaced with Python implementation
+  - All functionality preserved in the new command
 
 ## Key Implementation Details
-- The function follows the same pattern as `print_assertion_results` and `print_symbols`
-- Uses Rich library for formatted table output with consistent styling
-- Sorting uses negative date ordinal for reverse chronological order while maintaining alphabetical name sorting
-- Handles empty tag sets by displaying "-" instead of empty string
+- The function follows the same pattern as `run_coverage()` in the same file
+- Uses subprocess to execute pre-commit commands with proper environment handling
+- SKIP environment variable set when using `--fast` option
+- Individual hook execution when using `--fix` option
+- Proper exit code handling to match shell script behavior
+
+## Command Usage
+- `uv run hooks` - Run on staged files
+- `uv run hooks --all` - Run on all files
+- `uv run hooks --fast` - Skip mypy for faster checks
+- `uv run hooks --fix` - Run only auto-fixing hooks
+- `uv run hooks --check-commit` - Check last commit message
+- `uv run hooks src/dqx/api.py` - Run on specific files
+- `uv run hooks --help` - Show help message
 
 ## Next Steps
 - The implementation is complete and tested
-- Consider adding this function to the public API documentation
-- Monitor for user feedback on the display format
+- Consider updating any documentation that references the old shell script
+- Monitor for any edge cases in actual usage
 
 ## Important Patterns and Preferences
-- Display functions in DQX use Rich library for consistent formatting
-- All display functions follow similar patterns with colored columns
-- Date columns are cyan, primary identifiers are yellow, datasets are magenta
-- Values are displayed in green for success
-- Tags are formatted as comma-separated key=value pairs
+- Python commands in DQX are implemented in `scripts/commands.py`
+- Commands are exposed via `[project.scripts]` in `pyproject.toml`
+- Prefer Python implementations over shell scripts for better portability
+- Use argparse for command-line argument parsing
+- Maintain consistent output formatting with colored text
 
 ## Learnings and Project Insights
-- Display functions are separate from data retrieval functions in DQX
-- The `data` module handles retrieval, `display` module handles presentation
-- Mock objects are useful for testing display functions without complex dependencies
-- Sorting logic needs careful consideration for multi-field sorts with different directions
+- The project uses uv for dependency management and command execution
+- Pre-commit hooks are an important part of the development workflow
+- Color output enhances user experience in CLI tools
+- DRY principles apply to CLI tool implementation as well

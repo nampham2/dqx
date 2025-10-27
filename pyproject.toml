@@ -19,6 +19,7 @@ dependencies = [
 
 [project.scripts]
 coverage = "scripts.commands:run_coverage"
+hooks = "scripts.commands:run_hooks"
 
 [build-system]
 requires = ["hatchling"]
