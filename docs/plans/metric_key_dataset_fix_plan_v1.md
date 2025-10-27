@@ -80,9 +80,26 @@ The current `MetricKey` type alias is defined as `tuple[MetricSpec, ResultKey]`,
 
 **Task 4.1: Update MetricKey unpacking in data.py**
 - File: `src/dqx/data.py`
-- Find all occurrences of `for (metric_spec, result_key), metric in`
-- Update to: `for (metric_spec, result_key, dataset), metric in`
-- Handle the unpacked dataset variable appropriately
+- Update `analysis_reports_to_pyarrow_table` function (~line 156):
+  ```python
+  for ds_name, ds_report in reports.items():
+      for (metric_spec, result_key, dataset_name), metric in ds_report.items():
+          # metric_key is now (MetricSpec, ResultKey, DatasetName)
+          symbol = ds_report.symbol_mapping.get((metric_spec, result_key, dataset_name), "-")
+          all_items.append(((metric_spec, result_key, dataset_name), metric, symbol))
+  ```
+- Update the unpacking in the loop (~line 174):
+  ```python
+  for (metric_spec, result_key, dataset_name), metric, symbol in sorted_items:
+      # Use dataset_name from the key instead of metric.dataset
+  ```
+
+- Update `metric_trace` function (~line 296):
+  ```python
+  for ds_name, ds_report in reports.items():
+      for (metric_spec, result_key, dataset_name), metric in ds_report.items():
+          is_extended_map[metric_spec.name] = metric_spec.is_extended
+  ```
 
 **Task 4.2: Write display tests**
 - File: `tests/test_data.py` (or create if doesn't exist)
