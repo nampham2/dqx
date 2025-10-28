@@ -150,15 +150,21 @@ class TestMetricProvider:
     @pytest.fixture
     def provider(self, mock_db: Mock) -> MetricProvider:
         """Create a MetricProvider instance."""
-        return MetricProvider(mock_db)
+        return MetricProvider(mock_db, execution_id="test-exec-123")
 
     def test_init(self, mock_db: Mock) -> None:
         """Test MetricProvider initialization."""
-        provider = MetricProvider(mock_db)
+        execution_id = "test-exec-123"
+        provider = MetricProvider(mock_db, execution_id)
         assert provider._db == mock_db
+        assert provider._execution_id == execution_id
         assert provider._registry._metrics == []
         assert provider._registry._symbol_index == {}
         assert provider._registry._curr_index == 0
+
+    def test_execution_id_property(self, provider: MetricProvider) -> None:
+        """Test execution_id property."""
+        assert provider.execution_id == "test-exec-123"
 
     def test_ext_property(self, provider: MetricProvider) -> None:
         """Test the ext property."""
@@ -371,7 +377,7 @@ class TestExtendedMetricProvider:
     @pytest.fixture
     def provider(self, mock_db: Mock) -> MetricProvider:
         """Create a MetricProvider instance."""
-        return MetricProvider(mock_db)
+        return MetricProvider(mock_db, execution_id="test-exec-123")
 
     @pytest.fixture
     def ext_provider(self, provider: MetricProvider) -> ExtendedMetricProvider:
@@ -382,6 +388,7 @@ class TestExtendedMetricProvider:
         """Test ExtendedMetricProvider initialization."""
         assert ext_provider._provider == provider
         assert ext_provider.db == provider._db
+        assert ext_provider.execution_id == provider.execution_id
         # ExtendedMetricProvider.registry returns provider._registry
         assert ext_provider.registry == provider._registry
         assert ext_provider.registry._next_symbol == provider._registry._next_symbol

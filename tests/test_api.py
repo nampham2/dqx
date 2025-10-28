@@ -32,7 +32,7 @@ def test_assertion_node_is_immutable() -> None:
 def test_assertion_methods_return_none() -> None:
     """Assertion methods should not return AssertBuilder for chaining."""
     db = InMemoryMetricDB()
-    context = Context("test", db)
+    context = Context("test", db, execution_id="test-exec-123")
 
     # Create a simple check to have proper context
     @check(name="Test Check")
@@ -61,7 +61,7 @@ def test_assertion_methods_return_none() -> None:
 def test_no_assertion_chaining() -> None:
     """Chained assertions should not be possible."""
     db = InMemoryMetricDB()
-    context = Context("test", db)
+    context = Context("test", db, execution_id="test-exec-123")
 
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -81,7 +81,7 @@ def test_no_assertion_chaining() -> None:
 def test_multiple_assertions_on_same_metric() -> None:
     """Test that multiple separate assertions can be made on the same metric."""
     db = InMemoryMetricDB()
-    context = Context("test", db)
+    context = Context("test", db, execution_id="test-exec-123")
 
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -140,7 +140,7 @@ def test_simple_check_works_in_suite() -> None:
     suite = VerificationSuite([my_simple_check], db, "Test Suite")
 
     # Collect checks (this is where it would fail with NameError)
-    context = Context("test", db)
+    context = Context("test", db, execution_id="test-exec-123")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
     suite.build_graph(context, key)
 
@@ -192,7 +192,7 @@ def test_check_decorator_with_name_works() -> None:
     assert suite is not None
 
     # Verify it can be collected
-    context = Context("test", db)
+    context = Context("test", db, execution_id="test-exec-123")
     key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
     suite.build_graph(context, key)
 
@@ -248,7 +248,7 @@ def test_context_assert_that_returns_draft() -> None:
     from dqx.api import AssertionDraft
 
     db = InMemoryMetricDB()
-    context = Context("test", db)
+    context = Context("test", db, execution_id="test-exec-123")
 
     draft = context.assert_that(sp.Symbol("x"))
     assert isinstance(draft, AssertionDraft)
@@ -257,7 +257,7 @@ def test_context_assert_that_returns_draft() -> None:
 def test_assertion_workflow_end_to_end() -> None:
     """Test complete assertion workflow from draft to execution."""
     db = InMemoryMetricDB()
-    context = Context("test", db)
+    context = Context("test", db, execution_id="test-exec-123")
 
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -312,7 +312,7 @@ def test_where_requires_name_parameter() -> None:
 def test_assertion_ready_always_has_name() -> None:
     """AssertionReady should always have a name set."""
     db = InMemoryMetricDB()
-    context = Context("test", db)
+    context = Context("test", db, execution_id="test-exec-123")
 
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -359,7 +359,7 @@ def test_assertion_severity_is_mandatory_with_p1_default() -> None:
     """Test that assertions require severity and default to P1."""
     # Create a mock context and provider
     db = InMemoryMetricDB()
-    context = Context(suite="test_suite", db=db)
+    context = Context(suite="test_suite", db=db, execution_id="test-exec-123")
 
     # Create a check to hold our assertions
     @check(name="Test Check")
@@ -459,7 +459,7 @@ def test_verification_suite_build_graph_method() -> None:
 def test_is_between_assertion_workflow() -> None:
     """Test is_between assertion in complete workflow."""
     db = InMemoryMetricDB()
-    context = Context("test", db)
+    context = Context("test", db, execution_id="test-exec-123")
 
     @check(name="Range Check")
     def range_check(mp: MetricProvider, ctx: Context) -> None:
@@ -483,7 +483,7 @@ def test_is_between_assertion_workflow() -> None:
 def test_is_between_invalid_bounds() -> None:
     """Test is_between with invalid bounds raises ValueError."""
     db = InMemoryMetricDB()
-    context = Context("test", db)
+    context = Context("test", db, execution_id="test-exec-123")
 
     @check(name="Invalid Range Check")
     def invalid_check(mp: MetricProvider, ctx: Context) -> None:
@@ -509,7 +509,7 @@ def test_assertion_ready_has_noop_method() -> None:
 def test_noop_assertion_workflow() -> None:
     """Test complete noop assertion workflow."""
     db = InMemoryMetricDB()
-    context = Context("test", db)
+    context = Context("test", db, execution_id="test-exec-123")
 
     @check(name="Metric Collection Check")
     def collection_check(mp: MetricProvider, ctx: Context) -> None:

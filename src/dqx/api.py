@@ -203,15 +203,17 @@ class Context:
     graph nodes that need access to the symbol table.
     """
 
-    def __init__(self, suite: str, db: MetricDB) -> None:
+    def __init__(self, suite: str, db: MetricDB, execution_id: str) -> None:
         """
         Initialize the context with a root graph node.
 
         Args:
             suite: Name of the verification suite
+            db: Database for storing and retrieving metrics
+            execution_id: Unique identifier for this execution
         """
         self._graph = Graph(RootNode(name=suite))
-        self._provider = MetricProvider(db)
+        self._provider = MetricProvider(db, execution_id=execution_id)
         self._local = threading.local()
 
         # Track the start time of the suite execution
@@ -345,8 +347,11 @@ class VerificationSuite:
         self._checks: Sequence[CheckProducer | DecoratedCheck] = checks
         self._name = name.strip()
 
-        # Create a context
-        self._context = Context(suite=self._name, db=db)
+        # Generate unique execution ID
+        self._execution_id = str(uuid.uuid4())
+
+        # Create a context with execution_id
+        self._context = Context(suite=self._name, db=db, execution_id=self._execution_id)
 
         # State tracking for result collection
         self._is_evaluated = False  # Track if assertions have been evaluated
@@ -360,9 +365,6 @@ class VerificationSuite:
 
         # Timer for analyzing phase
         self._analyze_ms = timer_registry.timer("analyzing.time_ms")
-
-        # Generate unique execution ID
-        self._execution_id = str(uuid.uuid4())
 
         # Store analysis reports by datasource name
         self._analysis_reports: dict[str, AnalysisReport] = {}
