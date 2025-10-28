@@ -142,16 +142,16 @@ def test_metric_to_spec(metric_1: Metric) -> None:
 
 
 def test_get_metric_window_with_no_scalars_result(key: ResultKey) -> None:
-    """Test get_metric_window when session.scalars returns None."""
+    """Test get_metric_window when session.execute returns None."""
     from unittest.mock import Mock, patch
 
     db = InMemoryMetricDB()
     spec = specs.Average("test_column")
 
-    # Mock the session to return None from scalars()
+    # Mock the session to return None from execute()
     with patch.object(db, "new_session") as mock_session:
         mock_session_instance = Mock()
-        mock_session_instance.scalars.return_value = None
+        mock_session_instance.execute.return_value = None
         mock_session.return_value = mock_session_instance
 
         result = db.get_metric_window(spec, key, lag=1, window=5, dataset="test_dataset")

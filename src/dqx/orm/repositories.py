@@ -64,7 +64,7 @@ class Metric(Base):
     yyyy_mm_dd: Mapped[dt.date] = mapped_column(nullable=False)
     tags: Mapped[Tags] = mapped_column(nullable=False)
     meta: Mapped[Metadata] = mapped_column(MetadataType, nullable=False, default=Metadata)
-    created: Mapped[datetime] = mapped_column(nullable=False, server_default=func.now())
+    created: Mapped[datetime] = mapped_column(nullable=False, server_default=func.current_timestamp())
 
     def to_model(self) -> models.Metric:
         _type = typing.cast(MetricType, self.metric_type)
@@ -113,6 +113,12 @@ class MetricDB:
         with self._mutex:
             session = self.new_session()
             db_metrics = list(map(MetricDB.to_db, metrics))
+
+            # Ensure each metric has a unique timestamp by adding microseconds
+            for i, dbm in enumerate(db_metrics):
+                # Set created timestamp with microsecond precision to ensure ordering
+                dbm.created = datetime.now() + dt.timedelta(microseconds=i)
+
             session.add_all(db_metrics)
             session.commit()
 
@@ -166,6 +172,9 @@ class MetricDB:
         if dataset is not None:
             query = query.where(Metric.dataset == dataset)
 
+        # Get the latest metric based on created timestamp
+        query = query.order_by(Metric.created.desc()).limit(1)
+
         result = self.new_session().scalar(query)
 
         if result:
@@ -200,12 +209,17 @@ class MetricDB:
         Returns:
             Maybe containing the metric value if found, Nothing otherwise.
         """
-        query = select(Metric.value).where(
-            Metric.metric_type == metric.metric_type,
-            Metric.parameters == metric.parameters,
-            Metric.yyyy_mm_dd == key.yyyy_mm_dd,
-            Metric.tags == key.tags,
-            Metric.dataset == dataset,
+        query = (
+            select(Metric.value)
+            .where(
+                Metric.metric_type == metric.metric_type,
+                Metric.parameters == metric.parameters,
+                Metric.yyyy_mm_dd == key.yyyy_mm_dd,
+                Metric.tags == key.tags,
+                Metric.dataset == dataset,
+            )
+            .order_by(Metric.created.desc())
+            .limit(1)
         )
 
         return Maybe.from_optional(self.new_session().scalar(query))
@@ -219,6 +233,9 @@ class MetricDB:
         for the given dataset. The dataset parameter ensures isolation between
         metrics computed on different datasets.
 
+        For each date in the window, returns the latest metric value based on created timestamp.
+        This handles cases where multiple executions create metrics for the same date.
+
         Args:
             metric: The metric specification defining type and parameters.
             key: The result key containing the end date and tags.
@@ -231,20 +248,38 @@ class MetricDB:
         """
         from_date, until_date = key.range(lag, window)
 
-        query = select(Metric).where(
-            Metric.metric_type == metric.metric_type,
-            Metric.parameters == metric.parameters,
-            Metric.yyyy_mm_dd >= from_date,
-            Metric.yyyy_mm_dd <= until_date,
-            Metric.tags == key.tags,
-            Metric.dataset == dataset,
+        # Create a CTE that assigns row numbers partitioned by date, ordered by created desc
+        latest_metrics_cte = (
+            select(
+                Metric.yyyy_mm_dd,
+                Metric.value,
+                func.row_number().over(partition_by=Metric.yyyy_mm_dd, order_by=Metric.created.desc()).label("rn"),
+            ).where(
+                Metric.metric_type == metric.metric_type,
+                Metric.parameters == metric.parameters,
+                Metric.yyyy_mm_dd >= from_date,
+                Metric.yyyy_mm_dd <= until_date,
+                Metric.tags == key.tags,
+                Metric.dataset == dataset,
+            )
+        ).cte("latest_metrics")
+
+        # Select only the rows with rn=1 (the latest for each date)
+        query = (
+            select(latest_metrics_cte.c.yyyy_mm_dd, latest_metrics_cte.c.value)
+            .where(latest_metrics_cte.c.rn == 1)
+            .order_by(latest_metrics_cte.c.yyyy_mm_dd)
         )
 
-        result = self.new_session().scalars(query)
+        result = self.new_session().execute(query)
         if result is None:
             return Nothing
 
-        return Some({r.yyyy_mm_dd: r.value for r in result.all()})
+        # Convert to TimeSeries dict
+        time_series = {row.yyyy_mm_dd: row.value for row in result}
+
+        # Always return Some, even if empty (to match existing behavior)
+        return Some(time_series)
 
 
 class InMemoryMetricDB(MetricDB):
