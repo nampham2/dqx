@@ -240,11 +240,6 @@ extra:
     - icon: fontawesome/solid/book
       link: https://dqx.readthedocs.io
 
-  # Version provider
-  version:
-    provider: mike
-    default: stable
-
   # Consent
   consent:
     title: Cookie consent
