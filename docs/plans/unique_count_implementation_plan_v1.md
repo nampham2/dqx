@@ -231,17 +231,12 @@ class NonMergeable(State):
         return NonMergeable(value=self._value, metric_type=self._metric_type)
 ```
 
-#### Task 2.3: Migrate DuplicateCount to Use NonMergeable
-Replace the existing `DuplicateCount` state class with a deprecation alias.
+#### Task 2.3: Replace DuplicateCount State Class
+Remove the existing `DuplicateCount` state class entirely.
 
 **File**: `src/dqx/states.py`
 
-Replace the existing `DuplicateCount` class with:
-
-```python
-# For backward compatibility - will be removed in a future version
-DuplicateCount = NonMergeable
-```
+Delete the entire `DuplicateCount` class definition.
 
 Update the `DuplicateCount` spec in `src/dqx/specs.py`:
 
@@ -254,6 +249,8 @@ def state(self) -> states.NonMergeable:
 def deserialize(cls, state: bytes) -> states.State:
     return states.NonMergeable.deserialize(state)
 ```
+
+Also update any tests that directly reference `states.DuplicateCount` to use `states.NonMergeable(value, metric_type="DuplicateCount")` instead.
 
 #### Task 2.4: Run State Tests
 ```bash
@@ -680,7 +677,7 @@ This plan implements the `UniqueCount` operation following TDD principles:
 1. **Operation**: Counts distinct values using `COUNT(DISTINCT column)`
 2. **State**: Uses generic `NonMergeable` state (shared with `DuplicateCount`)
    - Introduces a generic NonMergeable state class for all non-mergeable metrics
-   - Migrates existing DuplicateCount to use the generic state
+   - Replaces existing DuplicateCount state class entirely (no backward compatibility)
    - Raises errors on `merge()` and `identity()` with metric-specific messages
    - Ensures accurate counting by requiring single-pass computation
 3. **SQL Support**: Works with both DuckDB and BigQuery dialects
