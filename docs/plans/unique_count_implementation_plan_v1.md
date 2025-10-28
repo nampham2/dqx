@@ -10,6 +10,7 @@ This plan describes the implementation of a new `UniqueCount` operation for DQX 
 - **SQL Equivalent**: `COUNT(DISTINCT column)`
 - **Example Use Case**: Counting unique categories, unique user IDs, unique products, etc.
 - **Null Handling**: NULLs are automatically excluded (standard SQL behavior)
+- **Mergeability**: UniqueCount is NOT mergeable across partitions (similar to DuplicateCount)
 
 ## Implementation Details
 
@@ -127,9 +128,109 @@ uv run mypy src/dqx/ops.py
 uv run ruff check --fix src/dqx/ops.py
 ```
 
-### Task Group 2: Spec and Provider Implementation
+### Task Group 2: Non-Mergeable State Implementation
 
-#### Task 2.1: Write Tests for UniqueCount Spec
+#### Task 2.1: Write Tests for UniqueCount State
+Create tests for the non-mergeable UniqueCount state.
+
+**File**: `tests/test_states.py`
+
+Add the following test:
+
+```python
+def test_unique_count_state_not_mergeable() -> None:
+    """Test that UniqueCount state cannot be merged."""
+    from dqx import states
+    from dqx.common import DQXError
+
+    state1 = states.UniqueCount(value=5.0)
+    state2 = states.UniqueCount(value=3.0)
+
+    # Test that merge raises error
+    with pytest.raises(DQXError, match="UniqueCount state cannot be merged"):
+        state1.merge(state2)
+
+    # Test that identity raises error
+    with pytest.raises(DQXError, match="UniqueCount state does not support identity"):
+        states.UniqueCount.identity()
+
+    # Test value property
+    assert state1.value == 5.0
+    assert state2.value == 3.0
+
+    # Test serialization
+    serialized = state1.serialize()
+    deserialized = states.UniqueCount.deserialize(serialized)
+    assert deserialized.value == state1.value
+    assert deserialized == state1
+```
+
+#### Task 2.2: Implement UniqueCount State Class
+Create the non-mergeable state class.
+
+**File**: `src/dqx/states.py`
+
+Add the following class (place it after `DuplicateCount` class):
+
+```python
+class UniqueCount(State):
+    """Non-mergeable state for unique count metrics.
+
+    Unique counts cannot be merged across partitions because the same
+    value might appear in multiple partitions, leading to incorrect counts.
+
+    This state does not support identity or merge operations.
+    """
+
+    def __init__(self, value: float) -> None:
+        self._value = float(value)
+
+    @classmethod
+    def identity(cls) -> UniqueCount:
+        raise DQXError(
+            "UniqueCount state does not support identity. "
+            "Unique counts must be computed on the entire dataset in a single pass "
+            "because counts from different partitions cannot be accurately merged."
+        )
+
+    @property
+    def value(self) -> float:
+        return self._value
+
+    def serialize(self) -> bytes:
+        return msgpack.packb(self._value)
+
+    @classmethod
+    def deserialize(cls, data: bytes) -> UniqueCount:
+        return cls(value=msgpack.unpackb(data))
+
+    def merge(self, other: UniqueCount) -> UniqueCount:
+        raise DQXError(
+            "UniqueCount state cannot be merged across partitions. "
+            "Example: partition1=[A,B,C] (unique=3) and partition2=[B,C,D] (unique=3) "
+            "would give 6 if merged, but actual unique count is 4. "
+            "The metric must be computed on the entire dataset in a single pass."
+        )
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, UniqueCount):
+            return False
+        return self.serialize() == other.serialize()
+
+    def __copy__(self) -> UniqueCount:
+        return UniqueCount(value=self._value)
+```
+
+#### Task 2.3: Run State Tests
+```bash
+uv run pytest tests/test_states.py::test_unique_count_state_not_mergeable -v
+uv run mypy src/dqx/states.py
+uv run ruff check --fix src/dqx/states.py
+```
+
+### Task Group 3: Spec and Provider Implementation
+
+#### Task 3.1: Write Tests for UniqueCount Spec
 Update spec tests to include UniqueCount.
 
 **File**: `tests/test_specs.py`
@@ -137,7 +238,7 @@ Update spec tests to include UniqueCount.
 Update the existing test to verify `"UniqueCount"` is in MetricType and registry:
 - Add `"UniqueCount"` to the expected list in the relevant test
 
-#### Task 2.2: Implement UniqueCount Spec
+#### Task 3.2: Implement UniqueCount Spec
 Add the spec implementation.
 
 **File**: `src/dqx/specs.py`
@@ -151,8 +252,8 @@ class UniqueCount:
     """Specification for counting distinct values in a column.
 
     Counts the number of unique non-null values in the specified column.
-    Uses SimpleAdditiveState for state management, though merging unique
-    counts across partitions isn't meaningful from a semantic perspective.
+    Uses the non-mergeable UniqueCount state because unique counts cannot
+    be merged across partitions (same values may appear in multiple partitions).
 
     Args:
         column: The column to count distinct values in
@@ -169,39 +270,38 @@ class UniqueCount:
         self._column = column
         self._analyzers = (ops.UniqueCount(self._column),)
 
-    def __eq__(self, other: Any) -> bool:
-        return isinstance(other, UniqueCount) and self._column == other._column
-
-    def __hash__(self) -> int:
-        return hash((type(self), self._column))
-
-    def __repr__(self) -> str:
-        return f"{self.metric_type}({self._column})"
-
     @property
     def name(self) -> str:
         return f"unique_count({self._column})"
 
     @property
-    def parameters(self) -> dict[str, Any]:
+    def parameters(self) -> Parameters:
         return {"column": self._column}
 
     @property
-    def analyzers(self) -> tuple[ops.UniqueCount]:
+    def analyzers(self) -> Sequence[ops.Op]:
         return self._analyzers
 
-    def state(self) -> states.SimpleAdditiveState:
-        return states.SimpleAdditiveState(value=self._analyzers[0].value())
-
-    def merge(self, state1: states.SimpleAdditiveState, state2: states.SimpleAdditiveState) -> states.SimpleAdditiveState:
-        return state1.merge(state2)
+    def state(self) -> states.UniqueCount:
+        return states.UniqueCount(value=self._analyzers[0].value())
 
     @classmethod
-    def deserialize(cls, state: bytes) -> states.SimpleAdditiveState:
-        return states.SimpleAdditiveState.deserialize(state)
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.UniqueCount.deserialize(state)
+
+    def __hash__(self) -> int:
+        return hash((self.name, tuple(self.parameters.items())))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, UniqueCount):
+            return False
+        return self.name == other.name and self.parameters == other.parameters
+
+    def __str__(self) -> str:
+        return self.name
 ```
 
-#### Task 2.3: Add unique_count Method to Provider
+#### Task 3.3: Add unique_count Method to Provider
 Implement the provider method.
 
 **File**: `src/dqx/provider.py`
@@ -237,16 +337,16 @@ def unique_count(self, column: str, lag: int = 0, dataset: str | None = None) ->
     return self.metric(specs.UniqueCount(column), lag, dataset)
 ```
 
-#### Task 2.4: Run Tests
+#### Task 3.4: Run Tests
 ```bash
 uv run pytest tests/test_specs.py -v
 uv run mypy src/dqx/specs.py src/dqx/provider.py
 uv run ruff check --fix src/dqx/
 ```
 
-### Task Group 3: SQL Dialect Implementation
+### Task Group 4: SQL Dialect Implementation
 
-#### Task 3.1: Write Tests for SQL Translation
+#### Task 4.1: Write Tests for SQL Translation
 Add dialect translation tests.
 
 **File**: `tests/test_dialect.py`
@@ -274,7 +374,7 @@ def test_translate_unique_count() -> None:
 
 Also add `ops.UniqueCount("col")` to the batch optimization test lists.
 
-#### Task 3.2: Implement SQL Translation
+#### Task 4.2: Implement SQL Translation
 Add SQL translation for both dialects.
 
 **File**: `src/dqx/dialect.py`
@@ -293,16 +393,16 @@ case ops.UniqueCount(column=col):
     return f"CAST(COUNT(DISTINCT {col}) AS FLOAT64) AS `{op.sql_col}`"
 ```
 
-#### Task 3.3: Run Dialect Tests
+#### Task 4.3: Run Dialect Tests
 ```bash
 uv run pytest tests/test_dialect.py::test_translate_unique_count -v
 uv run pytest tests/test_dialect_batch_optimization.py -v
 uv run mypy src/dqx/dialect.py
 ```
 
-### Task Group 4: API Integration Tests
+### Task Group 5: API Integration Tests
 
-#### Task 4.1: Create Comprehensive API Tests
+#### Task 5.1: Create Comprehensive API Tests
 Create API-level integration tests.
 
 **File**: `tests/test_api_unique_count.py`
@@ -491,14 +591,14 @@ def test_unique_count_symbol_info() -> None:
     assert symbol_info.metric_spec.parameters["column"] == "customer_id"
 ```
 
-#### Task 4.2: Run API Tests
+#### Task 5.2: Run API Tests
 ```bash
 uv run pytest tests/test_api_unique_count.py -v
 ```
 
-### Task Group 5: Final Verification
+### Task Group 6: Final Verification
 
-#### Task 5.1: Run All Related Tests
+#### Task 6.1: Run All Related Tests
 ```bash
 # Run all ops tests
 uv run pytest tests/test_ops.py -v
@@ -516,7 +616,7 @@ uv run pytest tests/test_api_unique_count.py -v
 uv run pytest tests/test_dialect_batch_optimization.py -v
 ```
 
-#### Task 5.2: Run Type Checking and Linting
+#### Task 6.2: Run Type Checking and Linting
 ```bash
 # Type checking
 uv run mypy src/dqx/
@@ -529,7 +629,7 @@ uv run ruff check --fix tests/
 uv run hooks
 ```
 
-#### Task 5.3: Run Full Test Suite
+#### Task 6.3: Run Full Test Suite
 ```bash
 # Run all tests to ensure nothing is broken
 uv run pytest tests/ -v
@@ -543,9 +643,11 @@ uv run coverage tests/
 This plan implements the `UniqueCount` operation following TDD principles:
 
 1. **Operation**: Counts distinct values using `COUNT(DISTINCT column)`
-2. **State**: Uses `SimpleAdditiveState` for consistency with other count operations
+2. **State**: Uses non-mergeable `UniqueCount` state (similar to `DuplicateCount`)
+   - Raises errors on `merge()` and `identity()` with clear explanations
+   - Ensures accurate counting by requiring single-pass computation
 3. **SQL Support**: Works with both DuckDB and BigQuery dialects
-4. **Testing**: Comprehensive unit and integration tests
+4. **Testing**: Comprehensive unit and integration tests, including state merge error handling
 5. **API**: Simple method `mp.unique_count("column")` for easy use
 
-The implementation follows all existing patterns in the codebase and maintains consistency with other operations.
+The implementation follows all existing patterns in the codebase and ensures data accuracy by preventing incorrect merging of unique counts across partitions.
