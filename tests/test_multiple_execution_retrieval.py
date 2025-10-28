@@ -1,8 +1,7 @@
 """Integration test for metric retrieval after multiple suite executions."""
 
-import time
 from datetime import date
-from typing import Any, Dict, List, Tuple
+from typing import Any, List, Tuple
 
 import pyarrow as pa
 from returns.maybe import Some
@@ -16,93 +15,113 @@ from dqx.orm.repositories import InMemoryMetricDB
 from dqx.orm.repositories import Metric as DBMetric
 
 
-def _create_test_data() -> Tuple[pa.Table, pa.Table, pa.Table]:
-    """Create test datasets with different values for 3 runs."""
-    run1_data = pa.table(
-        {
-            "price": [10.0, 20.0, 30.0],  # avg = 20.0
-            "quantity": [1.0, 2.0, 3.0],  # sum = 6.0
-        }
-    )
-
-    run2_data = pa.table(
-        {
-            "price": [15.0, 25.0, 35.0],  # avg = 25.0
-            "quantity": [2.0, 3.0, 4.0],  # sum = 9.0
-        }
-    )
-
-    run3_data = pa.table(
-        {
-            "price": [20.0, 30.0, 40.0],  # avg = 30.0
-            "quantity": [3.0, 4.0, 5.0],  # sum = 12.0
-        }
-    )
-
-    return run1_data, run2_data, run3_data
+def _create_test_datasets_with_expected_values() -> List[Tuple[pa.Table, float, float]]:
+    """Create test datasets with their expected metric values."""
+    datasets = [
+        (
+            pa.table({"price": [10.0, 20.0, 30.0], "quantity": [1.0, 2.0, 3.0]}),
+            20.0,  # avg price
+            6.0,  # sum quantity
+        ),
+        (
+            pa.table({"price": [15.0, 25.0, 35.0], "quantity": [2.0, 3.0, 4.0]}),
+            25.0,  # avg price
+            9.0,  # sum quantity
+        ),
+        (
+            pa.table({"price": [20.0, 30.0, 40.0], "quantity": [3.0, 4.0, 5.0]}),
+            30.0,  # avg price
+            12.0,  # sum quantity
+        ),
+    ]
+    return datasets
 
 
-def _run_suite_executions(
-    test_check: Any, db: InMemoryMetricDB, key: ResultKey, datasets: Tuple[pa.Table, pa.Table, pa.Table]
-) -> Tuple[List[str], List[VerificationSuite]]:
-    """Run 3 suite executions and return execution IDs and all suites."""
-    execution_ids = []
-    suites = []
-    run1_data, run2_data, run3_data = datasets
+def _run_single_execution_with_trace(
+    test_check: Any,
+    db: InMemoryMetricDB,
+    key: ResultKey,
+    data: pa.Table,
+    run_number: int,
+    expected_avg: float,
+    expected_sum: float,
+) -> Tuple[str, VerificationSuite, pa.Table]:
+    """Run a single suite execution and immediately collect its trace."""
+    from dqx.display import print_metric_trace
 
-    # Run 1
-    ds1 = DuckRelationDataSource.from_arrow(run1_data, "test_data")
-    suite1 = VerificationSuite([test_check], db, "Test Suite")
-    suite1.run([ds1], key)
-    execution_ids.append(suite1.execution_id)
-    suites.append(suite1)
+    # Create datasource and suite
+    ds = DuckRelationDataSource.from_arrow(data, "test_data")
+    suite = VerificationSuite([test_check], db, "Test Suite")
 
-    time.sleep(0.01)  # Small delay to ensure different timestamps
+    # Run suite
+    suite.run([ds], key)
+    execution_id = suite.execution_id
 
-    # Run 2
-    ds2 = DuckRelationDataSource.from_arrow(run2_data, "test_data")
-    suite2 = VerificationSuite([test_check], db, "Test Suite")
-    suite2.run([ds2], key)
-    execution_ids.append(suite2.execution_id)
-    suites.append(suite2)
-
-    time.sleep(0.01)
-
-    # Run 3 (latest)
-    ds3 = DuckRelationDataSource.from_arrow(run3_data, "test_data")
-    suite3 = VerificationSuite([test_check], db, "Test Suite")
-    suite3.run([ds3], key)
-    execution_ids.append(suite3.execution_id)
-    suites.append(suite3)
-
-    return execution_ids, suites
-
-
-def _get_metric_trace_values(suite: VerificationSuite, db: InMemoryMetricDB) -> Dict[str, float]:
-    """Extract metric values from trace."""
+    # Get trace immediately after execution
     trace = suite.metric_trace(db)
+
+    # Display trace
+    print(f"\n=== Metric Trace After Run {run_number} ===")
+    print_metric_trace(trace, execution_id)
+
+    # Assert trace consistency
+    _assert_trace_values_consistent(trace, run_number)
+
+    # Verify expected values
+    _verify_trace_has_expected_values(trace, expected_avg, expected_sum, run_number)
+
+    return execution_id, suite, trace
+
+
+def _verify_trace_has_expected_values(
+    trace: pa.Table, expected_avg: float, expected_sum: float, run_number: int
+) -> None:
+    """Verify that the trace contains the expected values."""
     trace_dict = trace.to_pydict()
 
-    values = {}
     for i in range(len(trace_dict["metric"])):
-        metric_name = trace_dict["metric"][i]
+        metric = trace_dict["metric"][i]
+        value_final = trace_dict["value_final"][i]
+
+        if metric == "average(price)":
+            assert value_final == expected_avg, (
+                f"Run {run_number} - Expected average(price) = {expected_avg}, got {value_final}"
+            )
+        elif metric == "sum(quantity)":
+            assert value_final == expected_sum, (
+                f"Run {run_number} - Expected sum(quantity) = {expected_sum}, got {value_final}"
+            )
+
+
+def _assert_trace_values_consistent(trace: pa.Table, run_number: int, epsilon: float = 1e-9) -> None:
+    """Assert that value_analysis == value_db == value_final for all rows."""
+    trace_dict = trace.to_pydict()
+
+    for i in range(len(trace_dict["metric"])):
+        metric = trace_dict["metric"][i]
+        value_analysis = trace_dict["value_analysis"][i]
         value_db = trace_dict["value_db"][i]
+        value_final = trace_dict["value_final"][i]
 
-        # Match the actual lowercase metric names
-        if metric_name == "average(price)":
-            values["avg_price"] = value_db
-        elif metric_name == "sum(quantity)":
-            values["sum_quantity"] = value_db
+        # Assert that none of the values are None
+        assert value_analysis is not None, f"Run {run_number} - {metric}: value_analysis is None"
+        assert value_db is not None, f"Run {run_number} - {metric}: value_db is None"
+        assert value_final is not None, f"Run {run_number} - {metric}: value_final is None"
 
-    # Ensure we found both metrics
-    if "avg_price" not in values or "sum_quantity" not in values:
-        print(f"Available metrics in trace: {trace_dict['metric']}")
-        if "avg_price" not in values:
-            values["avg_price"] = None
-        if "sum_quantity" not in values:
-            values["sum_quantity"] = None
+        # Assert value_analysis == value_db
+        assert abs(value_analysis - value_db) < epsilon, (
+            f"Run {run_number} - {metric}: value_analysis ({value_analysis}) != value_db ({value_db})"
+        )
 
-    return values
+        # Assert value_db == value_final
+        assert abs(value_db - value_final) < epsilon, (
+            f"Run {run_number} - {metric}: value_db ({value_db}) != value_final ({value_final})"
+        )
+
+        # Assert value_analysis == value_final (for completeness)
+        assert abs(value_analysis - value_final) < epsilon, (
+            f"Run {run_number} - {metric}: value_analysis ({value_analysis}) != value_final ({value_final})"
+        )
 
 
 def _retrieve_metric_values(
@@ -160,7 +179,12 @@ def _query_all_metrics_directly(db: InMemoryMetricDB, key: ResultKey) -> List[DB
 
 
 def test_multiple_execution_metric_retrieval() -> None:
-    """Test metric retrieval after multiple suite executions with different execution IDs."""
+    """
+    Test metric retrieval after multiple suite executions with different execution IDs.
+
+    This test verifies that metric traces correctly show the values from their
+    respective executions, not always the latest values.
+    """
 
     # Create a simple check with 2 metrics
     @check(name="Test Metrics Check")
@@ -173,41 +197,27 @@ def test_multiple_execution_metric_retrieval() -> None:
     # Setup
     db = InMemoryMetricDB()
     key = ResultKey(date(2024, 1, 15), {"env": "test", "version": "v1"})
-    datasets = _create_test_data()
 
-    # Run all executions
-    execution_ids, suites = _run_suite_executions(test_check, db, key, datasets)
+    # Get datasets with expected values
+    datasets_with_expected = _create_test_datasets_with_expected_values()
+
+    # Run executions and collect traces immediately
+    execution_ids = []
+    suites = []
+    traces = []
+
+    for i, (test_data, expected_avg, expected_sum) in enumerate(datasets_with_expected):
+        run_number = i + 1
+        execution_id, suite, trace = _run_single_execution_with_trace(
+            test_check, db, key, test_data, run_number, expected_avg, expected_sum
+        )
+        execution_ids.append(execution_id)
+        suites.append(suite)
+        traces.append(trace)
 
     # Assertion 1: Verify all execution IDs are unique
     assert len(set(execution_ids)) == 3, "All execution IDs should be unique"
-
-    # Display metric trace after each run
-    from dqx.display import print_metric_trace
-
-    print("\n=== Metric Trace After Run 1 ===")
-    trace1 = suites[0].metric_trace(db)
-    print_metric_trace(trace1, execution_ids[0])
-
-    print("\n=== Metric Trace After Run 2 ===")
-    trace2 = suites[1].metric_trace(db)
-    print_metric_trace(trace2, execution_ids[1])
-
-    print("\n=== Metric Trace After Run 3 ===")
-    trace3 = suites[2].metric_trace(db)
-    print_metric_trace(trace3, execution_ids[2])
-
-    # Get trace values (should be from latest execution)
-    print("\n=== Testing metric_trace ===")
-    trace_values = _get_metric_trace_values(suites[2], db)
-
-    # Assertion 2: Metric trace should contain only latest values
-    assert trace_values["avg_price"] == 30.0, (
-        f"Trace Average(price) should be 30.0 (latest), got {trace_values['avg_price']}"
-    )
-    assert trace_values["sum_quantity"] == 12.0, (
-        f"Trace Sum(quantity) should be 12.0 (latest), got {trace_values['sum_quantity']}"
-    )
-    print("✓ metric_trace correctly returns latest values")
+    print("\n✓ All execution IDs are unique")
 
     # Get metric specs
     avg_spec = specs.Average("price")
@@ -259,3 +269,24 @@ def test_multiple_execution_metric_retrieval() -> None:
         if db_metric.meta and db_metric.meta.execution_id:
             exec_id = db_metric.meta.execution_id[:8] + "..."
         print(f"  Run {i + 1}: value={db_metric.value}, created={db_metric.created}, execution_id={exec_id}")
+
+    # Final verification: Show that trace collected later shows latest values
+    print("\n=== Re-checking traces after all executions ===")
+    print("If we collect traces now for old executions, they show latest values:")
+
+    # Get trace for run 1 now (after all executions)
+    trace1_later = suites[0].metric_trace(db)
+    trace1_dict = trace1_later.to_pydict()
+    for i in range(len(trace1_dict["metric"])):
+        if trace1_dict["metric"][i] == "average(price)":
+            print(f"Run 1 trace collected now: value_final = {trace1_dict['value_final'][i]} (should be 20.0)")
+
+    # Get trace for run 2 now
+    trace2_later = suites[1].metric_trace(db)
+    trace2_dict = trace2_later.to_pydict()
+    for i in range(len(trace2_dict["metric"])):
+        if trace2_dict["metric"][i] == "average(price)":
+            print(f"Run 2 trace collected now: value_final = {trace2_dict['value_final'][i]} (should be 25.0)")
+
+    print("\nThis demonstrates the bug: traces must be collected immediately after execution")
+    print("to show correct values. Later retrieval always shows the latest values.")
