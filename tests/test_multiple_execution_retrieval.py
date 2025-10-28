@@ -125,11 +125,11 @@ def _assert_trace_values_consistent(trace: pa.Table, run_number: int, epsilon: f
 
 
 def _retrieve_metric_values(
-    db: InMemoryMetricDB, avg_spec: specs.Average, sum_spec: specs.Sum, key: ResultKey
+    db: InMemoryMetricDB, avg_spec: specs.Average, sum_spec: specs.Sum, key: ResultKey, execution_id: str
 ) -> tuple[float, float]:
     """Retrieve metric values using get_metric_value."""
-    avg_value = db.get_metric_value(avg_spec, key, "test_data")
-    sum_value = db.get_metric_value(sum_spec, key, "test_data")
+    avg_value = db.get_metric_value(avg_spec, key, "test_data", execution_id)
+    sum_value = db.get_metric_value(sum_spec, key, "test_data", execution_id)
 
     assert isinstance(avg_value, Some), "Average metric not found"
     assert isinstance(sum_value, Some), "Sum metric not found"
@@ -138,11 +138,11 @@ def _retrieve_metric_values(
 
 
 def _retrieve_metric_windows(
-    db: InMemoryMetricDB, avg_spec: specs.Average, sum_spec: specs.Sum, key: ResultKey
+    db: InMemoryMetricDB, avg_spec: specs.Average, sum_spec: specs.Sum, key: ResultKey, execution_id: str
 ) -> tuple[float, float]:
     """Retrieve metric values using get_metric_window."""
-    avg_window = db.get_metric_window(avg_spec, key, lag=0, window=1, dataset="test_data")
-    sum_window = db.get_metric_window(sum_spec, key, lag=0, window=1, dataset="test_data")
+    avg_window = db.get_metric_window(avg_spec, key, lag=0, window=1, dataset="test_data", execution_id=execution_id)
+    sum_window = db.get_metric_window(sum_spec, key, lag=0, window=1, dataset="test_data", execution_id=execution_id)
 
     assert isinstance(avg_window, Some), "Average window not found"
     assert isinstance(sum_window, Some), "Sum window not found"
@@ -223,25 +223,37 @@ def test_multiple_execution_metric_retrieval() -> None:
     avg_spec = specs.Average("price")
     sum_spec = specs.Sum("quantity")
 
-    # Test get_metric_value retrieval
-    print("\n=== Testing get_metric_value ===")
-    avg_retrieved, sum_retrieved = _retrieve_metric_values(db, avg_spec, sum_spec, key)
+    # Test get_metric_value retrieval with latest execution_id
+    print("\n=== Testing get_metric_value with latest execution ===")
+    latest_execution_id = execution_ids[2]
+    avg_retrieved, sum_retrieved = _retrieve_metric_values(db, avg_spec, sum_spec, key, latest_execution_id)
     print(f"get_metric_value - Average(price): {avg_retrieved} (expected 30.0)")
     print(f"get_metric_value - Sum(quantity): {sum_retrieved} (expected 12.0)")
 
-    # Assertion 3: These should fail, demonstrating the bug
+    # Assertion 3: These should return the values from the latest execution
     assert avg_retrieved == 30.0, f"get_metric_value should return latest average 30.0, got {avg_retrieved}"
     assert sum_retrieved == 12.0, f"get_metric_value should return latest sum 12.0, got {sum_retrieved}"
 
-    # Test get_metric_window retrieval
-    print("\n=== Testing get_metric_window ===")
-    avg_window_value, sum_window_value = _retrieve_metric_windows(db, avg_spec, sum_spec, key)
+    # Test get_metric_window retrieval with latest execution_id
+    print("\n=== Testing get_metric_window with latest execution ===")
+    avg_window_value, sum_window_value = _retrieve_metric_windows(db, avg_spec, sum_spec, key, latest_execution_id)
     print(f"get_metric_window - Average(price): {avg_window_value} (expected 30.0)")
     print(f"get_metric_window - Sum(quantity): {sum_window_value} (expected 12.0)")
 
     # Assertion 4: Window retrieval should also show latest values
     assert avg_window_value == 30.0, f"get_metric_window should return latest average 30.0, got {avg_window_value}"
     assert sum_window_value == 12.0, f"get_metric_window should return latest sum 12.0, got {sum_window_value}"
+
+    # Test retrieval with older execution_id
+    print("\n=== Testing retrieval with first execution ===")
+    first_execution_id = execution_ids[0]
+    avg_retrieved_first, sum_retrieved_first = _retrieve_metric_values(db, avg_spec, sum_spec, key, first_execution_id)
+    print(f"get_metric_value - Average(price): {avg_retrieved_first} (expected 20.0)")
+    print(f"get_metric_value - Sum(quantity): {sum_retrieved_first} (expected 6.0)")
+
+    # These should return the values from the first execution
+    assert avg_retrieved_first == 20.0, f"get_metric_value should return first average 20.0, got {avg_retrieved_first}"
+    assert sum_retrieved_first == 6.0, f"get_metric_value should return first sum 6.0, got {sum_retrieved_first}"
 
     # Verify metadata storage
     print("\n=== Verifying metadata storage ===")

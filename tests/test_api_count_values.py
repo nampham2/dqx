@@ -5,6 +5,7 @@ ensuring it works correctly with VerificationSuite and check decorator.
 """
 
 import datetime
+import uuid
 
 import pyarrow as pa
 import pytest
@@ -270,7 +271,8 @@ def test_count_values_case_sensitive() -> None:
 def test_count_values_symbol_info() -> None:
     """Test that CountValues symbols have correct metadata."""
     db = InMemoryMetricDB()
-    provider = MetricProvider(db)
+    execution_id = str(uuid.uuid4())
+    provider = MetricProvider(db, execution_id)
 
     # Create symbol
     symbol = provider.count_values("status", ["active", "pending"])

@@ -56,20 +56,60 @@ def test_search_by_parameter(metric_1: Metric) -> None:
 
 def test_get_metric_value(metric_1: Metric, key: ResultKey) -> None:
     db = InMemoryMetricDB()
-    db.persist([metric_1])
-    value = db.get_metric_value(specs.Average("page_views"), key, dataset="test_dataset")
+    # Add execution_id to the metric
+    execution_id = "test-exec-123"
+    metric_with_exec_id = Metric.build(
+        metric_1.spec,
+        metric_1.key,
+        dataset=metric_1.dataset,
+        state=metric_1.state,
+        metadata=Metadata(execution_id=execution_id),
+    )
+    db.persist([metric_with_exec_id])
+
+    # Test with correct execution_id
+    value = db.get_metric_value(specs.Average("page_views"), key, dataset="test_dataset", execution_id=execution_id)
     assert value == Some(pytest.approx(5.2))
+
+    # Test with wrong execution_id
+    value_wrong = db.get_metric_value(
+        specs.Average("page_views"), key, dataset="test_dataset", execution_id="wrong-exec-id"
+    )
+    assert value_wrong == Nothing
 
 
 def test_get_metric_window(metric_window: list[Metric], key: ResultKey) -> None:
     db = InMemoryMetricDB()
-    db.persist(metric_window)
-    value = db.get_metric_window(specs.Average("page_views"), key, lag=1, window=5, dataset="test_dataset").unwrap()
+    execution_id = "test-exec-456"
+
+    # Add execution_id to all metrics in the window
+    metrics_with_exec_id = [
+        Metric.build(
+            m.spec,
+            m.key,
+            dataset=m.dataset,
+            state=m.state,
+            metadata=Metadata(execution_id=execution_id),
+        )
+        for m in metric_window
+    ]
+    db.persist(metrics_with_exec_id)
+
+    # Test with correct execution_id
+    value = db.get_metric_window(
+        specs.Average("page_views"), key, lag=1, window=5, dataset="test_dataset", execution_id=execution_id
+    ).unwrap()
     assert len(value) == 5
     assert min(value.keys()) == dt.date.fromisoformat("2025-01-30")
     assert max(value.keys()) == dt.date.fromisoformat("2025-02-03")
     assert min(value.values()) == pytest.approx(5.2)
     assert max(value.values()) == pytest.approx(5.2)
+
+    # Test with wrong execution_id - should return empty
+    value_wrong = db.get_metric_window(
+        specs.Average("page_views"), key, lag=1, window=5, dataset="test_dataset", execution_id="wrong-exec-id"
+    )
+    assert value_wrong == Some({})  # Returns Some with empty dict
 
 
 def test_get_missing_metric_by_uuid(key: ResultKey) -> None:
@@ -115,7 +155,8 @@ def test_get_metric_value_missing(key: ResultKey) -> None:
     """Test getting value for non-existent metric returns empty Maybe."""
     db = InMemoryMetricDB()
     spec = specs.Average("non_existent_column")
-    result = db.get_metric_value(spec, key, dataset="test_dataset")
+    execution_id = "test-exec-123"
+    result = db.get_metric_value(spec, key, dataset="test_dataset", execution_id=execution_id)
     assert result == Nothing
 
 
@@ -123,7 +164,8 @@ def test_get_metric_window_missing(key: ResultKey) -> None:
     """Test getting window for non-existent metric returns Some with empty dict."""
     db = InMemoryMetricDB()
     spec = specs.Average("non_existent_column")
-    result = db.get_metric_window(spec, key, lag=1, window=5, dataset="test_dataset")
+    execution_id = "test-exec-123"
+    result = db.get_metric_window(spec, key, lag=1, window=5, dataset="test_dataset", execution_id=execution_id)
     assert result == Some({})
 
 
@@ -147,6 +189,7 @@ def test_get_metric_window_with_no_scalars_result(key: ResultKey) -> None:
 
     db = InMemoryMetricDB()
     spec = specs.Average("test_column")
+    execution_id = "test-exec-123"
 
     # Mock the session to return None from execute()
     with patch.object(db, "new_session") as mock_session:
@@ -154,7 +197,7 @@ def test_get_metric_window_with_no_scalars_result(key: ResultKey) -> None:
         mock_session_instance.execute.return_value = None
         mock_session.return_value = mock_session_instance
 
-        result = db.get_metric_window(spec, key, lag=1, window=5, dataset="test_dataset")
+        result = db.get_metric_window(spec, key, lag=1, window=5, dataset="test_dataset", execution_id=execution_id)
         assert result == Nothing
 
 

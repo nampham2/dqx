@@ -194,17 +194,14 @@ class MetricDB:
             query = delete(Metric).where(Metric.metric_id == metric_id)
             self.new_session().execute(query)
 
-    def get_metric_value(self, metric: MetricSpec, key: ResultKey, dataset: str) -> Maybe[float]:
-        """Get a single metric value for a specific dataset.
-
-        Retrieves the value of a metric for the given specification, result key,
-        and dataset. The dataset parameter is mandatory to ensure metrics from
-        different datasets are not confused.
+    def get_metric_value(self, metric: MetricSpec, key: ResultKey, dataset: str, execution_id: str) -> Maybe[float]:
+        """Get a single metric value for a specific dataset and execution.
 
         Args:
-            metric: The metric specification defining type and parameters.
-            key: The result key containing date and tags for the metric.
-            dataset: The dataset name where the metric was computed.
+            metric: The metric specification.
+            key: The result key containing date and tags.
+            dataset: The dataset name.
+            execution_id: The execution ID to filter by.
 
         Returns:
             Maybe containing the metric value if found, Nothing otherwise.
@@ -217,6 +214,7 @@ class MetricDB:
                 Metric.yyyy_mm_dd == key.yyyy_mm_dd,
                 Metric.tags == key.tags,
                 Metric.dataset == dataset,
+                func.json_extract(Metric.meta, "$.execution_id") == execution_id,
             )
             .order_by(Metric.created.desc())
             .limit(1)
@@ -225,30 +223,24 @@ class MetricDB:
         return Maybe.from_optional(self.new_session().scalar(query))
 
     def get_metric_window(
-        self, metric: MetricSpec, key: ResultKey, lag: int, window: int, dataset: str
+        self, metric: MetricSpec, key: ResultKey, lag: int, window: int, dataset: str, execution_id: str
     ) -> Maybe[TimeSeries]:
-        """Get metric values over a time window for a specific dataset.
-
-        Retrieves a time series of metric values within the specified window
-        for the given dataset. The dataset parameter ensures isolation between
-        metrics computed on different datasets.
-
-        For each date in the window, returns the latest metric value based on created timestamp.
-        This handles cases where multiple executions create metrics for the same date.
+        """Get metric values over a time window for a specific dataset and execution.
 
         Args:
-            metric: The metric specification defining type and parameters.
-            key: The result key containing the end date and tags.
-            lag: Number of days to lag from the key date.
-            window: Size of the time window in days.
-            dataset: The dataset name where metrics were computed.
+            metric: The metric specification.
+            key: The result key for the base date.
+            lag: Number of days to lag from the base date.
+            window: Number of days to include in the window.
+            dataset: The dataset name.
+            execution_id: The execution ID to filter by.
 
         Returns:
-            Maybe containing a TimeSeries dict mapping dates to values, or Nothing if no data found.
+            Maybe containing the TimeSeries if found, Nothing otherwise.
         """
         from_date, until_date = key.range(lag, window)
 
-        # Create a CTE that assigns row numbers partitioned by date, ordered by created desc
+        # Create CTE for finding latest metrics per day within execution
         latest_metrics_cte = (
             select(
                 Metric.yyyy_mm_dd,
@@ -261,6 +253,7 @@ class MetricDB:
                 Metric.yyyy_mm_dd <= until_date,
                 Metric.tags == key.tags,
                 Metric.dataset == dataset,
+                func.json_extract(Metric.meta, "$.execution_id") == execution_id,
             )
         ).cte("latest_metrics")
 

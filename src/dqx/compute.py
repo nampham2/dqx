@@ -10,7 +10,7 @@ import statistics
 from returns.converters import maybe_to_result as convert_maybe_to_result
 from returns.result import Failure, Result, Success
 
-from dqx.common import ResultKey, TimeSeries
+from dqx.common import ExecutionId, ResultKey, TimeSeries
 from dqx.orm.repositories import MetricDB
 from dqx.specs import MetricSpec
 
@@ -71,46 +71,44 @@ def _sparse_timeseries_check(
     return Success(ts)
 
 
-def simple_metric(db: MetricDB, metric: MetricSpec, dataset: str, nominal_key: ResultKey) -> Result[float, str]:
-    """Retrieve a simple metric value from the database for a specific dataset.
-
-    Fetches the value of a metric for the given specification, date, and dataset.
-    The dataset parameter is mandatory to ensure correct metric retrieval when
-    the same metric exists across multiple datasets.
+def simple_metric(
+    db: MetricDB, metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId
+) -> Result[float, str]:
+    """Retrieve a simple metric value from the database for a specific dataset and execution.
 
     Args:
         db: The metric database instance.
         metric: The metric specification to retrieve.
         dataset: The dataset name where the metric was computed.
         nominal_key: The result key containing date and tags.
+        execution_id: The execution ID to filter by.
 
     Returns:
         Success with the metric value if found, Failure with error message otherwise.
     """
-    value = db.get_metric_value(metric, nominal_key, dataset)
+    value = db.get_metric_value(metric, nominal_key, dataset, execution_id)
     error_msg = f"Metric {metric.name} for {nominal_key.yyyy_mm_dd.isoformat()} on dataset '{dataset}' not found!"
     return convert_maybe_to_result(value, error_msg)
 
 
-def day_over_day(db: MetricDB, metric: MetricSpec, dataset: str, nominal_key: ResultKey) -> Result[float, str]:
+def day_over_day(
+    db: MetricDB, metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId
+) -> Result[float, str]:
     """Calculate day-over-day ratio for a metric.
-
-    Retrieves the metric value for the nominal date and the previous day,
-    then calculates the ratio. The dataset parameter ensures metrics are
-    retrieved from the correct dataset.
 
     Args:
         db: The metric database instance.
         metric: The metric specification to calculate ratio for.
         dataset: The dataset name where metrics were computed.
         nominal_key: The result key for the nominal date.
+        execution_id: The execution ID to filter by.
 
     Returns:
         Success with the ratio if calculation succeeds, Failure otherwise.
     """
     # Get two days of data starting from the base date
     base_key = nominal_key.lag(0)  # Use lag=0 as the base
-    maybe_ts = db.get_metric_window(metric, base_key, lag=0, window=2, dataset=dataset)
+    maybe_ts = db.get_metric_window(metric, base_key, lag=0, window=2, dataset=dataset, execution_id=execution_id)
 
     # Convert Maybe to Result
     ts_result = convert_maybe_to_result(maybe_ts, METRIC_NOT_FOUND)
@@ -133,25 +131,24 @@ def day_over_day(db: MetricDB, metric: MetricSpec, dataset: str, nominal_key: Re
     return Success(ts[today] / ts[yesterday])
 
 
-def week_over_week(db: MetricDB, metric: MetricSpec, dataset: str, nominal_key: ResultKey) -> Result[float, str]:
+def week_over_week(
+    db: MetricDB, metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId
+) -> Result[float, str]:
     """Calculate week-over-week ratio for a metric.
-
-    Retrieves the metric value for the nominal date and a week prior,
-    then calculates the ratio. The dataset parameter ensures metrics are
-    retrieved from the correct dataset.
 
     Args:
         db: The metric database instance.
         metric: The metric specification to calculate ratio for.
         dataset: The dataset name where metrics were computed.
         nominal_key: The result key for the nominal date.
+        execution_id: The execution ID to filter by.
 
     Returns:
         Success with the ratio if calculation succeeds, Failure otherwise.
     """
     # Get eight days of data starting from the base date
     base_key = nominal_key.lag(0)  # Use lag=0 as the base
-    maybe_ts = db.get_metric_window(metric, base_key, lag=0, window=8, dataset=dataset)
+    maybe_ts = db.get_metric_window(metric, base_key, lag=0, window=8, dataset=dataset, execution_id=execution_id)
 
     # Convert Maybe to Result
     ts_result = convert_maybe_to_result(maybe_ts, METRIC_NOT_FOUND)
@@ -174,12 +171,10 @@ def week_over_week(db: MetricDB, metric: MetricSpec, dataset: str, nominal_key: 
     return Success(ts[today] / ts[week_ago])
 
 
-def stddev(db: MetricDB, metric: MetricSpec, size: int, dataset: str, nominal_key: ResultKey) -> Result[float, str]:
+def stddev(
+    db: MetricDB, metric: MetricSpec, size: int, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId
+) -> Result[float, str]:
     """Calculate standard deviation for a metric over a window.
-
-    Retrieves metric values for a specified window size and calculates
-    the standard deviation. The dataset parameter ensures metrics are
-    retrieved from the correct dataset.
 
     Args:
         db: The metric database instance.
@@ -187,13 +182,14 @@ def stddev(db: MetricDB, metric: MetricSpec, size: int, dataset: str, nominal_ke
         size: Number of days to include in the calculation.
         dataset: The dataset name where metrics were computed.
         nominal_key: The result key for the end date of the window.
+        execution_id: The execution ID to filter by.
 
     Returns:
         Success with the standard deviation if calculation succeeds, Failure otherwise.
     """
     # Get the time window of data
     base_key = nominal_key.lag(0)  # Use lag=0 as the base
-    maybe_ts = db.get_metric_window(metric, base_key, lag=0, window=size, dataset=dataset)
+    maybe_ts = db.get_metric_window(metric, base_key, lag=0, window=size, dataset=dataset, execution_id=execution_id)
 
     # Convert Maybe to Result
     ts_result = convert_maybe_to_result(maybe_ts, METRIC_NOT_FOUND)

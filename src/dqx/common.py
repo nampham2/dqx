@@ -19,6 +19,7 @@ if TYPE_CHECKING:
 
 # Type aliases
 DatasetName = str
+ExecutionId = str
 
 
 @dataclass

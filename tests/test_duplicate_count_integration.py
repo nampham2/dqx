@@ -1,5 +1,6 @@
 """Integration tests for DuplicateCount functionality."""
 
+import uuid
 from typing import Any
 
 import pytest
@@ -20,7 +21,8 @@ class TestDuplicateCountIntegration:
         from dqx.orm.repositories import InMemoryMetricDB
 
         db = InMemoryMetricDB()
-        provider = MetricProvider(db)
+        execution_id = str(uuid.uuid4())
+        provider = MetricProvider(db, execution_id)
 
         # 2. Create a duplicate_count symbol
         columns = ["user_id", "session_id"]

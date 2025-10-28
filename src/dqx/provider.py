@@ -13,7 +13,7 @@ import sympy as sp
 from returns.result import Failure, Result
 
 from dqx import compute, specs
-from dqx.common import DQXError, ResultKey, RetrievalFn, Tags
+from dqx.common import DQXError, ExecutionId, ResultKey, RetrievalFn, Tags
 from dqx.orm.repositories import MetricDB
 from dqx.specs import MetricSpec
 
@@ -88,15 +88,15 @@ def _create_lazy_retrieval_fn(provider: "MetricProvider", metric_spec: MetricSpe
         if symbolic_metric.dataset is None:
             return Failure(f"Dataset not imputed for metric {symbolic_metric.name}")
 
-        # Call the compute function with the resolved dataset
-        return compute.simple_metric(provider._db, metric_spec, symbolic_metric.dataset, key)
+        # Call the compute function with the resolved dataset and execution_id
+        return compute.simple_metric(provider._db, metric_spec, symbolic_metric.dataset, key, provider.execution_id)
 
     return lazy_retrieval_fn
 
 
 def _create_lazy_extended_fn(
     provider: "MetricProvider",
-    compute_fn: Callable[[MetricDB, MetricSpec, str, ResultKey], Result[float, str]],
+    compute_fn: Callable[[MetricDB, MetricSpec, str, ResultKey, ExecutionId], Result[float, str]],
     metric_spec: MetricSpec,
     symbol: sp.Symbol,
 ) -> RetrievalFn:
@@ -125,8 +125,8 @@ def _create_lazy_extended_fn(
         if symbolic_metric.dataset is None:
             return Failure(f"Dataset not imputed for metric {symbolic_metric.name}")
 
-        # Call the compute function with the resolved dataset
-        return compute_fn(provider._db, metric_spec, symbolic_metric.dataset, key)
+        # Call the compute function with the resolved dataset and execution_id
+        return compute_fn(provider._db, metric_spec, symbolic_metric.dataset, key, provider.execution_id)
 
     return lazy_extended_fn
 
@@ -505,6 +505,11 @@ class ExtendedMetricProvider(RegistryMixin):
     def db(self) -> MetricDB:
         return self._provider._db
 
+    @property
+    def execution_id(self) -> ExecutionId:
+        """The execution ID from the parent provider."""
+        return self._provider.execution_id
+
     def day_over_day(self, metric: sp.Symbol, dataset: str | None = None) -> sp.Symbol:
         # Get the full SymbolicMetric object
         symbolic_metric = self._provider.get_symbol(metric)
@@ -584,7 +589,10 @@ class ExtendedMetricProvider(RegistryMixin):
 
         # Create lazy function for stddev using lambda to handle the size parameter
         fn = _create_lazy_extended_fn(
-            self._provider, lambda db, metric, dataset, key: compute.stddev(db, metric, n, dataset, key), spec, sym
+            self._provider,
+            lambda db, metric, dataset, key, execution_id: compute.stddev(db, metric, n, dataset, key, execution_id),
+            spec,
+            sym,
         )
 
         # Register with lazy function
@@ -607,9 +615,15 @@ class ExtendedMetricProvider(RegistryMixin):
 
 
 class MetricProvider(SymbolicMetricBase):
-    def __init__(self, db: MetricDB) -> None:
+    def __init__(self, db: MetricDB, execution_id: ExecutionId) -> None:
         super().__init__()
         self._db = db
+        self._execution_id = execution_id
+
+    @property
+    def execution_id(self) -> ExecutionId:
+        """The execution ID for this provider instance."""
+        return self._execution_id
 
     @property
     def ext(self) -> ExtendedMetricProvider:

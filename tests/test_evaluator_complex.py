@@ -1,5 +1,6 @@
 """Tests for complex number handling in the Evaluator."""
 
+import uuid
 from datetime import date
 from unittest.mock import Mock
 
@@ -17,7 +18,8 @@ class TestEvaluatorComplexNumberHandling:
     def test_sqrt_negative_returns_complex_failure(self) -> None:
         """Test that square root of negative value returns complex number failure."""
         # Setup provider with a negative metric
-        provider = MetricProvider(db=Mock())
+        execution_id = str(uuid.uuid4())
+        provider = MetricProvider(db=Mock(), execution_id=execution_id)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
         negative_metric = provider.sum("returns", dataset="financials")
@@ -36,7 +38,8 @@ class TestEvaluatorComplexNumberHandling:
 
     def test_log_negative_returns_complex_failure(self) -> None:
         """Test that log of negative value returns complex number failure."""
-        provider = MetricProvider(db=Mock())
+        execution_id = str(uuid.uuid4())
+        provider = MetricProvider(db=Mock(), execution_id=execution_id)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
         negative_balance = provider.sum("balance", dataset="accounts")
@@ -57,7 +60,8 @@ class TestEvaluatorComplexNumberHandling:
 
     def test_negative_power_fractional_returns_complex_failure(self) -> None:
         """Test that negative number to fractional power returns complex failure."""
-        provider = MetricProvider(db=Mock())
+        execution_id = str(uuid.uuid4())
+        provider = MetricProvider(db=Mock(), execution_id=execution_id)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
         negative_value = provider.sum("value", dataset="metrics")
@@ -76,7 +80,8 @@ class TestEvaluatorComplexNumberHandling:
 
     def test_positive_sqrt_returns_success(self) -> None:
         """Test that square root of positive value succeeds."""
-        provider = MetricProvider(db=Mock())
+        execution_id = str(uuid.uuid4())
+        provider = MetricProvider(db=Mock(), execution_id=execution_id)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
         positive_metric = provider.sum("revenue", dataset="sales")
@@ -93,7 +98,8 @@ class TestEvaluatorComplexNumberHandling:
 
     def test_complex_expression_with_imaginary_unit(self) -> None:
         """Test expression that explicitly includes imaginary unit."""
-        provider = MetricProvider(db=Mock())
+        execution_id = str(uuid.uuid4())
+        provider = MetricProvider(db=Mock(), execution_id=execution_id)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
         real_metric = provider.sum("real_part", dataset="complex_data")
@@ -112,7 +118,8 @@ class TestEvaluatorComplexNumberHandling:
 
     def test_complex_arithmetic_operations(self) -> None:
         """Test that complex arithmetic operations are caught."""
-        provider = MetricProvider(db=Mock())
+        execution_id = str(uuid.uuid4())
+        provider = MetricProvider(db=Mock(), execution_id=execution_id)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
         metric_a = provider.sum("a", dataset="test")

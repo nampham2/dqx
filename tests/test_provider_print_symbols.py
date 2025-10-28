@@ -1,6 +1,7 @@
 """Test the print_symbols convenience method in MetricProvider."""
 
 import datetime as dt
+import uuid
 from io import StringIO
 from unittest.mock import patch
 
@@ -13,7 +14,8 @@ def test_print_symbols_convenience_method() -> None:
     """Test that print_symbols method correctly calls collect_symbols and prints."""
     # Setup
     db = InMemoryMetricDB()
-    provider = MetricProvider(db)
+    execution_id = str(uuid.uuid4())
+    provider = MetricProvider(db, execution_id)
     key = ResultKey(yyyy_mm_dd=dt.date(2024, 1, 1), tags={"env": "test"})
 
     # Create some test metrics
@@ -54,7 +56,8 @@ def test_print_symbols_integration() -> None:
 
     # Setup
     db = InMemoryMetricDB()
-    provider = MetricProvider(db)
+    execution_id = str(uuid.uuid4())
+    provider = MetricProvider(db, execution_id)
     key = ResultKey(yyyy_mm_dd=dt.date(2024, 1, 1), tags={})
 
     # Create metrics
