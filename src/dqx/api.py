@@ -783,6 +783,7 @@ class VerificationSuite:
         # Create plugin execution context
         context = PluginExecutionContext(
             suite_name=self._name,
+            execution_id=self.execution_id,
             datasources=[ds.name for ds in datasources],
             key=self.key,
             timestamp=self._context.start_time,

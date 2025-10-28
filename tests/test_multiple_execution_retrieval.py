@@ -1,12 +1,12 @@
 """Integration test for metric retrieval after multiple suite executions."""
 
 from datetime import date
-from typing import Any, List, Tuple
+from typing import Any
 
 import pyarrow as pa
 from returns.maybe import Some
 
-from dqx import data, specs
+from dqx import specs
 from dqx.api import Context, MetricProvider, VerificationSuite, check
 from dqx.common import ResultKey
 from dqx.datasource import DuckRelationDataSource
@@ -15,7 +15,7 @@ from dqx.orm.repositories import InMemoryMetricDB
 from dqx.orm.repositories import Metric as DBMetric
 
 
-def _create_test_datasets_with_expected_values() -> List[Tuple[pa.Table, float, float]]:
+def _create_test_datasets_with_expected_values() -> list[tuple[pa.Table, float, float]]:
     """Create test datasets with their expected metric values."""
     datasets = [
         (
@@ -45,7 +45,7 @@ def _run_single_execution_with_trace(
     run_number: int,
     expected_avg: float,
     expected_sum: float,
-) -> Tuple[str, VerificationSuite, pa.Table]:
+) -> tuple[str, VerificationSuite, pa.Table]:
     """Run a single suite execution and immediately collect its trace."""
     from dqx.display import print_metric_trace
 
@@ -126,7 +126,7 @@ def _assert_trace_values_consistent(trace: pa.Table, run_number: int, epsilon: f
 
 def _retrieve_metric_values(
     db: InMemoryMetricDB, avg_spec: specs.Average, sum_spec: specs.Sum, key: ResultKey
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """Retrieve metric values using get_metric_value."""
     avg_value = db.get_metric_value(avg_spec, key, "test_data")
     sum_value = db.get_metric_value(sum_spec, key, "test_data")
@@ -139,7 +139,7 @@ def _retrieve_metric_values(
 
 def _retrieve_metric_windows(
     db: InMemoryMetricDB, avg_spec: specs.Average, sum_spec: specs.Sum, key: ResultKey
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """Retrieve metric values using get_metric_window."""
     avg_window = db.get_metric_window(avg_spec, key, lag=0, window=1, dataset="test_data")
     sum_window = db.get_metric_window(sum_spec, key, lag=0, window=1, dataset="test_data")
@@ -158,12 +158,12 @@ def _retrieve_metric_windows(
     return avg_ts[key.yyyy_mm_dd], sum_ts[key.yyyy_mm_dd]
 
 
-def _get_execution_metrics(db: InMemoryMetricDB, execution_id: str) -> List[Metric]:
+def _get_execution_metrics(db: InMemoryMetricDB, execution_id: str) -> list[Metric]:
     """Get all metrics for a specific execution ID."""
-    return list(data.metrics_by_execution_id(db, execution_id))
+    return list(db.get_by_execution_id(execution_id))
 
 
-def _query_all_metrics_directly(db: InMemoryMetricDB, key: ResultKey) -> List[DBMetric]:
+def _query_all_metrics_directly(db: InMemoryMetricDB, key: ResultKey) -> list[DBMetric]:
     """Query all average metrics directly from DB to show ordering issue."""
     session = db.new_session()
     return (
@@ -287,6 +287,3 @@ def test_multiple_execution_metric_retrieval() -> None:
     for i in range(len(trace2_dict["metric"])):
         if trace2_dict["metric"][i] == "average(price)":
             print(f"Run 2 trace collected now: value_final = {trace2_dict['value_final'][i]} (should be 25.0)")
-
-    print("\nThis demonstrates the bug: traces must be collected immediately after execution")
-    print("to show correct values. Later retrieval always shows the latest values.")

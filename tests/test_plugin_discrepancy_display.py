@@ -73,6 +73,7 @@ class TestDataDiscrepancyStats:
         """Test stats when there are no discrepancies."""
         context = PluginExecutionContext(
             suite_name="Test Suite",
+            execution_id="test_no_discrepancies",
             datasources=["ds1"],
             key=ResultKey(yyyy_mm_dd=date(2025, 1, 1), tags={}),
             timestamp=1234567890.0,
@@ -94,6 +95,7 @@ class TestDataDiscrepancyStats:
         """Test stats when there are discrepancies."""
         context = PluginExecutionContext(
             suite_name="Test Suite",
+            execution_id="test_with_discrepancies",
             datasources=["ds1"],
             key=ResultKey(yyyy_mm_dd=date(2025, 1, 1), tags={}),
             timestamp=1234567890.0,
@@ -133,6 +135,7 @@ class TestDataDiscrepancyStats:
         """Test that extended metrics are not counted as discrepancies."""
         context = PluginExecutionContext(
             suite_name="Test Suite",
+            execution_id="test_extended_metrics",
             datasources=["ds1"],
             key=ResultKey(yyyy_mm_dd=date(2025, 1, 1), tags={}),
             timestamp=1234567890.0,
@@ -169,6 +172,7 @@ class TestDataDiscrepancyStats:
 
         context = PluginExecutionContext(
             suite_name="Test Suite",
+            execution_id="test_empty_trace",
             datasources=["ds1"],
             key=ResultKey(yyyy_mm_dd=date(2025, 1, 1), tags={}),
             timestamp=1234567890.0,
@@ -185,6 +189,7 @@ class TestDataDiscrepancyStats:
         """Test stats with None trace table."""
         context = PluginExecutionContext(
             suite_name="Test Suite",
+            execution_id="test_none_trace",
             datasources=["ds1"],
             key=ResultKey(yyyy_mm_dd=date(2025, 1, 1), tags={}),
             timestamp=1234567890.0,

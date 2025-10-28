@@ -30,7 +30,8 @@ PLUGIN_TIMEOUT_SECONDS = 60
 class PluginExecutionContext:
     """Execution context passed to plugins."""
 
-    suite_name: str  # Suite name is now part of context
+    suite_name: str
+    execution_id: str
     datasources: list[str]
     key: ResultKey
     timestamp: float
@@ -376,6 +377,10 @@ class AuditPlugin:
                 self.console.print(
                     f"  Data Integrity: [yellow]⚠️  {discrepancy_stats.discrepancy_count} discrepancies ({type_summary})[/yellow]"
                 )
+                from dqx import display
+
+                display.print_metrics_by_execution_id(context.trace, context.execution_id)
+                raise RuntimeError("Data discrepancies detected during audit")
 
         self.console.print("[bold blue]══════════════════════[/bold blue]")
         self.console.print()

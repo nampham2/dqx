@@ -88,6 +88,7 @@ def test_plugin_execution_context_creation() -> None:
 
     context = PluginExecutionContext(
         suite_name="test",
+        execution_id="test_creation",
         datasources=["ds1", "ds2"],
         key=ResultKey(date(2024, 1, 1), {"env": "prod"}),
         timestamp=1704067200.0,
@@ -111,6 +112,7 @@ def test_context_total_assertions() -> None:
     """Test total_assertions method."""
     context = PluginExecutionContext(
         suite_name="test",
+        execution_id="test_total_assertions",
         datasources=[],
         key=ResultKey(date(2024, 1, 1), {}),
         timestamp=0.0,
@@ -155,6 +157,7 @@ def test_context_failed_assertions() -> None:
 
     context = PluginExecutionContext(
         suite_name="test",
+        execution_id="test_failed_assertions",
         datasources=[],
         key=ResultKey(date(2024, 1, 1), {}),
         timestamp=0.0,
@@ -188,6 +191,7 @@ def test_context_assertion_pass_rate() -> None:
 
     context = PluginExecutionContext(
         suite_name="test",
+        execution_id="test_pass_rate",
         datasources=[],
         key=ResultKey(date(2024, 1, 1), {}),
         timestamp=0.0,
@@ -202,6 +206,7 @@ def test_context_assertion_pass_rate() -> None:
     # Empty results = 100% pass rate
     empty_context = PluginExecutionContext(
         suite_name="test",
+        execution_id="test_empty_pass_rate",
         datasources=[],
         key=ResultKey(date(2024, 1, 1), {}),
         timestamp=0.0,
@@ -230,6 +235,7 @@ def test_context_symbol_methods() -> None:
 
     context = PluginExecutionContext(
         suite_name="test",
+        execution_id="test_symbol_methods",
         datasources=["ds1"],
         key=ResultKey(date(2024, 1, 1), {}),
         timestamp=0.0,
@@ -262,6 +268,7 @@ def test_context_assertions_by_severity() -> None:
 
     context = PluginExecutionContext(
         suite_name="test",
+        execution_id="test_by_severity",
         datasources=[],
         key=ResultKey(date(2024, 1, 1), {}),
         timestamp=0.0,
@@ -294,6 +301,7 @@ def test_context_failures_by_severity() -> None:
 
     context = PluginExecutionContext(
         suite_name="test",
+        execution_id="test_failures_by_severity",
         datasources=[],
         key=ResultKey(date(2024, 1, 1), {}),
         timestamp=0.0,

@@ -140,6 +140,7 @@ class TestPluginManager:
         # Create contexts for multiple runs
         context1 = PluginExecutionContext(
             suite_name="Suite1",
+            execution_id="exec_1",
             datasources=[],
             key=ResultKey(datetime.now().date(), {}),
             timestamp=time.time(),
@@ -151,6 +152,7 @@ class TestPluginManager:
 
         context2 = PluginExecutionContext(
             suite_name="Suite2",
+            execution_id="exec_2",
             datasources=[],
             key=ResultKey(datetime.now().date(), {}),
             timestamp=time.time(),
@@ -325,6 +327,7 @@ class TestPluginManager:
         # Create a minimal context
         context = PluginExecutionContext(
             suite_name="Test",
+            execution_id="test_exec_id",
             datasources=[],
             key=ResultKey(datetime.now().date(), {}),
             timestamp=time.time(),
@@ -359,6 +362,7 @@ class TestPluginManager:
         # Create a proper context
         context = PluginExecutionContext(
             suite_name="Test",
+            execution_id="test_exec_id",
             datasources=[],
             key=ResultKey(datetime.now().date(), {}),
             timestamp=time.time(),
@@ -396,6 +400,7 @@ class TestPluginManager:
         # Create a proper context
         context = PluginExecutionContext(
             suite_name="Test",
+            execution_id="test_timeout",
             datasources=[],
             key=ResultKey(datetime.now().date(), {}),
             timestamp=time.time(),
@@ -446,6 +451,7 @@ class TestPluginManager:
         # Create a proper context
         context = PluginExecutionContext(
             suite_name="Test Suite",
+            execution_id="test_success",
             datasources=["ds1"],
             key=ResultKey(datetime.now().date(), {}),
             timestamp=time.time(),
@@ -643,6 +649,7 @@ class TestAuditPlugin:
 
         context = PluginExecutionContext(
             suite_name="Test Suite",
+            execution_id="test_audit",
             datasources=["ds1", "ds2"],
             key=ResultKey(datetime.now().date(), {"env": "prod"}),
             timestamp=time.time(),
@@ -695,6 +702,7 @@ class TestAuditPlugin:
 
         context = PluginExecutionContext(
             suite_name="Tagged Suite",
+            execution_id="test_tags",
             datasources=[],
             key=ResultKey(datetime.now().date(), {"env": "prod", "region": "us-east"}),
             timestamp=time.time(),
@@ -727,6 +735,7 @@ class TestAuditPlugin:
 
         context = PluginExecutionContext(
             suite_name="No Tags Suite",
+            execution_id="test_no_tags",
             datasources=[],
             key=ResultKey(datetime.now().date(), {}),
             timestamp=time.time(),
@@ -760,6 +769,7 @@ class TestAuditPlugin:
 
         context = PluginExecutionContext(
             suite_name="Empty Suite",
+            execution_id="test_empty",
             datasources=[],
             key=ResultKey(datetime.now().date(), {}),
             timestamp=time.time(),
@@ -884,6 +894,7 @@ class TestAuditPlugin:
 
         context = PluginExecutionContext(
             suite_name="Test Suite",
+            execution_id="test_stats",
             datasources=["ds1", "ds2"],
             key=ResultKey(datetime.now().date(), {"env": "test"}),
             timestamp=time.time(),
@@ -989,6 +1000,7 @@ class TestPluginInstanceEdgeCases:
         # Create context
         context = PluginExecutionContext(
             suite_name="Test",
+            execution_id="test_lifecycle",
             datasources=[],
             key=ResultKey(datetime.now().date(), {}),
             timestamp=time.time(),
@@ -1109,6 +1121,7 @@ class TestPluginIntegration:
         # Create context
         context = PluginExecutionContext(
             suite_name="Integration Test",
+            execution_id="test_integration",
             datasources=[],
             key=ResultKey(datetime.now().date(), {}),
             timestamp=time.time(),

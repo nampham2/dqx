@@ -221,6 +221,7 @@ class TestPluginPublicAPI:
         # Create context and process
         context = PluginExecutionContext(
             suite_name="Test",
+            execution_id="test_exec_id",
             datasources=[],
             key=ResultKey(datetime.now().date(), {}),
             timestamp=time.time(),

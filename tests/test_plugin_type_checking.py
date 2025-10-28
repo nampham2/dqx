@@ -104,6 +104,7 @@ class TestPluginTypeChecking:
 
         context = PluginExecutionContext(
             suite_name="Test Suite",
+            execution_id="test_exec_id",
             datasources=["ds1", "ds2"],
             key=ResultKey(datetime.now().date(), {"env": "test"}),
             timestamp=time.time(),
