@@ -5,7 +5,7 @@ from returns.maybe import Nothing, Some
 from rich.console import Console
 
 from dqx import specs, states
-from dqx.common import DQXError, ResultKey
+from dqx.common import DQXError, Metadata, ResultKey
 from dqx.models import Metric
 from dqx.orm import repositories
 from dqx.orm.repositories import InMemoryMetricDB
@@ -156,3 +156,112 @@ def test_get_metric_window_with_no_scalars_result(key: ResultKey) -> None:
 
         result = db.get_metric_window(spec, key, lag=1, window=5, dataset="test_dataset")
         assert result == Nothing
+
+
+# Tests for get_by_execution_id method
+
+
+def test_get_by_execution_id_basic(key: ResultKey) -> None:
+    """Test retrieving metrics by execution ID."""
+    db = InMemoryMetricDB()
+    execution_id = "test-exec-123"
+
+    # Create metrics with the execution ID
+    metric1 = Metric.build(
+        specs.Average("page_views"),
+        key,
+        dataset="test_dataset",
+        state=states.Average(5.2, 10),
+        metadata=Metadata(execution_id=execution_id),
+    )
+    metric2 = Metric.build(
+        specs.Sum("revenue"),
+        key,
+        dataset="test_dataset",
+        state=states.SimpleAdditiveState(100.0),
+        metadata=Metadata(execution_id=execution_id),
+    )
+
+    # Persist metrics
+    db.persist([metric1, metric2])
+
+    # Retrieve by execution ID
+    results = db.get_by_execution_id(execution_id)
+
+    # Verify
+    assert len(results) == 2
+    assert all(m.metadata and m.metadata.execution_id == execution_id for m in results)
+    metric_types = {m.spec.metric_type for m in results}
+    assert metric_types == {"Average", "Sum"}
+
+
+def test_get_by_execution_id_not_found() -> None:
+    """Test retrieving with non-existent execution ID returns empty sequence."""
+    db = InMemoryMetricDB()
+    results = db.get_by_execution_id("non-existent-id")
+    assert results == []
+
+
+def test_get_by_execution_id_isolation(key: ResultKey) -> None:
+    """Test that different execution IDs are properly isolated."""
+    db = InMemoryMetricDB()
+    exec_id1 = "exec-id-1"
+    exec_id2 = "exec-id-2"
+
+    # Create metrics for different execution IDs
+    metric1 = Metric.build(
+        specs.Average("views"),
+        key,
+        dataset="ds1",
+        state=states.Average(10.0, 5),
+        metadata=Metadata(execution_id=exec_id1),
+    )
+    metric2 = Metric.build(
+        specs.Average("views"),
+        key,
+        dataset="ds2",
+        state=states.Average(20.0, 5),
+        metadata=Metadata(execution_id=exec_id2),
+    )
+
+    db.persist([metric1, metric2])
+
+    # Verify isolation
+    results1 = db.get_by_execution_id(exec_id1)
+    results2 = db.get_by_execution_id(exec_id2)
+
+    assert len(results1) == 1
+    assert len(results2) == 1
+    assert results1[0].dataset == "ds1"
+    assert results2[0].dataset == "ds2"
+
+
+def test_get_by_execution_id_different_ids(key: ResultKey) -> None:
+    """Test that only metrics with matching execution_id are returned."""
+    db = InMemoryMetricDB()
+    target_id = "target-exec-id"
+    other_id = "other-exec-id"
+
+    # Create metrics with different execution IDs
+    metric_with_target_id = Metric.build(
+        specs.Sum("revenue"),
+        key,
+        dataset="ds1",
+        state=states.SimpleAdditiveState(100.0),
+        metadata=Metadata(execution_id=target_id),
+    )
+    metric_with_other_id = Metric.build(
+        specs.Sum("revenue"),
+        key,
+        dataset="ds2",
+        state=states.SimpleAdditiveState(200.0),
+        metadata=Metadata(execution_id=other_id),
+    )
+
+    db.persist([metric_with_target_id, metric_with_other_id])
+
+    # Only metric with matching execution_id should be returned
+    results = db.get_by_execution_id(target_id)
+    assert len(results) == 1
+    assert results[0].dataset == "ds1"
+    assert results[0].metadata and results[0].metadata.execution_id == target_id

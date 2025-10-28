@@ -246,6 +246,20 @@ class MetricDB:
 
         return Some({r.yyyy_mm_dd: r.value for r in result.all()})
 
+    def get_by_execution_id(self, execution_id: str) -> Sequence[models.Metric]:
+        """Retrieve all metrics with the specified execution ID.
+
+        Args:
+            execution_id: The execution ID to filter by
+
+        Returns:
+            Sequence of Metric models with matching execution_id in their metadata
+        """
+        # Use SQLAlchemy's JSON functions to filter at DB level
+        query = select(Metric).where(func.json_extract(Metric.meta, "$.execution_id") == execution_id)
+
+        return [metric.to_model() for metric in self.new_session().scalars(query)]
+
 
 class InMemoryMetricDB(MetricDB):
     def __init__(self) -> None:
