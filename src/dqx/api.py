@@ -586,6 +586,7 @@ class VerificationSuite:
             raise DQXError("No data sources provided!")
 
         logger.info(f"Running verification suite '{self._name}' with datasets: {[ds.name for ds in datasources]}")
+        logger.info("Execution id: %s", self.execution_id)
 
         # Store the key for later use in collect_results
         self._key = key
@@ -721,7 +722,7 @@ class VerificationSuite:
 
         return False
 
-    def metric_trace(self, db: MetricDB) -> "pa.Table":
+    def metric_trace(self, db: MetricDB) -> pa.Table:
         """
         Generate a metric trace table showing how metrics flow through the system.
 
