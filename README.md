@@ -168,6 +168,13 @@ ctx.assert_that(null_rate).where(name="Email completeness").is_lt(0.1)  # <10%
 # Check category distribution
 fraud_rate = mp.count_values("status", "fraud") / mp.num_rows()
 ctx.assert_that(fraud_rate).where(name="Fraud rate", severity="P0").is_lt(0.001)
+
+# Check cardinality
+unique_users = mp.unique_count("user_id")
+total_orders = mp.num_rows()
+ctx.assert_that(unique_users / total_orders).where(name="User diversity").is_gt(
+    0.3
+)  # >30% unique users
 ```
 
 ### Monitor Complex Metrics
@@ -236,6 +243,7 @@ uv run cleanup
 | `minimum(col)` / `maximum(col)` | Min/max values | Range checks |
 | `duplicate_count([cols])` | Duplicate rows | Uniqueness |
 | `count_values(col, value)` | Count specific values | Categories |
+| `unique_count(col)` | Distinct values | Cardinality |
 
 ### Assertions Available
 | Assertion | Description | Example |

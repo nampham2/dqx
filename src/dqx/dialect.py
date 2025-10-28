@@ -399,6 +399,9 @@ class DuckDBDialect:
                     condition = f"{col} IN ({values_list})"
                 return f"CAST(COUNT_IF({condition}) AS DOUBLE) AS '{op.sql_col}'"
 
+            case ops.UniqueCount(column=col):
+                return f"CAST(COUNT(DISTINCT {col}) AS DOUBLE) AS '{op.sql_col}'"
+
             case _:
                 raise ValueError(f"Unsupported SqlOp type: {type(op).__name__}")
 
@@ -515,6 +518,9 @@ class BigQueryDialect:
                         values_list = ", ".join(str(v) for v in vals)
                     condition = f"{col} IN ({values_list})"
                 return f"CAST(COUNTIF({condition}) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.UniqueCount(column=col):
+                return f"CAST(COUNT(DISTINCT {col}) AS FLOAT64) AS `{op.sql_col}`"
 
             case _:
                 raise ValueError(f"Unsupported SqlOp type: {type(op).__name__}")

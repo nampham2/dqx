@@ -289,7 +289,7 @@ def test_duplicate_count_state() -> None:
     assert state.value == 42.0
 
     # Test identity raises error with descriptive message
-    with pytest.raises(states.DQXError, match="DuplicateCount state does not support identity"):
+    with pytest.raises(states.DQXError, match="NonMergeable state does not support identity"):
         states.DuplicateCount.identity()
 
     # Test serialization
@@ -307,7 +307,7 @@ def test_duplicate_count_state() -> None:
     state1 = states.DuplicateCount(value=10.0)
     state2 = states.DuplicateCount(value=20.0)
 
-    with pytest.raises(states.DQXError, match="DuplicateCount state cannot be merged"):
+    with pytest.raises(states.DQXError, match="Cannot merge DuplicateCount: Operation not supported across partitions"):
         state1.merge(state2)
 
 

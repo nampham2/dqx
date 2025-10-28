@@ -284,48 +284,72 @@ class Maximum(State):
         return Maximum(value=self._value)
 
 
-class DuplicateCount(State):
-    """Non-mergeable state for duplicate count metrics.
+class NonMergeable(State):
+    """Generic non-mergeable state for metrics that cannot be merged across partitions.
 
-    Duplicate counts cannot be merged across partitions because the same
-    value might appear in multiple partitions, leading to incorrect counts.
+    This state is used for metrics like unique count and duplicate count that
+    cannot be accurately merged because the same values might appear in multiple
+    partitions, leading to incorrect counts.
 
     This state does not support identity or merge operations.
     """
 
-    def __init__(self, value: float) -> None:
+    def __init__(self, value: float, metric_type: str) -> None:
         self._value = float(value)
+        self.metric_type = metric_type
 
     @classmethod
-    def identity(cls) -> DuplicateCount:
-        raise DQXError(
-            "DuplicateCount state does not support identity. "
-            "Duplicate counts must be computed on the entire dataset in a single pass "
-            "because counts from different partitions cannot be accurately merged."
-        )
+    def identity(cls) -> NonMergeable:
+        raise DQXError("NonMergeable state does not support identity")
 
     @property
     def value(self) -> float:
         return self._value
 
     def serialize(self) -> bytes:
-        return msgpack.packb(self._value)
+        return msgpack.packb((self._value, self.metric_type))
+
+    @classmethod
+    def deserialize(cls, data: bytes) -> NonMergeable:
+        value, metric_type = msgpack.unpackb(data)
+        return cls(value=value, metric_type=metric_type)
+
+    def merge(self, other: NonMergeable) -> NonMergeable:
+        raise DQXError(f"Cannot merge {self.metric_type}: Operation not supported across partitions")
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, NonMergeable):
+            return False
+        return self._value == other._value and self.metric_type == other.metric_type
+
+    def __hash__(self) -> int:
+        return hash((self._value, self.metric_type))
+
+    def __copy__(self) -> NonMergeable:
+        return NonMergeable(value=self._value, metric_type=self.metric_type)
+
+    def __str__(self) -> str:
+        return f"NonMergeable(value={self._value}, metric_type={self.metric_type})"
+
+    def __repr__(self) -> str:
+        return f"NonMergeable(value={self._value}, metric_type='{self.metric_type}')"
+
+
+# Backward compatibility alias
+class DuplicateCount(NonMergeable):
+    """Backward compatibility wrapper for DuplicateCount state."""
+
+    def __init__(self, value: float) -> None:
+        super().__init__(value=value, metric_type="DuplicateCount")
 
     @classmethod
     def deserialize(cls, data: bytes) -> DuplicateCount:
-        return cls(value=msgpack.unpackb(data))
-
-    def merge(self, other: DuplicateCount) -> DuplicateCount:
-        raise DQXError(
-            "DuplicateCount state cannot be merged across partitions. "
-            "Example: partition1=[A,A,B] and partition2=[B,C,C] would give incorrect results if merged. "
-            "The metric must be computed on the entire dataset in a single pass."
-        )
-
-    def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, DuplicateCount):
-            return False
-        return self.serialize() == other.serialize()
-
-    def __copy__(self) -> DuplicateCount:
-        return DuplicateCount(value=self._value)
+        # Handle both old and new serialization formats
+        try:
+            # Try new format first (tuple)
+            value, metric_type = msgpack.unpackb(data)
+            return cls(value=value)
+        except (ValueError, TypeError):
+            # Fall back to old format (single value)
+            value = msgpack.unpackb(data)
+            return cls(value=value)

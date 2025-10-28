@@ -46,14 +46,16 @@ class TestDuplicateCountIntegration:
         # Simulate op execution
         analyzers[0].assign(42.0)
         state = spec.state()
-        assert isinstance(state, states.DuplicateCount)
+        assert isinstance(state, states.NonMergeable)
         assert state.value == 42.0
+        assert state.metric_type == "DuplicateCount"
 
         # 7. Test serialization/deserialization
         serialized = state.serialize()
         deserialized = spec.deserialize(serialized)
-        assert isinstance(deserialized, states.DuplicateCount)
+        assert isinstance(deserialized, states.NonMergeable)
         assert deserialized.value == 42.0
+        assert deserialized.metric_type == "DuplicateCount"
 
     def test_duplicate_count_with_analyzer(self) -> None:
         """Test DuplicateCount with the Analyzer and DataSource."""

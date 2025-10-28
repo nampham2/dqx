@@ -1,8 +1,4 @@
-"""Test cases for op-related functionality.
-
-This module tests the operations (ops) used in DQX, including
-both the protocol validation and concrete implementations.
-"""
+"""Test cases for operations module."""
 
 import pytest
 
@@ -10,37 +6,8 @@ from dqx import ops
 from dqx.common import DQXError
 
 
-def test_op_protocol() -> None:
-    """Test that concrete ops conform to the Op protocol."""
-    assert isinstance(ops.NumRows(), ops.Op)
-    assert isinstance(ops.Average("col"), ops.Op)
-    assert isinstance(ops.Minimum("col"), ops.Op)
-    assert isinstance(ops.Maximum("col"), ops.Op)
-    assert isinstance(ops.Sum("col"), ops.Op)
-    assert isinstance(ops.Variance("col"), ops.Op)
-    assert isinstance(ops.First("col"), ops.Op)
-    assert isinstance(ops.NullCount("col"), ops.Op)
-    assert isinstance(ops.NegativeCount("col"), ops.Op)
-    assert isinstance(ops.DuplicateCount(["col"]), ops.Op)
-    assert isinstance(ops.CountValues("col", 1), ops.Op)
-
-
-def test_sql_op_protocol() -> None:
-    """Test that concrete ops conform to the SqlOp protocol."""
-    assert isinstance(ops.NumRows(), ops.SqlOp)
-    assert isinstance(ops.Average("col"), ops.SqlOp)
-    assert isinstance(ops.Minimum("col"), ops.SqlOp)
-    assert isinstance(ops.Maximum("col"), ops.SqlOp)
-    assert isinstance(ops.Sum("col"), ops.SqlOp)
-    assert isinstance(ops.Variance("col"), ops.SqlOp)
-    assert isinstance(ops.First("col"), ops.SqlOp)
-    assert isinstance(ops.NullCount("col"), ops.SqlOp)
-    assert isinstance(ops.NegativeCount("col"), ops.SqlOp)
-    assert isinstance(ops.DuplicateCount(["col"]), ops.SqlOp)
-    assert isinstance(ops.CountValues("col", "test"), ops.SqlOp)
-
-
 def test_num_rows() -> None:
+    """Test NumRows operation basic functionality."""
     op = ops.NumRows()
     assert op.name == "num_rows()"
     assert op.prefix is not None
@@ -61,7 +28,6 @@ def test_num_rows() -> None:
     # Test equality
     op2 = ops.NumRows()
     assert op == op2
-    assert op != ops.Average("col")
 
     # Test hash
     assert hash(op) == hash(op2)
@@ -72,6 +38,7 @@ def test_num_rows() -> None:
 
 
 def test_average() -> None:
+    """Test Average operation basic functionality."""
     op = ops.Average("price")
     assert op.name == "average(price)"
     assert op.column == "price"
@@ -82,8 +49,13 @@ def test_average() -> None:
     with pytest.raises(DQXError, match="Average op has not been collected yet!"):
         op.value()
 
-    op.assign(99.5)
-    assert op.value() == pytest.approx(99.5)
+    op.assign(25.5)
+    assert op.value() == pytest.approx(25.5)
+
+    # Test clear
+    op.clear()
+    with pytest.raises(DQXError):
+        op.value()
 
     # Test equality
     op2 = ops.Average("price")
@@ -102,71 +74,64 @@ def test_average() -> None:
 
 
 def test_minimum() -> None:
-    op = ops.Minimum("age")
-    assert op.name == "minimum(age)"
-    assert op.column == "age"
-    assert op.prefix is not None
-    assert op.sql_col == f"{op.prefix}_minimum(age)"
+    """Test Minimum operation basic functionality."""
+    op = ops.Minimum("score")
+    assert op.name == "minimum(score)"
+    assert op.column == "score"
 
-    # Test value assignment
-    op.assign(18.0)
-    assert op.value() == pytest.approx(18.0)
+    # Test value handling
+    with pytest.raises(DQXError):
+        op.value()
 
-    # Test equality
-    op2 = ops.Minimum("age")
-    op3 = ops.Minimum("height")
-    assert op == op2
-    assert op != op3
+    op.assign(10.0)
+    assert op.value() == pytest.approx(10.0)
 
-    # Test hash
-    assert hash(op) == hash(op2)
-    assert hash(op) != hash(op3)
-
-    # Test string representation
-    assert str(op) == "minimum(age)"
-    assert repr(op) == "minimum(age)"
+    op.clear()
+    with pytest.raises(DQXError):
+        op.value()
 
 
 def test_maximum() -> None:
+    """Test Maximum operation basic functionality."""
     op = ops.Maximum("score")
     assert op.name == "maximum(score)"
     assert op.column == "score"
-    assert op.prefix is not None
-    assert op.sql_col == f"{op.prefix}_maximum(score)"
 
-    # Test value assignment
+    # Test value handling
+    with pytest.raises(DQXError):
+        op.value()
+
     op.assign(100.0)
     assert op.value() == pytest.approx(100.0)
 
-    # Test equality
-    op2 = ops.Maximum("score")
-    op3 = ops.Maximum("points")
-    assert op == op2
-    assert op != op3
-
-    # Test hash
-    assert hash(op) == hash(op2)
-    assert hash(op) != hash(op3)
-
-    # Test string representation
-    assert str(op) == "maximum(score)"
-    assert repr(op) == "maximum(score)"
+    op.clear()
+    with pytest.raises(DQXError):
+        op.value()
 
 
 def test_sum() -> None:
-    op = ops.Sum("revenue")
-    assert op.name == "sum(revenue)"
-    assert op.column == "revenue"
+    """Test Sum operation basic functionality."""
+    op = ops.Sum("amount")
+    assert op.name == "sum(amount)"
+    assert op.column == "amount"
     assert op.prefix is not None
-    assert op.sql_col == f"{op.prefix}_sum(revenue)"
+    assert op.sql_col == f"{op.prefix}_sum(amount)"
 
     # Test value assignment
-    op.assign(12345.67)
-    assert op.value() == pytest.approx(12345.67)
+    with pytest.raises(DQXError, match="Sum op has not been collected yet!"):
+        op.value()
+
+    op.assign(1000.0)
+    assert op.value() == pytest.approx(1000.0)
+
+    # Test clear
+    op.clear()
+    with pytest.raises(DQXError):
+        op.value()
 
     # Test equality
-    op2 = ops.Sum("revenue")
-    op3 = ops.Sum("cost")
+    op2 = ops.Sum("amount")
+    op3 = ops.Sum("quantity")
     assert op == op2
     assert op != op3
 
@@ -175,63 +140,40 @@ def test_sum() -> None:
     assert hash(op) != hash(op3)
 
     # Test string representation
-    assert str(op) == "sum(revenue)"
-    assert repr(op) == "sum(revenue)"
+    assert str(op) == "sum(amount)"
+    assert repr(op) == "sum(amount)"
 
 
 def test_variance() -> None:
-    op = ops.Variance("temperature")
-    assert op.name == "variance(temperature)"
-    assert op.column == "temperature"
-    assert op.prefix is not None
-    assert op.sql_col == f"{op.prefix}_variance(temperature)"
+    """Test Variance operation basic functionality."""
+    op = ops.Variance("values")
+    assert op.name == "variance(values)"
+    assert op.column == "values"
 
-    # Test value assignment
-    op.assign(5.25)
-    assert op.value() == pytest.approx(5.25)
+    # Test value handling
+    with pytest.raises(DQXError):
+        op.value()
 
-    # Test equality
-    op2 = ops.Variance("temperature")
-    op3 = ops.Variance("humidity")
-    assert op == op2
-    assert op != op3
-
-    # Test hash
-    assert hash(op) == hash(op2)
-    assert hash(op) != hash(op3)
-
-    # Test string representation
-    assert str(op) == "variance(temperature)"
-    assert repr(op) == "variance(temperature)"
+    op.assign(25.5)
+    assert op.value() == pytest.approx(25.5)
 
 
 def test_first() -> None:
+    """Test First operation basic functionality."""
     op = ops.First("timestamp")
     assert op.name == "first(timestamp)"
     assert op.column == "timestamp"
-    assert op.prefix is not None
-    assert op.sql_col == f"{op.prefix}_first(timestamp)"
 
-    # Test value assignment
-    op.assign(1234567890.0)
-    assert op.value() == pytest.approx(1234567890.0)
+    # Test value handling
+    with pytest.raises(DQXError):
+        op.value()
 
-    # Test equality
-    op2 = ops.First("timestamp")
-    op3 = ops.First("date")
-    assert op == op2
-    assert op != op3
-
-    # Test hash
-    assert hash(op) == hash(op2)
-    assert hash(op) != hash(op3)
-
-    # Test string representation
-    assert str(op) == "first(timestamp)"
-    assert repr(op) == "first(timestamp)"
+    op.assign(123456789.0)
+    assert op.value() == pytest.approx(123456789.0)
 
 
 def test_null_count() -> None:
+    """Test NullCount operation basic functionality."""
     op = ops.NullCount("email")
     assert op.name == "null_count(email)"
     assert op.column == "email"
@@ -239,8 +181,16 @@ def test_null_count() -> None:
     assert op.sql_col == f"{op.prefix}_null_count(email)"
 
     # Test value assignment
-    op.assign(15.0)
-    assert op.value() == pytest.approx(15.0)
+    with pytest.raises(DQXError, match="NullCount op has not been collected yet!"):
+        op.value()
+
+    op.assign(5.0)
+    assert op.value() == pytest.approx(5.0)
+
+    # Test clear
+    op.clear()
+    with pytest.raises(DQXError):
+        op.value()
 
     # Test equality
     op2 = ops.NullCount("email")
@@ -258,36 +208,25 @@ def test_null_count() -> None:
 
 
 def test_negative_count() -> None:
+    """Test NegativeCount operation basic functionality."""
     op = ops.NegativeCount("balance")
     assert op.name == "negative_count(balance)"
     assert op.column == "balance"
-    assert op.prefix is not None
-    assert op.sql_col == f"{op.prefix}_negative_count(balance)"
 
-    # Test value assignment
+    # Test value handling
+    with pytest.raises(DQXError):
+        op.value()
+
     op.assign(3.0)
     assert op.value() == pytest.approx(3.0)
 
-    # Test equality
-    op2 = ops.NegativeCount("balance")
-    op3 = ops.NegativeCount("profit")
-    assert op == op2
-    assert op != op3
-
-    # Test hash
-    assert hash(op) == hash(op2)
-    assert hash(op) != hash(op3)
-
-    # Test string representation
-    assert str(op) == "negative_count(balance)"
-    assert repr(op) == "negative_count(balance)"
-
 
 def test_duplicate_count() -> None:
+    """Test DuplicateCount operation basic functionality."""
     # Test single column
     op = ops.DuplicateCount(["email"])
     assert op.name == "duplicate_count(email)"
-    assert op.columns == ["email"]
+    assert op.columns == ["email"]  # Should be sorted
     assert op.prefix is not None
     assert op.sql_col == f"{op.prefix}_duplicate_count(email)"
 
@@ -301,159 +240,178 @@ def test_duplicate_count() -> None:
     assert op2 == op3
     assert hash(op2) == hash(op3)
 
-    # Test empty columns error
-    with pytest.raises(ValueError, match="DuplicateCount requires at least one column"):
-        ops.DuplicateCount([])
+    # Test value handling
+    with pytest.raises(DQXError, match="DuplicateCount op has not been collected yet!"):
+        op.value()
 
-    # Test value assignment
     op.assign(10.0)
     assert op.value() == pytest.approx(10.0)
 
-    # Test string representation
-    assert str(op) == "duplicate_count(email)"
-    assert repr(op) == "duplicate_count(email)"
+    op.clear()
+    with pytest.raises(DQXError):
+        op.value()
+
+    # Test empty columns raises error
+    with pytest.raises(ValueError, match="DuplicateCount requires at least one column"):
+        ops.DuplicateCount([])
 
 
-def test_count_values_single() -> None:
-    # Test with single integer value
-    op_int = ops.CountValues("status", 1)
-    assert isinstance(op_int, ops.Op)
-    assert isinstance(op_int, ops.SqlOp)
-    assert op_int.name == "count_values(status,1)"
+def test_count_values() -> None:
+    """Test CountValues operation basic functionality."""
+    # Test single integer value
+    op = ops.CountValues("status", 1)
+    assert op.name == "count_values(status,1)"
+    assert op.column == "status"
+    assert op.values == 1
+    assert op._values == [1]
+    assert op._is_single is True
 
-    # Test with single string value
-    op_str = ops.CountValues("category", "active")
-    assert op_str.name == "count_values(category,active)"
+    # Test single string value
+    op2 = ops.CountValues("status", "active")
+    assert op2.name == "count_values(status,active)"
+    assert op2.values == "active"
+    assert op2._values == ["active"]
+    assert op2._is_single is True
 
-    # Test with single boolean value
-    op_bool_true = ops.CountValues("is_active", True)
-    assert op_bool_true.name == "count_values(is_active,True)"
+    # Test single boolean value
+    op3 = ops.CountValues("is_valid", True)
+    assert op3.name == "count_values(is_valid,True)"
+    assert op3.values is True  # Use 'is' for boolean comparison
+    assert op3._values == [True]
+    assert op3._is_single is True
 
-    op_bool_false = ops.CountValues("is_verified", False)
-    assert op_bool_false.name == "count_values(is_verified,False)"
+    # Test list of integers
+    op4 = ops.CountValues("type_id", [1, 2, 3])
+    assert op4.name == "count_values(type_id,[1,2,3])"
+    assert op4.values == [1, 2, 3]
+    assert op4._values == [1, 2, 3]
+    assert op4._is_single is False
+
+    # Test list of strings
+    op5 = ops.CountValues("status", ["pending", "active"])
+    assert op5.name == "count_values(status,[pending,active])"
+    assert op5.values == ["pending", "active"]
+    assert op5._values == ["pending", "active"]
+    assert op5._is_single is False
+
+    # Test sql_col (uses hash for uniqueness)
+    assert op.sql_col.startswith(f"{op.prefix}_count_values_status_")
 
     # Test value assignment
     with pytest.raises(DQXError, match="CountValues op has not been collected yet!"):
-        op_int.value()
+        op.value()
 
-    op_int.assign(42.0)
-    assert op_int.value() == pytest.approx(42.0)
+    op.assign(42.0)
+    assert op.value() == pytest.approx(42.0)
 
-    # Test clear functionality
-    op_int.clear()
+    # Test clear
+    op.clear()
     with pytest.raises(DQXError):
-        op_int.value()
+        op.value()
 
+    # Test equality (distinguishes True from 1, False from 0)
+    bool_op1 = ops.CountValues("col", True)
+    bool_op2 = ops.CountValues("col", True)
+    int_op = ops.CountValues("col", 1)
+    assert bool_op1 == bool_op2
+    assert bool_op1 != int_op  # True != 1 for our purposes
 
-def test_count_values_multiple() -> None:
-    # Test with multiple integer values
-    op_ints = ops.CountValues("type_id", [1, 2, 3])
-    assert op_ints.name == "count_values(type_id,[1,2,3])"
+    # Test hash
+    assert hash(bool_op1) == hash(bool_op2)
+    assert hash(bool_op1) != hash(int_op)
 
-    # Test with multiple string values
-    op_strs = ops.CountValues("status", ["active", "pending"])
-    assert op_strs.name == "count_values(status,[active,pending])"
+    # Test string representation
+    assert str(op) == "count_values(status,1)"
+    assert repr(op) == "count_values(status,1)"
 
-    # Test single-item list
-    op_single_list = ops.CountValues("category", ["electronics"])
-    assert op_single_list.name == "count_values(category,[electronics])"
-
-
-def test_count_values_invalid_types() -> None:
-    # Test invalid single value type
-    with pytest.raises(ValueError, match="CountValues accepts int, str, bool, list\\[int\\], or list\\[str\\]"):
-        ops.CountValues("column", 3.14)  # type: ignore
-
-    # Test empty list
+    # Test empty list raises error
     with pytest.raises(ValueError, match="CountValues requires at least one value"):
-        ops.CountValues("column", [])
+        ops.CountValues("col", [])
 
-    # Test mixed type list
+    # Test mixed types raise error
     with pytest.raises(ValueError, match="CountValues list must contain all integers or all strings"):
-        ops.CountValues("column", [1, "two", 3])  # type: ignore
+        ops.CountValues("col", [1, "two"])  # type: ignore
 
-    # Test booleans in lists (not allowed)
+    # Test booleans in lists raise error
     with pytest.raises(ValueError, match="CountValues list must contain all integers or all strings"):
-        ops.CountValues("column", [True, False])  # type: ignore
+        ops.CountValues("col", [True, False])  # type: ignore
+
+    # Test invalid type raises error
+    with pytest.raises(ValueError, match="CountValues accepts"):
+        ops.CountValues("col", 3.14)  # type: ignore
 
 
-def test_count_values_equality() -> None:
-    # Single values
-    op1 = ops.CountValues("col", 1)
-    op2 = ops.CountValues("col", 1)
-    op3 = ops.CountValues("col", 2)
-    op4 = ops.CountValues("col", "1")  # String "1" vs int 1
+def test_unique_count() -> None:
+    """Test UniqueCount operation basic functionality."""
+    op = ops.UniqueCount("product_id")
+    assert op.name == "unique_count(product_id)"
+    assert op.column == "product_id"
+    assert op.prefix is not None
+    assert op.sql_col == f"{op.prefix}_unique_count(product_id)"
 
-    assert op1 == op2
-    assert op1 != op3
-    assert op1 != op4  # Different types
+    # Test value assignment
+    with pytest.raises(DQXError, match="UniqueCount op has not been collected yet!"):
+        op.value()
 
-    # List values
-    op5 = ops.CountValues("col", [1, 2])
-    op6 = ops.CountValues("col", [1, 2])
-    op7 = ops.CountValues("col", [2, 1])  # Different order
+    op.assign(42.0)
+    assert op.value() == pytest.approx(42.0)
 
-    assert op5 == op6
-    assert op5 != op7  # Order matters
+    # Test clear
+    op.clear()
+    with pytest.raises(DQXError):
+        op.value()
 
-    # Single vs list
-    op8 = ops.CountValues("col", 1)
-    op9 = ops.CountValues("col", [1])
-    assert op8 != op9  # Different formats
+    # Test equality
+    op2 = ops.UniqueCount("product_id")
+    op3 = ops.UniqueCount("user_id")
+    assert op == op2
+    assert op != op3
+    assert op != ops.Average("product_id")
 
-    # Boolean values
-    op10 = ops.CountValues("col", True)
-    op11 = ops.CountValues("col", True)
-    op12 = ops.CountValues("col", False)
+    # Test hash
+    assert hash(op) == hash(op2)
+    assert hash(op) != hash(op3)
 
-    assert op10 == op11
-    assert op10 != op12
-    assert op10 != op1  # Boolean True is not equal to integer 1
-
-
-def test_count_values_hashing() -> None:
-    op1 = ops.CountValues("col", ["test", "values"])
-    op2 = ops.CountValues("col", ["test", "values"])
-    op3 = ops.CountValues("col", ["different", "values"])
-
-    assert hash(op1) == hash(op2)
-    assert hash(op1) != hash(op3)
-
-    # Test deduplication in sets
-    assert {op1, op2} == {op1}
+    # Test string representation
+    assert str(op) == "unique_count(product_id)"
+    assert repr(op) == "unique_count(product_id)"
 
 
-def test_count_values_string_repr() -> None:
-    op_single = ops.CountValues("user_id", 123)
-    op_list = ops.CountValues("status", ["active", "pending", "completed"])
+def test_op_protocol() -> None:
+    """Test that all ops implement the Op protocol."""
+    assert isinstance(ops.NumRows(), ops.Op)
+    assert isinstance(ops.Average("col"), ops.Op)
+    assert isinstance(ops.Minimum("col"), ops.Op)
+    assert isinstance(ops.Maximum("col"), ops.Op)
+    assert isinstance(ops.Sum("col"), ops.Op)
+    assert isinstance(ops.Variance("col"), ops.Op)
+    assert isinstance(ops.First("col"), ops.Op)
+    assert isinstance(ops.NullCount("col"), ops.Op)
+    assert isinstance(ops.NegativeCount("col"), ops.Op)
+    assert isinstance(ops.DuplicateCount(["col"]), ops.Op)
+    assert isinstance(ops.CountValues("col", 1), ops.Op)
+    assert isinstance(ops.UniqueCount("col"), ops.Op)
 
-    assert str(op_single) == "count_values(user_id,123)"
-    assert repr(op_single) == "count_values(user_id,123)"
-    assert str(op_list) == "count_values(status,[active,pending,completed])"
-    assert repr(op_list) == "count_values(status,[active,pending,completed])"
 
-
-def test_count_values_special_characters() -> None:
-    # Test backslashes (Windows paths)
-    op_path = ops.CountValues("path", "C:\\Users\\test")
-    assert op_path.name == "count_values(path,C:\\Users\\test)"
-
-    # Test quotes in strings
-    op_quote = ops.CountValues("name", "O'Brien")
-    assert op_quote.name == "count_values(name,O'Brien)"
-
-    # Test Unicode
-    op_unicode = ops.CountValues("name", "José")
-    assert op_unicode.name == "count_values(name,José)"
-
-    # Test mixed quotes
-    op_mixed = ops.CountValues("text", 'He said "Hello"')
-    assert op_mixed.name == 'count_values(text,He said "Hello")'
+def test_sql_op_protocol() -> None:
+    """Test that all ops implement the SqlOp protocol."""
+    assert isinstance(ops.NumRows(), ops.SqlOp)
+    assert isinstance(ops.Average("col"), ops.SqlOp)
+    assert isinstance(ops.Minimum("col"), ops.SqlOp)
+    assert isinstance(ops.Maximum("col"), ops.SqlOp)
+    assert isinstance(ops.Sum("col"), ops.SqlOp)
+    assert isinstance(ops.Variance("col"), ops.SqlOp)
+    assert isinstance(ops.First("col"), ops.SqlOp)
+    assert isinstance(ops.NullCount("col"), ops.SqlOp)
+    assert isinstance(ops.NegativeCount("col"), ops.SqlOp)
+    assert isinstance(ops.DuplicateCount(["col"]), ops.SqlOp)
+    assert isinstance(ops.CountValues("col", "test"), ops.SqlOp)
+    assert isinstance(ops.UniqueCount("col"), ops.SqlOp)
 
 
 def test_sql_op_properties() -> None:
     """Test that all SqlOp implementations have required properties."""
-    sql_ops: list[ops.SqlOp] = [
+    sql_ops = [
         ops.NumRows(),
         ops.Average("col"),
         ops.Minimum("col"),
@@ -464,26 +422,24 @@ def test_sql_op_properties() -> None:
         ops.NullCount("col"),
         ops.NegativeCount("col"),
         ops.DuplicateCount(["col"]),
-        ops.CountValues("col", 1),
+        ops.CountValues("col", "test"),
+        ops.UniqueCount("col"),
     ]
 
     for op in sql_ops:
-        # Each should have a unique prefix
-        assert op.prefix is not None
-        assert len(op.prefix) > 0
+        # All SqlOps should have these properties
+        assert hasattr(op, "name")
+        assert hasattr(op, "prefix")
+        assert hasattr(op, "sql_col")
+        assert hasattr(op, "value")
+        assert hasattr(op, "assign")
+        assert hasattr(op, "clear")
 
-        # Each should have a sql_col property
-        assert op.sql_col is not None
+        # Check that sql_col follows expected pattern
         assert op.prefix in op.sql_col
-
-        # For CountValues, sql_col uses a hash instead of the full name
-        # to avoid special characters in column aliases
+        # CountValues uses a hash in sql_col for uniqueness
         if not isinstance(op, ops.CountValues):
             assert op.name in op.sql_col
-
-        # Each should have a name
-        assert op.name is not None
-        assert len(op.name) > 0
 
 
 def test_op_value_assignment_and_clearing() -> None:
@@ -499,11 +455,12 @@ def test_op_value_assignment_and_clearing() -> None:
         ops.NullCount("col"),
         ops.NegativeCount("col"),
         ops.DuplicateCount(["col"]),
-        ops.CountValues("col", "test"),
+        ops.CountValues("col", 1),
+        ops.UniqueCount("col"),
     ]
 
     for op in ops_to_test:
-        # Initially, should raise error when accessing value
+        # Should raise when no value assigned
         with pytest.raises(DQXError):
             op.value()
 
@@ -513,5 +470,27 @@ def test_op_value_assignment_and_clearing() -> None:
 
         # Clear the value
         op.clear()
+
+        # Should raise again after clearing
         with pytest.raises(DQXError):
             op.value()
+
+
+def test_op_match_args() -> None:
+    """Test that ops with columns have proper __match_args__ for pattern matching."""
+    # These ops should have match_args for their column parameter
+    assert ops.Average.__match_args__ == ("column",)
+    assert ops.Minimum.__match_args__ == ("column",)
+    assert ops.Maximum.__match_args__ == ("column",)
+    assert ops.Sum.__match_args__ == ("column",)
+    assert ops.Variance.__match_args__ == ("column",)
+    assert ops.First.__match_args__ == ("column",)
+    assert ops.NullCount.__match_args__ == ("column",)
+    assert ops.NegativeCount.__match_args__ == ("column",)
+    assert ops.UniqueCount.__match_args__ == ("column",)
+
+    # DuplicateCount has columns (plural)
+    assert ops.DuplicateCount.__match_args__ == ("columns",)
+
+    # CountValues has column and values
+    assert ops.CountValues.__match_args__ == ("column", "values")

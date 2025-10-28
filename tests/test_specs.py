@@ -761,6 +761,7 @@ class TestBuildRegistry:
             "Variance",
             "DuplicateCount",
             "CountValues",
+            "UniqueCount",
             "DayOverDay",
             "WeekOverWeek",
             "Stddev",
@@ -827,6 +828,7 @@ class TestRegistry:
             "Variance",
             "DuplicateCount",
             "CountValues",
+            "UniqueCount",
             "DayOverDay",
             "WeekOverWeek",
             "Stddev",
@@ -893,11 +895,12 @@ class TestDuplicateCount:
         dup_count = specs.DuplicateCount(["col1"])
         state = dup_count.state()
 
-        assert isinstance(state, states.DuplicateCount)
+        assert isinstance(state, states.NonMergeable)
         assert state.value == 5.0
+        assert state.metric_type == "DuplicateCount"
 
     def test_deserialize(self) -> None:
-        with patch.object(states.DuplicateCount, "deserialize") as mock_deserialize:
+        with patch.object(states.NonMergeable, "deserialize") as mock_deserialize:
             mock_state = Mock()
             mock_deserialize.return_value = mock_state
 

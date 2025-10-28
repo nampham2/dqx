@@ -359,6 +359,41 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
         return self.__repr__()
 
 
+class UniqueCount(OpValueMixin[float], SqlOp[float]):
+    __match_args__ = ("column",)
+
+    def __init__(self, column: str) -> None:
+        OpValueMixin.__init__(self)
+        self.column = column
+        self._prefix = random_prefix()
+
+    @property
+    def name(self) -> str:
+        return f"unique_count({self.column})"
+
+    @property
+    def prefix(self) -> str:
+        return self._prefix
+
+    @property
+    def sql_col(self) -> str:
+        return f"{self.prefix}_{self.name}"
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, UniqueCount):
+            return NotImplemented
+        return self.column == other.column
+
+    def __hash__(self) -> int:
+        return hash((self.name, self.column))
+
+    def __repr__(self) -> str:
+        return self.name
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+
 class DuplicateCount(OpValueMixin[float], SqlOp[float]):
     __match_args__ = ("columns",)
 

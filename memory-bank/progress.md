@@ -9,6 +9,8 @@
 - Dataset validation with clear error messages
 - Comprehensive test coverage (100%)
 - **New Python-based hooks command (`uv run hooks`) replacing shell script**
+- **UniqueCount metric for counting distinct values in columns**
+- **Enhanced NonMergeable state supporting multiple metric types**
 
 ## What's Left to Build
 - Additional plugin types beyond audit
@@ -25,6 +27,13 @@
 - None currently reported
 
 ## Evolution of Project Decisions
+
+### 2025-10-28: Implemented UniqueCount Metric
+- Added UniqueCount operation for counting distinct values
+- Leveraged existing NonMergeable state class instead of creating new one
+- Enhanced NonMergeable to support metric_type parameter
+- Updated DuplicateCount to use NonMergeable state for consistency
+- Comprehensive test coverage including edge cases
 
 ### 2025-01-27: Replaced Shell Script with Python Command
 - Replaced `bin/run-hooks.sh` with `uv run hooks` command

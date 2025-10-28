@@ -744,3 +744,38 @@ class MetricProvider(SymbolicMetricBase):
             making multiple separate count_values calls.
         """
         return self.metric(specs.CountValues(column, values), lag, dataset)
+
+    def unique_count(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        """Count unique (distinct) non-null values in a column.
+
+        This operation counts the number of distinct non-null values in a column.
+        NULL values are not included in the count.
+
+        Note: This metric cannot be merged across partitions. The unique count
+        from multiple partitions cannot be summed to get the total unique count
+        because the same values might appear in multiple partitions.
+
+        Args:
+            column: Column name to count unique values in
+            lag: Lag offset in days
+            dataset: Optional dataset name
+
+        Returns:
+            Symbol representing the unique count
+
+        Examples:
+            >>> from dqx import ValidationSuite
+            >>> suite = ValidationSuite("test")
+
+            >>> # Count unique product IDs
+            >>> suite.unique_count("product_id")
+
+            >>> # Count unique users with a 7-day lag
+            >>> suite.unique_count("user_id", lag=7)
+
+        See Also:
+            - duplicate_count: For counting duplicate values
+            - count_values: For counting specific values
+            - null_count: For counting NULL values
+        """
+        return self.metric(specs.UniqueCount(column), lag, dataset)

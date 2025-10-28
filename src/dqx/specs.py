@@ -18,6 +18,7 @@ MetricType = Literal[
     "NegativeCount",
     "DuplicateCount",
     "CountValues",
+    "UniqueCount",
     "DayOverDay",
     "WeekOverWeek",
     "Stddev",
@@ -425,12 +426,12 @@ class DuplicateCount:
     def analyzers(self) -> Sequence[ops.Op]:
         return self._analyzers
 
-    def state(self) -> states.DuplicateCount:
-        return states.DuplicateCount(value=self._analyzers[0].value())
+    def state(self) -> states.NonMergeable:
+        return states.NonMergeable(value=self._analyzers[0].value(), metric_type="DuplicateCount")
 
     @classmethod
     def deserialize(cls, state: bytes) -> states.State:
-        return states.DuplicateCount.deserialize(state)
+        return states.NonMergeable.deserialize(state)
 
     def __hash__(self) -> int:
         # Convert the columns list to a tuple for hashing
@@ -482,6 +483,45 @@ class CountValues:
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, CountValues):
+            return False
+        return self.name == other.name and self.parameters == other.parameters
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class UniqueCount:
+    metric_type: MetricType = "UniqueCount"
+    is_extended: bool = False
+
+    def __init__(self, column: str) -> None:
+        self._column = column
+        self._analyzers = (ops.UniqueCount(self._column),)
+
+    @property
+    def name(self) -> str:
+        return f"unique_count({self._column})"
+
+    @property
+    def parameters(self) -> Parameters:
+        return {"column": self._column}
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return self._analyzers
+
+    def state(self) -> states.NonMergeable:
+        return states.NonMergeable(value=self._analyzers[0].value(), metric_type="UniqueCount")
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.NonMergeable.deserialize(state)
+
+    def __hash__(self) -> int:
+        return hash((self.name, tuple(self.parameters.items())))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, UniqueCount):
             return False
         return self.name == other.name and self.parameters == other.parameters
 
