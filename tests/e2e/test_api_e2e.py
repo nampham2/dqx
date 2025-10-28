@@ -26,6 +26,7 @@ def simple_checks(mp: MetricProvider, ctx: Context) -> None:
         name="Quantity minimum is between 1 and 5",
     ).is_between(1, 5.0)
     ctx.assert_that(mp.count_values("name", "np", dataset="ds1")).where(name="NP never buys here").is_eq(0)
+    ctx.assert_that(mp.unique_count("name")).where(name="At least 5 unique customers").is_geq(5)
 
 
 @check(name="complex metrics", datasets=["ds1"])
