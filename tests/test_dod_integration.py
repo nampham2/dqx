@@ -92,7 +92,7 @@ def test_day_over_day_integration() -> None:
     assert len(dod_metric.required_metrics) == 2  # Base metric and lag(1) metric
 
     trace = data.metric_trace(
-        data.metrics_by_execution_id(db, suite.execution_id),
+        db.get_by_execution_id(suite.execution_id),
         suite.execution_id,
         suite.analysis_reports,
         suite.provider.collect_symbols(suite.key),

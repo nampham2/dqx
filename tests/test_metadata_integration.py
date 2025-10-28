@@ -4,7 +4,6 @@ from datetime import date
 
 import pyarrow as pa
 
-from dqx import data
 from dqx.api import Context, MetricProvider, VerificationSuite, check
 from dqx.common import Metadata, ResultKey
 from dqx.datasource import DuckRelationDataSource
@@ -38,7 +37,7 @@ def test_metadata_persistence_flow() -> None:
     execution_id = suite.execution_id
 
     # Retrieve metrics by execution ID
-    metrics = data.metrics_by_execution_id(db, execution_id)
+    metrics = db.get_by_execution_id(execution_id)
 
     # Verify we got all metrics
     assert len(metrics) == 3  # average, minimum, maximum
@@ -77,7 +76,7 @@ def test_metadata_with_custom_ttl() -> None:
     analyzer.report.persist(db)
 
     # Retrieve and verify
-    metrics = data.metrics_by_execution_id(db, "test-123")
+    metrics = db.get_by_execution_id("test-123")
     assert len(metrics) == 1
     assert metrics[0].metadata is not None
     assert metrics[0].metadata.ttl_hours == 24
@@ -110,8 +109,8 @@ def test_metadata_isolation_between_suites() -> None:
     exec_id2 = suite2.execution_id
 
     # Retrieve metrics for each execution
-    metrics1 = data.metrics_by_execution_id(db, exec_id1)
-    metrics2 = data.metrics_by_execution_id(db, exec_id2)
+    metrics1 = db.get_by_execution_id(exec_id1)
+    metrics2 = db.get_by_execution_id(exec_id2)
 
     # Verify isolation
     assert len(metrics1) == 1

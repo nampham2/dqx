@@ -582,7 +582,7 @@ def test_verification_suite_metric_trace() -> None:
     # Check that execution_id matches
     from dqx import data
 
-    metrics = data.metrics_by_execution_id(db, suite.execution_id)
+    metrics = db.get_by_execution_id(suite.execution_id)
     assert len(metrics) > 0  # Should have persisted metrics
 
 
