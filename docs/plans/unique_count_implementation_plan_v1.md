@@ -128,31 +128,32 @@ uv run mypy src/dqx/ops.py
 uv run ruff check --fix src/dqx/ops.py
 ```
 
-### Task Group 2: Non-Mergeable State Implementation
+### Task Group 2: Generic NonMergeable State Implementation
 
-#### Task 2.1: Write Tests for UniqueCount State
-Create tests for the non-mergeable UniqueCount state.
+#### Task 2.1: Write Tests for NonMergeable State
+Create tests for the generic NonMergeable state.
 
 **File**: `tests/test_states.py`
 
-Add the following test:
+Add the following tests:
 
 ```python
-def test_unique_count_state_not_mergeable() -> None:
-    """Test that UniqueCount state cannot be merged."""
+def test_nonmergeable_state() -> None:
+    """Test generic NonMergeable state behavior."""
     from dqx import states
     from dqx.common import DQXError
 
-    state1 = states.UniqueCount(value=5.0)
-    state2 = states.UniqueCount(value=3.0)
+    # Test with UniqueCount metric type
+    state1 = states.NonMergeable(value=5.0, metric_type="UniqueCount")
+    state2 = states.NonMergeable(value=3.0, metric_type="UniqueCount")
 
     # Test that merge raises error
     with pytest.raises(DQXError, match="UniqueCount state cannot be merged"):
         state1.merge(state2)
 
     # Test that identity raises error
-    with pytest.raises(DQXError, match="UniqueCount state does not support identity"):
-        states.UniqueCount.identity()
+    with pytest.raises(DQXError, match="NonMergeable state does not support identity"):
+        states.NonMergeable.identity()
 
     # Test value property
     assert state1.value == 5.0
@@ -160,37 +161,46 @@ def test_unique_count_state_not_mergeable() -> None:
 
     # Test serialization
     serialized = state1.serialize()
-    deserialized = states.UniqueCount.deserialize(serialized)
+    deserialized = states.NonMergeable.deserialize(serialized)
     assert deserialized.value == state1.value
     assert deserialized == state1
+
+    # Test with DuplicateCount metric type
+    state3 = states.NonMergeable(value=10.0, metric_type="DuplicateCount")
+    with pytest.raises(DQXError, match="DuplicateCount state cannot be merged"):
+        state3.merge(state3)
 ```
 
-#### Task 2.2: Implement UniqueCount State Class
-Create the non-mergeable state class.
+#### Task 2.2: Implement Generic NonMergeable State Class
+Create the generic non-mergeable state class.
 
 **File**: `src/dqx/states.py`
 
-Add the following class (place it after `DuplicateCount` class):
+Add the following class (place it after `Maximum` class, before `DuplicateCount`):
 
 ```python
-class UniqueCount(State):
-    """Non-mergeable state for unique count metrics.
+class NonMergeable(State):
+    """Generic non-mergeable state for metrics that cannot be merged across partitions.
 
-    Unique counts cannot be merged across partitions because the same
-    value might appear in multiple partitions, leading to incorrect counts.
+    This state is used for metrics where merging results from different partitions
+    would produce incorrect results (e.g., duplicate counts, unique counts).
 
-    This state does not support identity or merge operations.
+    Args:
+        value: The metric value
+        metric_type: The type of metric (e.g., "DuplicateCount", "UniqueCount")
+                    used to customize error messages
     """
 
-    def __init__(self, value: float) -> None:
+    def __init__(self, value: float, metric_type: str) -> None:
         self._value = float(value)
+        self._metric_type = metric_type
 
     @classmethod
-    def identity(cls) -> UniqueCount:
+    def identity(cls) -> NonMergeable:
         raise DQXError(
-            "UniqueCount state does not support identity. "
-            "Unique counts must be computed on the entire dataset in a single pass "
-            "because counts from different partitions cannot be accurately merged."
+            "NonMergeable state does not support identity. "
+            "Metrics using this state must be computed on the entire dataset in a single pass "
+            "because results from different partitions cannot be accurately merged."
         )
 
     @property
@@ -198,32 +208,57 @@ class UniqueCount(State):
         return self._value
 
     def serialize(self) -> bytes:
-        return msgpack.packb(self._value)
+        return msgpack.packb((self._value, self._metric_type))
 
     @classmethod
-    def deserialize(cls, data: bytes) -> UniqueCount:
-        return cls(value=msgpack.unpackb(data))
+    def deserialize(cls, data: bytes) -> NonMergeable:
+        value, metric_type = msgpack.unpackb(data)
+        return cls(value=value, metric_type=metric_type)
 
-    def merge(self, other: UniqueCount) -> UniqueCount:
+    def merge(self, other: NonMergeable) -> NonMergeable:
         raise DQXError(
-            "UniqueCount state cannot be merged across partitions. "
-            "Example: partition1=[A,B,C] (unique=3) and partition2=[B,C,D] (unique=3) "
-            "would give 6 if merged, but actual unique count is 4. "
-            "The metric must be computed on the entire dataset in a single pass."
+            f"{self._metric_type} state cannot be merged across partitions. "
+            f"The {self._metric_type} metric must be computed on the entire dataset in a single pass "
+            "to ensure accurate results."
         )
 
     def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, UniqueCount):
+        if not isinstance(other, NonMergeable):
             return False
         return self.serialize() == other.serialize()
 
-    def __copy__(self) -> UniqueCount:
-        return UniqueCount(value=self._value)
+    def __copy__(self) -> NonMergeable:
+        return NonMergeable(value=self._value, metric_type=self._metric_type)
 ```
 
-#### Task 2.3: Run State Tests
+#### Task 2.3: Migrate DuplicateCount to Use NonMergeable
+Replace the existing `DuplicateCount` state class with a deprecation alias.
+
+**File**: `src/dqx/states.py`
+
+Replace the existing `DuplicateCount` class with:
+
+```python
+# For backward compatibility - will be removed in a future version
+DuplicateCount = NonMergeable
+```
+
+Update the `DuplicateCount` spec in `src/dqx/specs.py`:
+
+```python
+# In the DuplicateCount spec class, update these methods:
+def state(self) -> states.NonMergeable:
+    return states.NonMergeable(value=self._analyzers[0].value(), metric_type="DuplicateCount")
+
+@classmethod
+def deserialize(cls, state: bytes) -> states.State:
+    return states.NonMergeable.deserialize(state)
+```
+
+#### Task 2.4: Run State Tests
 ```bash
-uv run pytest tests/test_states.py::test_unique_count_state_not_mergeable -v
+uv run pytest tests/test_states.py::test_nonmergeable_state -v
+uv run pytest tests/test_states.py -v  # Ensure existing tests still pass
 uv run mypy src/dqx/states.py
 uv run ruff check --fix src/dqx/states.py
 ```
@@ -282,12 +317,12 @@ class UniqueCount:
     def analyzers(self) -> Sequence[ops.Op]:
         return self._analyzers
 
-    def state(self) -> states.UniqueCount:
-        return states.UniqueCount(value=self._analyzers[0].value())
+    def state(self) -> states.NonMergeable:
+        return states.NonMergeable(value=self._analyzers[0].value(), metric_type="UniqueCount")
 
     @classmethod
     def deserialize(cls, state: bytes) -> states.State:
-        return states.UniqueCount.deserialize(state)
+        return states.NonMergeable.deserialize(state)
 
     def __hash__(self) -> int:
         return hash((self.name, tuple(self.parameters.items())))
@@ -643,11 +678,13 @@ uv run coverage tests/
 This plan implements the `UniqueCount` operation following TDD principles:
 
 1. **Operation**: Counts distinct values using `COUNT(DISTINCT column)`
-2. **State**: Uses non-mergeable `UniqueCount` state (similar to `DuplicateCount`)
-   - Raises errors on `merge()` and `identity()` with clear explanations
+2. **State**: Uses generic `NonMergeable` state (shared with `DuplicateCount`)
+   - Introduces a generic NonMergeable state class for all non-mergeable metrics
+   - Migrates existing DuplicateCount to use the generic state
+   - Raises errors on `merge()` and `identity()` with metric-specific messages
    - Ensures accurate counting by requiring single-pass computation
 3. **SQL Support**: Works with both DuckDB and BigQuery dialects
 4. **Testing**: Comprehensive unit and integration tests, including state merge error handling
 5. **API**: Simple method `mp.unique_count("column")` for easy use
 
-The implementation follows all existing patterns in the codebase and ensures data accuracy by preventing incorrect merging of unique counts across partitions.
+The implementation follows all existing patterns in the codebase and introduces a reusable NonMergeable state pattern for future non-mergeable metrics.
