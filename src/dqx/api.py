@@ -755,7 +755,7 @@ class VerificationSuite:
         self.assert_is_evaluated()
 
         # Get metrics from database for this execution
-        metrics = db.get_by_execution_id(self.execution_id)
+        metrics = data.metrics_by_execution_id(db, self.execution_id)
 
         # Get symbols from the provider
         symbols = self.provider.collect_symbols(self.key)

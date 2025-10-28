@@ -4,6 +4,7 @@ from datetime import date
 
 import pyarrow as pa
 
+from dqx import data
 from dqx.api import Context, MetricProvider, VerificationSuite, check
 from dqx.common import ResultKey
 from dqx.datasource import DuckRelationDataSource
@@ -64,7 +65,7 @@ def test_execution_id_full_flow() -> None:
     assert exec_id1 != exec_id2
 
     # Retrieve metrics for first execution
-    metrics1 = db.get_by_execution_id(exec_id1)
+    metrics1 = data.metrics_by_execution_id(db, exec_id1)
 
     # Verify we got the expected number of metrics
     # Basic: 4 metrics (avg, min, max, num_rows) + Extended: 2 metrics (avg_tax for both days)
@@ -85,7 +86,7 @@ def test_execution_id_full_flow() -> None:
     assert "NumRows" in metric_types
 
     # Retrieve metrics for second execution
-    metrics2 = db.get_by_execution_id(exec_id2)
+    metrics2 = data.metrics_by_execution_id(db, exec_id2)
 
     # Should have metrics including the lagged ones
     assert len(metrics2) >= 5
@@ -130,7 +131,7 @@ def test_multiple_datasets_single_execution() -> None:
     suite.run([orders_ds, products_ds], key)
 
     # Retrieve metrics
-    metrics = db.get_by_execution_id(suite.execution_id)
+    metrics = data.metrics_by_execution_id(db, suite.execution_id)
 
     # Should have metrics from both datasets
     datasets = {m.dataset for m in metrics}
@@ -163,7 +164,7 @@ def test_execution_id_persistence_across_queries() -> None:
     exec_id = suite.execution_id
 
     # Query by execution ID
-    metrics_by_exec = db.get_by_execution_id(exec_id)
+    metrics_by_exec = data.metrics_by_execution_id(db, exec_id)
 
     # Query by date and dataset
     from dqx.orm.repositories import Metric as DBMetric
