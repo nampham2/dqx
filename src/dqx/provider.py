@@ -315,6 +315,10 @@ class RegistryMixin:
         return self.registry.get(symbol)
 
     def remove_symbol(self, symbol: sp.Symbol) -> None:
+        # Remove dependencies recursively
+        sm = self.get_symbol(symbol)
+        for dep_symbol in sm.required_metrics:
+            self.remove_symbol(dep_symbol)  # Recursive removal only
         self.registry.remove(symbol)
 
     def collect_symbols(self, key: ResultKey) -> list[SymbolInfo]:
@@ -517,14 +521,14 @@ class ExtendedMetricProvider(RegistryMixin):
         """The execution ID from the parent provider."""
         return self._provider.execution_id
 
-    def day_over_day(self, metric: sp.Symbol, dataset: str | None = None) -> sp.Symbol:
+    def day_over_day(self, metric: sp.Symbol, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
         # Get the full SymbolicMetric object
         symbolic_metric = self._provider.get_symbol(metric)
         spec = symbolic_metric.metric_spec
 
-        # For lagged DoD, we need base metric at lag and lag+1
-        lag_0 = self.provider.metric(spec, lag=0, dataset=symbolic_metric.dataset)
-        lag_1 = self.provider.metric(spec, lag=1, dataset=symbolic_metric.dataset)
+        # Create base metrics with proper lag accumulation
+        lag_0 = self.provider.create_metric(spec, lag=lag + 0, dataset=symbolic_metric.dataset)
+        lag_1 = self.provider.create_metric(spec, lag=lag + 1, dataset=symbolic_metric.dataset)
 
         # Generate symbol first
         sym = self.registry._next_symbol()
@@ -539,7 +543,7 @@ class ExtendedMetricProvider(RegistryMixin):
                 symbol=sym,
                 fn=fn,
                 metric_spec=specs.DayOverDay.from_base_spec(spec),
-                lag=0,
+                lag=lag,  # Use the provided lag instead of 0
                 dataset=dataset,
                 required_metrics=[lag_0, lag_1],
             )
@@ -550,14 +554,14 @@ class ExtendedMetricProvider(RegistryMixin):
 
         return sym
 
-    def week_over_week(self, metric: sp.Symbol, dataset: str | None = None) -> sp.Symbol:
+    def week_over_week(self, metric: sp.Symbol, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
         # Get the full SymbolicMetric object
         symbolic_metric = self._provider.get_symbol(metric)
         spec = symbolic_metric.metric_spec
 
-        # Create required lag metrics first
-        lag_0 = self.provider.metric(spec, lag=0, dataset=symbolic_metric.dataset)
-        lag_7 = self.provider.metric(spec, lag=7, dataset=symbolic_metric.dataset)
+        # Create required lag metrics with proper lag accumulation
+        lag_0 = self.provider.create_metric(spec, lag=lag + 0, dataset=symbolic_metric.dataset)
+        lag_7 = self.provider.create_metric(spec, lag=lag + 7, dataset=symbolic_metric.dataset)
 
         # Generate symbol first
         sym = self.registry._next_symbol()
@@ -572,7 +576,7 @@ class ExtendedMetricProvider(RegistryMixin):
                 symbol=sym,
                 fn=fn,
                 metric_spec=specs.WeekOverWeek.from_base_spec(spec),
-                lag=0,
+                lag=lag,  # Use the provided lag instead of 0
                 dataset=dataset,
                 required_metrics=[lag_0, lag_7],
             )
@@ -583,33 +587,59 @@ class ExtendedMetricProvider(RegistryMixin):
 
         return sym
 
-    def stddev(self, metric: sp.Symbol, lag: int, n: int, dataset: str | None = None) -> sp.Symbol:
+    def stddev(self, metric: sp.Symbol, offset: int, n: int, dataset: str | None = None) -> sp.Symbol:
+        """Calculate standard deviation of a metric over a window of values.
+
+        This method computes the standard deviation of a metric across n consecutive
+        days, starting from the specified offset.
+
+        Args:
+            metric: The base metric symbol to calculate standard deviation for.
+            offset: The starting position of the window (0 = today, 1 = yesterday, etc.).
+                    This determines where the window of values begins.
+            n: The number of values to include in the standard deviation calculation.
+               The window will span from offset to offset+n-1.
+            dataset: Optional dataset name. If not provided, uses the dataset from
+                    the base metric.
+
+        Returns:
+            A Symbol representing the standard deviation metric.
+
+        Example:
+            >>> # Calculate stddev of last 7 days starting from today (offset=0)
+            >>> avg_price = provider.average("price")
+            >>> stddev_7d = provider.ext.stddev(avg_price, offset=0, n=7)
+            >>>
+            >>> # Calculate stddev of 5 days starting from 2 days ago (offset=2)
+            >>> stddev_5d = provider.ext.stddev(avg_price, offset=2, n=5)
+        """
         # Get the full SymbolicMetric object
         symbolic_metric = self._provider.get_symbol(metric)
         spec = symbolic_metric.metric_spec
 
-        # Ensure required lag metrics exist
-        required = [self.provider.metric(spec, lag=i, dataset=symbolic_metric.dataset) for i in range(lag, lag + n)]
-
-        # Generate symbol first
-        sym = self.registry._next_symbol()
+        # Create required metrics with properly accumulated lag values
+        required = []
+        for i in range(offset, offset + n):
+            # Each required metric needs its own lag value
+            required_metric = self.provider.create_metric(spec, lag=i, dataset=symbolic_metric.dataset)
+            required.append(required_metric)
 
         # Create lazy function for stddev using lambda to handle the size parameter
         fn = _create_lazy_extended_fn(
             self._provider,
             lambda db, metric, dataset, key, execution_id: compute.stddev(db, metric, n, dataset, key, execution_id),
             spec,
-            sym,
+            sym := self.registry._next_symbol(),
         )
 
         # Register with lazy function
         self.registry._metrics.append(
             sm := SymbolicMetric(
-                name=specs.Stddev.from_base_spec(spec, lag, n).name,
+                name=specs.Stddev.from_base_spec(spec, offset, n).name,
                 symbol=sym,
                 fn=fn,
-                metric_spec=specs.Stddev.from_base_spec(spec, lag, n),
-                lag=lag,
+                metric_spec=specs.Stddev.from_base_spec(spec, offset, n),
+                lag=offset,  # stddev itself should have lag=offset (not lag=0)
                 dataset=dataset,
                 required_metrics=required,
             )
@@ -635,6 +665,54 @@ class MetricProvider(SymbolicMetricBase):
     @property
     def ext(self) -> ExtendedMetricProvider:
         return ExtendedMetricProvider(self)
+
+    def create_metric(
+        self,
+        metric_spec: MetricSpec,
+        lag: int = 0,
+        dataset: str | None = None,
+    ) -> sp.Symbol:
+        """Create a metric symbol handling both simple and extended metrics.
+
+        This method intelligently routes metric creation based on the type:
+        - Simple metrics: Uses the standard metric() method
+        - Extended metrics: Routes to the appropriate extended metric method
+
+        Args:
+            metric_spec: The metric specification to create.
+            lag: Number of days to lag the metric evaluation.
+            dataset: Optional dataset name. Can be provided now or imputed later.
+
+        Returns:
+            A Symbol representing this metric in expressions.
+
+        Raises:
+            ValueError: If the metric type is not supported.
+        """
+        if not metric_spec.is_extended:
+            # Simple metric - use the standard metric method
+            return self.metric(metric_spec, lag=lag, dataset=dataset)
+
+        # Extended metric - need to handle specially based on type
+        if isinstance(metric_spec, specs.DayOverDay):
+            # Don't apply lag to base metric - let DoD handle lag propagation
+            base_metric = self.create_metric(metric_spec.base_spec, lag=0, dataset=dataset)
+            return self.ext.day_over_day(base_metric, lag=lag, dataset=dataset)
+        elif isinstance(metric_spec, specs.WeekOverWeek):
+            # Don't apply lag to base metric - let WoW handle lag propagation
+            base_metric = self.create_metric(metric_spec.base_spec, lag=0, dataset=dataset)
+            return self.ext.week_over_week(base_metric, lag=lag, dataset=dataset)
+        elif isinstance(metric_spec, specs.Stddev):
+            # Don't apply lag to base metric - stddev will handle lag propagation
+            base_metric = self.create_metric(metric_spec.base_spec, lag=0, dataset=dataset)
+            # Extract offset and n from the Stddev spec parameters
+            params = metric_spec.parameters
+            stddev_offset = params["offset"]
+            stddev_n = params["n"]
+            # Apply the input lag to stddev's offset parameter
+            return self.ext.stddev(base_metric, offset=stddev_offset + lag, n=stddev_n, dataset=dataset)
+        else:
+            raise ValueError(f"Unsupported extended metric type: {metric_spec.metric_type}")
 
     def metric(
         self,

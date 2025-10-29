@@ -25,7 +25,7 @@ class TestNestedExtendedMetrics:
         """Test that Stddev of DayOverDay can be hashed."""
         avg = specs.Average("tax")
         dod = specs.DayOverDay.from_base_spec(avg)
-        stddev = specs.Stddev.from_base_spec(dod, lag=1, n=7)
+        stddev = specs.Stddev.from_base_spec(dod, offset=1, n=7)
 
         # This is the exact case from the failing test
         hash_value = hash(stddev)
@@ -37,11 +37,11 @@ class TestNestedExtendedMetrics:
         sum_spec = specs.Sum("revenue")
         wow = specs.WeekOverWeek.from_base_spec(sum_spec)
         dod = specs.DayOverDay.from_base_spec(wow)
-        stddev = specs.Stddev.from_base_spec(dod, lag=1, n=14)
+        stddev = specs.Stddev.from_base_spec(dod, offset=1, n=14)
 
         # All operations should work
         assert hash(stddev) is not None
-        assert stddev.name == "stddev(dod(wow(sum(revenue))), lag=1, n=14)"
+        assert stddev.name == "stddev(dod(wow(sum(revenue))), offset=1, n=14)"
 
     def test_nested_weekoverweek_hash(self) -> None:
         """Test that WeekOverWeek of extended metrics can be hashed."""
@@ -64,7 +64,7 @@ class TestNestedExtendedMetrics:
         # Create nested metric
         avg = specs.Average("tax")
         dod = specs.DayOverDay.from_base_spec(avg)
-        stddev = specs.Stddev.from_base_spec(dod, lag=1, n=7)
+        stddev = specs.Stddev.from_base_spec(dod, offset=1, n=7)
 
         # Store in database
         db = InMemoryMetricDB()
@@ -77,4 +77,4 @@ class TestNestedExtendedMetrics:
         assert persisted.metric_id is not None
         retrieved = db.get(persisted.metric_id).unwrap()
         assert retrieved.spec == stddev
-        assert retrieved.spec.name == "stddev(dod(average(tax)), lag=1, n=7)"
+        assert retrieved.spec.name == "stddev(dod(average(tax)), offset=1, n=7)"
