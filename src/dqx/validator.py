@@ -137,6 +137,10 @@ class BaseValidator(ABC):
         """Get all issues found by this validator."""
         return self._issues
 
+    def finalize(self) -> None:
+        """Post-processing after all nodes have been processed."""
+        pass
+
 
 class DuplicateCheckNameValidator(BaseValidator):
     """Detects duplicate check names in the suite."""
@@ -397,8 +401,7 @@ class CompositeValidationVisitor:
 
         # Run finalize on validators that have it
         for validator in self._validators:
-            if hasattr(validator, "finalize"):
-                validator.finalize()
+            validator.finalize()
 
         # Collect issues by type
         errors = []

@@ -315,6 +315,10 @@ class RegistryMixin:
         return self.registry.get(symbol)
 
     def remove_symbol(self, symbol: sp.Symbol) -> None:
+        # Remove dependencies recursively
+        sm = self.get_symbol(symbol)
+        for dep_symbol in sm.required_metrics:
+            self.remove_symbol(dep_symbol)  # Recursive removal only
         self.registry.remove(symbol)
 
     def collect_symbols(self, key: ResultKey) -> list[SymbolInfo]:
@@ -620,15 +624,12 @@ class ExtendedMetricProvider(RegistryMixin):
             required_metric = self.provider.create_metric(spec, lag=i, dataset=symbolic_metric.dataset)
             required.append(required_metric)
 
-        # Generate symbol first
-        sym = self.registry._next_symbol()
-
         # Create lazy function for stddev using lambda to handle the size parameter
         fn = _create_lazy_extended_fn(
             self._provider,
             lambda db, metric, dataset, key, execution_id: compute.stddev(db, metric, n, dataset, key, execution_id),
             spec,
-            sym,
+            sym := self.registry._next_symbol(),
         )
 
         # Register with lazy function
