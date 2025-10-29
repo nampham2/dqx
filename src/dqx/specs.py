@@ -538,19 +538,22 @@ class DayOverDay:
         self._base_parameters = base_parameters
         self._analyzers = ()
 
+        # Reconstruct and store the base spec for internal operations
+        metric_type = typing.cast(MetricType, self._base_metric_type)
+        self._base_spec = registry[metric_type](**self._base_parameters)
+
     @classmethod
     def from_base_spec(cls, base_spec: MetricSpec) -> Self:
         return cls(base_metric_type=base_spec.metric_type, base_parameters=base_spec.parameters)
 
     @property
     def base_spec(self) -> MetricSpec:
-        """Helper to reconstruct the base spec when needed"""
-        metric_type = typing.cast(MetricType, self._base_metric_type)
-        return registry[metric_type](**self._base_parameters)
+        """Get the base metric specification."""
+        return self._base_spec
 
     @property
     def name(self) -> str:
-        return f"dod({self.base_spec.name})"
+        return f"dod({self._base_spec.name})"
 
     @property
     def parameters(self) -> Parameters:
@@ -571,13 +574,14 @@ class DayOverDay:
         return states.SimpleAdditiveState.deserialize(state)
 
     def __hash__(self) -> int:
-        # Convert lists to tuples for hashing
-        return hash((self._base_metric_type, tuple(sorted(self._base_parameters.items()))))
+        # Use base_spec which handles nested hashing properly
+        return hash(("DayOverDay", self._base_spec))
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, DayOverDay):
             return False
-        return self._base_metric_type == other._base_metric_type and self._base_parameters == other._base_parameters
+        # Compare base specs directly
+        return self._base_spec == other._base_spec
 
     def __str__(self) -> str:
         return self.name
@@ -592,19 +596,22 @@ class WeekOverWeek:
         self._base_parameters = base_parameters
         self._analyzers = ()
 
+        # Reconstruct and store the base spec for internal operations
+        metric_type = typing.cast(MetricType, self._base_metric_type)
+        self._base_spec = registry[metric_type](**self._base_parameters)
+
     @classmethod
     def from_base_spec(cls, base_spec: MetricSpec) -> Self:
         return cls(base_metric_type=base_spec.metric_type, base_parameters=base_spec.parameters)
 
     @property
     def base_spec(self) -> MetricSpec:
-        """Helper to reconstruct the base spec when needed"""
-        metric_type = typing.cast(MetricType, self._base_metric_type)
-        return registry[metric_type](**self._base_parameters)
+        """Get the base metric specification."""
+        return self._base_spec
 
     @property
     def name(self) -> str:
-        return f"wow({self.base_spec.name})"
+        return f"wow({self._base_spec.name})"
 
     @property
     def parameters(self) -> Parameters:
@@ -625,13 +632,14 @@ class WeekOverWeek:
         return states.SimpleAdditiveState.deserialize(state)
 
     def __hash__(self) -> int:
-        # Convert lists to tuples for hashing
-        return hash((self._base_metric_type, tuple(sorted(self._base_parameters.items()))))
+        # Use base_spec which handles nested hashing properly
+        return hash(("WeekOverWeek", self._base_spec))
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, WeekOverWeek):
             return False
-        return self._base_metric_type == other._base_metric_type and self._base_parameters == other._base_parameters
+        # Compare base specs directly
+        return self._base_spec == other._base_spec
 
     def __str__(self) -> str:
         return self.name
@@ -648,6 +656,10 @@ class Stddev:
         self._n = n
         self._analyzers = ()
 
+        # Reconstruct and store the base spec for internal operations
+        metric_type = typing.cast(MetricType, self._base_metric_type)
+        self._base_spec = registry[metric_type](**self._base_parameters)
+
     @classmethod
     def from_base_spec(cls, base_spec: MetricSpec, lag: int, n: int) -> Self:
         return cls(
@@ -659,13 +671,12 @@ class Stddev:
 
     @property
     def base_spec(self) -> MetricSpec:
-        """Helper to reconstruct the base spec when needed"""
-        metric_type = typing.cast(MetricType, self._base_metric_type)
-        return registry[metric_type](**self._base_parameters)
+        """Get the base metric specification."""
+        return self._base_spec
 
     @property
     def name(self) -> str:
-        return f"stddev({self.base_spec.name}, lag={self._lag}, n={self._n})"
+        return f"stddev({self._base_spec.name}, lag={self._lag}, n={self._n})"
 
     @property
     def parameters(self) -> Parameters:
@@ -688,24 +699,14 @@ class Stddev:
         return states.SimpleAdditiveState.deserialize(state)
 
     def __hash__(self) -> int:
-        return hash(
-            (
-                self._base_metric_type,
-                tuple(sorted(self._base_parameters.items())),
-                self._lag,
-                self._n,
-            )
-        )
+        # Use base_spec which handles nested hashing properly
+        return hash(("Stddev", self._base_spec, self._lag, self._n))
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Stddev):
             return False
-        return (
-            self._base_metric_type == other._base_metric_type
-            and self._base_parameters == other._base_parameters
-            and self._lag == other._lag
-            and self._n == other._n
-        )
+        # Compare base specs directly
+        return self._base_spec == other._base_spec and self._lag == other._lag and self._n == other._n
 
     def __str__(self) -> str:
         return self.name
