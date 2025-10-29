@@ -1,53 +1,20 @@
-"""Validation system for DQX verification suites.
-
-This module provides validators that check for common configuration errors
-in verification suites before they run, catching issues like duplicate names
-and empty checks early.
-
-Available Validators:
-    - DuplicateCheckNameValidator: Detects duplicate check names (error)
-    - EmptyCheckValidator: Detects checks with no assertions (warning)
-    - DuplicateAssertionNameValidator: Detects duplicate assertion names within checks (error)
-    - DatasetValidator: Detects dataset mismatches between checks and symbols (error)
-    - UnusedSymbolValidator: Detects symbols that are defined but never used (warning)
-"""
+"""Common validation components for DQX verification suites."""
 
 from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any
 
 import sympy as sp
 
 from dqx.graph.base import BaseNode
 from dqx.graph.nodes import AssertionNode, CheckNode
-from dqx.graph.traversal import Graph
 
-
-@runtime_checkable
-class MetricProviderProtocol(Protocol):
-    """Minimal protocol for metric provider used by validators."""
-
-    @property
-    def metrics(self) -> list[Any]:
-        """List of symbolic metrics."""
-        ...
-
-    def get_symbol(self, symbol: sp.Symbol) -> Any:
-        """Get symbolic metric for a symbol."""
-        ...
-
-    def symbols(self) -> Iterable[sp.Symbol]:
-        """Get all symbols."""
-        ...
-
-    def remove_symbol(self, symbol: sp.Symbol) -> None:
-        """Remove a symbol."""
-        ...
+if TYPE_CHECKING:
+    from dqx.provider import SymbolicMetric
 
 
 logger = logging.getLogger(__name__)
@@ -243,7 +210,7 @@ class DatasetValidator(BaseValidator):
     name = "dataset_mismatch"
     is_error = True
 
-    def __init__(self, provider: MetricProviderProtocol) -> None:
+    def __init__(self, provider: Any) -> None:
         """Initialize validator with provider."""
         super().__init__()
         self._provider = provider
@@ -266,7 +233,7 @@ class DatasetValidator(BaseValidator):
 
         for symbol in symbols:
             try:
-                metric = self._provider.get_symbol(symbol)
+                metric: SymbolicMetric = self._provider.get_symbol(symbol)
             except Exception:
                 # Symbol not found in provider - skip validation for this symbol
                 continue
@@ -305,7 +272,7 @@ class DatasetValidator(BaseValidator):
             # Check required_metrics for dataset consistency
             for required_symbol in metric.required_metrics:
                 try:
-                    required_metric = self._provider.get_symbol(required_symbol)
+                    required_metric: SymbolicMetric = self._provider.get_symbol(required_symbol)
                 except Exception:
                     # Required symbol not found - skip validation
                     continue
@@ -331,7 +298,7 @@ class UnusedSymbolValidator(BaseValidator):
     name = "unused_symbols"
     is_error = False  # This produces warnings
 
-    def __init__(self, provider: MetricProviderProtocol) -> None:
+    def __init__(self, provider: Any) -> None:
         """Initialize validator with provider."""
         super().__init__()
         self._provider = provider
@@ -352,7 +319,7 @@ class UnusedSymbolValidator(BaseValidator):
     def finalize(self) -> None:
         """Compare defined vs used symbols and generate warnings."""
         # Get all defined symbols from provider
-        defined_symbols = set(self._provider.symbols())
+        defined_symbols: set[sp.Symbol] = set(self._provider.symbols())
 
         # Find unused symbols
         unused_symbols = defined_symbols - self._used_symbols
@@ -373,7 +340,8 @@ class UnusedSymbolValidator(BaseValidator):
                 continue
 
             # Format: symbol_name ← metric_name
-            symbol_repr = f"{symbol} ← {self._provider.get_symbol(symbol).name}"
+            metric: SymbolicMetric = self._provider.get_symbol(symbol)
+            symbol_repr = f"{symbol} ← {metric.name}"
 
             self._issues.append(
                 ValidationIssue(
@@ -442,60 +410,3 @@ class CompositeValidationVisitor:
         Since validation is synchronous, this just delegates to visit.
         """
         self.visit(node)
-
-
-class SuiteValidator:
-    """Main validator that runs all validation rules efficiently."""
-
-    def validators(self, provider: MetricProviderProtocol) -> list[BaseValidator]:
-        return [
-            DuplicateCheckNameValidator(),
-            EmptyCheckValidator(),
-            DuplicateAssertionNameValidator(),
-            DatasetValidator(provider),
-            UnusedSymbolValidator(provider),
-        ]
-
-    def validate(self, graph: Graph, provider: MetricProviderProtocol) -> ValidationReport:
-        """Run validation on a graph.
-
-        Args:
-            graph: The graph to validate
-            provider: MetricProvider for dataset validation (required)
-
-        Returns:
-            ValidationReport with all issues found
-        """
-        # Create validators
-        validators = self.validators(provider)
-
-        # Create composite with all validators
-        composite = CompositeValidationVisitor(validators)
-
-        # Single-pass traversal
-        graph.bfs(composite)
-
-        # Get all issues
-        issues = composite.get_all_issues()
-
-        # Build report
-        report = ValidationReport()
-        for error in issues["errors"]:
-            report.add_error(error)
-        for warning in issues["warnings"]:
-            report.add_warning(warning)
-
-        # Get removed symbols from UnusedSymbolValidator
-        removed_symbols = []
-        for validator in validators:
-            if isinstance(validator, UnusedSymbolValidator):
-                removed_symbols = validator.removed_symbols
-                break
-
-        # Log removed symbols after validation warnings
-        if removed_symbols:
-            # Sort symbols by numeric index (x_9 before x_14)
-            sorted_symbols = sorted(removed_symbols, key=lambda s: int(s.split("_")[1]))
-            logger.info("Removed %d unused symbols: %s", len(sorted_symbols), ", ".join(sorted_symbols))
-
-        return report

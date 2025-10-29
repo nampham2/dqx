@@ -501,15 +501,3 @@ def test_unused_symbol_validator_reset() -> None:
     report1 = validator.validate(graph, provider)
     unused_warnings1 = [w for w in report1.warnings if w.rule == "unused_symbols"]
     assert len(unused_warnings1) == 1
-
-
-def test_metric_provider_protocol_compatibility() -> None:
-    """Test that MetricProvider implements MetricProviderProtocol."""
-    from dqx.provider import MetricProvider
-    from dqx.validator import MetricProviderProtocol
-
-    # This should not raise any type errors when checked with mypy
-    db = InMemoryMetricDB()
-    execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
-    assert isinstance(provider, MetricProviderProtocol)
