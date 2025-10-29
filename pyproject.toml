@@ -77,3 +77,6 @@ ignore_missing_imports = true
 markers = [
     "demo: marks tests as demonstration tests (run with -s to see output)"
 ]
+
+[tool.coverage.run]
+relative_files = true

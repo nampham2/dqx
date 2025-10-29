@@ -63,6 +63,7 @@ jobs:
           # Calculate type coverage
           python -c "
           import json
+          import os
           try:
               with open('pyright-output.json') as f:
                   data = json.load(f)
@@ -71,13 +72,17 @@ jobs:
               if total > 0:
                   coverage = ((total - errors) / total) * 100
                   print(f'Type Coverage: {coverage:.1f}%')
-                  print(f'::set-output name=coverage::{coverage:.1f}')
+                  # Use environment file instead of set-output
+                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                      f.write(f'coverage={coverage:.1f}\n')
               else:
                   print('Type Coverage: N/A')
-                  print('::set-output name=coverage::0')
+                  with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                      f.write('coverage=0\n')
           except:
               print('Type Coverage: Error calculating')
-              print('::set-output name=coverage::0')
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write('coverage=0\n')
           "
 
       - name: Run tests with coverage
