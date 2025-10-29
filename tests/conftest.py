@@ -61,7 +61,7 @@ def bigquery_emulator() -> Iterator[str | None]:
 
     # Optionally verify the emulator is responsive
     try:
-        import requests  # type: ignore[import-untyped]
+        import requests
 
         response = requests.get(f"{emulator_host}/discovery/v1/apis/bigquery/v2/rest", timeout=5)
         if response.status_code != 200:
