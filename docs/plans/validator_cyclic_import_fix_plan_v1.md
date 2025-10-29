@@ -4,7 +4,7 @@
 
 The DQX codebase has a cyclic import issue detected by mypy involving the validator module:
 
-```
+```text
 'MetricProvider' may not be defined if module is imported before module,
 as the of MetricProvider occurs after the cyclic of dqx.validator.
 ```
