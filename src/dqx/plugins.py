@@ -11,6 +11,7 @@ from rich.console import Console
 
 from dqx.common import (
     AssertionResult,
+    DQXError,
     PluginMetadata,
     ResultKey,
 )
@@ -355,6 +356,9 @@ class AuditPlugin:
                 f"  Symbols: {total_symbols} total, [green]{successful_symbols} successful ({success_rate:.1f}%)[/green], [red]{failed_symbols} failed ({100 - success_rate:.1f}%)[/red]"
             )
 
+            if failed_symbols > 0:
+                raise DQXError("[InternalError] Symbols failed to evaluate during execution!")
+
         # Data discrepancy line
         discrepancy_stats = context.data_discrepancy_stats()
         if discrepancy_stats:
@@ -380,7 +384,7 @@ class AuditPlugin:
                 from dqx import display
 
                 display.print_metrics_by_execution_id(context.trace, context.execution_id)
-                raise RuntimeError("Data discrepancies detected during audit")
+                raise DQXError("[InternalError] Data discrepancies detected during audit")
 
         self.console.print("[bold blue]══════════════════════[/bold blue]")
         self.console.print()

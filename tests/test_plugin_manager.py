@@ -9,6 +9,7 @@ from returns.result import Failure, Success
 
 from dqx.common import (
     AssertionResult,
+    DQXError,
     EvaluationFailure,
     PluginMetadata,
     ResultKey,
@@ -904,31 +905,9 @@ class TestAuditPlugin:
             trace=_create_empty_trace(),
         )
 
-        # Process the context
-        plugin.process(context)
-
-        # Join all output
-        captured_output = "\n".join(print_calls)
-
-        # Check header
-        assert "═══ DQX Audit Report ═══" in captured_output
-        assert "Test Suite" in captured_output  # Suite name is there
-        assert "env=test" in captured_output  # Tag value is there
-        assert "500.00ms" in captured_output  # Duration value is there
-        assert "ds1, ds2" in captured_output  # Datasets are there
-
-        # Check execution summary with merged format (accounting for Rich markup)
-        assert "Execution Summary:" in captured_output
-        # Check the parts of the assertion line
-        assert "Assertions: 5 total" in captured_output
-        assert "3 passed (60.0%)" in captured_output
-        assert "2 failed (40.0%)" in captured_output
-        assert "Symbols: 3 total" in captured_output
-        assert "2 successful (66.7%)" in captured_output
-        assert "1 failed (33.3%)" in captured_output
-
-        # Check footer
-        assert "══════════════════════" in captured_output
+        with pytest.raises(DQXError, match="\[InternalError\] Symbols failed to evaluate during execution!"):
+            # Process the context
+            plugin.process(context)
 
 
 class TestPluginInstanceEdgeCases:
