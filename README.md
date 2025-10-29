@@ -40,8 +40,11 @@ def validate_orders(mp: MetricProvider, ctx: Context) -> None:
 
 ## Quick Start
 
+> **Note**: Install the package as `dqlib` but import it as `dqx`
+
 ```bash
-pip install dqx
+# Install from PyPI
+pip install dqlib
 ```
 
 Then validate your data:
@@ -272,15 +275,22 @@ mp.ext.week_over_week(mp.sum("revenue"))
 
 ## Installation Options
 
+> **Note**: The package is published on PyPI as `dqlib` but imported as `dqx` in your code.
+
 ```bash
 # Basic installation
-pip install dqx
+pip install dqlib
 
 # With PostgreSQL support
-pip install "dqx[postgres]"
+pip install "dqlib[postgres]"
 
 # Development setup
-pip install "dqx[dev]"
+pip install "dqlib[dev]"
+```
+
+After installation, import the package as:
+```python
+import dqx
 ```
 
 ## Learn More
