@@ -10,6 +10,7 @@ version_files = [
     "src/dqx/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
+bump_message = "chore(release): bump version from $current_version to $new_version"
 
 [tool.commitizen.customize]
 message_template = "{{change_type}}{% if scope %}({{scope}}){% endif %}: {{message}}{% if is_breaking_change %}\n\nBREAKING CHANGE: {{breaking_change}}{% endif %}{% if body %}\n\n{{body}}{% endif %}{% if footer %}\n\n{{footer}}{% endif %}"
