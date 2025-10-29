@@ -124,36 +124,18 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v6
         with:
-          fetch-depth: 0
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Set up Python
-        run: uv python install 3.11
-
-      - name: Install dependencies
-        run: uv sync --frozen
-
-      - name: Generate changelog
-        run: |
-          # Generate changelog for this release
-          echo "## What's Changed" > release_notes.md
-          echo "" >> release_notes.md
-
-          # Use uv run to execute gitchangelog or fallback to git log
-          uv run gitchangelog >> release_notes.md || {
-            # Fallback to git log if gitchangelog fails
-            git log $(git describe --tags --abbrev=0 HEAD^)..HEAD \
-              --pretty=format:"* %s by @%an" >> release_notes.md
-          }
+          name: dist
+          path: dist/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: dist/*
-          body_path: release_notes.md
+          generate_release_notes: true
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: false
           prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
