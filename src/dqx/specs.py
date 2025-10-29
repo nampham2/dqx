@@ -649,10 +649,10 @@ class Stddev:
     metric_type: MetricType = "Stddev"
     is_extended: bool = True
 
-    def __init__(self, base_metric_type: str, base_parameters: dict[str, Any], lag: int, n: int) -> None:
+    def __init__(self, base_metric_type: str, base_parameters: dict[str, Any], offset: int, n: int) -> None:
         self._base_metric_type = base_metric_type
         self._base_parameters = base_parameters
-        self._lag = lag
+        self._offset = offset
         self._n = n
         self._analyzers = ()
 
@@ -661,11 +661,11 @@ class Stddev:
         self._base_spec = registry[metric_type](**self._base_parameters)
 
     @classmethod
-    def from_base_spec(cls, base_spec: MetricSpec, lag: int, n: int) -> Self:
+    def from_base_spec(cls, base_spec: MetricSpec, offset: int, n: int) -> Self:
         return cls(
             base_metric_type=base_spec.metric_type,
             base_parameters=base_spec.parameters,
-            lag=lag,
+            offset=offset,
             n=n,
         )
 
@@ -676,14 +676,14 @@ class Stddev:
 
     @property
     def name(self) -> str:
-        return f"stddev({self._base_spec.name}, lag={self._lag}, n={self._n})"
+        return f"stddev({self._base_spec.name}, offset={self._offset}, n={self._n})"
 
     @property
     def parameters(self) -> Parameters:
         return {
             "base_metric_type": self._base_metric_type,
             "base_parameters": self._base_parameters,
-            "lag": self._lag,
+            "offset": self._offset,
             "n": self._n,
         }
 
@@ -700,13 +700,13 @@ class Stddev:
 
     def __hash__(self) -> int:
         # Use base_spec which handles nested hashing properly
-        return hash(("Stddev", self._base_spec, self._lag, self._n))
+        return hash(("Stddev", self._base_spec, self._offset, self._n))
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Stddev):
             return False
         # Compare base specs directly
-        return self._base_spec == other._base_spec and self._lag == other._lag and self._n == other._n
+        return self._base_spec == other._base_spec and self._offset == other._offset and self._n == other._n
 
     def __str__(self) -> str:
         return self.name

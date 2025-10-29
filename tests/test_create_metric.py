@@ -76,7 +76,7 @@ def test_create_metric_extended_stddev() -> None:
     provider = MetricProvider(db, "test-exec")
 
     # Create a Stddev metric
-    stddev_spec = specs.Stddev.from_base_spec(specs.Sum("sales"), lag=0, n=5)
+    stddev_spec = specs.Stddev.from_base_spec(specs.Sum("sales"), offset=0, n=5)
     stddev = provider.create_metric(stddev_spec, lag=0, dataset="revenue")
 
     stddev_metric = provider.get_symbol(stddev)
@@ -123,7 +123,7 @@ def test_create_metric_stddev_of_extended_metric() -> None:
     # Create Stddev(DoD(Average))
     avg_spec = specs.Average("tax")
     dod_spec = specs.DayOverDay.from_base_spec(avg_spec)
-    stddev_spec = specs.Stddev.from_base_spec(dod_spec, lag=0, n=7)
+    stddev_spec = specs.Stddev.from_base_spec(dod_spec, offset=0, n=7)
 
     stddev = provider.create_metric(stddev_spec, lag=0, dataset="tax_data")
 

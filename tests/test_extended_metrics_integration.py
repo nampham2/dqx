@@ -22,7 +22,7 @@ def test_stddev_of_dod_creates_dependencies() -> None:
     # Create the complex metric
     avg_tax = provider.average("tax")
     dod_avg_tax = provider.ext.day_over_day(avg_tax)
-    stddev_dod_avg_tax = provider.ext.stddev(dod_avg_tax, lag=0, n=7)
+    stddev_dod_avg_tax = provider.ext.stddev(dod_avg_tax, offset=0, n=7)
 
     # Verify the stddev metric has correct dependencies
     stddev_metric = provider.get_symbol(stddev_dod_avg_tax)
@@ -39,7 +39,8 @@ def test_stddev_of_dod_creates_dependencies() -> None:
     def tax_dod_stddev_check(mp: MetricProvider, ctx: Context) -> None:
         avg = mp.average("tax")
         dod = mp.ext.day_over_day(avg)
-        std = mp.ext.stddev(dod, lag=0, n=7)
+        std = mp.ext.stddev(dod, offset=0, n=7)
+        std = mp.ext.stddev(dod, offset=0, n=7)
         ctx.assert_that(std).where(name="Collect stddev").noop()
 
     # Run suite for each day
@@ -65,7 +66,7 @@ def test_stddev_of_dod_creates_dependencies() -> None:
 
     # Verify the final stddev metric exists
     final_key = ResultKey(yyyy_mm_dd=date(2024, 1, 10), tags={"test": "stddev_dod"})
-    stddev_spec = specs.Stddev.from_base_spec(specs.DayOverDay.from_base_spec(specs.Average("tax")), lag=0, n=7)
+    stddev_spec = specs.Stddev.from_base_spec(specs.DayOverDay.from_base_spec(specs.Average("tax")), offset=0, n=7)
     final_metric = db.get(final_key, stddev_spec)
     assert final_metric != Nothing
 
@@ -94,7 +95,7 @@ def test_nested_extended_metrics_combinations() -> None:
     # Test 3: Stddev of WoW
     min_metric = provider.minimum("price")
     wow_min = provider.ext.week_over_week(min_metric)
-    stddev_wow = provider.ext.stddev(wow_min, lag=0, n=5)
+    stddev_wow = provider.ext.stddev(wow_min, offset=0, n=5)
 
     stddev_metric = provider.get_symbol(stddev_wow)
     assert len(stddev_metric.required_metrics) == 5  # 5 days of WoW values
@@ -108,7 +109,7 @@ def test_extended_metric_dependency_creation_bug() -> None:
     # Create the complex metric chain
     avg = provider.average("tax")
     dod = provider.ext.day_over_day(avg)
-    stddev = provider.ext.stddev(dod, lag=0, n=7)
+    stddev = provider.ext.stddev(dod, offset=0, n=7)
 
     # Let's actually evaluate the metric to trigger the bug
     test_date = date(2024, 1, 10)
@@ -119,7 +120,7 @@ def test_extended_metric_dependency_creation_bug() -> None:
     def test_check(mp: MetricProvider, ctx: Context) -> None:
         avg = mp.average("tax")
         dod = mp.ext.day_over_day(avg)
-        std = mp.ext.stddev(dod, lag=0, n=7)
+        std = mp.ext.stddev(dod, offset=0, n=7)
         ctx.assert_that(std).where(name="Collect stddev").noop()
 
     # Try to run the suite - this should fail if the bug exists
@@ -136,7 +137,7 @@ def test_extended_metric_dependency_creation_bug() -> None:
     # Let's verify the metrics were created correctly by checking the database
 
     # Check that the stddev metric was computed
-    stddev_spec = specs.Stddev.from_base_spec(specs.DayOverDay.from_base_spec(specs.Average("tax")), lag=0, n=7)
+    stddev_spec = specs.Stddev.from_base_spec(specs.DayOverDay.from_base_spec(specs.Average("tax")), offset=0, n=7)
     stddev_result = db.get(key, stddev_spec)
 
     # The bug is fixed if we can successfully get a result

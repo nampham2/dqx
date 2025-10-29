@@ -32,7 +32,7 @@ def simple_checks(mp: MetricProvider, ctx: Context) -> None:
 @check(name="complex metrics", datasets=["ds1"])
 def complex_metrics(mp: MetricProvider, ctx: Context) -> None:
     tax = mp.average("tax")
-    tax_stddev = mp.ext.stddev(mp.ext.day_over_day(tax), lag=1, n=7)
+    tax_stddev = mp.ext.stddev(mp.ext.day_over_day(tax), offset=1, n=7)
     ctx.assert_that(tax_stddev).where(name="Tax stddev is small").is_leq(10.0)
 
 

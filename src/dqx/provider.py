@@ -583,14 +583,39 @@ class ExtendedMetricProvider(RegistryMixin):
 
         return sym
 
-    def stddev(self, metric: sp.Symbol, lag: int, n: int, dataset: str | None = None) -> sp.Symbol:
+    def stddev(self, metric: sp.Symbol, offset: int, n: int, dataset: str | None = None) -> sp.Symbol:
+        """Calculate standard deviation of a metric over a window of values.
+
+        This method computes the standard deviation of a metric across n consecutive
+        days, starting from the specified offset.
+
+        Args:
+            metric: The base metric symbol to calculate standard deviation for.
+            offset: The starting position of the window (0 = today, 1 = yesterday, etc.).
+                    This determines where the window of values begins.
+            n: The number of values to include in the standard deviation calculation.
+               The window will span from offset to offset+n-1.
+            dataset: Optional dataset name. If not provided, uses the dataset from
+                    the base metric.
+
+        Returns:
+            A Symbol representing the standard deviation metric.
+
+        Example:
+            >>> # Calculate stddev of last 7 days starting from today (offset=0)
+            >>> avg_price = provider.average("price")
+            >>> stddev_7d = provider.ext.stddev(avg_price, offset=0, n=7)
+            >>>
+            >>> # Calculate stddev of 5 days starting from 2 days ago (offset=2)
+            >>> stddev_5d = provider.ext.stddev(avg_price, offset=2, n=5)
+        """
         # Get the full SymbolicMetric object
         symbolic_metric = self._provider.get_symbol(metric)
         spec = symbolic_metric.metric_spec
 
         # Create required metrics with properly accumulated lag values
         required = []
-        for i in range(lag, lag + n):
+        for i in range(offset, offset + n):
             # Each required metric needs its own lag value
             required_metric = self.provider.create_metric(spec, lag=i, dataset=symbolic_metric.dataset)
             required.append(required_metric)
@@ -609,11 +634,11 @@ class ExtendedMetricProvider(RegistryMixin):
         # Register with lazy function
         self.registry._metrics.append(
             sm := SymbolicMetric(
-                name=specs.Stddev.from_base_spec(spec, lag, n).name,
+                name=specs.Stddev.from_base_spec(spec, offset, n).name,
                 symbol=sym,
                 fn=fn,
-                metric_spec=specs.Stddev.from_base_spec(spec, lag, n),
-                lag=lag,  # stddev itself should have lag=lag (not lag=0)
+                metric_spec=specs.Stddev.from_base_spec(spec, offset, n),
+                lag=offset,  # stddev itself should have lag=offset (not lag=0)
                 dataset=dataset,
                 required_metrics=required,
             )
@@ -679,12 +704,12 @@ class MetricProvider(SymbolicMetricBase):
         elif isinstance(metric_spec, specs.Stddev):
             # Don't apply lag to base metric - stddev will handle lag propagation
             base_metric = self.create_metric(metric_spec.base_spec, lag=0, dataset=dataset)
-            # Extract lag and n from the Stddev spec parameters
+            # Extract offset and n from the Stddev spec parameters
             params = metric_spec.parameters
-            stddev_lag = params["lag"]
+            stddev_offset = params["offset"]
             stddev_n = params["n"]
-            # Apply the input lag to stddev's lag parameter
-            return self.ext.stddev(base_metric, lag=stddev_lag + lag, n=stddev_n, dataset=dataset)
+            # Apply the input lag to stddev's offset parameter
+            return self.ext.stddev(base_metric, offset=stddev_offset + lag, n=stddev_n, dataset=dataset)
         else:
             raise ValueError(f"Unsupported extended metric type: {metric_spec.metric_type}")
 
