@@ -86,6 +86,12 @@
 
 - **toolz**: remove dependency on toolz
 
+## v0.5.1 (2025-10-29)
+
+### Fix
+
+- **ci**: remove docker-publish job from release workflow
+
 ## v0.5.0 (2025-10-29)
 
 ### Feat
