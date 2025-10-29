@@ -249,7 +249,7 @@ def analyze_batch_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> No
         compact=True,
     )
 
-    logger.debug(f"Batch SQL Query:\n{sql}")
+    logger.info(f"Batch SQL Query:\n{sql}")
 
     # Execute query and process MAP results
     result = ds.query(sql).fetchall()
@@ -314,21 +314,8 @@ class Analyzer:
 
         # Log entry point with explicit dates
         dates = sorted([key.yyyy_mm_dd for key in metrics.keys()])
-        if len(dates) <= 4:
-            date_strs = [d.isoformat() for d in dates]
-            logger.info(f"Analyzing batch of {len(metrics)} dates: {date_strs}")
-        else:
-            first_dates = [d.isoformat() for d in dates[:2]]
-            last_dates = [d.isoformat() for d in dates[-2:]]
-            logger.info(f"Analyzing batch of {len(metrics)} dates: {first_dates} ... {last_dates}")
-
-        # Log batch processing info for large date ranges
-        keys = list(metrics.keys())
-        if len(keys) > DEFAULT_BATCH_SIZE:
-            logger.debug(
-                f"Processing {len(keys)} dates in batches of {DEFAULT_BATCH_SIZE}. "
-                f"Date range: {keys[0].yyyy_mm_dd} to {keys[-1].yyyy_mm_dd}"
-            )
+        date_strs = ", ".join(d.isoformat() for d in dates)
+        logger.info(f"Analyzing dataset {ds.name} for {len(metrics)} dates: {date_strs}")
 
         # Create final report at the beginning
         final_report = AnalysisReport()
@@ -341,13 +328,10 @@ class Analyzer:
             batch = dict(batch_items)
 
             # Log batch boundaries
-            if len(keys) > DEFAULT_BATCH_SIZE:
-                batch_keys = [key for key, _ in batch_items]
-                logger.debug(
-                    f"Processing batch {i // DEFAULT_BATCH_SIZE + 1}: "
-                    f"{batch_keys[0].yyyy_mm_dd} to {batch_keys[-1].yyyy_mm_dd} "
-                    f"({len(batch_keys)} dates)"
-                )
+            batch_keys = [key for key, _ in batch_items]
+            logger.debug(
+                f"Processing batch {i // DEFAULT_BATCH_SIZE + 1}: {', '.join(str(key.yyyy_mm_dd) for key in batch_keys)}"
+            )
 
             report = self._analyze_internal(ds, batch)
             # Merge directly into final report

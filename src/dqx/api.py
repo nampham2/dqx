@@ -520,7 +520,7 @@ class VerificationSuite:
         if report.has_errors():
             raise DQXError(f"Suite validation failed:\n{report}")
         elif report.has_warnings():
-            logger.warning(f"Suite validation warnings:\n{report}")
+            logger.debug(f"Suite validation warnings:\n{report}")
 
     def _analyze(self, datasources: list[SqlDataSource], key: ResultKey) -> None:
         # Analyze ALL symbolic metrics, not just those with matching dataset
@@ -552,8 +552,6 @@ class VerificationSuite:
                 symbol_lookup[(sym_metric.metric_spec, effective_key, ds.name)] = str(sym_metric.symbol)
 
             # Analyze each date group separately
-            logger.info(f"Analyzing dataset '{ds.name}'...")
-            # Pass execution_id through metadata instead of tags
             metadata = Metadata(execution_id=self._execution_id)
             analyzer = Analyzer(metadata=metadata, symbol_lookup=symbol_lookup)
             analyzer.analyze(ds, metrics_by_date)
