@@ -451,9 +451,16 @@ class SymbolicMetricBase(ABC, RegistryMixin):
         self._registry._metrics = [sm for sm in self.metrics if sm.symbol not in to_remove]
 
         # Remove from index
+        removed_symbols = []
         for symbol in to_remove:
-            logger.info("Pruned duplicate symbol: %s", symbol)
+            removed_symbols.append(str(symbol))
             del self.index[symbol]
+
+        # Log all removed symbols in one message
+        if removed_symbols:
+            # Sort symbols by numeric index (x_9 before x_14)
+            sorted_symbols = sorted(removed_symbols, key=lambda s: int(s.split("_")[1]))
+            logger.info("Pruned %d duplicate symbols: %s", len(sorted_symbols), ", ".join(sorted_symbols))
 
     def symbol_deduplication(self, graph: "Graph", context_key: ResultKey) -> None:
         """Apply symbol deduplication to graph and provider.

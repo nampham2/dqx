@@ -243,7 +243,7 @@ def print_metric_trace(trace_table: pa.Table, execution_id: str) -> None:
     stats = metric_trace_stats(trace_table)
 
     # Create table with title
-    table = Table(title=f"Metric Trace for Execution: {execution_id}", show_lines=True)
+    table = Table(title=f"Data Trace for Execution: {execution_id}", show_lines=True)
 
     # Add columns (removed Type column)
     table.add_column("Date", style="cyan", no_wrap=True)

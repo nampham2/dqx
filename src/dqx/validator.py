@@ -312,12 +312,18 @@ class UnusedSymbolValidator(BaseValidator):
         super().__init__()
         self._provider = provider
         self._used_symbols: set[sp.Symbol] = set()
+        self._removed_symbols: list[str] = []  # Store removed symbol names
 
     def process_node(self, node: BaseNode) -> None:
         """Collect symbols used in assertions."""
         if isinstance(node, AssertionNode):
             # Extract all symbols from the assertion expression
             self._used_symbols.update(node.actual.free_symbols)
+
+    @property
+    def removed_symbols(self) -> list[str]:
+        """Get the list of removed symbol names."""
+        return self._removed_symbols
 
     def finalize(self) -> None:
         """Compare defined vs used symbols and generate warnings."""
@@ -327,8 +333,11 @@ class UnusedSymbolValidator(BaseValidator):
         # Find unused symbols
         unused_symbols = defined_symbols - self._used_symbols
 
+        # Sort unused symbols by numeric index (x_4 before x_14)
+        sorted_unused = sorted(unused_symbols, key=lambda s: int(str(s).split("_")[1]))
+
         # Generate warnings for each unused symbol, excluding dependencies
-        for symbol in unused_symbols:
+        for symbol in sorted_unused:
             # Skip symbols that are required by other metrics
             is_required = False
             for other_metric in self._provider.metrics:
@@ -351,7 +360,7 @@ class UnusedSymbolValidator(BaseValidator):
             )
 
             # Remove the orphaned symbol from the provider to keep things clean
-            logger.info("Removed unused symbol: %s", symbol_repr)
+            self._removed_symbols.append(str(symbol))
             self._provider.remove_symbol(symbol)
 
 
@@ -434,8 +443,11 @@ class SuiteValidator:
         Returns:
             ValidationReport with all issues found
         """
+        # Create validators
+        validators = self.validators(provider)
+
         # Create composite with all validators
-        composite = CompositeValidationVisitor(self.validators(provider))
+        composite = CompositeValidationVisitor(validators)
 
         # Single-pass traversal
         graph.bfs(composite)
@@ -449,5 +461,18 @@ class SuiteValidator:
             report.add_error(error)
         for warning in issues["warnings"]:
             report.add_warning(warning)
+
+        # Get removed symbols from UnusedSymbolValidator
+        removed_symbols = []
+        for validator in validators:
+            if isinstance(validator, UnusedSymbolValidator):
+                removed_symbols = validator.removed_symbols
+                break
+
+        # Log removed symbols after validation warnings
+        if removed_symbols:
+            # Sort symbols by numeric index (x_9 before x_14)
+            sorted_symbols = sorted(removed_symbols, key=lambda s: int(s.split("_")[1]))
+            logger.info("Removed %d unused symbols: %s", len(sorted_symbols), ", ".join(sorted_symbols))
 
         return report
