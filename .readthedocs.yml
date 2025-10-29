@@ -11,6 +11,7 @@ build:
     python: "3.11"
   commands:
     # Install uv for dependency management
+    - pip install --upgrade pip
     - pip install uv
     # Install project dependencies
     - uv sync --frozen
@@ -19,19 +20,8 @@ build:
         mkdocs-git-revision-date-localized-plugin \
         mkdocs-minify-plugin \
         mkdocs-awesome-pages-plugin
-  jobs:
-    post_create_environment:
-      # Ensure latest version of pip
-      - pip install --upgrade pip
-      - pip install uv
-    post_install:
-      # Any additional setup after package install
-      - echo "DQX documentation build complete"
-
-# Build documentation in the docs/ directory with MkDocs
-mkdocs:
-  configuration: mkdocs.yml
-  fail_on_warning: true
+    # Build documentation
+    - mkdocs build --strict --site-dir $READTHEDOCS_OUTPUT/html
 
 # Optionally build your docs in additional formats such as PDF and ePub
 formats:
