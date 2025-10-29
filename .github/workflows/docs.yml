@@ -7,7 +7,7 @@ on:
     branches: [main, develop]
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -129,6 +129,8 @@ jobs:
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
 
       - name: Upload to GitHub Pages
         uses: actions/upload-pages-artifact@v4

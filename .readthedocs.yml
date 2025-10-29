@@ -21,7 +21,7 @@ build:
         mkdocs-minify-plugin \
         mkdocs-awesome-pages-plugin
     # Build documentation
-    - mkdocs build --strict --site-dir $READTHEDOCS_OUTPUT/html
+    - uv run mkdocs build --strict --site-dir $READTHEDOCS_OUTPUT/html
 
 # Optionally build your docs in additional formats such as PDF and ePub
 formats:
