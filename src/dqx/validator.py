@@ -17,8 +17,9 @@ from __future__ import annotations
 import logging
 from abc import ABC, abstractmethod
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import Any, Protocol, runtime_checkable
 
 import sympy as sp
 
@@ -26,8 +27,27 @@ from dqx.graph.base import BaseNode
 from dqx.graph.nodes import AssertionNode, CheckNode
 from dqx.graph.traversal import Graph
 
-if TYPE_CHECKING:
-    from dqx.provider import MetricProvider
+
+@runtime_checkable
+class MetricProviderProtocol(Protocol):
+    """Minimal protocol for metric provider used by validators."""
+
+    @property
+    def metrics(self) -> list[Any]:
+        """List of symbolic metrics."""
+        ...
+
+    def get_symbol(self, symbol: sp.Symbol) -> Any:
+        """Get symbolic metric for a symbol."""
+        ...
+
+    def symbols(self) -> Iterable[sp.Symbol]:
+        """Get all symbols."""
+        ...
+
+    def remove_symbol(self, symbol: sp.Symbol) -> None:
+        """Remove a symbol."""
+        ...
 
 
 logger = logging.getLogger(__name__)
@@ -223,7 +243,7 @@ class DatasetValidator(BaseValidator):
     name = "dataset_mismatch"
     is_error = True
 
-    def __init__(self, provider: "MetricProvider") -> None:
+    def __init__(self, provider: MetricProviderProtocol) -> None:
         """Initialize validator with provider."""
         super().__init__()
         self._provider = provider
@@ -311,7 +331,7 @@ class UnusedSymbolValidator(BaseValidator):
     name = "unused_symbols"
     is_error = False  # This produces warnings
 
-    def __init__(self, provider: "MetricProvider") -> None:
+    def __init__(self, provider: MetricProviderProtocol) -> None:
         """Initialize validator with provider."""
         super().__init__()
         self._provider = provider
@@ -427,7 +447,7 @@ class CompositeValidationVisitor:
 class SuiteValidator:
     """Main validator that runs all validation rules efficiently."""
 
-    def validators(self, provider: MetricProvider) -> list[BaseValidator]:
+    def validators(self, provider: MetricProviderProtocol) -> list[BaseValidator]:
         return [
             DuplicateCheckNameValidator(),
             EmptyCheckValidator(),
@@ -436,7 +456,7 @@ class SuiteValidator:
             UnusedSymbolValidator(provider),
         ]
 
-    def validate(self, graph: Graph, provider: MetricProvider) -> ValidationReport:
+    def validate(self, graph: Graph, provider: MetricProviderProtocol) -> ValidationReport:
         """Run validation on a graph.
 
         Args:
