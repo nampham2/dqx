@@ -32,16 +32,12 @@ class TestValidateValue:
         assert "Value: 'not_a_number'" in str(exc_info.value)
         assert "could not convert string to float" in str(exc_info.value)
 
-        # Test with an object that causes TypeError
-        class BadObject:
-            def __float__(self) -> None:
-                raise TypeError("Cannot convert to float")
-
+        # Use a plain object; it has no __float__ and will raise TypeError on float()
         with pytest.raises(DQXError) as exc_info:
-            _validate_value(BadObject(), "2024-01-01", "test_col")
+            _validate_value(object(), "2024-01-01", "test_col")
 
         assert "Cannot convert value to float for symbol 'test_col' on date 2024-01-01" in str(exc_info.value)
-        assert "Cannot convert to float" in str(exc_info.value)
+        assert "float() argument must be a string or a real number" in str(exc_info.value)
 
     def test_validate_value_with_nan(self) -> None:
         """Test that NaN values raise DQXError."""
