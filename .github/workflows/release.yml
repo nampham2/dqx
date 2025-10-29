@@ -150,8 +150,7 @@ jobs:
           body_path: release_notes.md
           token: ${{ secrets.GITHUB_TOKEN }}
           draft: false
-          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || \
-            contains(github.ref, 'rc') }}
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
 
   docker-publish:
     needs: test-release
