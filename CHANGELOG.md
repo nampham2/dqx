@@ -86,6 +86,20 @@
 
 - **toolz**: remove dependency on toolz
 
+## v0.5.0 (2025-10-29)
+
+### Feat
+
+- add __version__ attribute to dqx module
+
+### Fix
+
+- **ci**: fix test-release job to handle PEP 668 system Python protection
+- **ci**: remove redundant pull_request_target from release-drafter workflow
+- **ci**: add pull-requests write permission to docs workflow
+- **ci**: correct codecov action parameter from 'file' to 'files'
+- **ci**: add --system flag to release workflow test installation
+
 ## v0.4.0 (2025-10-29)
 
 ### BREAKING CHANGE
