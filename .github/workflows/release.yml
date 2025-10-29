@@ -69,7 +69,7 @@ jobs:
 
       - name: Test installation
         run: |
-          uv pip install dist/*.whl
+          uv pip install --system dist/*.whl
           python -c "import dqx; print(dqx.__version__)"
 
   publish-pypi:
