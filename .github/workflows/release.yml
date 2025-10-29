@@ -82,7 +82,7 @@ jobs:
 
     environment:
       name: pypi
-      url: https://pypi.org/project/dqx/
+      url: https://pypi.org/project/dqlib/
 
     steps:
       - name: Download artifacts
@@ -103,7 +103,7 @@ jobs:
 
     environment:
       name: testpypi
-      url: https://test.pypi.org/project/dqx/
+      url: https://test.pypi.org/project/dqlib/
 
     steps:
       - name: Download artifacts
@@ -133,18 +133,21 @@ jobs:
       - name: Set up Python
         run: uv python install 3.11
 
+      - name: Install dependencies
+        run: uv sync --frozen
+
       - name: Generate changelog
         run: |
-          # Install changelog generator
-          uv pip install gitchangelog
-
           # Generate changelog for this release
           echo "## What's Changed" > release_notes.md
           echo "" >> release_notes.md
 
-          # Get commits since last tag
-          git log $(git describe --tags --abbrev=0 HEAD^)..HEAD \
-            --pretty=format:"* %s by @%an" >> release_notes.md
+          # Use uv run to execute gitchangelog or fallback to git log
+          uv run gitchangelog >> release_notes.md || {
+            # Fallback to git log if gitchangelog fails
+            git log $(git describe --tags --abbrev=0 HEAD^)..HEAD \
+              --pretty=format:"* %s by @%an" >> release_notes.md
+          }
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
