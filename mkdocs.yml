@@ -8,7 +8,7 @@ site_url: https://dqx.readthedocs.io
 
 # Repository
 repo_name: dqx
-repo_url: https://github.com/yourusername/dqx  # Update with your GitHub URL
+repo_url: https://github.com/nampham2/dqx
 edit_uri: edit/main/docs/
 
 # Copyright
@@ -234,7 +234,7 @@ extra_javascript:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/yourusername/dqx
+      link: https://github.com/nampham2/dqx
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/dqx/
     - icon: fontawesome/solid/book

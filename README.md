@@ -5,6 +5,7 @@ Transform data validation into mathematical expressions. Find issues before they
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Documentation Status](https://readthedocs.org/projects/dqx/badge/?version=latest)](https://dqx.readthedocs.io/en/latest/?badge=latest)
 
 Write quality checks as code, not SQL. Get instant feedback on millions of rows.
 
