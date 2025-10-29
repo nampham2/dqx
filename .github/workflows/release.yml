@@ -69,8 +69,12 @@ jobs:
 
       - name: Test installation
         run: |
-          uv pip install --system dist/*.whl
-          python -c "import dqx; print(dqx.__version__)"
+          # Create a virtual environment and install the package
+          uv venv
+          uv pip install dist/*.whl
+
+          # Test the import using uv run
+          uv run python -c "import dqx; print(dqx.__version__)"
 
   publish-pypi:
     needs: test-release
