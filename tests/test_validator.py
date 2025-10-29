@@ -3,12 +3,13 @@ import uuid
 import sympy as sp
 
 from dqx import specs
+from dqx.api import SuiteValidator
 from dqx.common import SymbolicValidator
 from dqx.graph.nodes import RootNode
 from dqx.graph.traversal import Graph
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
-from dqx.validator import SuiteValidator, ValidationIssue, ValidationReport
+from dqx.validator import ValidationIssue, ValidationReport
 
 
 def test_validation_issue_creation() -> None:
