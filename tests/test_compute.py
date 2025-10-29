@@ -1,766 +1,755 @@
-import datetime as dt
-from unittest.mock import MagicMock
+"""Tests for compute module functions."""
+
+import statistics
+from datetime import date, timedelta
 
 import pytest
-from returns.maybe import Nothing, Some
 from returns.result import Failure, Success
 
-from dqx import compute
-from dqx.common import ResultKey, ResultKeyProvider, TimeSeries
-from dqx.orm.repositories import MetricDB
-from dqx.specs import MetricSpec
+from dqx.common import ExecutionId, Metadata, ResultKey, TimeSeries
+from dqx.compute import (
+    _sparse_timeseries_check,
+    _timeseries_check,
+    day_over_day,
+    simple_metric,
+    stddev,
+    week_over_week,
+)
+from dqx.models import Metric
+from dqx.orm.repositories import InMemoryMetricDB, MetricDB
+from dqx.specs import MetricSpec, Sum
+from dqx.states import SimpleAdditiveState
 
 
 @pytest.fixture
-def mock_db() -> MetricDB:
-    """Create a mock MetricDB for testing."""
-    return MagicMock(spec=MetricDB)
+def db() -> MetricDB:
+    """Create in-memory database for testing."""
+    return InMemoryMetricDB()
 
 
 @pytest.fixture
-def mock_metric() -> MetricSpec:
-    """Create a mock MetricSpec for testing."""
-    metric = MagicMock(spec=MetricSpec)
-    metric.name = "test_metric"
-    return metric
+def metric_spec() -> MetricSpec:
+    """Sample metric specification."""
+    return Sum("revenue")
 
 
 @pytest.fixture
-def mock_key_provider() -> ResultKeyProvider:
-    """Create a mock ResultKeyProvider for testing."""
-    return MagicMock(spec=ResultKeyProvider)
+def execution_id() -> ExecutionId:
+    """Test execution ID."""
+    return "test-exec-123"
 
 
 @pytest.fixture
-def mock_result_key() -> ResultKey:
-    """Create a mock ResultKey for testing."""
-    key = MagicMock(spec=ResultKey)
-    key.yyyy_mm_dd = dt.date(2023, 1, 1)
-    key.lag.return_value.yyyy_mm_dd = dt.date(2022, 12, 31)
-    return key
+def base_date() -> date:
+    """Base date for testing."""
+    return date(2024, 1, 10)
 
 
 @pytest.fixture
-def sample_timeseries() -> TimeSeries:
-    """Create a sample TimeSeries for testing."""
-    return {
-        dt.date(2023, 1, 1): 100.0,
-        dt.date(2022, 12, 31): 95.0,
-        dt.date(2022, 12, 30): 90.0,
-        dt.date(2022, 12, 29): 85.0,
-    }
+def result_key(base_date: date) -> ResultKey:
+    """Result key for testing."""
+    return ResultKey(yyyy_mm_dd=base_date, tags={"env": "test"})
 
 
-def test_timeseries_check_success() -> None:
-    """Test _timeseries_check with complete data."""
-    ts = {
-        dt.date(2023, 1, 1): 100.0,
-        dt.date(2023, 1, 2): 105.0,
-    }
-    from_date = dt.date(2023, 1, 1)
-    window = 2
-
-    result = compute._timeseries_check(ts, from_date, window)
-
-    assert isinstance(result, Success)
-    assert result.unwrap() == ts
-
-
-def test_timeseries_check_missing_dates() -> None:
-    """Test _timeseries_check with missing dates."""
-    ts = {
-        dt.date(2023, 1, 1): 100.0,
-        # Missing dt.date(2023, 1, 2)
-    }
-    from_date = dt.date(2023, 1, 1)
-    window = 2
-
-    result = compute._timeseries_check(ts, from_date, window)
-
-    assert isinstance(result, Failure)
-    error_msg = result.failure()
-    assert "There are 1 dates with missing metrics" in error_msg
-    assert "2023-01-02" in error_msg
-
-
-def test_timeseries_check_multiple_missing_dates() -> None:
-    """Test _timeseries_check with multiple missing dates."""
-    ts: dict[dt.date, float] = {
-        dt.date(2023, 1, 1): 100.0,
-        # Missing multiple dates
-    }
-    from_date = dt.date(2023, 1, 1)
-    window = 5
-
-    result = compute._timeseries_check(ts, from_date, window, limit=3)
-
-    assert isinstance(result, Failure)
-    error_msg = result.failure()
-    assert "There are 4 dates with missing metrics" in error_msg
-
-
-def test_timeseries_check_limit_exceeded() -> None:
-    """Test _timeseries_check respects the limit parameter."""
-    ts: dict[dt.date, float] = {}  # Empty timeseries
-    from_date = dt.date(2023, 1, 1)
-    window = 10
-    limit = 2
-
-    result = compute._timeseries_check(ts, from_date, window, limit)
-
-    assert isinstance(result, Failure)
-    error_msg = result.failure()
-    assert "There are 10 dates with missing metrics" in error_msg
-    # Should only show first 2 dates due to limit
-    error_msg_parts = error_msg.split(": ")[1].split(".")
-    listed_dates = error_msg_parts[0].split(", ")
-    assert len(listed_dates) == limit
-
-
-def test_day_over_day_success(
-    mock_db: MetricDB,
-    mock_metric: MetricSpec,
-    mock_key_provider: ResultKeyProvider,
-    mock_result_key: ResultKey,
-    sample_timeseries: TimeSeries,
+def populate_metric(
+    db: MetricDB,
+    metric_spec: MetricSpec,
+    key: ResultKey,
+    value: float,
+    dataset: str = "test_dataset",
+    execution_id: ExecutionId = "test-exec-123",
 ) -> None:
-    """Test day_over_day with successful calculation."""
-    # Setup
-    execution_id = "test-exec-123"
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-    mock_db.get_metric_window.return_value = Some(sample_timeseries)  # type: ignore[attr-defined]
-
-    # Mock the lag method properly
-    def mock_lag(days: int) -> MagicMock:
-        lagged_key = MagicMock()
-        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 1) - dt.timedelta(days=days)
-        lagged_key.lag = mock_lag  # Allow chaining
-        return lagged_key
-
-    mock_result_key.lag = mock_lag  # type: ignore[assignment]
-    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 1)  # type: ignore[misc]
-
-    result = compute.day_over_day(
-        mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
+    """Helper to add a metric to the database."""
+    metadata = Metadata(execution_id=execution_id)
+    metric = Metric.build(
+        metric=metric_spec,
+        key=key,
+        dataset=dataset,
+        state=SimpleAdditiveState(value=value),
+        metadata=metadata,
     )
-
-    assert isinstance(result, Success)
-    # Expected: 100.0 / 95.0 ≈ 1.0526
-    assert abs(result.unwrap() - (100.0 / 95.0)) < 1e-6
-    # The function should call get_metric_window with the base_key (nominal_key.lag(0))
-    mock_db.get_metric_window.assert_called_once()  # type: ignore[attr-defined]
-    call_args = mock_db.get_metric_window.call_args  # type: ignore[attr-defined]
-    assert call_args[0][0] == mock_metric
-    # The second argument should be the base_key with the same date since lag=0
-    assert call_args[0][1].yyyy_mm_dd == dt.date(2023, 1, 1)
-    assert call_args[1] == {"lag": 0, "window": 2, "dataset": "test_dataset", "execution_id": execution_id}
+    db.persist([metric])
 
 
-def test_day_over_day_no_data(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
+def populate_time_series(
+    db: MetricDB,
+    metric_spec: MetricSpec,
+    base_date: date,
+    values: dict[int, float],  # {days_offset: value}
+    dataset: str = "test_dataset",
+    execution_id: ExecutionId = "test-exec-123",
+    tags: dict[str, str] | None = None,
 ) -> None:
-    """Test day_over_day when no data is available."""
-    # Setup
-    execution_id = "test-exec-123"
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-    mock_db.get_metric_window.return_value = Nothing  # type: ignore[attr-defined]
-
-    result = compute.day_over_day(
-        mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
-    )
-
-    assert isinstance(result, Failure)
-    assert result.failure() == compute.METRIC_NOT_FOUND
-
-
-def test_day_over_day_missing_dates(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
-) -> None:
-    """Test day_over_day with missing dates."""
-    # Setup
-    execution_id = "test-exec-123"
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-    incomplete_ts = {dt.date(2023, 1, 1): 100.0}  # Missing previous day
-    mock_db.get_metric_window.return_value = Some(incomplete_ts)  # type: ignore[attr-defined]
-
-    # Mock the lag method properly
-    def mock_lag(days: int) -> MagicMock:
-        lagged_key = MagicMock()
-        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 1) - dt.timedelta(days=days)
-        lagged_key.lag = mock_lag  # Allow chaining
-        return lagged_key
-
-    mock_result_key.lag = mock_lag  # type: ignore[assignment]
-    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 1)  # type: ignore[misc]
-
-    result = compute.day_over_day(
-        mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
-    )
-
-    assert isinstance(result, Failure)
-    error_msg = result.failure()
-    assert "dates with missing metrics" in error_msg
-
-
-def test_day_over_day_divide_by_zero(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
-) -> None:
-    """Test day_over_day when previous day value is zero."""
-    # Setup
-    execution_id = "test-exec-123"
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-    zero_ts = {
-        dt.date(2023, 1, 1): 100.0,
-        dt.date(2022, 12, 31): 0.0,  # Zero value causes division by zero
-    }
-    mock_db.get_metric_window.return_value = Some(zero_ts)  # type: ignore[attr-defined]
-
-    # Mock the lag method properly
-    def mock_lag(days: int) -> MagicMock:
-        lagged_key = MagicMock()
-        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 1) - dt.timedelta(days=days)
-        lagged_key.lag = mock_lag  # Allow chaining
-        return lagged_key
-
-    mock_result_key.lag = mock_lag  # type: ignore[assignment]
-    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 1)  # type: ignore[misc]
-
-    result = compute.day_over_day(
-        mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
-    )
-
-    assert isinstance(result, Failure)
-    error_msg = result.failure()
-    assert "is zero" in error_msg
-    assert "2022-12-31" in error_msg
-
-
-def test_stddev_no_data(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
-) -> None:
-    """Test stddev when no data is available."""
-    # Setup
-    execution_id = "test-exec-123"
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-    mock_db.get_metric_window.return_value = Nothing  # type: ignore[attr-defined]
-
-    size = 5
-
-    result = compute.stddev(
-        mock_db, mock_metric, size=size, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
-    )
-
-    assert isinstance(result, Failure)
-    assert result.failure() == compute.METRIC_NOT_FOUND
-
-
-def test_stddev_missing_dates(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
-) -> None:
-    """Test stddev with missing dates."""
-    # Setup
-    execution_id = "test-exec-123"
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-    incomplete_ts = {
-        dt.date(2022, 12, 29): 100.0,
-        dt.date(2022, 12, 31): 90.0,
-        # Missing dates in between
-    }
-    mock_db.get_metric_window.return_value = Some(incomplete_ts)  # type: ignore[attr-defined]
-
-    # Mock the lag method properly
-    def mock_lag(days: int) -> MagicMock:
-        lagged_key = MagicMock()
-        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 1) - dt.timedelta(days=days)
-        lagged_key.lag = mock_lag  # Allow chaining
-        return lagged_key
-
-    mock_result_key.lag = mock_lag  # type: ignore[assignment]
-    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 1)  # type: ignore[misc]
-
-    size = 5
-
-    result = compute.stddev(
-        mock_db, mock_metric, size=size, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
-    )
-
-    assert isinstance(result, Failure)
-    error_msg = result.failure()
-    assert "dates with missing metrics" in error_msg
-
-
-def test_stddev_single_value(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
-) -> None:
-    """Test stddev with a single value (edge case)."""
-    # Setup
-    execution_id = "test-exec-123"
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-    single_value_ts = {dt.date(2023, 1, 1): 100.0}
-    mock_db.get_metric_window.return_value = Some(single_value_ts)  # type: ignore[attr-defined]
-
-    # Mock the lag method properly
-    def mock_lag(days: int) -> MagicMock:
-        lagged_key = MagicMock()
-        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 1) - dt.timedelta(days=days)
-        lagged_key.lag = mock_lag  # Allow chaining
-        return lagged_key
-
-    mock_result_key.lag = mock_lag  # type: ignore[assignment]
-    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 1)  # type: ignore[misc]
-
-    size = 1
-
-    result = compute.stddev(
-        mock_db, mock_metric, size=size, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
-    )
-
-    assert isinstance(result, Success)
-    # Standard deviation of a single value should be 0
-    assert result.unwrap() == 0.0
-
-
-def test_stddev_empty_values(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
-) -> None:
-    """Test stddev with empty timeseries values."""
-    # Setup
-    execution_id = "test-exec-123"
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-    empty_ts: dict[dt.date, float] = {}
-    mock_db.get_metric_window.return_value = Some(empty_ts)  # type: ignore[attr-defined]
-
-    # Mock the lag method properly
-    def mock_lag(days: int) -> MagicMock:
-        lagged_key = MagicMock()
-        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 1) - dt.timedelta(days=days)
-        lagged_key.lag = mock_lag  # Allow chaining
-        return lagged_key
-
-    mock_result_key.lag = mock_lag  # type: ignore[assignment]
-    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 1)  # type: ignore[misc]
-
-    size = 1
-
-    # This should fail at the timeseries check stage since empty ts means missing dates
-    result = compute.stddev(
-        mock_db, mock_metric, size=size, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
-    )
-
-    assert isinstance(result, Failure)
-    error_msg = result.failure()
-    assert "dates with missing metrics" in error_msg
-
-
-def test_simple_metric_success(mock_db: MetricDB, mock_metric: MetricSpec, mock_result_key: ResultKey) -> None:
-    """Test simple_metric with successful retrieval."""
-    # Setup
-    execution_id = "test-exec-123"
-    mock_db.get_metric_value.return_value = Some(42.0)  # type: ignore[attr-defined]
-
-    result = compute.simple_metric(
-        mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
-    )
-
-    assert isinstance(result, Success)
-    assert result.unwrap() == 42.0
-    mock_db.get_metric_value.assert_called_once_with(  # type: ignore[attr-defined]
-        mock_metric, mock_result_key, "test_dataset", execution_id
-    )
-
-
-def test_simple_metric_not_found(mock_db: MetricDB, mock_metric: MetricSpec, mock_result_key: ResultKey) -> None:
-    """Test simple_metric when metric is not found."""
-    # Setup
-    execution_id = "test-exec-123"
-    mock_db.get_metric_value.return_value = Nothing  # type: ignore[attr-defined]
-
-    result = compute.simple_metric(
-        mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
-    )
-
-    assert isinstance(result, Failure)
-    expected_error = (
-        f"Metric {mock_metric.name} for {mock_result_key.yyyy_mm_dd.isoformat()} on dataset 'test_dataset' not found!"
-    )
-    assert result.failure() == expected_error
-
-
-def test_constants() -> None:
-    """Test that constants are defined correctly."""
-    assert compute.METRIC_NOT_FOUND == "Metric not found in the metric database"
-
-
-def test_sparse_timeseries_check_success() -> None:
-    """Test _sparse_timeseries_check with all required dates present."""
-    ts = {
-        dt.date(2023, 1, 15): 140.0,
-        dt.date(2023, 1, 8): 100.0,
-        dt.date(2023, 1, 10): 110.0,  # Extra date that's not required
-    }
-    base_date = dt.date(2023, 1, 15)
-    lag_points = [0, 7]
-
-    result = compute._sparse_timeseries_check(ts, base_date, lag_points)
-
-    assert isinstance(result, Success)
-    assert result.unwrap() == ts
-
-
-def test_sparse_timeseries_check_missing_dates() -> None:
-    """Test _sparse_timeseries_check with missing required dates."""
-    ts = {
-        dt.date(2023, 1, 15): 140.0,
-        # Missing dt.date(2023, 1, 8) which is lag_7
-    }
-    base_date = dt.date(2023, 1, 15)
-    lag_points = [0, 7]
-
-    result = compute._sparse_timeseries_check(ts, base_date, lag_points)
-
-    assert isinstance(result, Failure)
-    error_msg = result.failure()
-    assert "There are 1 dates with missing metrics" in error_msg
-    assert "2023-01-08" in error_msg
-
-
-def test_sparse_timeseries_check_multiple_missing() -> None:
-    """Test _sparse_timeseries_check with multiple missing dates."""
-    ts: dict[dt.date, float] = {}  # Empty timeseries
-    base_date = dt.date(2023, 1, 15)
-    lag_points = [0, 3, 7, 14, 30]  # Multiple lag points
-
-    result = compute._sparse_timeseries_check(ts, base_date, lag_points)
-
-    assert isinstance(result, Failure)
-    error_msg = result.failure()
-    assert "There are 5 dates with missing metrics" in error_msg
-
-
-def test_sparse_timeseries_check_limit() -> None:
-    """Test _sparse_timeseries_check respects the limit parameter."""
-    ts: dict[dt.date, float] = {}  # Empty timeseries
-    base_date = dt.date(2023, 1, 15)
-    lag_points = [0, 1, 2, 3, 4, 5, 6, 7]  # Many lag points
-    limit = 3
-
-    result = compute._sparse_timeseries_check(ts, base_date, lag_points, limit=limit)
-
-    assert isinstance(result, Failure)
-    error_msg = result.failure()
-    assert "There are 8 dates with missing metrics" in error_msg
-    # Should only show first 3 dates due to limit
-    dates_part = error_msg.split(": ")[1].split(".")[0]
-    listed_dates = dates_part.split(", ")
-    assert len(listed_dates) == limit
-
-
-def test_sparse_timeseries_check_single_point() -> None:
-    """Test _sparse_timeseries_check with a single lag point."""
-    ts = {
-        dt.date(2023, 1, 15): 140.0,
-    }
-    base_date = dt.date(2023, 1, 15)
-    lag_points = [0]  # Only checking lag_0
-
-    result = compute._sparse_timeseries_check(ts, base_date, lag_points)
-
-    assert isinstance(result, Success)
-    assert result.unwrap() == ts
-
-
-def test_sparse_timeseries_check_negative_lag() -> None:
-    """Test _sparse_timeseries_check with negative lag values (future dates)."""
-    ts = {
-        dt.date(2023, 1, 15): 140.0,
-        dt.date(2023, 1, 16): 145.0,  # Future date (lag -1)
-        dt.date(2023, 1, 8): 100.0,
-    }
-    base_date = dt.date(2023, 1, 15)
-    lag_points = [-1, 0, 7]  # Including a negative lag
-
-    result = compute._sparse_timeseries_check(ts, base_date, lag_points)
-
-    assert isinstance(result, Success)
-    assert result.unwrap() == ts
-
-
-def test_timeseries_check_with_different_limits() -> None:
-    """Test _timeseries_check with different limit values."""
-    ts: dict[dt.date, float] = {}  # Empty timeseries
-    from_date = dt.date(2023, 1, 1)
-    window = 6
-
-    # Test with default limit (5)
-    result = compute._timeseries_check(ts, from_date, window)
-    assert isinstance(result, Failure)
-    error_msg = result.failure()
-    assert "There are 6 dates with missing metrics" in error_msg
-    # Should only show first 5 dates due to default limit
-    dates_part = error_msg.split(": ")[1].split(".")[0]
-    listed_dates = dates_part.split(", ")
-    assert len(listed_dates) == 5
-
-    # Test with custom limit
-    result_custom = compute._timeseries_check(ts, from_date, window, limit=3)
-    assert isinstance(result_custom, Failure)
-    error_msg_custom = result_custom.failure()
-    dates_part_custom = error_msg_custom.split(": ")[1].split(".")[0]
-    listed_dates_custom = dates_part_custom.split(", ")
-    assert len(listed_dates_custom) == 3
-
-
-def test_day_over_day_edge_cases(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
-) -> None:
-    """Test day_over_day with various edge cases."""
-    # Setup
-    execution_id = "test-exec-123"
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-
-    # Mock the lag method properly
-    def mock_lag(days: int) -> MagicMock:
-        lagged_key = MagicMock()
-        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 1) - dt.timedelta(days=days)
-        lagged_key.lag = mock_lag  # Allow chaining
-        return lagged_key
-
-    mock_result_key.lag = mock_lag  # type: ignore[assignment]
-    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 1)  # type: ignore[misc]
-
-    # Test with very small numbers (near zero but not zero)
-    small_ts = {
-        dt.date(2023, 1, 1): 0.001,
-        dt.date(2022, 12, 31): 0.0001,
-    }
-    mock_db.get_metric_window.return_value = Some(small_ts)  # type: ignore[attr-defined]
-
-    result = compute.day_over_day(
-        mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
-    )
-
-    assert isinstance(result, Success)
-    # Should be 0.001 / 0.0001 = 10.0
-    assert abs(result.unwrap() - 10.0) < 1e-6
-
-
-def test_week_over_week_success(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
-) -> None:
-    """Test week_over_week with successful calculation."""
-    # Setup
-    execution_id = "test-exec-123"
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-    week_ts = {
-        dt.date(2023, 1, 15): 140.0,  # lag_0 (today)
-        dt.date(2023, 1, 14): 135.0,  # lag_1
-        dt.date(2023, 1, 13): 130.0,  # lag_2
-        dt.date(2023, 1, 12): 125.0,  # lag_3
-        dt.date(2023, 1, 11): 120.0,  # lag_4
-        dt.date(2023, 1, 10): 115.0,  # lag_5
-        dt.date(2023, 1, 9): 110.0,  # lag_6
-        dt.date(2023, 1, 8): 100.0,  # lag_7 (a week ago)
-    }
-    mock_db.get_metric_window.return_value = Some(week_ts)  # type: ignore[attr-defined]
-
-    # Mock the lag method properly
-    # When lag(7) is called, return a key with date 7 days earlier
-    lag_7_key = MagicMock()
-    lag_7_key.yyyy_mm_dd = dt.date(2023, 1, 8)
-
-    # Set up the mock to handle different lag values
-    def mock_lag(days: int) -> MagicMock:
-        lagged_key = MagicMock()
-        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 15) - dt.timedelta(days=days)
-        lagged_key.lag = mock_lag  # Allow chaining
-        return lagged_key
-
-    mock_result_key.lag = mock_lag  # type: ignore[assignment]
-    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 15)  # type: ignore[misc]
-
-    # Call with lag=0 (default)
-    result = compute.week_over_week(
-        mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
-    )
-
-    assert isinstance(result, Success)
-    # Expected: 140.0 / 100.0 = 1.4
-    assert abs(result.unwrap() - 1.4) < 1e-6
-    # The function should call get_metric_window with the base_key (nominal_key.lag(0))
-    mock_db.get_metric_window.assert_called_once()  # type: ignore[attr-defined]
-    call_args = mock_db.get_metric_window.call_args  # type: ignore[attr-defined]
-    assert call_args[0][0] == mock_metric
-    # The second argument should be the base_key with the same date since lag=0
-    assert call_args[0][1].yyyy_mm_dd == dt.date(2023, 1, 15)
-    assert call_args[1] == {"lag": 0, "window": 8, "dataset": "test_dataset", "execution_id": execution_id}
-
-
-def test_week_over_week_no_data(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
-) -> None:
-    """Test week_over_week when no data is available."""
-    # Setup
-    execution_id = "test-exec-123"
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-    mock_db.get_metric_window.return_value = Nothing  # type: ignore[attr-defined]
-
-    result = compute.week_over_week(
-        mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
-    )
-
-    assert isinstance(result, Failure)
-    assert result.failure() == compute.METRIC_NOT_FOUND
-
-
-def test_week_over_week_missing_dates(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
-) -> None:
-    """Test week_over_week with missing dates."""
-    # Setup
-    execution_id = "test-exec-123"
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-    incomplete_ts = {
-        dt.date(2023, 1, 15): 140.0,  # lag_0 (today)
-        dt.date(2023, 1, 13): 130.0,  # lag_2
-        # Missing several dates including lag_7
-    }
-    mock_db.get_metric_window.return_value = Some(incomplete_ts)  # type: ignore[attr-defined]
-
-    # Mock the lag method properly
-    def mock_lag(days: int) -> MagicMock:
-        lagged_key = MagicMock()
-        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 15) - dt.timedelta(days=days)
-        lagged_key.lag = mock_lag  # Allow chaining
-        return lagged_key
-
-    mock_result_key.lag = mock_lag  # type: ignore[assignment]
-    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 15)  # type: ignore[misc]
-
-    result = compute.week_over_week(
-        mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
-    )
-
-    assert isinstance(result, Failure)
-    error_msg = result.failure()
-    assert "dates with missing metrics" in error_msg
-
-
-def test_week_over_week_divide_by_zero(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
-) -> None:
-    """Test week_over_week when lag_7 value is zero."""
-    # Setup
-    execution_id = "test-exec-123"
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-    zero_ts = {
-        dt.date(2023, 1, 15): 140.0,  # lag_0 (today)
-        dt.date(2023, 1, 14): 135.0,  # lag_1
-        dt.date(2023, 1, 13): 130.0,  # lag_2
-        dt.date(2023, 1, 12): 125.0,  # lag_3
-        dt.date(2023, 1, 11): 120.0,  # lag_4
-        dt.date(2023, 1, 10): 115.0,  # lag_5
-        dt.date(2023, 1, 9): 110.0,  # lag_6
-        dt.date(2023, 1, 8): 0.0,  # lag_7 (zero value)
-    }
-    mock_db.get_metric_window.return_value = Some(zero_ts)  # type: ignore[attr-defined]
-
-    # Mock the lag method properly
-    def mock_lag(days: int) -> MagicMock:
-        lagged_key = MagicMock()
-        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 15) - dt.timedelta(days=days)
-        lagged_key.lag = mock_lag  # Allow chaining
-        return lagged_key
-
-    mock_result_key.lag = mock_lag  # type: ignore[assignment]
-    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 15)  # type: ignore[misc]
-
-    result = compute.week_over_week(
-        mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
-    )
-
-    assert isinstance(result, Failure)
-    error_msg = result.failure()
-    assert "is zero" in error_msg
-    assert "2023-01-08" in error_msg
-
-
-def test_week_over_week_edge_cases(
-    mock_db: MetricDB, mock_metric: MetricSpec, mock_key_provider: ResultKeyProvider, mock_result_key: ResultKey
-) -> None:
-    """Test week_over_week with various edge cases."""
-    # Setup
-    execution_id = "test-exec-123"
-    mock_key_provider.create.return_value = mock_result_key  # type: ignore[attr-defined]
-
-    # Mock the lag method properly
-    def mock_lag(days: int) -> MagicMock:
-        lagged_key = MagicMock()
-        lagged_key.yyyy_mm_dd = dt.date(2023, 1, 15) - dt.timedelta(days=days)
-        lagged_key.lag = mock_lag  # Allow chaining
-        return lagged_key
-
-    mock_result_key.lag = mock_lag  # type: ignore[assignment]
-    mock_result_key.yyyy_mm_dd = dt.date(2023, 1, 15)  # type: ignore[misc]
-
-    # Test with negative values
-    negative_ts = {
-        dt.date(2023, 1, 15): -140.0,  # lag_0 (today)
-        dt.date(2023, 1, 14): -135.0,  # lag_1
-        dt.date(2023, 1, 13): -130.0,  # lag_2
-        dt.date(2023, 1, 12): -125.0,  # lag_3
-        dt.date(2023, 1, 11): -120.0,  # lag_4
-        dt.date(2023, 1, 10): -115.0,  # lag_5
-        dt.date(2023, 1, 9): -110.0,  # lag_6
-        dt.date(2023, 1, 8): -100.0,  # lag_7 (a week ago)
-    }
-    mock_db.get_metric_window.return_value = Some(negative_ts)  # type: ignore[attr-defined]
-
-    result = compute.week_over_week(
-        mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
-    )
-
-    assert isinstance(result, Success)
-    # Expected: -140.0 / -100.0 = 1.4
-    assert abs(result.unwrap() - 1.4) < 1e-6
-
-    # Test with very small numbers (near zero but not zero)
-    small_ts = {
-        dt.date(2023, 1, 15): 0.007,  # lag_0 (today)
-        dt.date(2023, 1, 14): 0.006,  # lag_1
-        dt.date(2023, 1, 13): 0.005,  # lag_2
-        dt.date(2023, 1, 12): 0.004,  # lag_3
-        dt.date(2023, 1, 11): 0.003,  # lag_4
-        dt.date(2023, 1, 10): 0.002,  # lag_5
-        dt.date(2023, 1, 9): 0.001,  # lag_6
-        dt.date(2023, 1, 8): 0.0001,  # lag_7 (a week ago)
-    }
-    mock_db.get_metric_window.return_value = Some(small_ts)  # type: ignore[attr-defined]
-
-    result = compute.week_over_week(
-        mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
-    )
-
-    assert isinstance(result, Success)
-    # Should be 0.007 / 0.0001 = 70.0
-    assert abs(result.unwrap() - 70.0) < 1e-6
-
-    # Test with identical values (no change week over week)
-    identical_ts = {
-        dt.date(2023, 1, 15): 100.0,  # lag_0 (today)
-        dt.date(2023, 1, 14): 100.0,  # lag_1
-        dt.date(2023, 1, 13): 100.0,  # lag_2
-        dt.date(2023, 1, 12): 100.0,  # lag_3
-        dt.date(2023, 1, 11): 100.0,  # lag_4
-        dt.date(2023, 1, 10): 100.0,  # lag_5
-        dt.date(2023, 1, 9): 100.0,  # lag_6
-        dt.date(2023, 1, 8): 100.0,  # lag_7 (a week ago)
-    }
-    mock_db.get_metric_window.return_value = Some(identical_ts)  # type: ignore[attr-defined]
-
-    result = compute.week_over_week(
-        mock_db, mock_metric, dataset="test_dataset", nominal_key=mock_result_key, execution_id=execution_id
-    )
-
-    assert isinstance(result, Success)
-    # Should be 100.0 / 100.0 = 1.0
-    assert result.unwrap() == 1.0
+    """Helper to populate metrics for multiple days."""
+    for offset, value in values.items():
+        key = ResultKey(yyyy_mm_dd=base_date + timedelta(days=offset), tags=tags or {})
+        populate_metric(db, metric_spec, key, value, dataset, execution_id)
+
+
+class TestSimpleMetric:
+    """Tests for simple_metric function."""
+
+    def test_success(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        result_key: ResultKey,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test successful metric retrieval."""
+        # Populate database
+        populate_metric(db, metric_spec, result_key, 100.0, "test_dataset", execution_id)
+
+        # Retrieve metric
+        result = simple_metric(db, metric_spec, "test_dataset", result_key, execution_id)
+
+        # Verify
+        assert isinstance(result, Success)
+        assert result.unwrap() == pytest.approx(100.0)
+
+    def test_not_found(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        result_key: ResultKey,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test metric not found."""
+        # Empty database
+        result = simple_metric(db, metric_spec, "test_dataset", result_key, execution_id)
+
+        # Verify
+        assert isinstance(result, Failure)
+        expected_msg = (
+            f"Metric {metric_spec.name} for {result_key.yyyy_mm_dd.isoformat()} on dataset 'test_dataset' not found!"
+        )
+        assert result.failure() == expected_msg
+
+    def test_different_datasets(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        result_key: ResultKey,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test metrics in different datasets are isolated."""
+        # Populate different datasets
+        populate_metric(db, metric_spec, result_key, 100.0, "dataset1", execution_id)
+        populate_metric(db, metric_spec, result_key, 200.0, "dataset2", execution_id)
+
+        # Retrieve from each dataset
+        result1 = simple_metric(db, metric_spec, "dataset1", result_key, execution_id)
+        result2 = simple_metric(db, metric_spec, "dataset2", result_key, execution_id)
+
+        # Verify
+        assert isinstance(result1, Success)
+        assert result1.unwrap() == pytest.approx(100.0)
+        assert isinstance(result2, Success)
+        assert result2.unwrap() == pytest.approx(200.0)
+
+    def test_different_execution_ids(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        result_key: ResultKey,
+    ) -> None:
+        """Test metrics with different execution IDs are isolated."""
+        # Populate with different execution IDs
+        populate_metric(db, metric_spec, result_key, 100.0, "test_dataset", "exec-1")
+        populate_metric(db, metric_spec, result_key, 200.0, "test_dataset", "exec-2")
+
+        # Retrieve with each execution ID
+        result1 = simple_metric(db, metric_spec, "test_dataset", result_key, "exec-1")
+        result2 = simple_metric(db, metric_spec, "test_dataset", result_key, "exec-2")
+
+        # Verify
+        assert isinstance(result1, Success)
+        assert result1.unwrap() == pytest.approx(100.0)
+        assert isinstance(result2, Success)
+        assert result2.unwrap() == pytest.approx(200.0)
+
+
+class TestDayOverDay:
+    """Tests for day_over_day function."""
+
+    def test_success(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test successful day-over-day calculation."""
+        # Populate two days
+        values = {0: 150.0, -1: 100.0}  # Today: 150, Yesterday: 100
+        populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
+
+        # Calculate ratio
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = day_over_day(db, metric_spec, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Success)
+        assert result.unwrap() == pytest.approx(1.5)  # 150/100
+
+    def test_negative_values(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test calculation with negative values."""
+        # Populate with negative values
+        values = {0: -50.0, -1: -100.0}
+        populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
+
+        # Calculate ratio
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = day_over_day(db, metric_spec, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Success)
+        assert result.unwrap() == pytest.approx(0.5)  # -50/-100
+
+    def test_missing_today(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test missing today's data."""
+        # Only populate yesterday
+        values = {-1: 100.0}
+        populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
+
+        # Calculate ratio
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = day_over_day(db, metric_spec, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Failure)
+        assert "There are 1 dates with missing metrics" in result.failure()
+
+    def test_missing_yesterday(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test missing yesterday's data."""
+        # Only populate today
+        values = {0: 100.0}
+        populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
+
+        # Calculate ratio
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = day_over_day(db, metric_spec, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Failure)
+        assert "There are 1 dates with missing metrics" in result.failure()
+
+    def test_division_by_zero(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test division by zero when yesterday's value is zero."""
+        # Yesterday is zero
+        values = {0: 100.0, -1: 0.0}
+        populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
+
+        # Calculate ratio
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = day_over_day(db, metric_spec, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Failure)
+        assert "Cannot calculate day over day: previous day value" in result.failure()
+        assert "is zero" in result.failure()
+
+    def test_no_data(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test when database returns no data."""
+        # Empty database
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = day_over_day(db, metric_spec, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Failure)
+        # DB returns empty TimeSeries, so _timeseries_check reports missing dates
+        assert "There are 2 dates with missing metrics" in result.failure()
+
+
+class TestWeekOverWeek:
+    """Tests for week_over_week function."""
+
+    def test_success_sparse(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test successful week-over-week with only required dates."""
+        # Populate only the required dates
+        values = {0: 210.0, -7: 100.0}  # Today: 210, Week ago: 100
+        populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
+
+        # Calculate ratio
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = week_over_week(db, metric_spec, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Success)
+        assert result.unwrap() == pytest.approx(2.1)  # 210/100
+
+    def test_success_full_window(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test with full 8 days of data."""
+        # Populate all 8 days
+        values: dict[int, float] = {i: 100.0 + i * 10.0 for i in range(-7, 1)}  # -7 to 0
+        populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
+
+        # Calculate ratio
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = week_over_week(db, metric_spec, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Success)
+        # Today: 100 + 0*10 = 100, Week ago: 100 + (-7)*10 = 30
+        assert result.unwrap() == pytest.approx(100.0 / 30.0)
+
+    def test_missing_current_week(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test missing current week data."""
+        # Only populate week ago
+        values = {-7: 100.0}
+        populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
+
+        # Calculate ratio
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = week_over_week(db, metric_spec, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Failure)
+        assert "There are 1 dates with missing metrics" in result.failure()
+
+    def test_missing_previous_week(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test missing previous week data."""
+        # Only populate today
+        values = {0: 100.0}
+        populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
+
+        # Calculate ratio
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = week_over_week(db, metric_spec, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Failure)
+        assert "There are 1 dates with missing metrics" in result.failure()
+
+    def test_division_by_zero(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test division by zero when week ago value is zero."""
+        # Week ago is zero
+        values = {0: 100.0, -7: 0.0}
+        populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
+
+        # Calculate ratio
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = week_over_week(db, metric_spec, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Failure)
+        assert "Cannot calculate week over week: week ago value" in result.failure()
+        assert "is zero" in result.failure()
+
+
+class TestStddev:
+    """Tests for stddev function."""
+
+    def test_success_multiple_values(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test successful standard deviation calculation."""
+        # Populate 5 days with values [10, 20, 30, 40, 50]
+        values = {-i: float(50 - i * 10) for i in range(5)}  # Creates [10, 20, 30, 40, 50]
+        populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
+
+        # Calculate stddev
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = stddev(db, metric_spec, 5, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Success)
+        # Standard deviation of [10, 20, 30, 40, 50]
+        expected = statistics.stdev([10, 20, 30, 40, 50])
+        assert result.unwrap() == pytest.approx(expected)
+
+    def test_success_window_size_2(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test with minimum window size of 2."""
+        # Populate 2 days
+        values = {0: 10.0, -1: 20.0}
+        populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
+
+        # Calculate stddev
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = stddev(db, metric_spec, 2, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Success)
+        expected = statistics.stdev([20.0, 10.0])  # Chronological order
+        assert result.unwrap() == pytest.approx(expected)
+
+    def test_success_window_size_1(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test with window size of 1 (returns 0)."""
+        # Populate 1 day
+        values = {0: 42.0}
+        populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
+
+        # Calculate stddev
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = stddev(db, metric_spec, 1, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Success)
+        assert result.unwrap() == 0.0  # Standard deviation of single value
+
+    def test_success_identical_values(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test with all identical values (stddev = 0)."""
+        # Populate 5 days with same value
+        values = {-i: 100.0 for i in range(5)}
+        populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
+
+        # Calculate stddev
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = stddev(db, metric_spec, 5, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Success)
+        assert result.unwrap() == 0.0
+
+    def test_missing_dates(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test with missing dates in window."""
+        # Populate only some days
+        values = {0: 10.0, -2: 30.0, -4: 50.0}  # Missing -1 and -3
+        populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
+
+        # Calculate stddev for 5 days
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = stddev(db, metric_spec, 5, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Failure)
+        assert "There are 2 dates with missing metrics" in result.failure()
+
+    def test_no_data(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test when database returns no data."""
+        # Empty database
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = stddev(db, metric_spec, 5, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Failure)
+        # DB returns empty TimeSeries, so _timeseries_check reports missing dates
+        assert "There are 5 dates with missing metrics" in result.failure()
+
+    def test_large_window(
+        self,
+        db: MetricDB,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test with large window size."""
+        # Populate 30 days
+        values = {-i: float(i * i) for i in range(30)}  # Quadratic values
+        populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
+
+        # Calculate stddev
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = stddev(db, metric_spec, 30, "test_dataset", key, execution_id)
+
+        # Verify
+        assert isinstance(result, Success)
+        # Calculate expected stddev
+        expected_values = [float(i * i) for i in range(30)]
+        expected = statistics.stdev(expected_values)
+        assert result.unwrap() == pytest.approx(expected)
+
+
+class TestTimeseriesCheck:
+    """Tests for _timeseries_check helper function."""
+
+    def test_success_all_dates_present(self) -> None:
+        """Test with all expected dates present."""
+        # Create timeseries with all dates
+        base = date(2024, 1, 10)
+        ts: TimeSeries = {
+            base: 100.0,
+            base + timedelta(days=1): 110.0,
+            base + timedelta(days=2): 120.0,
+        }
+
+        # Check
+        result = _timeseries_check(ts, base, 3)
+
+        # Verify
+        assert isinstance(result, Success)
+        assert result.unwrap() == ts
+
+    def test_success_extra_dates(self) -> None:
+        """Test with extra dates beyond expected range."""
+        # Create timeseries with extra dates
+        base = date(2024, 1, 10)
+        ts: TimeSeries = {
+            base - timedelta(days=1): 90.0,  # Extra before
+            base: 100.0,
+            base + timedelta(days=1): 110.0,
+            base + timedelta(days=2): 120.0,
+            base + timedelta(days=3): 130.0,  # Extra after
+        }
+
+        # Check for 3 days starting from base
+        result = _timeseries_check(ts, base, 3)
+
+        # Verify
+        assert isinstance(result, Success)
+        assert result.unwrap() == ts
+
+    def test_failure_single_missing_date(self) -> None:
+        """Test with one missing date."""
+        # Create timeseries missing one date
+        base = date(2024, 1, 10)
+        ts: TimeSeries = {
+            base: 100.0,
+            # Missing: base + timedelta(days=1)
+            base + timedelta(days=2): 120.0,
+        }
+
+        # Check
+        result = _timeseries_check(ts, base, 3)
+
+        # Verify
+        assert isinstance(result, Failure)
+        assert "There are 1 dates with missing metrics" in result.failure()
+        assert "2024-01-11" in result.failure()
+
+    def test_failure_multiple_missing_dates(self) -> None:
+        """Test with multiple missing dates."""
+        # Create timeseries missing multiple dates
+        base = date(2024, 1, 10)
+        ts: TimeSeries = {
+            base: 100.0,
+            # Missing: base + 1, 2, 3, 4
+            base + timedelta(days=5): 150.0,
+        }
+
+        # Check for 6 days
+        result = _timeseries_check(ts, base, 6)
+
+        # Verify
+        assert isinstance(result, Failure)
+        assert "There are 4 dates with missing metrics" in result.failure()
+
+    def test_failure_with_limit(self) -> None:
+        """Test that limit parameter controls error message."""
+        # Create timeseries missing many dates
+        base = date(2024, 1, 1)
+        ts: TimeSeries = {base: 100.0}  # Only first date
+
+        # Check for 10 days with limit=3
+        result = _timeseries_check(ts, base, 10, limit=3)
+
+        # Verify
+        assert isinstance(result, Failure)
+        failure_msg = result.failure()
+        assert "There are 9 dates with missing metrics" in failure_msg
+        # Should only list 3 dates due to limit
+        date_count = failure_msg.count("2024-01-")
+        assert date_count == 3
+
+    def test_empty_timeseries(self) -> None:
+        """Test with empty timeseries."""
+        # Empty timeseries
+        ts: TimeSeries = {}
+        base = date(2024, 1, 10)
+
+        # Check
+        result = _timeseries_check(ts, base, 3)
+
+        # Verify
+        assert isinstance(result, Failure)
+        assert "There are 3 dates with missing metrics" in result.failure()
+
+
+class TestSparseTimeseriesCheck:
+    """Tests for _sparse_timeseries_check helper function."""
+
+    def test_success_all_lag_points_present(self) -> None:
+        """Test with all required lag points present."""
+        # Create timeseries with specific lag points
+        base = date(2024, 1, 10)
+        ts: TimeSeries = {
+            base: 100.0,  # lag 0
+            base - timedelta(days=7): 70.0,  # lag 7
+            base - timedelta(days=30): 30.0,  # lag 30
+        }
+
+        # Check for specific lag points
+        result = _sparse_timeseries_check(ts, base, [0, 7, 30])
+
+        # Verify
+        assert isinstance(result, Success)
+        assert result.unwrap() == ts
+
+    def test_success_extra_dates(self) -> None:
+        """Test with extra dates beyond lag points."""
+        # Create timeseries with extra dates
+        base = date(2024, 1, 10)
+        ts: TimeSeries = {
+            base: 100.0,  # lag 0
+            base - timedelta(days=1): 90.0,  # Extra
+            base - timedelta(days=7): 70.0,  # lag 7
+            base - timedelta(days=15): 50.0,  # Extra
+        }
+
+        # Check for specific lag points
+        result = _sparse_timeseries_check(ts, base, [0, 7])
+
+        # Verify
+        assert isinstance(result, Success)
+        assert result.unwrap() == ts
+
+    def test_failure_missing_lag_points(self) -> None:
+        """Test with missing lag points."""
+        # Create timeseries missing some lag points
+        base = date(2024, 1, 10)
+        ts: TimeSeries = {
+            base: 100.0,  # lag 0
+            # Missing: lag 7
+            base - timedelta(days=30): 30.0,  # lag 30
+        }
+
+        # Check
+        result = _sparse_timeseries_check(ts, base, [0, 7, 30])
+
+        # Verify
+        assert isinstance(result, Failure)
+        assert "There are 1 dates with missing metrics" in result.failure()
+        assert "2024-01-03" in result.failure()  # base - 7 days
+
+    def test_empty_lag_points(self) -> None:
+        """Test with empty lag points list."""
+        # Create timeseries with some data
+        base = date(2024, 1, 10)
+        ts: TimeSeries = {
+            base: 100.0,
+            base - timedelta(days=1): 90.0,
+        }
+
+        # Check with empty lag points
+        result = _sparse_timeseries_check(ts, base, [])
+
+        # Verify - should succeed as no lag points are required
+        assert isinstance(result, Success)
+        assert result.unwrap() == ts
+
+    def test_duplicate_lag_points(self) -> None:
+        """Test with duplicate lag points."""
+        # Create timeseries
+        base = date(2024, 1, 10)
+        ts: TimeSeries = {
+            base: 100.0,  # lag 0
+            base - timedelta(days=7): 70.0,  # lag 7
+        }
+
+        # Check with duplicate lag points
+        result = _sparse_timeseries_check(ts, base, [0, 7, 7, 0])
+
+        # Verify - should succeed as duplicates resolve to same dates
+        assert isinstance(result, Success)
+        assert result.unwrap() == ts
+
+    def test_with_limit(self) -> None:
+        """Test that limit parameter controls error message."""
+        # Create timeseries missing many dates
+        base = date(2024, 1, 10)
+        ts: TimeSeries = {}  # Empty timeseries
+
+        # Check for many lag points with limit=2
+        result = _sparse_timeseries_check(ts, base, [7, 14, 21, 28, 35], limit=2)
+
+        # Verify
+        assert isinstance(result, Failure)
+        failure_msg = result.failure()
+        assert "There are 5 dates with missing metrics" in failure_msg
+        # Should only list 2 dates due to limit (expect dates like "2024-01-03", "2024-01-")
+        dates_listed = failure_msg.split(": ")[1].count(",") + 1
+        assert dates_listed == 2

@@ -19,7 +19,6 @@ from dqx.common import (
     DQXError,
     Metadata,
     ResultKey,
-    ResultKeyProvider,
     SeverityLevel,
     SqlDataSource,
     SymbolicValidator,
@@ -266,11 +265,6 @@ class Context:
             yield check_node
         finally:
             self._pop_check()
-
-    @property
-    def key(self) -> ResultKeyProvider:
-        """Get a result key provider for creating time-based metric keys."""
-        return ResultKeyProvider()
 
     @property
     def provider(self) -> MetricProvider:

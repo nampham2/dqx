@@ -4,7 +4,7 @@ import datetime
 import datetime as dt
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Literal, Protocol, Self, runtime_checkable
+from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
 import duckdb
 import sympy as sp
@@ -120,18 +120,6 @@ class ResultKey:
         return self.__repr__()
 
 
-class ResultKeyProvider:
-    def __init__(self) -> None:
-        self._lag: int = 0
-
-    def lag(self, n: int) -> Self:
-        self._lag = n
-        return self
-
-    def create(self, nominal_key: ResultKey) -> ResultKey:
-        return nominal_key.lag(self._lag)
-
-
 @runtime_checkable
 class SqlDataSource(Protocol):
     """
@@ -237,9 +225,6 @@ class Analyzer(Protocol):
 @runtime_checkable
 class Context(Protocol):
     def assert_that(self, expr: sp.Expr) -> AssertionDraft: ...
-
-    @property
-    def key(self) -> ResultKeyProvider: ...
 
 
 @dataclass(frozen=True)

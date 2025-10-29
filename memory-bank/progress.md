@@ -11,6 +11,7 @@
 - **New Python-based hooks command (`uv run hooks`) replacing shell script**
 - **UniqueCount metric for counting distinct values in columns**
 - **Enhanced NonMergeable state supporting multiple metric types**
+- **Comprehensive test suite for compute module functions**
 
 ## What's Left to Build
 - Additional plugin types beyond audit
@@ -27,6 +28,13 @@
 - None currently reported
 
 ## Evolution of Project Decisions
+
+### 2025-10-29: Added Comprehensive Tests for Compute Module
+- Created test_compute.py with full test coverage for all compute functions
+- Tests cover simple_metric, day_over_day, week_over_week, and stddev functions
+- Added tests for helper functions _timeseries_check and _sparse_timeseries_check
+- All tests pass with proper type hints and linting compliance
+- Includes edge cases: missing data, division by zero, negative values, and empty databases
 
 ### 2025-10-28: Implemented UniqueCount Metric
 - Added UniqueCount operation for counting distinct values
