@@ -86,6 +86,13 @@
 
 - **toolz**: remove dependency on toolz
 
+## v0.5.4 (2025-10-29)
+
+### Fix
+
+- resolve GitHub release character limit issue
+- resolve release workflow issues and update dqlib documentation (#7)
+
 ## v0.5.3 (2025-10-29)
 
 ### Fix
