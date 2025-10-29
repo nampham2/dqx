@@ -329,7 +329,7 @@ class Analyzer:
 
             # Log batch boundaries
             batch_keys = [key for key, _ in batch_items]
-            logger.debug(
+            logger.info(
                 f"Processing batch {i // DEFAULT_BATCH_SIZE + 1}: {', '.join(str(key.yyyy_mm_dd) for key in batch_keys)}"
             )
 

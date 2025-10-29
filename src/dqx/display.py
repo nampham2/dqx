@@ -159,7 +159,6 @@ def print_assertion_results(results: list[AssertionResult]) -> None:
 
     # Add columns in specified order
     table.add_column("Date", style="cyan", no_wrap=True)
-    table.add_column("Suite", style="blue")
     table.add_column("Check", style="yellow")
     table.add_column("Assertion")
     table.add_column("Expression", style="dim")
@@ -197,7 +196,6 @@ def print_assertion_results(results: list[AssertionResult]) -> None:
         # Add row
         table.add_row(
             result.yyyy_mm_dd.isoformat(),
-            result.suite,
             result.check,
             result.assertion,
             result.expression or "-",
