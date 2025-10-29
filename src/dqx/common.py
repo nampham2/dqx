@@ -20,6 +20,62 @@ if TYPE_CHECKING:
 # Type aliases
 DatasetName = str
 ExecutionId = str
+TimeSeries = Mapping[dt.date, float]
+Tags = dict[str, Any]
+Parameters = dict[str, Any]
+SeverityLevel = Literal["P0", "P1", "P2", "P3"]
+RecomputeStrategy = Literal["ALWAYS", "MISSING", "NEVER"]
+AssertionStatus = Literal["OK", "FAILURE"]
+Validator = Callable[[Any], bool]
+RetrievalFn = Callable[["ResultKey"], Result[float, str]]
+
+
+class DQXError(Exception): ...
+
+
+@dataclass(frozen=True)
+class ResultKey:
+    yyyy_mm_dd: datetime.date
+    tags: Tags
+
+    def lag(self, n: int) -> ResultKey:
+        return ResultKey(
+            yyyy_mm_dd=self.yyyy_mm_dd - datetime.timedelta(days=n),
+            tags=self.tags,
+        )
+
+    def range(self, lag: int, window: int) -> tuple[dt.date, dt.date]:
+        """
+        Calculate a date range (inclusive) based on the given lag and window.
+
+        Args:
+            lag (int): The number of days to lag.
+            window (int): The size of the window in days.
+
+        Returns:
+            tuple[dt.date, dt.date]: A tuple containing the start and end dates (inclusive) of the range.
+        """
+        return (
+            self.yyyy_mm_dd - datetime.timedelta(days=lag + window - 1),
+            self.yyyy_mm_dd - datetime.timedelta(days=lag),
+        )
+
+    def __hash__(self) -> int:
+        return hash((self.yyyy_mm_dd, tuple(self.tags)))
+
+    def __repr__(self) -> str:
+        return f"ResultKey({self.yyyy_mm_dd.isoformat()}, {self.tags})"
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+
+@dataclass
+class Metadata:
+    """Metadata for metric lifecycle and execution context."""
+
+    execution_id: str | None = None
+    ttl_hours: int = 168  # 7 days default
 
 
 @dataclass
@@ -62,62 +118,21 @@ class AssertionResult:
     tags: Tags = field(default_factory=dict)
 
 
-class DQXError(Exception): ...
-
-
-TimeSeries = Mapping[dt.date, float]
-Tags = dict[str, Any]
-
-
 @dataclass
-class Metadata:
-    """Metadata for metric lifecycle and execution context."""
-
-    execution_id: str | None = None
-    ttl_hours: int = 168  # 7 days default
-
-
-SeverityLevel = Literal["P0", "P1", "P2", "P3"]
-RecomputeStrategy = Literal["ALWAYS", "MISSING", "NEVER"]
-Parameters = dict[str, Any]
-AssertionStatus = Literal["OK", "FAILURE"]
+class SymbolicValidator:
+    name: str
+    fn: Validator
 
 
 @dataclass(frozen=True)
-class ResultKey:
-    yyyy_mm_dd: datetime.date
-    tags: Tags
+class PluginMetadata:
+    """Immutable metadata that plugins must provide."""
 
-    def lag(self, n: int) -> ResultKey:
-        return ResultKey(
-            yyyy_mm_dd=self.yyyy_mm_dd - datetime.timedelta(days=n),
-            tags=self.tags,
-        )
-
-    def range(self, lag: int, window: int) -> tuple[dt.date, dt.date]:
-        """
-        Calculate a date range (inclusive) based on the given lag and window.
-
-        Args:
-            lag (int): The number of days to lag.
-            window (int): The size of the window in days.
-
-        Returns:
-            tuple[dt.date, dt.date]: A tuple containing the start and end dates (inclusive) of the range.
-        """
-        return (
-            self.yyyy_mm_dd - datetime.timedelta(days=lag + window - 1),
-            self.yyyy_mm_dd - datetime.timedelta(days=lag),
-        )
-
-    def __hash__(self) -> int:
-        return hash((self.yyyy_mm_dd, tuple(self.tags)))
-
-    def __repr__(self) -> str:
-        return f"ResultKey({self.yyyy_mm_dd.isoformat()}, {self.tags})"
-
-    def __str__(self) -> str:
-        return self.__repr__()
+    name: str
+    version: str
+    author: str
+    description: str
+    capabilities: set[str] = field(default_factory=set)
 
 
 @runtime_checkable
@@ -168,16 +183,6 @@ class SqlDataSource(Protocol):
         ...
 
 
-Validator = Callable[[Any], bool]
-RetrievalFn = Callable[[ResultKey], Result[float, str]]
-
-
-@dataclass
-class SymbolicValidator:
-    name: str
-    fn: Validator
-
-
 @runtime_checkable
 class Analyzer(Protocol):
     """
@@ -225,14 +230,3 @@ class Analyzer(Protocol):
 @runtime_checkable
 class Context(Protocol):
     def assert_that(self, expr: sp.Expr) -> AssertionDraft: ...
-
-
-@dataclass(frozen=True)
-class PluginMetadata:
-    """Immutable metadata that plugins must provide."""
-
-    name: str
-    version: str
-    author: str
-    description: str
-    capabilities: set[str] = field(default_factory=set)
