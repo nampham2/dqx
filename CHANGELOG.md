@@ -86,6 +86,12 @@
 
 - **toolz**: remove dependency on toolz
 
+## v0.5.3 (2025-10-29)
+
+### Fix
+
+- resolve release workflow issues and update dqlib documentation
+
 ## v0.5.2 (2025-10-29)
 
 ### Fix
