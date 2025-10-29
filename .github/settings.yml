@@ -1,0 +1,129 @@
+# GitHub Settings Configuration
+# This file is used by the GitHub Settings app to manage repository settings
+# See: https://github.com/apps/settings
+
+# Repository settings
+repository:
+  # Enable features
+  has_issues: true
+  has_projects: true
+  has_wiki: true
+  has_downloads: true
+
+  # Merge button settings
+  allow_merge_commit: true
+  allow_squash_merge: true
+  allow_rebase_merge: true
+
+  # Auto-delete head branches after merge
+  delete_branch_on_merge: true
+
+  # Default branch
+  default_branch: main
+
+  # Vulnerability alerts
+  enable_vulnerability_alerts: true
+  enable_automated_security_fixes: true
+
+# Labels for issues and PRs
+labels:
+  # Type labels
+  - name: bug
+    color: d73a4a
+    description: Something isn't working
+
+  - name: feature
+    color: 0366d6
+    description: New feature or request
+
+  - name: documentation
+    color: 0075ca
+    description: Improvements or additions to documentation
+
+  - name: dependencies
+    color: 0366d6
+    description: Pull requests that update a dependency file
+
+  - name: refactor
+    color: d4c5f9
+    description: Code refactoring without changing functionality
+
+  # Priority labels (matching DQX severity levels)
+  - name: P0
+    color: b60205
+    description: Critical priority - immediate attention required
+
+  - name: P1
+    color: d93f0b
+    description: High priority
+
+  - name: P2
+    color: fbca04
+    description: Medium priority
+
+  - name: P3
+    color: 0e8a16
+    description: Low priority
+
+  # Status labels
+  - name: in progress
+    color: fef2c0
+    description: Work is currently being done
+
+  - name: blocked
+    color: ee0701
+    description: Progress is blocked by another issue
+
+  - name: ready for review
+    color: 0e8a16
+    description: Pull request is ready for review
+
+  - name: help wanted
+    color: 008672
+    description: Extra attention is needed
+
+  - name: good first issue
+    color: 7057ff
+    description: Good for newcomers
+
+# Branch protection rules
+branches:
+  - name: main
+    # https://docs.github.com/en/rest/reference/repos#update-branch-protection
+    protection:
+      # Require PR before merging
+      required_pull_request_reviews: null  # No required reviews since you're the only merger
+
+      # Status checks
+      required_status_checks:
+        # Require branches to be up to date before merging
+        strict: true
+        # Required status checks that must pass
+        contexts:
+          - "test"
+          - "Pre-commit"
+          - "Analyze (python)"  # CodeQL
+          - "build-docs"
+
+      # Enforce restrictions for administrators
+      enforce_admins: false  # Allow yourself to bypass in emergencies
+
+      # Restrict who can push to this branch
+      restrictions: null  # No restrictions - default GitHub permissions apply
+
+      # Other protections
+      allow_force_pushes: false
+      allow_deletions: false
+      required_linear_history: false
+      allow_squash_merge: true
+      allow_merge_commit: true
+      allow_rebase_merge: true
+
+      # Require conversation resolution before merging
+      required_conversation_resolution: true
+
+      # Lock branch (make read-only)
+      lock_branch: false
+
+      # Allow specified actors to bypass pull request requirements
+      allow_fork_syncing: true
