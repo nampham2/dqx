@@ -11,7 +11,7 @@ Data quality as code. Works with your warehouse, scales with your needs.
 ## Why DQX?
 
 - **Write validation logic as testable Python functions** - No more complex SQL scripts scattered across your codebase
-- **Execute efficiently on any SQL backend** - DuckDB, BigQuery, Snowflakes, or your existing data warehouse
+- **Execute efficiently on any SQL backend** - DuckDB, BigQuery, Snowflake, or your existing data warehouse
 - **No clusters or complex infrastructure needed** - Runs wherever your data lives
 - **Integrates seamlessly with existing workflows** - Drop it into your current pipeline
 
@@ -64,7 +64,8 @@ suite.run([datasource], ResultKey())
 ## Real-World Examples
 
 ### 1. Data Completeness
-*Monitor critical fields aren't missing*
+
+#### Monitor critical fields aren't missing
 
 ```python
 @check(name="Customer data quality")
@@ -82,7 +83,8 @@ def check_completeness(mp: MetricProvider, ctx: Context) -> None:
 ```
 
 ### 2. Revenue Integrity
-*Catch calculation errors in financial data*
+
+#### Catch calculation errors in financial data
 
 ```python
 @check(name="Financial accuracy")
@@ -104,7 +106,8 @@ def validate_financials(mp: MetricProvider, ctx: Context) -> None:
 ```
 
 ### 3. Trend Monitoring
-*Alert on unexpected metric changes*
+
+#### Alert on unexpected metric changes
 
 ```python
 @check(name="Business metrics stability")
@@ -127,7 +130,8 @@ def monitor_trends(mp: MetricProvider, ctx: Context) -> None:
 ```
 
 ### 4. Cross-Dataset Validation
-*Ensure consistency across environments*
+
+#### Ensure consistency across environments
 
 ```python
 @check(name="Production vs Staging", datasets=["production", "staging"])
@@ -152,7 +156,8 @@ def validate_environments(mp: MetricProvider, ctx: Context) -> None:
 ```
 
 ### 5. Data Quality SLAs
-*Track quality metrics with severity levels*
+
+#### Track quality metrics with severity levels
 
 ```python
 @check(name="Data quality SLAs")
