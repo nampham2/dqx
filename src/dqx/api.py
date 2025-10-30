@@ -790,6 +790,25 @@ class VerificationSuite:
         # Process through all plugins
         self.plugin_manager.process_all(context)
 
+    def cleanup_expired_metrics(self) -> int:
+        """
+        Delete expired metrics from the database.
+
+        This method should be called periodically to remove metrics that have
+        exceeded their TTL (time-to-live). It uses UTC time for consistency
+        across different timezones.
+
+        Returns:
+            Number of metrics deleted
+
+        Example:
+            >>> suite = VerificationSuite(checks, db, "My Suite")
+            >>> # After running the suite...
+            >>> deleted = suite.cleanup_expired_metrics()
+            >>> print(f"Deleted {deleted} expired metrics")
+        """
+        return self.provider._db.delete_expired_metrics()
+
 
 def _create_check(
     provider: MetricProvider,

@@ -112,14 +112,19 @@ def day_over_day(
 
     # Convert Maybe to Result
     ts_result = convert_maybe_to_result(maybe_ts, METRIC_NOT_FOUND)
-    if isinstance(ts_result, Failure):
-        return ts_result
-    ts = ts_result.unwrap()
+    match ts_result:
+        case Failure() as failure:
+            return failure
+        case Success(ts):
+            pass
 
     # Validate we have all required dates
     check_result = _timeseries_check(ts, base_key.yyyy_mm_dd - dt.timedelta(days=1), 2)
-    if isinstance(check_result, Failure):
-        return check_result
+    match check_result:
+        case Failure() as failure:
+            return failure
+        case Success():
+            pass
 
     # Calculate the ratio
     today = base_key.yyyy_mm_dd
@@ -152,14 +157,19 @@ def week_over_week(
 
     # Convert Maybe to Result
     ts_result = convert_maybe_to_result(maybe_ts, METRIC_NOT_FOUND)
-    if isinstance(ts_result, Failure):
-        return ts_result
-    ts = ts_result.unwrap()
+    match ts_result:
+        case Failure() as failure:
+            return failure
+        case Success(ts):
+            pass
 
     # We only need values at specific lag points: 0 and 7
     check_result = _sparse_timeseries_check(ts, base_key.yyyy_mm_dd, [0, 7])
-    if isinstance(check_result, Failure):
-        return check_result
+    match check_result:
+        case Failure() as failure:
+            return failure
+        case Success():
+            pass
 
     # Calculate the ratio
     today = base_key.yyyy_mm_dd
@@ -193,15 +203,20 @@ def stddev(
 
     # Convert Maybe to Result
     ts_result = convert_maybe_to_result(maybe_ts, METRIC_NOT_FOUND)
-    if isinstance(ts_result, Failure):
-        return ts_result
-    ts = ts_result.unwrap()
+    match ts_result:
+        case Failure() as failure:
+            return failure
+        case Success(ts):
+            pass
 
     # Validate we have all required dates
     from_date = base_key.yyyy_mm_dd - dt.timedelta(days=size - 1)
     check_result = _timeseries_check(ts, from_date, size)
-    if isinstance(check_result, Failure):
-        return check_result
+    match check_result:
+        case Failure() as failure:
+            return failure
+        case Success():
+            pass
 
     # Extract values in chronological order
     values = [ts[from_date + dt.timedelta(days=i)] for i in range(size)]
