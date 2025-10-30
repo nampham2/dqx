@@ -41,7 +41,7 @@ class PluginExecutionContext:
     results: list[AssertionResult]
     symbols: list[SymbolInfo]
     trace: pa.Table
-    metrics_stats: MetricStats | None = None
+    metrics_stats: MetricStats
 
     def total_assertions(self) -> int:
         """Total number of assertions."""
@@ -360,6 +360,11 @@ class AuditPlugin:
 
             if failed_symbols > 0:
                 raise DQXError("[InternalError] Symbols failed to evaluate during execution!")
+
+        # Metrics cleanup line (if any metrics were cleaned up)
+        self.console.print(
+            f"  Metrics Cleanup: [green]{context.metrics_stats.expired_metrics} expired metrics removed[/green]"
+        )
 
         # Data discrepancy line
         discrepancy_stats = context.data_discrepancy_stats()

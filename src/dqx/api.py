@@ -435,13 +435,19 @@ class VerificationSuite:
         return self._context.provider
 
     @property
-    def metrics_stats(self) -> MetricStats | None:
+    def metrics_stats(self) -> MetricStats:
         """
         Get the cached metrics statistics.
 
         Returns:
-            MetricStats instance if available, None otherwise
+            MetricStats instance containing total and expired metric counts
+
+        Raises:
+            DQXError: If accessed before the suite has been run
         """
+        self.assert_is_evaluated()
+        if self._metrics_stats is None:
+            raise DQXError("Metrics stats not available. This should not happen after successful run().")
         return self._metrics_stats
 
     @property

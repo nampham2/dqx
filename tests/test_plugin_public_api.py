@@ -10,6 +10,7 @@ from dqx.common import (
     PluginMetadata,
     ResultKey,
 )
+from dqx.orm.repositories import MetricStats
 from dqx.plugins import PluginExecutionContext, PluginManager
 
 
@@ -229,6 +230,7 @@ class TestPluginPublicAPI:
             results=[],
             symbols=[],
             trace=_create_empty_trace(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         manager.process_all(context)

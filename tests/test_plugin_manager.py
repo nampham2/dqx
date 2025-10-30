@@ -14,6 +14,7 @@ from dqx.common import (
     PluginMetadata,
     ResultKey,
 )
+from dqx.orm.repositories import MetricStats
 from dqx.plugins import AuditPlugin, PluginExecutionContext, PluginManager
 from dqx.provider import SymbolInfo
 
@@ -149,6 +150,7 @@ class TestPluginManager:
             results=[],
             symbols=[],
             trace=_create_empty_trace(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         context2 = PluginExecutionContext(
@@ -161,6 +163,7 @@ class TestPluginManager:
             results=[],
             symbols=[],
             trace=_create_empty_trace(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         # Process through manager
@@ -336,6 +339,7 @@ class TestPluginManager:
             results=[],
             symbols=[],
             trace=_create_empty_trace(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         # Should not raise any errors
@@ -371,6 +375,7 @@ class TestPluginManager:
             results=[],
             symbols=[],
             trace=_create_empty_trace(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         # Clear the plugins and add only our failing plugin
@@ -409,6 +414,7 @@ class TestPluginManager:
             results=[],
             symbols=[],
             trace=_create_empty_trace(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         # Clear the plugins and add only our slow plugin
@@ -460,6 +466,7 @@ class TestPluginManager:
             results=[],
             symbols=[],
             trace=_create_empty_trace(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         # Clear the plugins and add only our success plugin
@@ -658,6 +665,7 @@ class TestAuditPlugin:
             results=results,
             symbols=symbols,
             trace=_create_empty_trace(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         # Process the context
@@ -711,6 +719,7 @@ class TestAuditPlugin:
             results=[],
             symbols=[],
             trace=_create_empty_trace(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         plugin.process(context)
@@ -744,6 +753,7 @@ class TestAuditPlugin:
             results=[],
             symbols=[],
             trace=_create_empty_trace(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         plugin.process(context)
@@ -778,6 +788,7 @@ class TestAuditPlugin:
             results=[],
             symbols=[],
             trace=_create_empty_trace(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         # Should not raise any errors
@@ -903,6 +914,7 @@ class TestAuditPlugin:
             results=results,
             symbols=symbols,
             trace=_create_empty_trace(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         with pytest.raises(DQXError, match="\[InternalError\] Symbols failed to evaluate during execution!"):
@@ -987,6 +999,7 @@ class TestPluginInstanceEdgeCases:
             results=[],
             symbols=[],
             trace=_create_empty_trace(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         # Process
@@ -1108,6 +1121,7 @@ class TestPluginIntegration:
             results=[],
             symbols=[],
             trace=_create_empty_trace(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         # Process all

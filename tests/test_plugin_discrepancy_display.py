@@ -6,6 +6,7 @@ import pyarrow as pa
 
 from dqx.common import ResultKey
 from dqx.data import MetricTraceStats
+from dqx.orm.repositories import MetricStats
 from dqx.plugins import PluginExecutionContext
 
 
@@ -81,6 +82,7 @@ class TestDataDiscrepancyStats:
             results=[],
             symbols=[],
             trace=create_trace_table_no_discrepancies(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         stats = context.data_discrepancy_stats()
@@ -103,6 +105,7 @@ class TestDataDiscrepancyStats:
             results=[],
             symbols=[],
             trace=create_trace_table_with_discrepancies(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         stats = context.data_discrepancy_stats()
@@ -143,6 +146,7 @@ class TestDataDiscrepancyStats:
             results=[],
             symbols=[],
             trace=create_trace_table_with_extended_metrics(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         stats = context.data_discrepancy_stats()
@@ -180,6 +184,7 @@ class TestDataDiscrepancyStats:
             results=[],
             symbols=[],
             trace=empty_trace,
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         stats = context.data_discrepancy_stats()
@@ -197,6 +202,7 @@ class TestDataDiscrepancyStats:
             results=[],
             symbols=[],
             trace=None,  # type: ignore[arg-type]
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         stats = context.data_discrepancy_stats()

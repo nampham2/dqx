@@ -1,20 +1,26 @@
 # Active Context - DQX
 
 ## Current Focus
-- Completed implementation of Metric Expiration Plan v2
-- All rollback tasks and improvements successfully implemented
-- Code quality verified with all tests passing, mypy, and ruff checks
+- Completed refactoring of metric expiration logic with helper method
+- Integrated metric cleanup stats into VerificationSuite and plugin system
+- All tests passing with improved code organization and type safety
 
 ## Recent Changes
 
-### Metric Expiration Implementation (2024-10-30)
-1. **Metadata.ttl_hours**: Rolled back to required field with default 168 hours
-2. **Timezone Handling**: Replaced datetime.utcnow() with datetime.now(timezone.utc)
-3. **Database Optimization**: Removed get_all() antipattern
-4. **Stats Simplification**: Removed unnecessary fields (non_expiring_metrics, total_expired_bytes)
-5. **Performance**: Optimized delete_expired_metrics to use single DELETE query
-6. **Type Safety**: Fixed type annotations in tests (MetricProvider, Context)
-7. **Pattern Matching**: Updated code to use match statements for Result types where possible
+### Metric Expiration Refactoring (2025-10-30)
+1. **Helper Method**: Created `_build_expiration_filter()` to eliminate duplicated SQL filter logic
+2. **MetricStats Dataclass**: New frozen dataclass for metric statistics
+3. **API Simplification**: Renamed `get_expired_metrics_stats` to `get_metrics_stats`
+4. **Integration**: Added metric cleanup to VerificationSuite before analysis
+5. **Plugin Context**: Made `metrics_stats` mandatory in PluginExecutionContext
+6. **Audit Plugin**: Enhanced to display metric cleanup information
+7. **Caching**: Added `_metrics_stats` property to VerificationSuite to avoid duplicate DB calls
+
+### Previous Implementation (2024-10-30)
+- Metadata.ttl_hours as required field with default 168 hours
+- Timezone-aware datetime handling throughout
+- Optimized DELETE query for expired metrics
+- Removed antipatterns and improved type safety
 
 ### Code Quality Improvements
 - Consistent use of timezone-aware datetime objects
@@ -23,9 +29,9 @@
 - Atomic database operations for better concurrency
 
 ## Next Steps
-- Monitor metric expiration performance in production
-- Consider adding metrics/logging for expiration operations
-- Potential future work: batch expiration notifications
+- Monitor the automatic metric cleanup in VerificationSuite runs
+- Consider exposing metric cleanup stats in API responses
+- Potential optimization: batch cleanup operations by TTL groups
 
 ## Important Patterns and Preferences
 
@@ -33,6 +39,8 @@
 - Always use timezone-aware datetime (datetime.now(timezone.utc))
 - Prefer single atomic queries over multiple operations
 - Use SQLAlchemy's func for database functions
+- Extract common SQL conditions into helper methods to avoid duplication
+- Use frozen dataclasses for read-only data structures
 
 ### Type Safety
 - Always provide proper type hints for function parameters
@@ -60,3 +68,11 @@
 - Single DELETE query significantly faster than SELECT + DELETE
 - Database indexes crucial for expiration queries
 - Consider batch size limits for large-scale operations
+- Cache computed values (like metrics_stats) to avoid repeated DB queries
+- Cleanup operations integrated into analysis workflow for efficiency
+
+### Plugin System Integration
+- PluginExecutionContext now carries metrics_stats for audit trail
+- Automatic metric cleanup happens before suite analysis
+- Plugin authors can access cleanup statistics via context.metrics_stats
+- Audit plugin provides visibility into cleanup operations
