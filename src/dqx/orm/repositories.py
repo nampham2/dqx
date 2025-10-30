@@ -116,8 +116,8 @@ class MetricDB:
                 )
                 # No manual commit needed - session factory handles it
             except Exception as e:
-                # Log but don't fail - indexes are performance optimization
-                logger.warning(f"Failed to create metric expiration index: {e}")
+                # Index creation is required for expiration feature
+                logger.error(f"Failed to create required metric expiration index: {e}")
                 # No manual rollback needed - session factory handles it
                 raise  # Re-raise to trigger automatic rollback
 

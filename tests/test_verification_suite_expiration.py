@@ -131,8 +131,8 @@ def test_verification_suite_cleanup_mixed_ttl() -> None:
         session = db.new_session()
         from dqx.orm.repositories import Metric as DBMetric
 
-        # Set different TTLs and ages for metrics
-        metrics_in_db = session.query(DBMetric).all()
+        # Set different TTLs and ages for metrics - order by id for deterministic access
+        metrics_in_db = session.query(DBMetric).order_by(DBMetric.metric_id).all()
 
         # First metric: TTL=1 hour, age=2 hours (should be deleted)
         if len(metrics_in_db) > 0:
