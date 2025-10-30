@@ -7,7 +7,7 @@ import uuid
 from collections import defaultdict
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
-from typing import Any, Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 import pyarrow as pa
 import sympy as sp
@@ -26,12 +26,16 @@ from dqx.common import (
 from dqx.evaluator import Evaluator
 from dqx.graph.nodes import CheckNode, RootNode
 from dqx.graph.traversal import Graph
-from dqx.orm.repositories import MetricDB
+
+# import moved to local scope(s) to avoid cyclic dependency
 from dqx.plugins import PluginExecutionContext, PluginManager
 from dqx.provider import MetricProvider, SymbolicMetric
 from dqx.specs import MetricSpec
 from dqx.timer import Registry
 from dqx.validator import SuiteValidator
+
+if TYPE_CHECKING:
+    from dqx.orm.repositories import MetricDB, MetricStats
 
 CheckProducer = Callable[[MetricProvider, "Context"], None]
 CheckCreator = Callable[[CheckProducer], CheckProducer]
@@ -202,7 +206,7 @@ class Context:
     graph nodes that need access to the symbol table.
     """
 
-    def __init__(self, suite: str, db: MetricDB, execution_id: str) -> None:
+    def __init__(self, suite: str, db: "MetricDB", execution_id: str) -> None:
         """
         Initialize the context with a root graph node.
 
@@ -319,7 +323,7 @@ class VerificationSuite:
     def __init__(
         self,
         checks: Sequence[CheckProducer | DecoratedCheck],
-        db: MetricDB,
+        db: "MetricDB",
         name: str,
     ) -> None:
         """
@@ -362,6 +366,9 @@ class VerificationSuite:
 
         # Store analysis reports by datasource name
         self._analysis_reports: dict[str, AnalysisReport] = {}
+
+        # Cache for metrics stats
+        self._metrics_stats: "MetricStats | None" = None
 
     @property
     def execution_id(self) -> str:
@@ -430,6 +437,22 @@ class VerificationSuite:
             MetricProvider instance used by the verification suite
         """
         return self._context.provider
+
+    @property
+    def metrics_stats(self) -> "MetricStats":
+        """
+        Get the cached metrics statistics.
+
+        Returns:
+            MetricStats instance containing total and expired metric counts
+
+        Raises:
+            DQXError: If accessed before the suite has been run
+        """
+        self.assert_is_evaluated()
+        if self._metrics_stats is None:
+            raise DQXError("Metrics stats not available. This should not happen after successful run().")
+        return self._metrics_stats
 
     @property
     def plugin_manager(self) -> PluginManager:
@@ -600,6 +623,18 @@ class VerificationSuite:
         # Apply symbol deduplication BEFORE analysis
         self._context.provider.symbol_deduplication(self._context._graph, key)
 
+        # Collect metrics stats and cleanup expired metrics BEFORE analysis
+        self._metrics_stats = self.provider._db.get_metrics_stats()
+        logger.info(
+            f"Metrics stats: {self._metrics_stats.expired_metrics} expired "
+            f"out of {self._metrics_stats.total_metrics} total"
+        )
+
+        # Cleanup expired metrics before analysis
+        if self._metrics_stats.expired_metrics > 0:
+            logger.info("Cleaning up expired metrics...")
+            self.cleanup_expired_metrics()
+
         # 2. Analyze by datasources
         with self._analyze_ms:
             self._analyze(datasources, key)
@@ -716,7 +751,7 @@ class VerificationSuite:
 
         return False
 
-    def metric_trace(self, db: MetricDB) -> pa.Table:
+    def metric_trace(self, db: "MetricDB") -> pa.Table:
         """
         Generate a metric trace table showing how metrics flow through the system.
 
@@ -785,10 +820,27 @@ class VerificationSuite:
             results=self.collect_results(),
             symbols=self.provider.collect_symbols(self.key),
             trace=self.metric_trace(self.provider._db),
+            metrics_stats=self.metrics_stats,
         )
 
         # Process through all plugins
         self.plugin_manager.process_all(context)
+
+    def cleanup_expired_metrics(self) -> None:
+        """
+        Delete expired metrics from the database.
+
+        This method should be called periodically to remove metrics that have
+        exceeded their TTL (time-to-live). It uses UTC time for consistency
+        across different timezones.
+
+        Example:
+            >>> suite = VerificationSuite(checks, db, "My Suite")
+            >>> # After running the suite...
+            >>> suite.cleanup_expired_metrics()
+            >>> print("Expired metrics deleted")
+        """
+        self.provider._db.delete_expired_metrics()
 
 
 def _create_check(

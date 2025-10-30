@@ -34,6 +34,7 @@ cleanup = "scripts.commands:run_cleanup"
 dev = [
     "commitizen>=3.29.0",
     "faker>=37.5.3",
+    "freezegun>=1.5.1",
     "gitchangelog>=3.0.0",
     "mkdocs>=1.6.1",
     "mkdocs-awesome-pages-plugin>=2.10.1",

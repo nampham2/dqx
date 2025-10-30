@@ -1,15 +1,18 @@
 import datetime as dt
+
+# Import logger directly to avoid circular import
+import logging
 import typing
 import uuid
 from collections.abc import Iterable, Iterator, Sequence
-from dataclasses import asdict
-from datetime import datetime
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from threading import Lock
 from typing import Any, ClassVar, overload
 
 import sqlalchemy as sa
 from returns.maybe import Maybe, Nothing, Some
-from sqlalchemy import BinaryExpression, ColumnElement, create_engine, delete, func, select
+from sqlalchemy import BinaryExpression, ColumnElement, create_engine, delete, func, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 from sqlalchemy.types import JSON, TypeDecorator
 
@@ -19,9 +22,19 @@ from dqx.orm.session import db_session_factory
 from dqx.specs import MetricSpec, MetricType
 from dqx.states import State
 
+logger = logging.getLogger(__name__)
+
 Predicate = BinaryExpression | ColumnElement[bool]
 
 METRIC_TABLE = "dq_metric"
+
+
+@dataclass
+class MetricStats:
+    """Statistics about metrics in the database."""
+
+    total_metrics: int
+    expired_metrics: int
 
 
 class MetadataType(TypeDecorator):
@@ -86,6 +99,28 @@ class MetricDB:
         self._factory = factory
         self._mutex = Lock()
 
+        # Create performance indexes
+        self._ensure_indexes()
+
+    def _ensure_indexes(self) -> None:
+        """Create performance indexes if they don't exist."""
+        with self._mutex:
+            session = self.new_session()
+            try:
+                # Create index for efficient expiration queries
+                session.execute(
+                    text("""
+                    CREATE INDEX IF NOT EXISTS idx_metric_expiration
+                    ON dq_metric(created, json_extract(meta, '$.ttl_hours'))
+                """)
+                )
+                # No manual commit needed - session factory handles it
+            except Exception as e:
+                # Index creation is required for expiration feature
+                logger.error(f"Failed to create required metric expiration index: {e}")
+                # No manual rollback needed - session factory handles it
+                raise  # Re-raise to trigger automatic rollback
+
     def new_session(self) -> Session:
         # Create a new session for every request.
         # This simplifies the db access and make it safer in a multi-threaded environment.
@@ -117,7 +152,7 @@ class MetricDB:
             # Ensure each metric has a unique timestamp by adding microseconds
             for i, dbm in enumerate(db_metrics):
                 # Set created timestamp with microsecond precision to ensure ordering
-                dbm.created = datetime.now() + dt.timedelta(microseconds=i)
+                dbm.created = datetime.now(timezone.utc) + dt.timedelta(microseconds=i)
 
             session.add_all(db_metrics)
             session.commit()
@@ -287,6 +322,75 @@ class MetricDB:
         query = select(Metric).where(func.json_extract(Metric.meta, "$.execution_id") == execution_id)
 
         return [metric.to_model() for metric in self.new_session().scalars(query)]
+
+    def _build_expiration_filter(self, current_time: datetime) -> ColumnElement[bool]:
+        """Build SQLAlchemy filter for expired metrics.
+
+        A metric is expired if created + ttl_hours < current_time.
+
+        Args:
+            current_time: The reference time for expiration check
+
+        Returns:
+            SQLAlchemy filter expression
+        """
+        return func.strftime(
+            "%Y-%m-%d %H:%M:%S",
+            func.datetime(
+                Metric.created,
+                "+" + func.cast(func.json_extract(Metric.meta, "$.ttl_hours"), sa.String) + " hours",
+            ),
+        ) < func.strftime("%Y-%m-%d %H:%M:%S", current_time)
+
+    def get_metrics_stats(self) -> MetricStats:
+        """Get statistics about expired metrics in the database.
+
+        Returns:
+            MetricStats containing:
+            - total_metrics: Total number of metrics
+            - expired_metrics: Number of expired metrics
+        """
+        with self._mutex:
+            session = self.new_session()
+
+            # Get current UTC time
+            current_time = datetime.now(timezone.utc)
+
+            # Total metrics count
+            total_metrics = session.query(func.count(Metric.metric_id)).scalar() or 0
+
+            # Query for expired metrics count using the helper
+            expired_count = (
+                session.query(func.count(Metric.metric_id)).filter(self._build_expiration_filter(current_time)).scalar()
+                or 0
+            )
+
+            return MetricStats(
+                total_metrics=total_metrics,
+                expired_metrics=expired_count,
+            )
+
+    def delete_expired_metrics(self) -> None:
+        """Delete all expired metrics from the database.
+
+        A metric is deleted if created + ttl_hours < current_time
+        """
+        with self._mutex:
+            session = self.new_session()
+
+            # Get current UTC time
+            current_time = datetime.now(timezone.utc)
+
+            # Create CTE for expired metrics using the helper
+            expired_metrics_cte = (select(Metric.metric_id).where(self._build_expiration_filter(current_time))).cte(
+                "expired_metrics"
+            )
+
+            # Delete metrics that exist in the CTE
+            delete_query = delete(Metric).where(Metric.metric_id.in_(select(expired_metrics_cte.c.metric_id)))
+
+            session.execute(delete_query)
+            # No manual commit needed - session factory handles it
 
 
 class InMemoryMetricDB(MetricDB):

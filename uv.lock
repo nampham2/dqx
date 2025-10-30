@@ -240,6 +240,7 @@ dependencies = [
 dev = [
     { name = "commitizen" },
     { name = "faker" },
+    { name = "freezegun" },
     { name = "gitchangelog" },
     { name = "mkdocs" },
     { name = "mkdocs-awesome-pages-plugin" },
@@ -274,6 +275,7 @@ requires-dist = [
 dev = [
     { name = "commitizen", specifier = ">=3.29.0" },
     { name = "faker", specifier = ">=37.5.3" },
+    { name = "freezegun", specifier = ">=1.5.1" },
     { name = "gitchangelog", specifier = ">=3.0.0" },
     { name = "mkdocs", specifier = ">=1.6.1" },
     { name = "mkdocs-awesome-pages-plugin", specifier = ">=2.10.1" },
@@ -330,6 +332,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/58/46/0028a82567109b5ef6e4d2a1f04a583fb513e6cf9527fcdd09afd817deeb/filelock-3.20.0.tar.gz", hash = "sha256:711e943b4ec6be42e1d4e6690b48dc175c822967466bb31c0c293f34334c13f4", size = 18922, upload-time = "2025-10-08T18:03:50.056Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/76/91/7216b27286936c16f5b4d0c530087e4a54eead683e6b0b73dd0c64844af6/filelock-3.20.0-py3-none-any.whl", hash = "sha256:339b4732ffda5cd79b13f4e2711a31b0365ce445d95d243bb996273d072546a2", size = 16054, upload-time = "2025-10-08T18:03:48.35Z" },
+]
+
+[[package]]
+name = "freezegun"
+version = "1.5.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dateutil" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/95/dd/23e2f4e357f8fd3bdff613c1fe4466d21bfb00a6177f238079b17f7b1c84/freezegun-1.5.5.tar.gz", hash = "sha256:ac7742a6cc6c25a2c35e9292dfd554b897b517d2dec26891a2e8debf205cb94a", size = 35914, upload-time = "2025-08-09T10:39:08.338Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5e/2e/b41d8a1a917d6581fc27a35d05561037b048e47df50f27f8ac9c7e27a710/freezegun-1.5.5-py3-none-any.whl", hash = "sha256:cd557f4a75cf074e84bc374249b9dd491eaeacd61376b9eb3c423282211619d2", size = 19266, upload-time = "2025-08-09T10:39:06.636Z" },
 ]
 
 [[package]]

@@ -15,11 +15,14 @@ from dqx.common import (
     PluginMetadata,
     ResultKey,
 )
+
+# from dqx.orm.repositories import MetricStats  # Removed to break cyclic import
 from dqx.provider import SymbolInfo
 from dqx.timer import TimeLimitExceededError, TimeLimiting
 
 if TYPE_CHECKING:
     from dqx.data import MetricTraceStats
+    from dqx.orm.repositories import MetricStats
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +43,7 @@ class PluginExecutionContext:
     results: list[AssertionResult]
     symbols: list[SymbolInfo]
     trace: pa.Table
+    metrics_stats: "MetricStats"  # type: ignore[name-defined]
 
     def total_assertions(self) -> int:
         """Total number of assertions."""
@@ -358,6 +362,11 @@ class AuditPlugin:
 
             if failed_symbols > 0:
                 raise DQXError("[InternalError] Symbols failed to evaluate during execution!")
+
+        # Metrics cleanup line (if any metrics were cleaned up)
+        self.console.print(
+            f"  Metrics Cleanup: [green]{context.metrics_stats.expired_metrics} expired metrics removed[/green]"
+        )
 
         # Data discrepancy line
         discrepancy_stats = context.data_discrepancy_stats()

@@ -10,7 +10,7 @@ from dqx.common import (
     ResultKey,
 )
 from dqx.graph.base import NodeVisitor
-from dqx.orm.repositories import MetricDB
+from dqx.orm.repositories import MetricDB, MetricStats
 from dqx.plugins import PluginExecutionContext
 from dqx.provider import MetricProvider
 
@@ -58,6 +58,8 @@ def test_enable_plugins_true_by_default() -> None:
 
     # Create suite
     db = Mock(spec=MetricDB)
+    # Mock get_metrics_stats to return a MetricStats object with no expired metrics
+    db.get_metrics_stats.return_value = MetricStats(total_metrics=0, expired_metrics=0)
     suite = VerificationSuite([test_check], db, "TestSuite")
 
     # Register test plugin directly
@@ -134,6 +136,8 @@ def test_enable_plugins_false_disables_plugins() -> None:
 
     # Create suite
     db = Mock(spec=MetricDB)
+    # Mock get_metrics_stats to return a MetricStats object with no expired metrics
+    db.get_metrics_stats.return_value = MetricStats(total_metrics=0, expired_metrics=0)
     suite = VerificationSuite([test_check], db, "TestSuite")
 
     # Register test plugin directly
@@ -210,6 +214,8 @@ def test_enable_plugins_true_explicit() -> None:
 
     # Create suite
     db = Mock(spec=MetricDB)
+    # Mock get_metrics_stats to return a MetricStats object with no expired metrics
+    db.get_metrics_stats.return_value = MetricStats(total_metrics=0, expired_metrics=0)
     suite = VerificationSuite([test_check], db, "TestSuite")
 
     # Register test plugin directly
@@ -271,6 +277,8 @@ def test_process_plugins_not_called_when_disabled() -> None:
 
     # Create suite
     db = Mock(spec=MetricDB)
+    # Mock get_metrics_stats to return a MetricStats object with no expired metrics
+    db.get_metrics_stats.return_value = MetricStats(total_metrics=0, expired_metrics=0)
     suite = VerificationSuite([test_check], db, "TestSuite")
 
     # Mock data source

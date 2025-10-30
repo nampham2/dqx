@@ -8,6 +8,7 @@ from typing import Any, TypeVar
 
 import numpy as np
 import sqlparse
+from returns.maybe import Some
 
 from dqx import models
 from dqx.common import (
@@ -151,9 +152,9 @@ class AnalysisReport(UserDict[MetricKey, models.Metric]):
 
         for key, metric in self.items():  # Changed from self._report.items()
             # Find the metric in DB
-            db_metric = db.get(metric.key, metric.spec)
-            if db_metric is not None:
-                db_report[key] = db_metric.unwrap()
+            db_metric_maybe = db.get(metric.key, metric.spec)
+            if isinstance(db_metric_maybe, Some):
+                db_report[key] = db_metric_maybe.unwrap()
 
         # Merge and persist
         merged_report = self.merge(db_report)

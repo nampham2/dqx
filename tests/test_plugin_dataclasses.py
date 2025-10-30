@@ -12,6 +12,7 @@ from dqx.common import (
     PluginMetadata,
     ResultKey,
 )
+from dqx.orm.repositories import MetricStats
 from dqx.plugins import PluginExecutionContext
 from dqx.provider import SymbolInfo
 
@@ -96,6 +97,7 @@ def test_plugin_execution_context_creation() -> None:
         results=results,
         symbols=symbols,
         trace=_create_empty_trace(),
+        metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
     )
 
     assert context.suite_name == "test"
@@ -133,6 +135,7 @@ def test_context_total_assertions() -> None:
         ],
         symbols=[],
         trace=_create_empty_trace(),
+        metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
     )
 
     assert context.total_assertions() == 5
@@ -165,6 +168,7 @@ def test_context_failed_assertions() -> None:
         results=results,
         symbols=[],
         trace=_create_empty_trace(),
+        metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
     )
 
     assert context.failed_assertions() == 3
@@ -199,6 +203,7 @@ def test_context_assertion_pass_rate() -> None:
         results=results,
         symbols=[],
         trace=_create_empty_trace(),
+        metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
     )
 
     assert context.assertion_pass_rate() == 60.0
@@ -214,6 +219,7 @@ def test_context_assertion_pass_rate() -> None:
         results=[],
         symbols=[],
         trace=_create_empty_trace(),
+        metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
     )
 
     assert empty_context.assertion_pass_rate() == 100.0
@@ -243,6 +249,7 @@ def test_context_symbol_methods() -> None:
         results=[],
         symbols=symbols,
         trace=_create_empty_trace(),
+        metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
     )
 
     assert context.total_symbols() == 5
@@ -276,6 +283,7 @@ def test_context_assertions_by_severity() -> None:
         results=results,
         symbols=[],
         trace=_create_empty_trace(),
+        metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
     )
 
     by_severity = context.assertions_by_severity()
@@ -309,6 +317,7 @@ def test_context_failures_by_severity() -> None:
         results=results,
         symbols=[],
         trace=_create_empty_trace(),
+        metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
     )
 
     failures = context.failures_by_severity()

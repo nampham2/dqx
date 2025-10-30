@@ -101,6 +101,7 @@ class TestPluginTypeChecking:
         import pyarrow as pa
 
         from dqx.common import ResultKey
+        from dqx.orm.repositories import MetricStats
 
         context = PluginExecutionContext(
             suite_name="Test Suite",
@@ -112,6 +113,7 @@ class TestPluginTypeChecking:
             results=[],
             symbols=[],
             trace=pa.table({}),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
         # Verify method return types
