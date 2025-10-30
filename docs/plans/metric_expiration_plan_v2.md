@@ -18,6 +18,7 @@ This plan implements automatic cleanup of expired metrics in the DQX system base
 - Cleanup should happen automatically before analysis in VerificationSuite
 - The implementation must be efficient and support SQLite datetime arithmetic
 - All timestamps use UTC for consistency
+- **Note**: We found an existing timezone issue in `repositories.py` line 119 using `datetime.now()` instead of UTC
 
 ## Requirements
 
@@ -54,13 +55,12 @@ def _ensure_indexes(self) -> None:
                 CREATE INDEX IF NOT EXISTS idx_metric_expiration
                 ON dq_metric(created, json_extract(meta, '$.ttl_hours'))
             """))
-            session.commit()
+            # No manual commit needed - session factory handles it
         except Exception as e:
             # Log but don't fail - indexes are performance optimization
             logger.warning(f"Failed to create metric expiration index: {e}")
-            session.rollback()
-        finally:
-            session.close()
+            # No manual rollback needed - session factory handles it
+            raise  # Re-raise to trigger automatic rollback
 ```
 
 Required import:
@@ -1143,39 +1143,6 @@ def test_multiple_suite_runs_with_cleanup() -> None:
 - Run: `uv run pytest tests/ -v`
 - Ensure all tests pass
 - Check coverage: `uv run coverage tests/ -v`
-
-#### Task 7.3: Update documentation
-Add to `README.md` in the appropriate section:
-
-```markdown
-### Metric Expiration
-
-DQX automatically cleans up expired metrics based on their TTL (Time To Live) settings:
-
-- Metrics without metadata or without `ttl_hours` are deleted on the next suite run
-- Metrics with `ttl_hours` are kept for the specified duration
-- Cleanup happens automatically before analysis in `VerificationSuite`
-- All timestamps are in UTC for consistency
-
-To disable automatic cleanup:
-
-```python
-suite = VerificationSuite(checks, db, "My Suite", cleanup_expired_metrics=False)
-```
-
-To set TTL for metrics:
-
-```python
-metadata = Metadata(ttl_hours=168)  # Keep for 7 days
-```
-
-Performance Notes:
-- Cleanup operations are timed using the timer registry
-- Database indexes are created automatically for efficient queries
-- Deletion counts are logged for monitoring
-```
-
-Commit: `git add -A && git commit -m "docs: document metric expiration feature v2"`
 
 ## Summary
 
