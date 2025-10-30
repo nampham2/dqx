@@ -136,6 +136,9 @@ def test_pass_statements_coverage() -> None:
 
     result = stddev(db, metric_spec, 5, "test_dataset", key, "exec-123")
     assert isinstance(result, Success)
-    # Values are [10, 15, 20, 25, 30] in chronological order
+    # Values are [10, 15, 20, 25, 30] in reverse-chronological order (newest→oldest)
+    # Note: The loop intentionally overwrites any earlier metrics so get_metric_window
+    # (which selects the latest metric per day ordered by created desc) will use
+    # these fresh values [10, 15, 20, 25, 30] for the stddev calculation
     expected = statistics.stdev([10, 15, 20, 25, 30])
     assert result.unwrap() == pytest.approx(expected)

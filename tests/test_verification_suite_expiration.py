@@ -3,8 +3,8 @@ from datetime import datetime, timedelta, timezone
 
 import pyarrow as pa
 
-from dqx.api import VerificationSuite, check
-from dqx.common import Context, Metadata, ResultKey
+from dqx.api import Context, VerificationSuite, check
+from dqx.common import Metadata, ResultKey
 from dqx.datasource import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
