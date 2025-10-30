@@ -26,7 +26,7 @@ from dqx.common import (
 from dqx.evaluator import Evaluator
 from dqx.graph.nodes import CheckNode, RootNode
 from dqx.graph.traversal import Graph
-from dqx.orm.repositories import MetricDB, MetricStats
+# import moved to local scope(s) to avoid cyclic dependency
 from dqx.plugins import PluginExecutionContext, PluginManager
 from dqx.provider import MetricProvider, SymbolicMetric
 from dqx.specs import MetricSpec
