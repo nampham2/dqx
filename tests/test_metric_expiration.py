@@ -30,10 +30,10 @@ def test_metric_db_creates_indexes() -> None:
 def test_get_expired_metrics_stats_empty_db() -> None:
     """Test get_expired_metrics_stats with an empty database."""
     db = InMemoryMetricDB()
-    stats = db.get_expired_metrics_stats()
+    stats = db.get_metrics_stats()
 
-    assert stats["total_metrics"] == 0
-    assert stats["expired_metrics"] == 0
+    assert stats.total_metrics == 0
+    assert stats.expired_metrics == 0
 
 
 def test_get_expired_metrics_stats_with_metrics() -> None:
@@ -70,10 +70,10 @@ def test_get_expired_metrics_stats_with_metrics() -> None:
         session.commit()
 
     # Get stats
-    stats = db.get_expired_metrics_stats()
+    stats = db.get_metrics_stats()
 
-    assert stats["total_metrics"] == 3
-    assert stats["expired_metrics"] == 1
+    assert stats.total_metrics == 3
+    assert stats.expired_metrics == 1
 
 
 def test_get_expired_metrics_stats_timezone_edge_cases() -> None:
@@ -89,12 +89,12 @@ def test_get_expired_metrics_stats_timezone_edge_cases() -> None:
     db.persist([metric])
 
     # Stats should be consistent regardless of system timezone
-    stats1 = db.get_expired_metrics_stats()
-    stats2 = db.get_expired_metrics_stats()
+    stats1 = db.get_metrics_stats()
+    stats2 = db.get_metrics_stats()
 
     assert stats1 == stats2
-    assert stats1["total_metrics"] == 1
-    assert stats1["expired_metrics"] == 0  # Just created, not expired
+    assert stats1.total_metrics == 1
+    assert stats1.expired_metrics == 0  # Just created, not expired
 
 
 def test_delete_expired_metrics_empty_db() -> None:
@@ -142,9 +142,9 @@ def test_delete_expired_metrics_with_mixed_metrics() -> None:
     db.delete_expired_metrics()
 
     # Verify the correct metrics remain
-    stats = db.get_expired_metrics_stats()
-    assert stats["total_metrics"] == 2
-    assert stats["expired_metrics"] == 0
+    stats = db.get_metrics_stats()
+    assert stats.total_metrics == 2
+    assert stats.expired_metrics == 0
 
     # Verify specific metrics
     if persisted[0].metric_id is not None:

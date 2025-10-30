@@ -26,7 +26,7 @@ from dqx.common import (
 from dqx.evaluator import Evaluator
 from dqx.graph.nodes import CheckNode, RootNode
 from dqx.graph.traversal import Graph
-from dqx.orm.repositories import MetricDB
+from dqx.orm.repositories import MetricDB, MetricStats
 from dqx.plugins import PluginExecutionContext, PluginManager
 from dqx.provider import MetricProvider, SymbolicMetric
 from dqx.specs import MetricSpec
@@ -363,6 +363,9 @@ class VerificationSuite:
         # Store analysis reports by datasource name
         self._analysis_reports: dict[str, AnalysisReport] = {}
 
+        # Cache for metrics stats
+        self._metrics_stats: MetricStats | None = None
+
     @property
     def execution_id(self) -> str:
         """
@@ -430,6 +433,16 @@ class VerificationSuite:
             MetricProvider instance used by the verification suite
         """
         return self._context.provider
+
+    @property
+    def metrics_stats(self) -> MetricStats | None:
+        """
+        Get the cached metrics statistics.
+
+        Returns:
+            MetricStats instance if available, None otherwise
+        """
+        return self._metrics_stats
 
     @property
     def plugin_manager(self) -> PluginManager:
@@ -599,6 +612,18 @@ class VerificationSuite:
 
         # Apply symbol deduplication BEFORE analysis
         self._context.provider.symbol_deduplication(self._context._graph, key)
+
+        # Collect metrics stats and cleanup expired metrics BEFORE analysis
+        self._metrics_stats = self.provider._db.get_metrics_stats()
+        logger.info(
+            f"Metrics stats: {self._metrics_stats.expired_metrics} expired "
+            f"out of {self._metrics_stats.total_metrics} total"
+        )
+
+        # Cleanup expired metrics before analysis
+        if self._metrics_stats.expired_metrics > 0:
+            logger.info("Cleaning up expired metrics...")
+            self.cleanup_expired_metrics()
 
         # 2. Analyze by datasources
         with self._analyze_ms:
@@ -785,6 +810,7 @@ class VerificationSuite:
             results=self.collect_results(),
             symbols=self.provider.collect_symbols(self.key),
             trace=self.metric_trace(self.provider._db),
+            metrics_stats=self.metrics_stats,
         )
 
         # Process through all plugins

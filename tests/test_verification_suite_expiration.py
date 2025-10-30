@@ -48,8 +48,8 @@ def test_verification_suite_cleanup_expired_metrics() -> None:
     suite2.run([datasource], ResultKey(dt.date(2024, 10, 30), {}))
 
     # Verify we have metrics from both suites by checking stats
-    initial_stats = db.get_expired_metrics_stats()
-    initial_count = initial_stats["total_metrics"]
+    initial_stats = db.get_metrics_stats()
+    initial_count = initial_stats.total_metrics
     assert initial_count >= 2  # At least one metric per suite
 
     # Manually expire metrics from suite1
@@ -70,13 +70,13 @@ def test_verification_suite_cleanup_expired_metrics() -> None:
     suite2.cleanup_expired_metrics()
 
     # Verify only suite2's metrics remain
-    remaining_stats = db.get_expired_metrics_stats()
-    remaining_count = remaining_stats["total_metrics"]
+    remaining_stats = db.get_metrics_stats()
+    remaining_count = remaining_stats.total_metrics
     assert remaining_count < initial_count
 
     # Verify remaining metrics are not expired
-    stats = db.get_expired_metrics_stats()
-    assert stats["expired_metrics"] == 0
+    stats = db.get_metrics_stats()
+    assert stats.expired_metrics == 0
 
 
 def test_verification_suite_cleanup_no_expired() -> None:
@@ -99,8 +99,8 @@ def test_verification_suite_cleanup_no_expired() -> None:
     suite.cleanup_expired_metrics()
 
     # Verify no metrics were deleted
-    stats = db.get_expired_metrics_stats()
-    assert stats["total_metrics"] > 0
+    stats = db.get_metrics_stats()
+    assert stats.total_metrics > 0
 
 
 def test_verification_suite_cleanup_mixed_ttl() -> None:
@@ -123,8 +123,8 @@ def test_verification_suite_cleanup_mixed_ttl() -> None:
     suite.run([datasource], ResultKey(dt.date(2024, 10, 30), {}))
 
     # Get metrics count before modifications
-    initial_stats = db.get_expired_metrics_stats()
-    initial_count = initial_stats["total_metrics"]
+    initial_stats = db.get_metrics_stats()
+    initial_count = initial_stats.total_metrics
     assert initial_count >= 3  # At least 3 metrics from our assertions
 
     with db._mutex:
@@ -154,6 +154,6 @@ def test_verification_suite_cleanup_mixed_ttl() -> None:
     suite.cleanup_expired_metrics()
 
     # Verify remaining metrics
-    final_stats = db.get_expired_metrics_stats()
-    assert final_stats["total_metrics"] == initial_count - 1
-    assert final_stats["expired_metrics"] == 0
+    final_stats = db.get_metrics_stats()
+    assert final_stats.total_metrics == initial_count - 1
+    assert final_stats.expired_metrics == 0

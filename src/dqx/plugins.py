@@ -15,6 +15,7 @@ from dqx.common import (
     PluginMetadata,
     ResultKey,
 )
+from dqx.orm.repositories import MetricStats
 from dqx.provider import SymbolInfo
 from dqx.timer import TimeLimitExceededError, TimeLimiting
 
@@ -40,6 +41,7 @@ class PluginExecutionContext:
     results: list[AssertionResult]
     symbols: list[SymbolInfo]
     trace: pa.Table
+    metrics_stats: MetricStats | None = None
 
     def total_assertions(self) -> int:
         """Total number of assertions."""

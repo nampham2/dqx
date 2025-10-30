@@ -5,7 +5,7 @@ import logging
 import typing
 import uuid
 from collections.abc import Iterable, Iterator, Sequence
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from threading import Lock
 from typing import Any, ClassVar, overload
@@ -27,6 +27,14 @@ logger = logging.getLogger(__name__)
 Predicate = BinaryExpression | ColumnElement[bool]
 
 METRIC_TABLE = "dq_metric"
+
+
+@dataclass
+class MetricStats:
+    """Statistics about metrics in the database."""
+
+    total_metrics: int
+    expired_metrics: int
 
 
 class MetadataType(TypeDecorator):
@@ -315,11 +323,30 @@ class MetricDB:
 
         return [metric.to_model() for metric in self.new_session().scalars(query)]
 
-    def get_expired_metrics_stats(self) -> dict[str, int]:
+    def _build_expiration_filter(self, current_time: datetime) -> ColumnElement[bool]:
+        """Build SQLAlchemy filter for expired metrics.
+
+        A metric is expired if created + ttl_hours < current_time.
+
+        Args:
+            current_time: The reference time for expiration check
+
+        Returns:
+            SQLAlchemy filter expression
+        """
+        return func.strftime(
+            "%Y-%m-%d %H:%M:%S",
+            func.datetime(
+                Metric.created,
+                "+" + func.cast(func.json_extract(Metric.meta, "$.ttl_hours"), sa.String) + " hours",
+            ),
+        ) < func.strftime("%Y-%m-%d %H:%M:%S", current_time)
+
+    def get_metrics_stats(self) -> MetricStats:
         """Get statistics about expired metrics in the database.
 
         Returns:
-            Dictionary containing:
+            MetricStats containing:
             - total_metrics: Total number of metrics
             - expired_metrics: Number of expired metrics
         """
@@ -332,29 +359,16 @@ class MetricDB:
             # Total metrics count
             total_metrics = session.query(func.count(Metric.metric_id)).scalar() or 0
 
-            # Query for expired metrics count
-            # A metric is expired if created + ttl_hours < current_time
-            # Use strftime to normalize datetime formats for consistent comparison
+            # Query for expired metrics count using the helper
             expired_count = (
-                session.query(func.count(Metric.metric_id))
-                .filter(
-                    func.strftime(
-                        "%Y-%m-%d %H:%M:%S",
-                        func.datetime(
-                            Metric.created,
-                            "+" + func.cast(func.json_extract(Metric.meta, "$.ttl_hours"), sa.String) + " hours",
-                        ),
-                    )
-                    < func.strftime("%Y-%m-%d %H:%M:%S", current_time),
-                )
-                .scalar()
+                session.query(func.count(Metric.metric_id)).filter(self._build_expiration_filter(current_time)).scalar()
                 or 0
             )
 
-            return {
-                "total_metrics": total_metrics,
-                "expired_metrics": expired_count,
-            }
+            return MetricStats(
+                total_metrics=total_metrics,
+                expired_metrics=expired_count,
+            )
 
     def delete_expired_metrics(self) -> None:
         """Delete all expired metrics from the database.
@@ -367,19 +381,10 @@ class MetricDB:
             # Get current UTC time
             current_time = datetime.now(timezone.utc)
 
-            # Create CTE for expired metrics
-            expired_metrics_cte = (
-                select(Metric.metric_id).where(
-                    func.strftime(
-                        "%Y-%m-%d %H:%M:%S",
-                        func.datetime(
-                            Metric.created,
-                            "+" + func.cast(func.json_extract(Metric.meta, "$.ttl_hours"), sa.String) + " hours",
-                        ),
-                    )
-                    < func.strftime("%Y-%m-%d %H:%M:%S", current_time),
-                )
-            ).cte("expired_metrics")
+            # Create CTE for expired metrics using the helper
+            expired_metrics_cte = (select(Metric.metric_id).where(self._build_expiration_filter(current_time))).cte(
+                "expired_metrics"
+            )
 
             # Delete metrics that exist in the CTE
             delete_query = delete(Metric).where(Metric.metric_id.in_(select(expired_metrics_cte.c.metric_id)))
