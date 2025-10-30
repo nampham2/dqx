@@ -5,6 +5,7 @@ Data quality as code. Works with your warehouse, scales with your needs.
 [![Tests](https://github.com/nampham2/dqx/actions/workflows/test.yml/badge.svg)](https://github.com/nampham2/dqx/actions/workflows/test.yml)
 [![codecov](https://codecov.io/gh/nampham2/dqx/branch/main/graph/badge.svg)](https://codecov.io/gh/nampham2/dqx)
 [![Documentation Status](https://readthedocs.org/projects/dqx/badge/?version=latest)](https://dqx.readthedocs.io/en/latest/?badge=latest)
+[![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/nampham2/dqx?utm_source=oss&utm_medium=github&utm_campaign=nampham2%2Fdqx&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://coderabbit.ai)
 [![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
