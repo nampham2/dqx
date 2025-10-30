@@ -689,7 +689,7 @@ class MetricProvider(SymbolicMetricBase):
         Raises:
             ValueError: If the metric type is not supported.
         """
-        if not metric_spec.is_extended:
+        if isinstance(metric_spec, specs.SimpleMetricSpec):
             # Simple metric - use the standard metric method
             return self.metric(metric_spec, lag=lag, dataset=dataset)
 
@@ -716,7 +716,7 @@ class MetricProvider(SymbolicMetricBase):
 
     def metric(
         self,
-        metric: MetricSpec,
+        metric: specs.SimpleMetricSpec,
         lag: int = 0,
         dataset: str | None = None,
     ) -> sp.Symbol:
@@ -746,7 +746,7 @@ class MetricProvider(SymbolicMetricBase):
                 name=metric.name,
                 symbol=sym,
                 fn=fn,
-                metric_spec=metric,
+                metric_spec=metric.clone(),
                 lag=lag,
                 dataset=dataset,
                 required_metrics=[],

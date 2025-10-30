@@ -9,7 +9,6 @@ from dqx.api import Context, MetricProvider, VerificationSuite, check
 from dqx.common import ResultKey
 from dqx.datasource import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
-from dqx.specs import MetricSpec
 
 
 def test_provider_with_cloned_specs() -> None:
@@ -26,7 +25,7 @@ def test_provider_with_cloned_specs() -> None:
     datasource = DuckRelationDataSource.from_arrow(data, "test_data")
 
     # Create original specs
-    original_specs: list[MetricSpec] = [
+    original_specs: list[specs.SimpleMetricSpec] = [
         specs.NumRows(),
         specs.Average("price"),
         specs.Sum("quantity"),
@@ -34,7 +33,7 @@ def test_provider_with_cloned_specs() -> None:
     ]
 
     # Clone all specs - explicitly typed to preserve MetricSpec type
-    cloned_specs: list[MetricSpec] = [spec.clone() for spec in original_specs]  # type: ignore[attr-defined]
+    cloned_specs: list[specs.SimpleMetricSpec] = [spec.clone() for spec in original_specs]
 
     # Verify clones are different instances
     for orig, clone in zip(original_specs, cloned_specs):

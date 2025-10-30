@@ -27,8 +27,10 @@ MetricType = Literal[
 
 @runtime_checkable
 class MetricSpec(Protocol):
+    """Base protocol for all metrics."""
+
     metric_type: MetricType
-    is_extended: bool
+    is_extended: Literal[False] | Literal[True]
 
     @property
     def name(self) -> str: ...
@@ -49,9 +51,25 @@ class MetricSpec(Protocol):
     def __eq__(self, other: Any) -> bool: ...
 
 
-class NumRows:
+@runtime_checkable
+class SimpleMetricSpec(MetricSpec, Protocol):
+    """Protocol for simple metrics that support cloning."""
+
+    is_extended: Literal[False]
+
+    def clone(self) -> Self: ...
+
+
+@runtime_checkable
+class ExtendedMetricSpec(MetricSpec, Protocol):
+    """Protocol for extended metrics that don't support cloning."""
+
+    is_extended: Literal[True]
+
+
+class NumRows(SimpleMetricSpec):
     metric_type: MetricType = "NumRows"
-    is_extended: bool = False
+    is_extended: Literal[False] = False
 
     def __init__(self) -> None:
         self._analyzers = (ops.NumRows(),)
@@ -92,9 +110,9 @@ class NumRows:
         return self.name
 
 
-class First:
+class First(SimpleMetricSpec):
     metric_type: MetricType = "First"
-    is_extended: bool = False
+    is_extended: Literal[False] = False
 
     def __init__(self, column: str) -> None:
         self._column = column
@@ -135,9 +153,9 @@ class First:
         return self.name
 
 
-class Average:
+class Average(SimpleMetricSpec):
     metric_type: MetricType = "Average"
-    is_extended: bool = False
+    is_extended: Literal[False] = False
 
     def __init__(self, column: str) -> None:
         self._column = column
@@ -179,9 +197,9 @@ class Average:
         return self.name
 
 
-class Variance:
+class Variance(SimpleMetricSpec):
     metric_type: MetricType = "Variance"
-    is_extended: bool = False
+    is_extended: Literal[False] = False
 
     def __init__(self, column: str) -> None:
         self._column = column
@@ -223,9 +241,9 @@ class Variance:
         return self.name
 
 
-class Minimum:
+class Minimum(SimpleMetricSpec):
     metric_type: MetricType = "Minimum"
-    is_extended: bool = False
+    is_extended: Literal[False] = False
 
     def __init__(self, column: str) -> None:
         self._column = column
@@ -266,9 +284,9 @@ class Minimum:
         return self.name
 
 
-class Maximum:
+class Maximum(SimpleMetricSpec):
     metric_type: MetricType = "Maximum"
-    is_extended: bool = False
+    is_extended: Literal[False] = False
 
     def __init__(self, column: str) -> None:
         self._column = column
@@ -309,9 +327,9 @@ class Maximum:
         return self.name
 
 
-class Sum:
+class Sum(SimpleMetricSpec):
     metric_type: MetricType = "Sum"
-    is_extended: bool = False
+    is_extended: Literal[False] = False
 
     def __init__(self, column: str) -> None:
         self._column = column
@@ -352,9 +370,9 @@ class Sum:
         return self.name
 
 
-class NullCount:
+class NullCount(SimpleMetricSpec):
     metric_type: MetricType = "NullCount"
-    is_extended: bool = False
+    is_extended: Literal[False] = False
 
     def __init__(self, column: str) -> None:
         self._column = column
@@ -395,9 +413,9 @@ class NullCount:
         return self.name
 
 
-class NegativeCount:
+class NegativeCount(SimpleMetricSpec):
     metric_type: MetricType = "NegativeCount"
-    is_extended: bool = False
+    is_extended: Literal[False] = False
 
     def __init__(self, column: str) -> None:
         self._column = column
@@ -438,9 +456,9 @@ class NegativeCount:
         return self.name
 
 
-class DuplicateCount:
+class DuplicateCount(SimpleMetricSpec):
     metric_type: MetricType = "DuplicateCount"
-    is_extended: bool = False
+    is_extended: Literal[False] = False
 
     def __init__(self, columns: list[str]) -> None:
         if not columns:
@@ -487,9 +505,9 @@ class DuplicateCount:
         return self.name
 
 
-class CountValues:
+class CountValues(SimpleMetricSpec):
     metric_type: MetricType = "CountValues"
-    is_extended: bool = False
+    is_extended: Literal[False] = False
 
     def __init__(self, column: str, values: int | str | bool | list[int] | list[str]) -> None:
         self._column = column
@@ -539,9 +557,9 @@ class CountValues:
         return self.name
 
 
-class UniqueCount:
+class UniqueCount(SimpleMetricSpec):
     metric_type: MetricType = "UniqueCount"
-    is_extended: bool = False
+    is_extended: Literal[False] = False
 
     def __init__(self, column: str) -> None:
         self._column = column
@@ -582,9 +600,9 @@ class UniqueCount:
         return self.name
 
 
-class DayOverDay:
+class DayOverDay(ExtendedMetricSpec):
     metric_type: MetricType = "DayOverDay"
-    is_extended: bool = True
+    is_extended: Literal[True] = True
 
     def __init__(self, base_metric_type: str, base_parameters: dict[str, Any]) -> None:
         self._base_metric_type = base_metric_type
@@ -640,9 +658,9 @@ class DayOverDay:
         return self.name
 
 
-class WeekOverWeek:
+class WeekOverWeek(ExtendedMetricSpec):
     metric_type: MetricType = "WeekOverWeek"
-    is_extended: bool = True
+    is_extended: Literal[True] = True
 
     def __init__(self, base_metric_type: str, base_parameters: dict[str, Any]) -> None:
         self._base_metric_type = base_metric_type
@@ -698,9 +716,9 @@ class WeekOverWeek:
         return self.name
 
 
-class Stddev:
+class Stddev(ExtendedMetricSpec):
     metric_type: MetricType = "Stddev"
-    is_extended: bool = True
+    is_extended: Literal[True] = True
 
     def __init__(self, base_metric_type: str, base_parameters: dict[str, Any], offset: int, n: int) -> None:
         self._base_metric_type = base_metric_type
