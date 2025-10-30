@@ -7,7 +7,7 @@ import uuid
 from collections import defaultdict
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
-from typing import Any, Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 import pyarrow as pa
 import sympy as sp
@@ -26,12 +26,16 @@ from dqx.common import (
 from dqx.evaluator import Evaluator
 from dqx.graph.nodes import CheckNode, RootNode
 from dqx.graph.traversal import Graph
+
 # import moved to local scope(s) to avoid cyclic dependency
 from dqx.plugins import PluginExecutionContext, PluginManager
 from dqx.provider import MetricProvider, SymbolicMetric
 from dqx.specs import MetricSpec
 from dqx.timer import Registry
 from dqx.validator import SuiteValidator
+
+if TYPE_CHECKING:
+    from dqx.orm.repositories import MetricDB, MetricStats
 
 CheckProducer = Callable[[MetricProvider, "Context"], None]
 CheckCreator = Callable[[CheckProducer], CheckProducer]
@@ -202,7 +206,7 @@ class Context:
     graph nodes that need access to the symbol table.
     """
 
-    def __init__(self, suite: str, db: MetricDB, execution_id: str) -> None:
+    def __init__(self, suite: str, db: "MetricDB", execution_id: str) -> None:
         """
         Initialize the context with a root graph node.
 
@@ -319,7 +323,7 @@ class VerificationSuite:
     def __init__(
         self,
         checks: Sequence[CheckProducer | DecoratedCheck],
-        db: MetricDB,
+        db: "MetricDB",
         name: str,
     ) -> None:
         """
@@ -364,7 +368,7 @@ class VerificationSuite:
         self._analysis_reports: dict[str, AnalysisReport] = {}
 
         # Cache for metrics stats
-        self._metrics_stats: MetricStats | None = None
+        self._metrics_stats: "MetricStats | None" = None
 
     @property
     def execution_id(self) -> str:
@@ -435,7 +439,7 @@ class VerificationSuite:
         return self._context.provider
 
     @property
-    def metrics_stats(self) -> MetricStats:
+    def metrics_stats(self) -> "MetricStats":
         """
         Get the cached metrics statistics.
 
@@ -747,7 +751,7 @@ class VerificationSuite:
 
         return False
 
-    def metric_trace(self, db: MetricDB) -> pa.Table:
+    def metric_trace(self, db: "MetricDB") -> pa.Table:
         """
         Generate a metric trace table showing how metrics flow through the system.
 
