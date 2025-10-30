@@ -917,7 +917,7 @@ class TestAuditPlugin:
             metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
         )
 
-        with pytest.raises(DQXError, match="\[InternalError\] Symbols failed to evaluate during execution!"):
+        with pytest.raises(DQXError, match=r"\[InternalError\] Symbols failed to evaluate during execution!"):
             # Process the context
             plugin.process(context)
 
