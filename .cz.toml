@@ -10,6 +10,7 @@ version_files = [
     "src/dqx/__init__.py:__version__"
 ]
 update_changelog_on_bump = true
+changelog_start_rev = "v0.5.0"
 bump_message = "chore(release): bump version from $current_version to $new_version"
 
 [tool.commitizen.customize]
