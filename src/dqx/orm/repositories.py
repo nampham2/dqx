@@ -55,7 +55,7 @@ class Base(DeclarativeBase):
 class Metric(Base):
     __tablename__ = METRIC_TABLE
 
-    metric_id: Mapped[uuid.UUID] = mapped_column(nullable=False, primary_key=True, default=lambda: uuid.uuid4())
+    metric_id: Mapped[uuid.UUID] = mapped_column(nullable=False, primary_key=True, default=uuid.uuid4)
     metric_type: Mapped[str] = mapped_column(nullable=False)
     parameters: Mapped[dict[str, Any]] = mapped_column(nullable=False)
     dataset: Mapped[str] = mapped_column(nullable=False)
