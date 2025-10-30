@@ -129,7 +129,7 @@ class TestPluginManager:
         manager = PluginManager()
         plugin = BadMetadataPlugin()
 
-        with pytest.raises(ValueError, match="metadata\\(\\) must return a PluginMetadata instance"):
+        with pytest.raises(ValueError, match=r"metadata\(\) must return a PluginMetadata instance"):
             manager.register_plugin(plugin)  # type: ignore[call-overload]
 
     def test_register_stateful_plugin_maintains_state(self) -> None:
@@ -586,7 +586,7 @@ class TestPluginManager:
             manager.register_plugin(f"{__name__}.InvalidPlugin")
 
         # Test with a class that has wrong metadata return type
-        with pytest.raises(ValueError, match="metadata\\(\\) must return a PluginMetadata instance"):
+        with pytest.raises(ValueError, match=r"metadata\(\) must return a PluginMetadata instance"):
             manager.register_plugin(f"{__name__}.WrongMetadataPlugin")
 
 
@@ -956,7 +956,7 @@ class TestPluginInstanceEdgeCases:
         manager = PluginManager()
         plugin = NoneMetadataPlugin()
 
-        with pytest.raises(ValueError, match="metadata\\(\\) must return a PluginMetadata instance"):
+        with pytest.raises(ValueError, match=r"metadata\(\) must return a PluginMetadata instance"):
             manager.register_plugin(plugin)  # type: ignore[call-overload]
 
     def test_plugin_instance_lifecycle(self) -> None:
