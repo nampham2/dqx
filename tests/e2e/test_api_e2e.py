@@ -1,17 +1,16 @@
 import datetime as dt
 
-import pyarrow as pa
 import sympy as sp
 
 from dqx.api import VerificationSuite, check
 from dqx.common import Context, ResultKey
-from dqx.datasource import DuckRelationDataSource
 from dqx.display import (
     print_assertion_results,
     print_metric_trace,
 )
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
+from tests.fixtures.data_fixtures import CommercialDataSource
 
 
 @check(name="Simple Checks", datasets=["ds1"])
@@ -69,10 +68,35 @@ def cross_dataset_check(mp: MetricProvider, ctx: Context) -> None:
     ctx.assert_that(mp.first("tax", dataset="ds1")).where(name="random tax value").noop()
 
 
-def test_e2e_suite(commerce_data_c1: pa.Table, commerce_data_c2: pa.Table) -> None:
+def test_e2e_suite() -> None:
     db = InMemoryMetricDB()
-    ds1 = DuckRelationDataSource.from_arrow(commerce_data_c1, "ds1")
-    ds2 = DuckRelationDataSource.from_arrow(commerce_data_c2, "ds2")
+
+    # Define date ranges for the two datasources
+    # ds1: Full month of January 2025
+    ds1_start_date = dt.date(2025, 1, 1)
+    ds1_end_date = dt.date(2025, 1, 31)
+
+    # ds2: Slightly different range - starts earlier, ends on same day
+    # This allows testing scenarios where historical data availability differs
+    ds2_start_date = dt.date(2024, 12, 15)  # Starts mid-December 2024
+    ds2_end_date = dt.date(2025, 1, 31)
+
+    # Create the datasources with their respective date ranges
+    ds1 = CommercialDataSource(
+        start_date=ds1_start_date,
+        end_date=ds1_end_date,
+        name="ds1",
+        records_per_day=30,
+        seed=1050,  # Same seed as original commerce_data_c1
+    )
+
+    ds2 = CommercialDataSource(
+        start_date=ds2_start_date,
+        end_date=ds2_end_date,
+        name="ds2",
+        records_per_day=35,
+        seed=2100,  # Same seed as original commerce_data_c2
+    )
 
     key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={})
     checks = [simple_checks, manual_day_over_day, rate_of_change, null_percentage, cross_dataset_check, complex_metrics]
