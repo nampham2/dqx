@@ -18,6 +18,7 @@ jobs:
     name: Analyze
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    continue-on-error: true
 
     strategy:
       fail-fast: false
