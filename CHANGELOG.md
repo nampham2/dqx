@@ -86,6 +86,26 @@
 
 - **toolz**: remove dependency on toolz
 
+## v0.5.5 (2025-10-30)
+
+### BREAKING CHANGE
+
+- None - ttl_hours already had a default value
+- get_expired_metrics_stats() renamed to get_metrics_stats() and now returns MetricStats dataclass instead of dict
+
+### Feat
+
+- Add CommercialDataSource with date filtering support (#17)
+- add metric expiration methods to MetricDB (#15)
+- **ci**: standardize workflows and add GitHub settings (#9)
+
+### Fix
+
+- resolve deprecation warning for invalid escape sequence (#16)
+- **orm**: remove unnecessary lambda from uuid default value (#14)
+- address Python special method protocol violation in test (#11)
+- resolve GitHub release character limit issue (#8)
+
 ## v0.5.4 (2025-10-29)
 
 ### Fix
