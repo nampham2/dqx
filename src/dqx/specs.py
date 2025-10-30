@@ -76,6 +76,10 @@ class NumRows:
     def deserialize(cls, state: bytes) -> states.State:
         return states.SimpleAdditiveState.deserialize(state)
 
+    def clone(self) -> Self:
+        """Create a new instance with the same parameters but new analyzer prefixes."""
+        return self.__class__()
+
     def __hash__(self) -> int:
         return hash((self.name, tuple(self.parameters.items())))
 
@@ -114,6 +118,10 @@ class First:
     @classmethod
     def deserialize(cls, state: bytes) -> states.State:
         return states.First.deserialize(state)
+
+    def clone(self) -> Self:
+        """Create a new instance with the same parameters but new analyzer prefixes."""
+        return self.__class__(self._column)
 
     def __hash__(self) -> int:
         return hash((self.name, tuple(self.parameters.items())))
@@ -155,6 +163,10 @@ class Average:
     def deserialize(cls, state: bytes) -> states.State:
         return states.Average.deserialize(state)
 
+    def clone(self) -> Self:
+        """Create a new instance with the same parameters but new analyzer prefixes."""
+        return self.__class__(self._column)
+
     def __hash__(self) -> int:
         return hash((self.name, tuple(self.parameters.items())))
 
@@ -195,6 +207,10 @@ class Variance:
     def deserialize(cls, state: bytes) -> states.State:
         return states.Variance.deserialize(state)
 
+    def clone(self) -> Self:
+        """Create a new instance with the same parameters but new analyzer prefixes."""
+        return self.__class__(self._column)
+
     def __hash__(self) -> int:
         return hash((self.name, tuple(self.parameters.items())))
 
@@ -233,6 +249,10 @@ class Minimum:
     @classmethod
     def deserialize(cls, state: bytes) -> states.State:
         return states.Minimum.deserialize(state)
+
+    def clone(self) -> Self:
+        """Create a new instance with the same parameters but new analyzer prefixes."""
+        return self.__class__(self._column)
 
     def __hash__(self) -> int:
         return hash((self.name, tuple(self.parameters.items())))
@@ -273,6 +293,10 @@ class Maximum:
     def deserialize(cls, state: bytes) -> states.State:
         return states.Maximum.deserialize(state)
 
+    def clone(self) -> Self:
+        """Create a new instance with the same parameters but new analyzer prefixes."""
+        return self.__class__(self._column)
+
     def __hash__(self) -> int:
         return hash((self.name, tuple(self.parameters.items())))
 
@@ -311,6 +335,10 @@ class Sum:
     @classmethod
     def deserialize(cls, state: bytes) -> states.State:
         return states.SimpleAdditiveState.deserialize(state)
+
+    def clone(self) -> Self:
+        """Create a new instance with the same parameters but new analyzer prefixes."""
+        return self.__class__(self._column)
 
     def __hash__(self) -> int:
         return hash((self.name, tuple(self.parameters.items())))
@@ -351,6 +379,10 @@ class NullCount:
     def deserialize(cls, state: bytes) -> states.State:
         return states.SimpleAdditiveState.deserialize(state)
 
+    def clone(self) -> Self:
+        """Create a new instance with the same parameters but new analyzer prefixes."""
+        return self.__class__(self._column)
+
     def __hash__(self) -> int:
         return hash((self.name, tuple(self.parameters.items())))
 
@@ -389,6 +421,10 @@ class NegativeCount:
     @classmethod
     def deserialize(cls, state: bytes) -> states.State:
         return states.SimpleAdditiveState.deserialize(state)
+
+    def clone(self) -> Self:
+        """Create a new instance with the same parameters but new analyzer prefixes."""
+        return self.__class__(self._column)
 
     def __hash__(self) -> int:
         return hash((self.name, tuple(self.parameters.items())))
@@ -433,6 +469,11 @@ class DuplicateCount:
     def deserialize(cls, state: bytes) -> states.State:
         return states.NonMergeable.deserialize(state)
 
+    def clone(self) -> Self:
+        """Create a new instance with the same parameters but new analyzer prefixes."""
+        # Pass a copy of the columns list to avoid shared references
+        return self.__class__(self._columns.copy())
+
     def __hash__(self) -> int:
         # Convert the columns list to a tuple for hashing
         return hash((self.name, tuple(self._columns)))
@@ -476,6 +517,14 @@ class CountValues:
     def deserialize(cls, state: bytes) -> states.State:
         return states.SimpleAdditiveState.deserialize(state)
 
+    def clone(self) -> Self:
+        """Create a new instance with the same parameters but new analyzer prefixes."""
+        # If values is a list, create a copy to avoid shared references
+        if isinstance(self._values, list):
+            return self.__class__(self._column, self._values.copy())
+        else:
+            return self.__class__(self._column, self._values)
+
     def __hash__(self) -> int:
         # Convert lists to tuples for hashing
         hashable_values = self._values if not isinstance(self._values, list) else tuple(self._values)
@@ -516,6 +565,10 @@ class UniqueCount:
     @classmethod
     def deserialize(cls, state: bytes) -> states.State:
         return states.NonMergeable.deserialize(state)
+
+    def clone(self) -> Self:
+        """Create a new instance with the same parameters but new analyzer prefixes."""
+        return self.__class__(self._column)
 
     def __hash__(self) -> int:
         return hash((self.name, tuple(self.parameters.items())))
