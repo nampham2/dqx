@@ -86,7 +86,8 @@ class CommercialDataSource:
         self._relation = duckdb.arrow(arrow_table)
 
         # Create a unique table name for CTE
-        self._table_name = f"_commerce_{random.randint(100000, 999999)}"
+        # Use object id to ensure uniqueness even with same seed
+        self._table_name = f"_commerce_{id(self) % 1000000}"
 
     @property
     def name(self) -> str:
@@ -129,10 +130,7 @@ class CommercialDataSource:
     ) -> pa.Table:
         """Generate synthetic commerce data with date distribution."""
         if seed is not None:
-            Faker.seed(seed)
             random.seed(seed)
-
-        fake = Faker()
 
         # Calculate total days
         days = (end_date - start_date).days + 1
@@ -149,11 +147,23 @@ class CommercialDataSource:
 
         # Generate data for each day
         for day_offset in range(days):
+            # Create a unique Faker instance for each day to ensure variability
+            if seed is not None:
+                # Use a combination of seed and day_offset to ensure different data per day
+                day_seed = seed + day_offset * 1000
+                Faker.seed(day_seed)
+                random.seed(day_seed)
+
+            fake = Faker()
+
             current_date = start_date + timedelta(days=day_offset)
             # Add some randomness to daily record count (+/- 20%)
-            daily_records = records_per_day + fake.random_int(
-                min=-int(records_per_day * 0.2), max=int(records_per_day * 0.2)
-            )
+            daily_records = records_per_day + random.randint(-int(records_per_day * 0.2), int(records_per_day * 0.2))
+
+            # Add a daily variation factor for prices and taxes
+            # This ensures each day has different average values
+            daily_price_factor = 0.8 + (random.random() * 0.4)  # 0.8 to 1.2
+            daily_tax_factor = 0.7 + (random.random() * 0.6)  # 0.7 to 1.3
 
             for _ in range(daily_records):
                 names.append(fake.name())
@@ -161,8 +171,14 @@ class CommercialDataSource:
                 items.append(fake.catch_phrase())
                 quantities.append(fake.random_int(min=1, max=100))
                 delivered.append(fake.null_boolean())
-                prices.append(fake.pyfloat(min_value=10.0, max_value=1000.0, right_digits=2))
-                taxes.append(fake.pyfloat(min_value=0.0, max_value=100.0, right_digits=2))
+
+                # Apply daily variation to prices and taxes
+                base_price = fake.pyfloat(min_value=10.0, max_value=1000.0, right_digits=2)
+                prices.append(base_price * daily_price_factor)
+
+                base_tax = fake.pyfloat(min_value=0.0, max_value=100.0, right_digits=2)
+                taxes.append(base_tax * daily_tax_factor)
+
                 order_dates.append(current_date)
 
         return pa.Table.from_arrays(
