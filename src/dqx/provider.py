@@ -537,12 +537,13 @@ class ExtendedMetricProvider(RegistryMixin):
         fn = _create_lazy_extended_fn(self._provider, compute.day_over_day, spec, sym)
 
         # Register with lazy function
+        cloned_spec = specs.DayOverDay.from_base_spec(spec)
         self.registry._metrics.append(
             sm := SymbolicMetric(
-                name=specs.DayOverDay.from_base_spec(spec).name,
+                name=cloned_spec.name,
                 symbol=sym,
                 fn=fn,
-                metric_spec=specs.DayOverDay.from_base_spec(spec),
+                metric_spec=cloned_spec,
                 lag=lag,  # Use the provided lag instead of 0
                 dataset=dataset,
                 required_metrics=[lag_0, lag_1],
@@ -570,12 +571,13 @@ class ExtendedMetricProvider(RegistryMixin):
         fn = _create_lazy_extended_fn(self._provider, compute.week_over_week, spec, sym)
 
         # Register with lazy function
+        cloned_spec = specs.WeekOverWeek.from_base_spec(spec)
         self.registry._metrics.append(
             sm := SymbolicMetric(
-                name=specs.WeekOverWeek.from_base_spec(spec).name,
+                name=cloned_spec.name,
                 symbol=sym,
                 fn=fn,
-                metric_spec=specs.WeekOverWeek.from_base_spec(spec),
+                metric_spec=cloned_spec,
                 lag=lag,  # Use the provided lag instead of 0
                 dataset=dataset,
                 required_metrics=[lag_0, lag_7],
@@ -633,12 +635,13 @@ class ExtendedMetricProvider(RegistryMixin):
         )
 
         # Register with lazy function
+        cloned_spec = specs.Stddev.from_base_spec(spec, offset, n)
         self.registry._metrics.append(
             sm := SymbolicMetric(
-                name=specs.Stddev.from_base_spec(spec, offset, n).name,
+                name=cloned_spec.name,
                 symbol=sym,
                 fn=fn,
-                metric_spec=specs.Stddev.from_base_spec(spec, offset, n),
+                metric_spec=cloned_spec,
                 lag=offset,  # stddev itself should have lag=offset (not lag=0)
                 dataset=dataset,
                 required_metrics=required,
@@ -738,15 +741,16 @@ class MetricProvider(SymbolicMetricBase):
         sym = self.registry._next_symbol()
 
         # Create lazy retrieval function that will resolve dataset at evaluation time
-        fn = _create_lazy_retrieval_fn(self, metric, sym)
+        cloned_spec = metric.clone()
+        fn = _create_lazy_retrieval_fn(self, cloned_spec, sym)
 
         # Register with the lazy function
         self.registry._metrics.append(
             sm := SymbolicMetric(
-                name=metric.name,
+                name=cloned_spec.name,
                 symbol=sym,
                 fn=fn,
-                metric_spec=metric.clone(),
+                metric_spec=cloned_spec,
                 lag=lag,
                 dataset=dataset,
                 required_metrics=[],
