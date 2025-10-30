@@ -141,8 +141,8 @@ def validate_environments(mp: MetricProvider, ctx: Context) -> None:
     prod_count = mp.num_rows(dataset="production")
     staging_count = mp.num_rows(dataset="staging")
 
-    ctx.assert_that(prod_count).where(name="Row count match", severity="P1").is_eq(
-        staging_count, tol=100
+    ctx.assert_that(prod_count).where(name="Row count match", severity="P1").is_between(
+        staging_count - 100, staging_count + 100
     )  # Allow 100 row difference
 
     # Verify key metrics align
