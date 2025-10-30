@@ -34,16 +34,17 @@ from dqx.orm.repositories import InMemoryMetricDB
 # Define your validation rules
 @check(name="Revenue integrity")
 def validate_revenue(mp: MetricProvider, ctx: Context) -> None:
-    # Catch calculation errors
-    calculated = mp.sum("price") * mp.sum("quantity")
+    # Verify reported revenue is positive
     reported = mp.sum("revenue")
-    error_rate = abs(calculated - reported) / reported
+    ctx.assert_that(reported).where(
+        name="Revenue is positive", severity="P0"
+    ).is_positive()
 
-    ctx.assert_that(error_rate).where(
-        name="Revenue calculation accuracy", severity="P0"
-    ).is_lt(
-        0.001
-    )  # Less than 0.1% error
+    # Check average transaction size is reasonable
+    avg_revenue = mp.average("revenue")
+    ctx.assert_that(avg_revenue).where(
+        name="Average transaction size", severity="P1"
+    ).is_between(10, 100)
 
 
 # Your own metric store
