@@ -102,8 +102,8 @@ def test_delete_expired_metrics_empty_db() -> None:
     db = InMemoryMetricDB()
 
     # Should not raise any exceptions
-    deleted_count = db.delete_expired_metrics()
-    assert deleted_count == 0
+    db.delete_expired_metrics()
+    # No return value to check anymore
 
 
 def test_delete_expired_metrics_with_mixed_metrics() -> None:
@@ -139,8 +139,7 @@ def test_delete_expired_metrics_with_mixed_metrics() -> None:
         session.commit()
 
     # Delete expired metrics
-    deleted_count = db.delete_expired_metrics()
-    assert deleted_count == 1
+    db.delete_expired_metrics()
 
     # Verify the correct metrics remain
     stats = db.get_expired_metrics_stats()
@@ -179,8 +178,7 @@ def test_delete_expired_metrics_boundary_conditions() -> None:
         session.commit()
 
     # Should not delete - exactly at boundary
-    deleted_count = db.delete_expired_metrics()
-    assert deleted_count == 0
+    db.delete_expired_metrics()
     if persisted[0].metric_id is not None:
         assert db.exists(persisted[0].metric_id) is True
 
@@ -195,7 +193,6 @@ def test_delete_expired_metrics_boundary_conditions() -> None:
         session.commit()
 
     # Now should delete - past the boundary
-    deleted_count = db.delete_expired_metrics()
-    assert deleted_count == 1
+    db.delete_expired_metrics()
     if persisted[0].metric_id is not None:
         assert db.exists(persisted[0].metric_id) is False

@@ -315,19 +315,6 @@ class MetricDB:
 
         return [metric.to_model() for metric in self.new_session().scalars(query)]
 
-    def get_all(self) -> Maybe[Sequence[models.Metric]]:
-        """Get all metrics from the database.
-
-        Returns:
-            Maybe containing all metrics if any exist, Nothing otherwise.
-        """
-        query = select(Metric).order_by(Metric.created.desc())
-        metrics = [metric.to_model() for metric in self.new_session().scalars(query)]
-
-        if metrics:
-            return Some(metrics)
-        return Nothing
-
     def get_expired_metrics_stats(self) -> dict[str, int]:
         """Get statistics about expired metrics in the database.
 
@@ -369,13 +356,10 @@ class MetricDB:
                 "expired_metrics": expired_count,
             }
 
-    def delete_expired_metrics(self) -> int:
+    def delete_expired_metrics(self) -> None:
         """Delete all expired metrics from the database.
 
         A metric is deleted if created + ttl_hours < current_time
-
-        Returns:
-            Number of metrics deleted
         """
         with self._mutex:
             session = self.new_session()
@@ -383,10 +367,9 @@ class MetricDB:
             # Get current UTC time
             current_time = datetime.now(timezone.utc)
 
-            # Count expired metrics before deletion for return value
-            expired_count = (
-                session.query(func.count(Metric.metric_id))
-                .filter(
+            # Create CTE for expired metrics
+            expired_metrics_cte = (
+                select(Metric.metric_id).where(
                     func.strftime(
                         "%Y-%m-%d %H:%M:%S",
                         func.datetime(
@@ -396,35 +379,13 @@ class MetricDB:
                     )
                     < func.strftime("%Y-%m-%d %H:%M:%S", current_time),
                 )
-                .scalar()
-                or 0
-            )
+            ).cte("expired_metrics")
 
-            if expired_count == 0:
-                return 0
+            # Delete metrics that exist in the CTE
+            delete_query = delete(Metric).where(Metric.metric_id.in_(select(expired_metrics_cte.c.metric_id)))
 
-            # Delete expired metrics using a subquery
-            # SQLite supports DELETE with subquery
-            subquery = (
-                select(Metric.metric_id)
-                .filter(
-                    func.strftime(
-                        "%Y-%m-%d %H:%M:%S",
-                        func.datetime(
-                            Metric.created,
-                            "+" + func.cast(func.json_extract(Metric.meta, "$.ttl_hours"), sa.String) + " hours",
-                        ),
-                    )
-                    < func.strftime("%Y-%m-%d %H:%M:%S", current_time),
-                )
-                .scalar_subquery()
-            )
-
-            delete_query = delete(Metric).where(Metric.metric_id.in_(subquery))
             session.execute(delete_query)
-            session.commit()
-
-            return expired_count
+            # No manual commit needed - session factory handles it
 
 
 class InMemoryMetricDB(MetricDB):

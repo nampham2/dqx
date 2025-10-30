@@ -67,10 +67,7 @@ def test_verification_suite_cleanup_expired_metrics() -> None:
         session.commit()
 
     # Run cleanup (could use either suite instance)
-    deleted_count = suite2.cleanup_expired_metrics()
-
-    # Verify correct number of metrics were deleted
-    assert deleted_count > 0  # Should have deleted suite1's metrics
+    suite2.cleanup_expired_metrics()
 
     # Verify only suite2's metrics remain
     remaining_stats = db.get_expired_metrics_stats()
@@ -99,8 +96,7 @@ def test_verification_suite_cleanup_no_expired() -> None:
     suite.run([datasource], ResultKey(dt.date(2024, 10, 30), {}))
 
     # Run cleanup immediately - no metrics should be expired
-    deleted_count = suite.cleanup_expired_metrics()
-    assert deleted_count == 0
+    suite.cleanup_expired_metrics()
 
     # Verify no metrics were deleted
     stats = db.get_expired_metrics_stats()
@@ -155,10 +151,7 @@ def test_verification_suite_cleanup_mixed_ttl() -> None:
         session.commit()
 
     # Run cleanup
-    deleted_count = suite.cleanup_expired_metrics()
-
-    # Should have deleted exactly 1 metric
-    assert deleted_count == 1
+    suite.cleanup_expired_metrics()
 
     # Verify remaining metrics
     final_stats = db.get_expired_metrics_stats()

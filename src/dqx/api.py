@@ -790,7 +790,7 @@ class VerificationSuite:
         # Process through all plugins
         self.plugin_manager.process_all(context)
 
-    def cleanup_expired_metrics(self) -> int:
+    def cleanup_expired_metrics(self) -> None:
         """
         Delete expired metrics from the database.
 
@@ -798,16 +798,13 @@ class VerificationSuite:
         exceeded their TTL (time-to-live). It uses UTC time for consistency
         across different timezones.
 
-        Returns:
-            Number of metrics deleted
-
         Example:
             >>> suite = VerificationSuite(checks, db, "My Suite")
             >>> # After running the suite...
-            >>> deleted = suite.cleanup_expired_metrics()
-            >>> print(f"Deleted {deleted} expired metrics")
+            >>> suite.cleanup_expired_metrics()
+            >>> print("Expired metrics deleted")
         """
-        return self.provider._db.delete_expired_metrics()
+        self.provider._db.delete_expired_metrics()
 
 
 def _create_check(
