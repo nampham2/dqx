@@ -13,7 +13,7 @@ import sympy as sp
 from returns.result import Failure, Result
 
 from dqx import compute, specs
-from dqx.common import DQXError, ExecutionId, ResultKey, RetrievalFn, Tags
+from dqx.common import DQXError, ExecutionId, MetricKey, ResultKey, RetrievalFn, Tags
 from dqx.orm.repositories import MetricDB
 from dqx.specs import MetricSpec
 
@@ -372,6 +372,16 @@ class MetricRegistry:
             details.append("  Metrics depend on symbols not in the registry")
 
         return "\n".join(details)
+
+    def symbol_lookup_table(self, key: ResultKey) -> dict[MetricKey, sp.Symbol]:
+        symbol_lookup: dict[MetricKey, str] = {}
+        for sym_metric in self.metrics:
+            if sym_metric.dataset is not None:
+                # Calculate effective key based on lag
+                effective_key = key.lag(sym_metric.lag)
+                metric_key = (sym_metric.metric_spec, effective_key, sym_metric.dataset)
+                symbol_lookup[metric_key] = str(sym_metric.symbol)
+        return symbol_lookup
 
 
 class RegistryMixin:

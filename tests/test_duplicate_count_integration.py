@@ -65,7 +65,8 @@ class TestDuplicateCountIntegration:
 
         import duckdb
 
-        from dqx.common import ResultKey
+        from dqx.common import ExecutionId, ResultKey
+        from dqx.orm.repositories import InMemoryMetricDB
 
         # Create test data
         conn = duckdb.connect(":memory:")
@@ -84,15 +85,24 @@ class TestDuplicateCountIntegration:
         relation = conn.sql("SELECT * FROM test_data")
         data_source = DuckRelationDataSource(relation, "test_data")
 
-        # Create analyzer
-        analyzer = Analyzer()
+        # Create analyzer with required arguments
+        db = InMemoryMetricDB()
+        execution_id = ExecutionId("test-exec")
+        provider = MetricProvider(db, execution_id)
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+
+        analyzer = Analyzer(
+            datasources=[data_source],
+            provider=provider,
+            key=key,
+            execution_id=execution_id,
+        )
 
         # Create DuplicateCount spec
         dc_spec = specs.DuplicateCount(["product_id", "user_id"])
 
         # Analyze with the spec
-        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-        report = analyzer.analyze(data_source, {key: [dc_spec]})
+        report = analyzer.analyze_simple_metrics(data_source, {key: [dc_spec]})
 
         # Get the metric from the report
         metric = report[(dc_spec, key, "test_data")]

@@ -1,6 +1,7 @@
 """Tests for metric_trace functionality."""
 
 from datetime import date
+from typing import Any
 
 from returns.result import Failure, Success
 
@@ -18,7 +19,7 @@ class TestMetricTrace:
 
     def test_empty_inputs(self) -> None:
         """Test metric_trace with all empty inputs."""
-        result = metric_trace([], "exec-123", {}, [])
+        result = metric_trace([], "exec-123", AnalysisReport(), [], {})
 
         # Should return empty table with correct schema
         assert result.num_rows == 0
@@ -56,7 +57,7 @@ class TestMetricTrace:
             ),
         ]
 
-        result = metric_trace(metrics, "exec-123", {}, [])
+        result = metric_trace(metrics, "exec-123", AnalysisReport(), [], {})
 
         assert result.num_rows == 2
         data = result.to_pydict()
@@ -91,10 +92,11 @@ class TestMetricTrace:
             dataset="sales_table",
             state=SimpleAdditiveState(100.0),
         )
-        report.symbol_mapping[(spec, key, "sales_table")] = "x_1"
 
-        reports = {"sales_table": report}
-        result = metric_trace([], "exec-123", reports, [])
+        # Create symbol lookup
+        symbol_lookup: dict[tuple[specs.MetricSpec, ResultKey, str], Any] = {(spec, key, "sales_table"): "x_1"}
+
+        result = metric_trace([], "exec-123", report, [], symbol_lookup)
 
         assert result.num_rows == 1
         data = result.to_pydict()
@@ -127,7 +129,7 @@ class TestMetricTrace:
             ),
         ]
 
-        result = metric_trace([], "exec-123", {}, symbols)
+        result = metric_trace([], "exec-123", AnalysisReport(), symbols, {})
 
         assert result.num_rows == 2
         data = result.to_pydict()
@@ -177,11 +179,14 @@ class TestMetricTrace:
         report[(spec2, key, "sales_table")] = Metric.build(
             spec2, key, dataset="sales_table", state=SimpleAdditiveState(5.0)
         )
-        report.symbol_mapping[(spec1, key, "sales_table")] = "x_1"
-        report.symbol_mapping[(spec2, key, "sales_table")] = "x_2"
 
-        reports = {"sales_table": report}
-        result = metric_trace(metrics, "exec-123", reports, [])
+        # Create symbol lookup
+        symbol_lookup: dict[tuple[specs.MetricSpec, ResultKey, str], Any] = {
+            (spec1, key, "sales_table"): "x_1",
+            (spec2, key, "sales_table"): "x_2",
+        }
+
+        result = metric_trace(metrics, "exec-123", report, [], symbol_lookup)
 
         assert result.num_rows == 3
         data = result.to_pydict()
@@ -230,8 +235,9 @@ class TestMetricTrace:
         report[(spec, key, "sales_table")] = Metric.build(
             spec, key, dataset="sales_table", state=SimpleAdditiveState(101.0)
         )
-        report.symbol_mapping[(spec, key, "sales_table")] = "x_1"
-        reports = {"sales_table": report}
+
+        # Create symbol lookup
+        symbol_lookup: dict[tuple[specs.MetricSpec, ResultKey, str], Any] = {(spec, key, "sales_table"): "x_1"}
 
         # Symbols (including one that doesn't match)
         symbols = [
@@ -253,7 +259,7 @@ class TestMetricTrace:
             ),
         ]
 
-        result = metric_trace(metrics, "exec-123", reports, symbols)
+        result = metric_trace(metrics, "exec-123", report, symbols, symbol_lookup)
 
         assert result.num_rows == 2
         data = result.to_pydict()
@@ -295,8 +301,9 @@ class TestMetricTrace:
         report[(spec, key, "sales_table")] = Metric.build(
             spec, key, dataset="sales_table", state=SimpleAdditiveState(101.0)
         )
-        report.symbol_mapping[(spec, key, "sales_table")] = "x_1"
-        reports = {"sales_table": report}
+
+        # Create symbol lookup
+        symbol_lookup: dict[tuple[specs.MetricSpec, ResultKey, str], Any] = {(spec, key, "sales_table"): "x_1"}
 
         symbols = [
             SymbolInfo(
@@ -309,7 +316,7 @@ class TestMetricTrace:
             )
         ]
 
-        result = metric_trace(metrics, "exec-123", reports, symbols)
+        result = metric_trace(metrics, "exec-123", report, symbols, symbol_lookup)
 
         data = result.to_pydict()
         assert data["value_db"][0] == 100.0
@@ -347,14 +354,11 @@ class TestMetricTrace:
         ]
 
         # Analysis reports for same metrics
-        reports = {}
+        report = AnalysisReport()
         for m in metrics:
-            ds = m.dataset
-            if ds not in reports:
-                reports[ds] = AnalysisReport()
-            reports[ds][(m.spec, m.key, ds)] = m
+            report[(m.spec, m.key, m.dataset)] = m
 
-        result = metric_trace(metrics, "exec-123", reports, [])
+        result = metric_trace(metrics, "exec-123", report, [], {})
 
         assert result.num_rows == 3
         data = result.to_pydict()
@@ -387,7 +391,9 @@ class TestMetricTrace:
         report[(spec, key, "test_dataset")] = Metric.build(
             spec, key, dataset="test_dataset", state=SimpleAdditiveState(100.0)
         )
-        reports = {"test_dataset": report}
+
+        # Create empty symbol lookup since we're not using symbols here
+        symbol_lookup: dict[tuple[specs.MetricSpec, ResultKey, str], Any] = {}
 
         symbols = [
             SymbolInfo(
@@ -410,14 +416,14 @@ class TestMetricTrace:
         metrics_table = metrics_to_pyarrow_table(metrics, "exec-123")
         assert all(col.islower() for col in metrics_table.column_names)
 
-        reports_table = analysis_reports_to_pyarrow_table(reports)
+        reports_table = analysis_reports_to_pyarrow_table(report, symbol_lookup)
         assert all(col.islower() for col in reports_table.column_names)
 
         symbols_table = symbols_to_pyarrow_table(symbols)
         assert all(col.islower() for col in symbols_table.column_names)
 
         # Test trace table
-        trace = metric_trace(metrics, "exec-123", reports, symbols)
+        trace = metric_trace(metrics, "exec-123", report, symbols, symbol_lookup)
         assert all(col.islower() for col in trace.column_names)
 
 
@@ -429,7 +435,7 @@ class TestMetricTraceStats:
         from dqx.data import metric_trace_stats
 
         # Create empty trace
-        trace = metric_trace([], "exec-123", {}, [])
+        trace = metric_trace([], "exec-123", AnalysisReport(), [], {})
         stats = metric_trace_stats(trace)
 
         assert stats.total_rows == 0
@@ -460,9 +466,8 @@ class TestMetricTraceStats:
         report[(spec, key, "sales_table")] = Metric.build(
             spec, key, dataset="sales_table", state=SimpleAdditiveState(100.0)
         )
-        reports = {"sales_table": report}
 
-        trace = metric_trace(metrics, "exec-123", reports, [])
+        trace = metric_trace(metrics, "exec-123", report, [], {})
         stats = metric_trace_stats(trace)
 
         assert stats.total_rows == 1
@@ -493,8 +498,9 @@ class TestMetricTraceStats:
         report[(spec, key, "sales_table")] = Metric.build(
             spec, key, dataset="sales_table", state=SimpleAdditiveState(101.0)
         )
-        report.symbol_mapping[(spec, key, "sales_table")] = "x_1"
-        reports = {"sales_table": report}
+
+        # Create symbol lookup
+        symbol_lookup: dict[tuple[specs.MetricSpec, ResultKey, str], Any] = {(spec, key, "sales_table"): "x_1"}
 
         symbols = [
             SymbolInfo(
@@ -507,7 +513,7 @@ class TestMetricTraceStats:
             )
         ]
 
-        trace = metric_trace(metrics, "exec-123", reports, symbols)
+        trace = metric_trace(metrics, "exec-123", report, symbols, symbol_lookup)
         stats = metric_trace_stats(trace)
 
         assert stats.total_rows == 1
@@ -550,9 +556,8 @@ class TestMetricTraceStats:
         report[(spec, key, "sales_table")] = Metric.build(
             spec, key, dataset="sales_table", state=SimpleAdditiveState(101.0)
         )
-        reports = {"sales_table": report}
 
-        trace = metric_trace(metrics, "exec-123", reports, [])
+        trace = metric_trace(metrics, "exec-123", report, [], {})
         stats = metric_trace_stats(trace)
 
         # Extended metrics should not count as discrepancies
@@ -603,9 +608,8 @@ class TestMetricTraceStats:
             dataset="sales_table",
             state=SimpleAdditiveState(50.0),  # Match
         )
-        reports = {"sales_table": report}
 
-        trace = metric_trace(metrics, "exec-123", reports, [])
+        trace = metric_trace(metrics, "exec-123", report, [], {})
         stats = metric_trace_stats(trace)
 
         assert stats.total_rows == 2

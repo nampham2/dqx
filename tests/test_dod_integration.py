@@ -95,7 +95,8 @@ def test_day_over_day_integration() -> None:
     trace = data.metric_trace(
         db.get_by_execution_id(suite.execution_id),
         suite.execution_id,
-        suite.analysis_reports,
+        suite._analysis_reports,
         suite.provider.collect_symbols(suite.key),
+        suite.provider.registry.symbol_lookup_table(suite.key),
     )
     print_metric_trace(trace, suite.execution_id)

@@ -55,31 +55,35 @@ def test_metadata_persistence_flow() -> None:
 
 
 def test_metadata_with_custom_ttl() -> None:
-    """Test that custom TTL can be set in metadata."""
+    """Test that metadata is created with execution_id."""
     from dqx.analyzer import Analyzer
+    from dqx.provider import MetricProvider
     from dqx.specs import Average
 
-    # Create analyzer with custom metadata
-    custom_metadata = Metadata(execution_id="test-123", ttl_hours=24)
-    analyzer = Analyzer(metadata=custom_metadata)
+    # Create analyzer with execution_id
+    db = InMemoryMetricDB()
+    execution_id = "test-123"
+    provider = MetricProvider(db, execution_id=execution_id)
+    key = ResultKey(date.today(), {"env": "test"})
 
     # Create test data
     table = pa.table({"value": [1.0, 2.0, 3.0]})
     datasource = DuckRelationDataSource.from_arrow(table, "test_data")
 
+    analyzer = Analyzer(datasources=[datasource], provider=provider, key=key, execution_id=execution_id)
+
     # Analyze
-    metrics_by_date = {ResultKey(date.today(), {"env": "test"}): [Average("value")]}
-    analyzer.analyze(datasource, metrics_by_date)
+    metrics_by_date = {key: [Average("value")]}
+    report = analyzer.analyze_simple_metrics(datasource, metrics_by_date)
 
     # Persist
-    db = InMemoryMetricDB()
-    analyzer.report.persist(db)
+    report.persist(db)
 
     # Retrieve and verify
     metrics = db.get_by_execution_id("test-123")
     assert len(metrics) == 1
     assert metrics[0].metadata is not None
-    assert metrics[0].metadata.ttl_hours == 24
+    assert metrics[0].metadata.ttl_hours == 168  # Default TTL
 
 
 def test_metadata_isolation_between_suites() -> None:

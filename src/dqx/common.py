@@ -28,6 +28,7 @@ RecomputeStrategy = Literal["ALWAYS", "MISSING", "NEVER"]
 AssertionStatus = Literal["OK", "FAILURE"]
 Validator = Callable[[Any], bool]
 RetrievalFn = Callable[["ResultKey"], Result[float, str]]
+MetricKey = tuple["MetricSpec", "ResultKey", DatasetName]  # Uniquely identifies a metric in DB
 
 
 class DQXError(Exception): ...

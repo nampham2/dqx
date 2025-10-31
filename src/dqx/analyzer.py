@@ -2,32 +2,33 @@ from __future__ import annotations
 
 import datetime
 import logging
-from collections import UserDict
+from collections import UserDict, defaultdict
 from collections.abc import Mapping, Sequence
 from typing import Any, TypeVar
 
 import numpy as np
 import sqlparse
 from returns.maybe import Some
+from returns.result import Failure, Success
 
-from dqx import models
+from dqx import models, states
 from dqx.common import (
-    DatasetName,
     DQXError,
+    ExecutionId,
     Metadata,
+    MetricKey,
     ResultKey,
     SqlDataSource,
 )
 from dqx.dialect import get_dialect
 from dqx.ops import SqlOp
 from dqx.orm.repositories import MetricDB
+from dqx.provider import MetricProvider, SymbolicMetric
 from dqx.specs import MetricSpec
 
-DEFAULT_BATCH_SIZE = 7  # Maximum dates per analysis SQL query
+DEFAULT_BATCH_SIZE = 14  # Maximum dates per analysis SQL query
 
 ColumnName = str
-MetricKey = tuple[MetricSpec, ResultKey, DatasetName]
-
 T = TypeVar("T", bound=SqlDataSource)
 
 
@@ -76,8 +77,6 @@ def _validate_value(value: Any, date_str: str, symbol: str) -> float:
 class AnalysisReport(UserDict[MetricKey, models.Metric]):
     def __init__(self, data: dict[MetricKey, models.Metric] | None = None) -> None:
         self.data = data if data is not None else {}
-        # Maps (MetricSpec, ResultKey) to symbol name
-        self.symbol_mapping: dict[MetricKey, str] = {}
 
     def merge(self, other: AnalysisReport) -> AnalysisReport:
         """Merge two AnalysisReports, using Metric.reduce for conflicts.
@@ -105,19 +104,12 @@ class AnalysisReport(UserDict[MetricKey, models.Metric]):
                 merged_data[key] = metric
 
         merged_report = AnalysisReport(data=merged_data)
-        # Merge symbol mappings
-        merged_report.symbol_mapping = {**self.symbol_mapping, **other.symbol_mapping}
         return merged_report
 
-    def show(self, datasource: str = "unknown") -> None:
-        """Display this report using the new display function.
-
-        Args:
-            datasource: Name to identify this report's datasource
-        """
+    def show(self, symbol_lookup: dict[MetricKey, Any]) -> None:
         from dqx.display import print_analysis_report
 
-        print_analysis_report({datasource: self})
+        print_analysis_report(self, symbol_lookup)
 
     def persist(self, db: MetricDB, overwrite: bool = True) -> None:
         """Persist the analysis report to the metric database.
@@ -240,7 +232,6 @@ def analyze_batch_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> No
     # Format SQL for readability
     sql = sqlparse.format(
         sql,
-        # reindent=,
         reindent_aligned=True,
         keyword_case="upper",
         identifier_case="lower",
@@ -273,77 +264,25 @@ class Analyzer:
     Note: This class is NOT thread-safe. Thread safety must be handled by callers if needed.
     """
 
-    def __init__(self, metadata: Metadata | None = None, symbol_lookup: dict[MetricKey, str] | None = None) -> None:
-        # TODO(npham): Remove _report and make the analyzer stateless.
-        self._report: AnalysisReport = AnalysisReport()
-        self._metadata = metadata or Metadata()
-        self._symbol_lookup = symbol_lookup or {}
+    def __init__(
+        self,
+        datasources: list[SqlDataSource],
+        provider: MetricProvider,
+        key: ResultKey,
+        execution_id: ExecutionId,
+    ) -> None:
+        self.datasources = datasources
+        self.provider = provider
+        self.key = key
+        self.execution_id = execution_id
 
     @property
-    def report(self) -> AnalysisReport:
-        return self._report
+    def metrics(self) -> list[SymbolicMetric]:
+        return self.provider.registry.metrics
 
-    def analyze(
-        self,
-        ds: SqlDataSource,
-        metrics: Mapping[ResultKey, Sequence[MetricSpec]],
-    ) -> AnalysisReport:
-        """Analyze multiple dates with different metrics in batch.
-
-        This method processes multiple ResultKeys efficiently by batching SQL
-        operations. When the number of keys exceeds DEFAULT_BATCH_SIZE (7),
-        the analysis is automatically split into smaller batches to optimize
-        query performance and avoid excessively large SQL queries.
-
-        Args:
-            ds: The SQL data source to analyze
-            metrics_by_key: Dictionary mapping ResultKeys to their metrics
-
-        Returns:
-            AnalysisReport containing all computed metrics for all dates
-
-        Raises:
-            DQXError: If no metrics provided or SQL execution fails
-
-        Note:
-            Large date ranges are automatically processed in batches of
-            DEFAULT_BATCH_SIZE to maintain optimal performance. This limit
-            can be adjusted by modifying the DEFAULT_BATCH_SIZE constant.
-        """
-        if not metrics:
-            raise DQXError("No metrics provided for batch analysis!")
-
-        # Log entry point with explicit dates
-        dates = sorted([key.yyyy_mm_dd for key in metrics.keys()])
-        date_strs = ", ".join(d.isoformat() for d in dates)
-        logger.info(f"Analyzing dataset {ds.name} for {len(metrics)} dates: {date_strs}")
-
-        # Create final report at the beginning
-        final_report = AnalysisReport()
-
-        # Process in batches if needed
-        items = list(metrics.items())
-
-        for i in range(0, len(items), DEFAULT_BATCH_SIZE):
-            batch_items = items[i : i + DEFAULT_BATCH_SIZE]
-            batch = dict(batch_items)
-
-            # Log batch boundaries
-            batch_keys = [key for key, _ in batch_items]
-            logger.info(
-                f"Processing batch {i // DEFAULT_BATCH_SIZE + 1}: {', '.join(str(key.yyyy_mm_dd) for key in batch_keys)}"
-            )
-
-            report = self._analyze_internal(ds, batch)
-            # Merge directly into final report
-            final_report = final_report.merge(report)
-
-        self._report = self._report.merge(final_report)
-
-        # Log result summary
-        logger.info(f"Batch analysis complete: {len(final_report)} metrics computed")
-
-        return self._report
+    @property
+    def db(self) -> MetricDB:
+        return self.provider._db
 
     def _analyze_internal(
         self,
@@ -408,91 +347,165 @@ class Analyzer:
                 except DQXError:
                     raise DQXError(f"Failed to retrieve value for analyzer {representative} on date {key.yyyy_mm_dd}")
 
-        # Phase 5: Build report with symbol mappings
+        # Phase 5: Build report
         report_data: dict[MetricKey, models.Metric] = {}
         report = AnalysisReport(data=report_data)
+
+        metadata = Metadata(execution_id=self.execution_id)
 
         for key, metrics in metrics_by_key.items():
             for metric in metrics:
                 metric_key = (metric, key, ds.name)
-                report_data[metric_key] = models.Metric.build(metric, key, dataset=ds.name, metadata=self._metadata)
-
-                # Add symbol mapping if available
-                if metric_key in self._symbol_lookup:
-                    report.symbol_mapping[metric_key] = self._symbol_lookup[metric_key]
+                report_data[metric_key] = models.Metric.build(metric, key, dataset=ds.name, metadata=metadata)
 
         return report
 
+    def analyze_simple_metrics(
+        self,
+        ds: SqlDataSource,
+        metrics: Mapping[ResultKey, Sequence[MetricSpec]],
+    ) -> AnalysisReport:
+        """Analyze multiple dates with different metrics in batch.
 
-def analyze_all(
-    datasources: list[SqlDataSource],
-    metrics: list[Any],  # Will be list[SymbolicMetric] at runtime
-    key: ResultKey,
-    metadata: Metadata,
-    db: MetricDB,
-) -> dict[str, AnalysisReport]:
-    """
-    Analyze all datasources with their associated metrics.
+        This method processes multiple ResultKeys efficiently by batching SQL
+        operations. When the number of keys exceeds DEFAULT_BATCH_SIZE (7),
+        the analysis is automatically split into smaller batches to optimize
+        query performance and avoid excessively large SQL queries.
 
-    This function coordinates the analysis of multiple datasources by:
-    1. Grouping symbolic metrics by dataset
-    2. Creating analyzers for each datasource
-    3. Running batch analysis with proper symbol mapping
-    4. Persisting results to the database
+        Args:
+            ds: The SQL data source to analyze
+            metrics_by_key: Dictionary mapping ResultKeys to their metrics
 
-    Args:
-        datasources: List of SQL data sources to analyze
-        metrics: All symbolic metrics from the provider
-        key: Result key defining the time period and tags
-        metadata: Metadata including execution_id for tracking
-        db: Database for persisting analysis results
+        Returns:
+            AnalysisReport containing all computed metrics for all dates
 
-    Returns:
-        Dictionary mapping datasource names to their AnalysisReports
+        Raises:
+            DQXError: If no metrics provided or SQL execution fails
 
-    Raises:
-        DQXError: If analysis fails for any datasource
-    """
-    from collections import defaultdict
+        Note:
+            Large date ranges are automatically processed in batches of
+            DEFAULT_BATCH_SIZE to maintain optimal performance. This limit
+            can be adjusted by modifying the DEFAULT_BATCH_SIZE constant.
+        """
+        if not metrics:
+            raise DQXError("No metrics provided for batch analysis!")
 
-    from dqx.provider import SymbolicMetric
+        # Log entry point with explicit dates
+        dates = sorted([key.yyyy_mm_dd for key in metrics.keys()])
+        date_strs = ", ".join(d.isoformat() for d in dates)
+        logger.info(f"Analyzing dataset {ds.name} for {len(metrics)} dates: {date_strs}")
 
-    # Store analysis reports by datasource name
-    analysis_reports: dict[str, AnalysisReport] = {}
+        # Create final report at the beginning
+        final_report = AnalysisReport()
 
-    # Group metrics by dataset (including None for unassigned)
-    metrics_by_dataset: dict[str | None, list[SymbolicMetric]] = defaultdict(list)
-    for sym_metric in metrics:
-        metrics_by_dataset[sym_metric.dataset].append(sym_metric)
+        # Process in batches if needed
+        items = list(metrics.items())
 
-    for ds in datasources:
-        # Get metrics that either match this dataset or have no dataset assigned
-        relevant_metrics = metrics_by_dataset.get(ds.name, []) + metrics_by_dataset.get(None, [])
+        for i in range(0, len(items), DEFAULT_BATCH_SIZE):
+            batch_items = items[i : i + DEFAULT_BATCH_SIZE]
+            batch = dict(batch_items)
 
-        # Skip if no metrics for this dataset
-        if not relevant_metrics:
-            continue
+            # Log batch boundaries
+            batch_keys = [key for key, _ in batch_items]
+            logger.info(
+                f"Processing batch {i // DEFAULT_BATCH_SIZE + 1}: {', '.join(str(key.yyyy_mm_dd) for key in batch_keys)}"
+            )
 
-        # Create symbol lookup dictionary using MetricKey
-        symbol_lookup: dict[MetricKey, str] = {}
+            report = self._analyze_internal(ds, batch)
+            # Merge directly into final report
+            final_report = final_report.merge(report)
 
-        # Group metrics by their effective date
-        metrics_by_date: dict[ResultKey, list[MetricSpec]] = defaultdict(list)
-        for sym_metric in relevant_metrics:
-            # Use lag directly instead of key_provider
-            effective_key = key.lag(sym_metric.lag)
-            metrics_by_date[effective_key].append(sym_metric.metric_spec)
-            # Add to symbol lookup with MetricKey including dataset
-            symbol_lookup[(sym_metric.metric_spec, effective_key, ds.name)] = str(sym_metric.symbol)
+        # Log result summary
+        logger.info(f"Analysis complete: {len(final_report)} metrics computed")
+        return final_report
 
-        # Analyze each date group separately
-        analyzer = Analyzer(metadata=metadata, symbol_lookup=symbol_lookup)
-        analyzer.analyze(ds, metrics_by_date)
+    def analyze_extended_metrics(self) -> AnalysisReport:
+        # First sort the metrics topologically for analysis
+        self.provider.registry.topological_sort()
 
-        # Persist the combined report
-        analyzer.report.persist(db)
+        report: AnalysisReport = AnalysisReport()
+        metadata = Metadata(execution_id=self.execution_id)
 
-        # Store the report for later access
-        analysis_reports[ds.name] = analyzer.report
+        for sym_metric in self.metrics:
+            # Check if it's an extended metric using isinstance
+            if sym_metric.metric_spec.is_extended:
+                # Calculate effective key with lag
+                effective_key = self.key.lag(sym_metric.lag)
 
-    return analysis_reports
+                # Extended metrics ALWAYS have a dataset - they inherit from base metrics
+                assert sym_metric.dataset is not None, f"Extended metric {sym_metric.name} has no dataset"
+
+                try:
+                    result = sym_metric.fn(effective_key)
+
+                    match result:
+                        case Success(value):
+                            # Build the metric key
+                            metric_key = (sym_metric.metric_spec, effective_key, sym_metric.dataset)
+
+                            # Create NonMergeable state with the actual computed value
+                            state = states.NonMergeable(value=value, metric_type=sym_metric.metric_spec.metric_type)
+
+                            metric = models.Metric.build(
+                                metric=sym_metric.metric_spec,
+                                key=effective_key,
+                                dataset=sym_metric.dataset,
+                                state=state,
+                                metadata=metadata,
+                            )
+
+                            report[metric_key] = metric
+                            self.db.persist([metric])  # Persist immediately for other metrics to evaluate
+
+                        case Failure(error):
+                            logger.warning(f"Failed to evaluate {sym_metric.name}: {error}")
+
+                except Exception as e:
+                    logger.error(f"Error evaluating {sym_metric.name}: {e}", exc_info=True)
+
+        logger.info(f"Evaluated {len(report)} extended metrics")
+        return report
+
+    def analyze(self) -> AnalysisReport:
+        # Store analysis reports by datasource name
+        report: AnalysisReport = AnalysisReport()
+
+        # Group metrics by dataset
+        metrics_by_dataset: dict[str, list[SymbolicMetric]] = defaultdict(list)
+        for sym_metric in self.metrics:
+            assert sym_metric.dataset is not None, f"Metric {sym_metric.name} has no dataset"
+            metrics_by_dataset[sym_metric.dataset].append(sym_metric)
+
+        # Phase 1: Analyze simple metrics for each datasource
+        for ds in self.datasources:
+            # Get all metrics for this dataset
+            all_metrics = metrics_by_dataset.get(ds.name, [])
+
+            # Filter to only include simple metrics (not extended)
+            relevant_metrics = [sym_metric for sym_metric in all_metrics if not sym_metric.metric_spec.is_extended]
+
+            # Skip if no simple metrics for this dataset
+            if not relevant_metrics:
+                continue
+
+            # Group metrics by their effective date
+            metrics_by_date: dict[ResultKey, list[MetricSpec]] = defaultdict(list)
+            for sym_metric in relevant_metrics:
+                # Use lag directly instead of key_provider
+                effective_key = self.key.lag(sym_metric.lag)
+                metrics_by_date[effective_key].append(sym_metric.metric_spec)
+
+            # Analyze each date group separately
+            this_report = self.analyze_simple_metrics(ds, metrics_by_date)
+
+            report.update(this_report)
+
+        # Persist simple metrics before evaluating extended metrics
+        report.persist(self.db)
+
+        # Phase 2: Evaluate extended metrics AFTER all simple metrics are persisted
+        logger.info("Evaluating extended metrics...")
+        extended_report = self.analyze_extended_metrics()
+        report.update(extended_report)
+
+        return report

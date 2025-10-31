@@ -1,6 +1,7 @@
 """Tests to complete coverage for analyzer.py, api.py, and plugins.py."""
 
 import datetime
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pyarrow as pa
@@ -31,15 +32,25 @@ class TestAnalyzerCoverage:
         spec = Sum("revenue")
         report[(spec, key, "test_ds")] = metric
 
+        # Create a symbol lookup dict
+        symbol_lookup: dict[tuple[Any, Any, str], str] = {(spec, key, "test_ds"): "x_1"}
+
         with patch("dqx.display.print_analysis_report") as mock_print:
-            report.show("my_datasource")
-            mock_print.assert_called_once_with({"my_datasource": report})
+            report.show(symbol_lookup)
+            mock_print.assert_called_once_with(report, symbol_lookup)
 
     def test_analyzer_value_retrieval_failure(self) -> None:
         """Test analyzer value retrieval failure - covers line 374."""
-        analyzer = Analyzer()
+        # Create required components for Analyzer
+        mock_db = Mock()
+        provider = MetricProvider(mock_db, execution_id="test-123")
+        key = ResultKey(datetime.date(2024, 1, 1), {})
+
         ds = Mock()
         ds.name = "test_ds"
+
+        # Create analyzer with required parameters
+        analyzer = Analyzer([ds], provider, key, "test-123")
 
         # Mock the _analyze_internal to raise the expected error
         with patch.object(analyzer, "_analyze_internal") as mock_analyze:
@@ -50,13 +61,11 @@ class TestAnalyzerCoverage:
 
             mock_analyze.side_effect = analyze_side_effect
 
-            key = ResultKey(datetime.date(2024, 1, 1), {})
-
             # Create a metric spec with a mock analyzer
             spec = Sum("revenue")
 
             with pytest.raises(DQXError, match="Failed to retrieve value"):
-                analyzer.analyze(ds, {key: [spec]})
+                analyzer.analyze_simple_metrics(ds, {key: [spec]})
 
 
 class TestApiCoverage:
@@ -145,7 +154,10 @@ class TestApiCoverage:
                 assert "Suite validation warnings:" in mock_logger.debug.call_args[0][0]
 
         # Mock the analyze and evaluation phases
-        with patch.object(suite, "_analyze"):
+        with patch.object(suite, "_analyze") as mock_analyze:
+            # Set the _analysis_reports attribute that _analyze would set
+            mock_analyze.side_effect = lambda ds, key: setattr(suite, "_analysis_reports", AnalysisReport())
+
             with patch("dqx.api.Evaluator"):
                 # Create mock datasources
                 ds = Mock()
@@ -178,18 +190,21 @@ class TestApiCoverage:
 
         # Mock collect_symbols method properly
         with patch.object(suite.provider, "collect_symbols", return_value=[]):
-            with patch("dqx.data.metric_trace") as mock_trace:
-                mock_trace.return_value = pa.table({"col": [1, 2, 3]})
+            # Mock the symbol lookup table
+            with patch.object(suite.provider.registry, "symbol_lookup_table", return_value={}):
+                with patch("dqx.data.metric_trace") as mock_trace:
+                    mock_trace.return_value = pa.table({"col": [1, 2, 3]})
 
-                trace = suite.metric_trace(db)
+                    trace = suite.metric_trace(db)
 
-                mock_trace.assert_called_once_with(
-                    metrics=[],
-                    execution_id=suite.execution_id,
-                    reports=suite._analysis_reports,
-                    symbols=[],
-                )
-                assert trace.num_rows == 3
+                    mock_trace.assert_called_once_with(
+                        metrics=[],
+                        execution_id=suite.execution_id,
+                        reports=suite._analysis_reports,
+                        symbols=[],
+                        symbol_lookup={},
+                    )
+                    assert trace.num_rows == 3
 
 
 class TestPluginsCoverage:
