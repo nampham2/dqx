@@ -4,7 +4,6 @@ import functools
 import threading
 import time
 import uuid
-from collections import defaultdict
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
@@ -13,7 +12,7 @@ import pyarrow as pa
 import sympy as sp
 
 from dqx import functions, get_logger
-from dqx.analyzer import AnalysisReport, Analyzer, MetricKey
+from dqx.analyzer import AnalysisReport
 from dqx.common import (
     AssertionResult,
     DQXError,
@@ -30,7 +29,6 @@ from dqx.graph.traversal import Graph
 # import moved to local scope(s) to avoid cyclic dependency
 from dqx.plugins import PluginExecutionContext, PluginManager
 from dqx.provider import MetricProvider, SymbolicMetric
-from dqx.specs import MetricSpec
 from dqx.timer import Registry
 from dqx.validator import SuiteValidator
 
@@ -540,44 +538,19 @@ class VerificationSuite:
             logger.debug(f"Suite validation warnings:\n{report}")
 
     def _analyze(self, datasources: list[SqlDataSource], key: ResultKey) -> None:
-        # Analyze ALL symbolic metrics, not just those with matching dataset
+        """Analyze datasources using the new analyze_all function."""
+        from dqx.analyzer import analyze_all
+
+        # Get all symbolic metrics from provider
         all_symbolic_metrics = self._context.provider.metrics
 
-        # Group metrics by dataset (including None for unassigned)
-        metrics_by_dataset: dict[str | None, list[SymbolicMetric]] = defaultdict(list)
-        for sym_metric in all_symbolic_metrics:
-            metrics_by_dataset[sym_metric.dataset].append(sym_metric)
+        # Create metadata
+        metadata = Metadata(execution_id=self._execution_id)
 
-        for ds in datasources:
-            # Get metrics that either match this dataset or have no dataset assigned
-            relevant_metrics = metrics_by_dataset.get(ds.name, []) + metrics_by_dataset.get(None, [])
-
-            # Skip if no metrics for this dataset
-            if not relevant_metrics:
-                continue
-
-            # Create symbol lookup dictionary using MetricKey
-            symbol_lookup: dict[MetricKey, str] = {}
-
-            # Group metrics by their effective date
-            metrics_by_date: dict[ResultKey, list[MetricSpec]] = defaultdict(list)
-            for sym_metric in relevant_metrics:
-                # Use lag directly instead of key_provider
-                effective_key = key.lag(sym_metric.lag)
-                metrics_by_date[effective_key].append(sym_metric.metric_spec)
-                # Add to symbol lookup with MetricKey including dataset
-                symbol_lookup[(sym_metric.metric_spec, effective_key, ds.name)] = str(sym_metric.symbol)
-
-            # Analyze each date group separately
-            metadata = Metadata(execution_id=self._execution_id)
-            analyzer = Analyzer(metadata=metadata, symbol_lookup=symbol_lookup)
-            analyzer.analyze(ds, metrics_by_date)
-
-            # Persist the combined report
-            analyzer.report.persist(self.provider._db)
-
-            # Store the report for later access
-            self._analysis_reports[ds.name] = analyzer.report
+        # Call analyze_all and store the results
+        self._analysis_reports = analyze_all(
+            datasources=datasources, metrics=all_symbolic_metrics, key=key, metadata=metadata, db=self.provider._db
+        )
 
     def run(self, datasources: list[SqlDataSource], key: ResultKey, *, enable_plugins: bool = True) -> None:
         """

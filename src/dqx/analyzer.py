@@ -422,3 +422,77 @@ class Analyzer:
                     report.symbol_mapping[metric_key] = self._symbol_lookup[metric_key]
 
         return report
+
+
+def analyze_all(
+    datasources: list[SqlDataSource],
+    metrics: list[Any],  # Will be list[SymbolicMetric] at runtime
+    key: ResultKey,
+    metadata: Metadata,
+    db: MetricDB,
+) -> dict[str, AnalysisReport]:
+    """
+    Analyze all datasources with their associated metrics.
+
+    This function coordinates the analysis of multiple datasources by:
+    1. Grouping symbolic metrics by dataset
+    2. Creating analyzers for each datasource
+    3. Running batch analysis with proper symbol mapping
+    4. Persisting results to the database
+
+    Args:
+        datasources: List of SQL data sources to analyze
+        metrics: All symbolic metrics from the provider
+        key: Result key defining the time period and tags
+        metadata: Metadata including execution_id for tracking
+        db: Database for persisting analysis results
+
+    Returns:
+        Dictionary mapping datasource names to their AnalysisReports
+
+    Raises:
+        DQXError: If analysis fails for any datasource
+    """
+    from collections import defaultdict
+
+    from dqx.provider import SymbolicMetric
+
+    # Store analysis reports by datasource name
+    analysis_reports: dict[str, AnalysisReport] = {}
+
+    # Group metrics by dataset (including None for unassigned)
+    metrics_by_dataset: dict[str | None, list[SymbolicMetric]] = defaultdict(list)
+    for sym_metric in metrics:
+        metrics_by_dataset[sym_metric.dataset].append(sym_metric)
+
+    for ds in datasources:
+        # Get metrics that either match this dataset or have no dataset assigned
+        relevant_metrics = metrics_by_dataset.get(ds.name, []) + metrics_by_dataset.get(None, [])
+
+        # Skip if no metrics for this dataset
+        if not relevant_metrics:
+            continue
+
+        # Create symbol lookup dictionary using MetricKey
+        symbol_lookup: dict[MetricKey, str] = {}
+
+        # Group metrics by their effective date
+        metrics_by_date: dict[ResultKey, list[MetricSpec]] = defaultdict(list)
+        for sym_metric in relevant_metrics:
+            # Use lag directly instead of key_provider
+            effective_key = key.lag(sym_metric.lag)
+            metrics_by_date[effective_key].append(sym_metric.metric_spec)
+            # Add to symbol lookup with MetricKey including dataset
+            symbol_lookup[(sym_metric.metric_spec, effective_key, ds.name)] = str(sym_metric.symbol)
+
+        # Analyze each date group separately
+        analyzer = Analyzer(metadata=metadata, symbol_lookup=symbol_lookup)
+        analyzer.analyze(ds, metrics_by_date)
+
+        # Persist the combined report
+        analyzer.report.persist(db)
+
+        # Store the report for later access
+        analysis_reports[ds.name] = analyzer.report
+
+    return analysis_reports
