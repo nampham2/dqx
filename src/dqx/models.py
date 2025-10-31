@@ -4,14 +4,11 @@ import functools
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Self
+from typing import Self
 
 from dqx import specs
 from dqx.common import DQXError, Metadata, ResultKey
 from dqx.states import State
-
-if TYPE_CHECKING:
-    pass
 
 
 @dataclass
@@ -61,7 +58,7 @@ class Metric:
             state=merged_state,
             key=self.key,
             dataset=self.dataset,
-            metadata=self.metadata,  # Keep metadata from self
+            metadata=self.metadata,
         )
 
     def identity(self) -> Metric:

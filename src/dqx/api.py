@@ -608,6 +608,9 @@ class VerificationSuite:
             logger.info("Cleaning up expired metrics...")
             self.cleanup_expired_metrics()
 
+        # Now sort the metrics topologically for analysis
+        self.provider.registry.topological_sort()
+
         # 2. Analyze by datasources
         with self._analyze_ms:
             self._analyze(datasources, key)
