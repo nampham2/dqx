@@ -137,28 +137,44 @@ class TestAnalyzerBatchOptimization:
             SELECT '2024-01-03'::DATE, 400.0, 'completed'
         """)
 
-        # Create analyzer
-        analyzer = Analyzer()
+        # Import necessary components
+        # Create a simple metric provider and analyzer
+        # For testing, we don't need a real DB, so we'll mock it
+        from unittest.mock import MagicMock
 
-        # Define metrics for multiple dates
         from dqx import specs
+        from dqx.common import ExecutionId
+        from dqx.orm.repositories import MetricDB
+        from dqx.provider import MetricProvider
         from dqx.specs import MetricSpec
 
+        mock_db = MagicMock(spec=MetricDB)
+        execution_id = ExecutionId("test-exec")
+        provider = MetricProvider(mock_db, execution_id)
+
+        # Define metrics for multiple dates
         metrics_by_key: dict[ResultKey, list[MetricSpec]] = {}
         for day in [1, 2, 3]:
             date = datetime.date(2024, 1, day)
             key = ResultKey(date, {})
 
-            # Use concrete metric specs instead of MetricSpec protocol
+            # Use concrete metric specs
             metrics_by_key[key] = [
-                specs.Sum("amount"),  # This creates a MetricSpec instance with name "sum(amount)"
-                specs.Average("amount"),  # This creates a MetricSpec instance with name "average(amount)"
-                # For filtered metrics, we'll need to create a custom spec
-                specs.NumRows(),  # This will count all rows, not just completed
+                specs.Sum("amount"),
+                specs.Average("amount"),
+                specs.NumRows(),
             ]
 
+        # Create analyzer with proper arguments
+        analyzer = Analyzer(
+            datasources=[ds],  # type: ignore[list-item]
+            provider=provider,
+            key=ResultKey(datetime.date(2024, 1, 1), {}),
+            execution_id=execution_id,
+        )
+
         # Run batch analysis
-        report = analyzer.analyze(ds, metrics_by_key)  # type: ignore[arg-type]
+        report = analyzer.analyze_simple_metrics(ds, metrics_by_key)  # type: ignore[arg-type]
 
         # Verify report contains all metrics
         assert len(report) == 9  # 3 metrics × 3 dates

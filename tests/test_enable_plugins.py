@@ -2,15 +2,17 @@
 
 from datetime import datetime
 from typing import Any
-from unittest.mock import Mock, patch
+
+import pyarrow as pa
+import pytest
 
 from dqx.api import Context, VerificationSuite, check
 from dqx.common import (
     PluginMetadata,
     ResultKey,
 )
-from dqx.graph.base import NodeVisitor
-from dqx.orm.repositories import MetricDB, MetricStats
+from dqx.datasource import DuckRelationDataSource
+from dqx.orm.repositories import InMemoryMetricDB
 from dqx.plugins import PluginExecutionContext
 from dqx.provider import MetricProvider
 
@@ -33,7 +35,19 @@ class TestPlugin:
         TestPlugin.called = True
 
 
-def test_enable_plugins_true_by_default() -> None:
+@pytest.fixture
+def test_data() -> pa.Table:
+    """Create test data for the tests."""
+    return pa.table({"value": [1, 2, 3, 4, 5], "category": ["A", "B", "A", "B", "C"]})
+
+
+@pytest.fixture
+def test_db() -> InMemoryMetricDB:
+    """Create a test database."""
+    return InMemoryMetricDB()
+
+
+def test_enable_plugins_true_by_default(test_data: pa.Table, test_db: InMemoryMetricDB) -> None:
     """Test that plugins are enabled by default."""
     plugin_called = False
 
@@ -57,61 +71,24 @@ def test_enable_plugins_true_by_default() -> None:
         ctx.assert_that(mp.num_rows()).where(name="Has rows").is_positive()
 
     # Create suite
-    db = Mock(spec=MetricDB)
-    # Mock get_metrics_stats to return a MetricStats object with no expired metrics
-    db.get_metrics_stats.return_value = MetricStats(total_metrics=0, expired_metrics=0)
-    suite = VerificationSuite([test_check], db, "TestSuite")
+    suite = VerificationSuite([test_check], test_db, "TestSuite")
 
     # Register test plugin directly
     suite.plugin_manager.clear_plugins()
     suite.plugin_manager._plugins["test"] = LocalTestPlugin()
 
-    # Mock data source
-    datasource = Mock()
-    datasource.name = "test_ds"
-    datasource.query.return_value.fetchone.return_value = (1,)
+    # Create data source
+    datasource = DuckRelationDataSource.from_arrow(test_data, "test_ds")
 
-    # Mock the analyzer and evaluator behavior
-    with patch("dqx.api.Analyzer") as MockAnalyzer:
-        mock_analyzer = Mock()
-        mock_analyzer.report = Mock()
-        MockAnalyzer.return_value = mock_analyzer
-
-        with patch("dqx.api.Evaluator") as MockEvaluator:
-            mock_evaluator = Mock()
-
-            # Create a side effect that only sets attributes when called with evaluator
-            original_bfs = suite._context._graph.bfs
-
-            def mock_bfs(visitor: NodeVisitor) -> None:
-                # Call original for non-evaluator visitors (like validation)
-                if not isinstance(visitor, Mock) or visitor != mock_evaluator:
-                    return original_bfs(visitor)
-
-                # For evaluator, set the required attributes
-                from returns.result import Success
-
-                for assertion in suite._context._graph.assertions():
-                    assertion._result = "OK"
-                    assertion._metric = Success(1.0)
-
-            # Patch bfs method
-            with patch.object(suite._context._graph, "bfs", side_effect=mock_bfs):
-                MockEvaluator.return_value = mock_evaluator
-
-                # Mock the metric trace method to return empty table
-                import pyarrow as pa
-
-                with patch.object(suite, "metric_trace", return_value=pa.table({})):
-                    # Run suite - plugins should be enabled by default
-                    key = ResultKey(datetime.now().date(), {})
-                    suite.run([datasource], key)
+    # Run suite - plugins should be enabled by default
+    key = ResultKey(datetime.now().date(), {})
+    suite.run([datasource], key)
 
     # Plugin should have been called
     assert plugin_called
 
 
-def test_enable_plugins_false_disables_plugins() -> None:
+def test_enable_plugins_false_disables_plugins(test_data: pa.Table, test_db: InMemoryMetricDB) -> None:
     """Test that enable_plugins=False disables plugin execution."""
     plugin_called = False
 
@@ -135,61 +112,24 @@ def test_enable_plugins_false_disables_plugins() -> None:
         ctx.assert_that(mp.num_rows()).where(name="Has rows").is_positive()
 
     # Create suite
-    db = Mock(spec=MetricDB)
-    # Mock get_metrics_stats to return a MetricStats object with no expired metrics
-    db.get_metrics_stats.return_value = MetricStats(total_metrics=0, expired_metrics=0)
-    suite = VerificationSuite([test_check], db, "TestSuite")
+    suite = VerificationSuite([test_check], test_db, "TestSuite")
 
     # Register test plugin directly
     suite.plugin_manager.clear_plugins()
     suite.plugin_manager._plugins["test"] = LocalTestPlugin()
 
-    # Mock data source
-    datasource = Mock()
-    datasource.name = "test_ds"
-    datasource.query.return_value.fetchone.return_value = (1,)
+    # Create data source
+    datasource = DuckRelationDataSource.from_arrow(test_data, "test_ds")
 
-    # Mock the analyzer and evaluator behavior
-    with patch("dqx.api.Analyzer") as MockAnalyzer:
-        mock_analyzer = Mock()
-        mock_analyzer.report = Mock()
-        MockAnalyzer.return_value = mock_analyzer
-
-        with patch("dqx.api.Evaluator") as MockEvaluator:
-            mock_evaluator = Mock()
-
-            # Create a side effect that only sets attributes when called with evaluator
-            original_bfs = suite._context._graph.bfs
-
-            def mock_bfs(visitor: NodeVisitor) -> None:
-                # Call original for non-evaluator visitors (like validation)
-                if not isinstance(visitor, Mock) or visitor != mock_evaluator:
-                    return original_bfs(visitor)
-
-                # For evaluator, set the required attributes
-                from returns.result import Success
-
-                for assertion in suite._context._graph.assertions():
-                    assertion._result = "OK"
-                    assertion._metric = Success(1.0)
-
-                # Patch bfs method
-                with patch.object(suite._context._graph, "bfs", side_effect=mock_bfs):
-                    MockEvaluator.return_value = mock_evaluator
-
-                    # Mock the metric trace method to return empty table
-                    import pyarrow as pa
-
-                    with patch.object(suite, "metric_trace", return_value=pa.table({})):
-                        # Run suite with plugins disabled
-                        key = ResultKey(datetime.now().date(), {})
-                        suite.run([datasource], key, enable_plugins=False)
+    # Run suite with plugins disabled
+    key = ResultKey(datetime.now().date(), {})
+    suite.run([datasource], key, enable_plugins=False)
 
     # Plugin should NOT have been called
     assert not plugin_called
 
 
-def test_enable_plugins_true_explicit() -> None:
+def test_enable_plugins_true_explicit(test_data: pa.Table, test_db: InMemoryMetricDB) -> None:
     """Test that enable_plugins=True explicitly enables plugins."""
     plugin_called = False
 
@@ -213,61 +153,24 @@ def test_enable_plugins_true_explicit() -> None:
         ctx.assert_that(mp.num_rows()).where(name="Has rows").is_positive()
 
     # Create suite
-    db = Mock(spec=MetricDB)
-    # Mock get_metrics_stats to return a MetricStats object with no expired metrics
-    db.get_metrics_stats.return_value = MetricStats(total_metrics=0, expired_metrics=0)
-    suite = VerificationSuite([test_check], db, "TestSuite")
+    suite = VerificationSuite([test_check], test_db, "TestSuite")
 
     # Register test plugin directly
     suite.plugin_manager.clear_plugins()
     suite.plugin_manager._plugins["test"] = LocalTestPlugin()
 
-    # Mock data source
-    datasource = Mock()
-    datasource.name = "test_ds"
-    datasource.query.return_value.fetchone.return_value = (1,)
+    # Create data source
+    datasource = DuckRelationDataSource.from_arrow(test_data, "test_ds")
 
-    # Mock the analyzer and evaluator behavior
-    with patch("dqx.api.Analyzer") as MockAnalyzer:
-        mock_analyzer = Mock()
-        mock_analyzer.report = Mock()
-        MockAnalyzer.return_value = mock_analyzer
-
-        with patch("dqx.api.Evaluator") as MockEvaluator:
-            mock_evaluator = Mock()
-
-            # Create a side effect that only sets attributes when called with evaluator
-            original_bfs = suite._context._graph.bfs
-
-            def mock_bfs(visitor: NodeVisitor) -> None:
-                # Call original for non-evaluator visitors (like validation)
-                if not isinstance(visitor, Mock) or visitor != mock_evaluator:
-                    return original_bfs(visitor)
-
-                # For evaluator, set the required attributes
-                from returns.result import Success
-
-                for assertion in suite._context._graph.assertions():
-                    assertion._result = "OK"
-                    assertion._metric = Success(1.0)
-
-            # Patch bfs method
-            with patch.object(suite._context._graph, "bfs", side_effect=mock_bfs):
-                MockEvaluator.return_value = mock_evaluator
-
-                # Mock the metric trace method to return empty table
-                import pyarrow as pa
-
-                with patch.object(suite, "metric_trace", return_value=pa.table({})):
-                    # Run suite with plugins explicitly enabled
-                    key = ResultKey(datetime.now().date(), {})
-                    suite.run([datasource], key, enable_plugins=True)
+    # Run suite with plugins explicitly enabled
+    key = ResultKey(datetime.now().date(), {})
+    suite.run([datasource], key, enable_plugins=True)
 
     # Plugin should have been called
     assert plugin_called
 
 
-def test_process_plugins_not_called_when_disabled() -> None:
+def test_process_plugins_not_called_when_disabled(test_data: pa.Table, test_db: InMemoryMetricDB) -> None:
     """Test that _process_plugins is not called when plugins are disabled."""
 
     # Create check
@@ -276,15 +179,10 @@ def test_process_plugins_not_called_when_disabled() -> None:
         ctx.assert_that(mp.num_rows()).where(name="Has rows").is_positive()
 
     # Create suite
-    db = Mock(spec=MetricDB)
-    # Mock get_metrics_stats to return a MetricStats object with no expired metrics
-    db.get_metrics_stats.return_value = MetricStats(total_metrics=0, expired_metrics=0)
-    suite = VerificationSuite([test_check], db, "TestSuite")
+    suite = VerificationSuite([test_check], test_db, "TestSuite")
 
-    # Mock data source
-    datasource = Mock()
-    datasource.name = "test_ds"
-    datasource.query.return_value.fetchone.return_value = (1,)
+    # Create data source
+    datasource = DuckRelationDataSource.from_arrow(test_data, "test_ds")
 
     # Mock process_plugins to track if it's called
     process_plugins_called = False
@@ -297,41 +195,60 @@ def test_process_plugins_not_called_when_disabled() -> None:
 
     suite._process_plugins = mock_process_plugins  # type: ignore
 
-    # Mock the analyzer and evaluator behavior
-    with patch("dqx.api.Analyzer") as MockAnalyzer:
-        mock_analyzer = Mock()
-        mock_analyzer.report = Mock()
-        MockAnalyzer.return_value = mock_analyzer
-
-        with patch("dqx.api.Evaluator") as MockEvaluator:
-            mock_evaluator = Mock()
-
-            # Create a side effect that only sets attributes when called with evaluator
-            original_bfs = suite._context._graph.bfs
-
-            def mock_bfs(visitor: NodeVisitor) -> None:
-                # Call original for non-evaluator visitors (like validation)
-                if not isinstance(visitor, Mock) or visitor != mock_evaluator:
-                    return original_bfs(visitor)
-
-                # For evaluator, set the required attributes
-                from returns.result import Success
-
-                for assertion in suite._context._graph.assertions():
-                    assertion._result = "OK"
-                    assertion._metric = Success(1.0)
-
-            # Patch bfs method
-            with patch.object(suite._context._graph, "bfs", side_effect=mock_bfs):
-                MockEvaluator.return_value = mock_evaluator
-
-                # Mock the metric trace method to return empty table
-                import pyarrow as pa
-
-                with patch.object(suite, "metric_trace", return_value=pa.table({})):
-                    # Run suite with plugins disabled
-                    key = ResultKey(datetime.now().date(), {})
-                    suite.run([datasource], key, enable_plugins=False)
+    # Run suite with plugins disabled
+    key = ResultKey(datetime.now().date(), {})
+    suite.run([datasource], key, enable_plugins=False)
 
     # _process_plugins should NOT have been called
     assert not process_plugins_called
+
+
+def test_plugin_receives_correct_context(test_data: pa.Table, test_db: InMemoryMetricDB) -> None:
+    """Test that plugins receive the correct execution context."""
+    captured_context = None
+
+    class CaptureContextPlugin:
+        @staticmethod
+        def metadata() -> PluginMetadata:
+            return PluginMetadata(
+                name="capture",
+                version="1.0.0",
+                author="Test",
+                description="Captures execution context",
+            )
+
+        def process(self, context: PluginExecutionContext) -> None:
+            nonlocal captured_context
+            captured_context = context
+
+    # Create check with assertions that will pass
+    @check(name="test_check")
+    def test_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(mp.num_rows()).where(name="Row count check", severity="P0").is_eq(5.0)
+        ctx.assert_that(mp.sum("value")).where(name="Sum check", severity="P1").is_eq(15.0)
+
+    # Create suite
+    suite = VerificationSuite([test_check], test_db, "TestSuite")
+
+    # Register capture plugin
+    suite.plugin_manager.clear_plugins()
+    suite.plugin_manager._plugins["capture"] = CaptureContextPlugin()
+
+    # Create data source
+    datasource = DuckRelationDataSource.from_arrow(test_data, "test_ds")
+
+    # Run suite
+    key = ResultKey(datetime(2024, 1, 1).date(), {"env": "test"})
+    suite.run([datasource], key)
+
+    # Verify captured context
+    assert captured_context is not None
+    assert captured_context.suite_name == "TestSuite"
+    assert captured_context.execution_id == suite.execution_id
+    assert captured_context.datasources == ["test_ds"]
+    assert captured_context.key.yyyy_mm_dd == datetime(2024, 1, 1).date()
+    assert captured_context.key.tags == {"env": "test"}
+    assert len(captured_context.results) == 2
+    assert all(r.status == "OK" for r in captured_context.results)
+    assert captured_context.metrics_stats.total_metrics >= 0
+    assert isinstance(captured_context.trace, pa.Table)

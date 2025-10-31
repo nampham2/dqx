@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Sequence
 
 import pyarrow as pa
+import sympy as sp
 
 from dqx.common import ResultKey
 from dqx.models import Metric
@@ -90,7 +91,7 @@ def metrics_to_pyarrow_table(metrics: Sequence[Metric], execution_id: str) -> pa
     )
 
 
-def analysis_reports_to_pyarrow_table(reports: dict[str, "AnalysisReport"]) -> pa.Table:
+def analysis_reports_to_pyarrow_table(report: "AnalysisReport", symbol_lookup: dict[MetricKey, sp.Symbol]) -> pa.Table:
     """
     Transform analysis reports from VerificationSuite to a PyArrow table.
 
@@ -111,11 +112,10 @@ def analysis_reports_to_pyarrow_table(reports: dict[str, "AnalysisReport"]) -> p
     # Collect all items from all reports
     all_items: list[tuple[MetricKey, Metric, str]] = []
 
-    for ds_name, ds_report in reports.items():
-        for metric_key, metric in ds_report.items():
-            # metric_key is (MetricSpec, ResultKey, DatasetName)
-            symbol = ds_report.symbol_mapping.get(metric_key, "-")
-            all_items.append((metric_key, metric, symbol))
+    for metric_key, metric in report.items():
+        # metric_key is (MetricSpec, ResultKey, DatasetName)
+        symbol = str(symbol_lookup.get(metric_key, "-"))
+        all_items.append((metric_key, metric, symbol))
 
     # Sort by symbol indices (x_1, x_2, ..., x_10, ..., x_20, ...)
     def symbol_sort_key(item: tuple[MetricKey, Metric, str]) -> tuple[int, int, str]:
@@ -242,8 +242,9 @@ def symbols_to_pyarrow_table(symbols: list[SymbolInfo]) -> pa.Table:
 def metric_trace(
     metrics: Sequence[Metric],
     execution_id: str,
-    reports: dict[str, "AnalysisReport"],
+    reports: "AnalysisReport",
     symbols: list[SymbolInfo],
+    symbol_lookup: dict[MetricKey, sp.Symbol],
 ) -> pa.Table:
     """
     Join metrics from DB, analysis reports, and symbols to trace metric values.
@@ -271,15 +272,14 @@ def metric_trace(
         is_extended_map[metric.spec.name] = metric.spec.is_extended
 
     # Process metrics from analysis reports
-    for ds_name, ds_report in reports.items():
-        for metric_key, metric in ds_report.items():
-            # Unpack the 3-tuple MetricKey
-            metric_spec, result_key, dataset_name = metric_key
-            is_extended_map[metric_spec.name] = metric_spec.is_extended
+    for metric_key, metric in reports.items():
+        # Unpack the 3-tuple MetricKey
+        metric_spec, result_key, dataset_name = metric_key
+        is_extended_map[metric_spec.name] = metric_spec.is_extended
 
     # Get individual tables
     metrics_table = metrics_to_pyarrow_table(metrics, execution_id)
-    reports_table = analysis_reports_to_pyarrow_table(reports)
+    reports_table = analysis_reports_to_pyarrow_table(reports, symbol_lookup)
     symbols_table = symbols_to_pyarrow_table(symbols)
 
     # Rename value columns to avoid conflicts during joins

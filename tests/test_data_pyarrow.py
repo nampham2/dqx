@@ -43,8 +43,8 @@ def sample_metrics() -> Sequence[Metric]:
 
 
 @pytest.fixture
-def sample_analysis_reports() -> dict[str, AnalysisReport]:
-    """Create sample analysis reports for testing."""
+def sample_analysis_report() -> tuple[AnalysisReport, dict]:
+    """Create sample analysis report and symbol lookup for testing."""
     # Create metrics with different dates for sorting tests
     key1 = ResultKey(yyyy_mm_dd=dt.date(2024, 1, 26), tags={"env": "prod"})
     key2 = ResultKey(yyyy_mm_dd=dt.date(2024, 1, 25), tags={})
@@ -62,19 +62,23 @@ def sample_analysis_reports() -> dict[str, AnalysisReport]:
         state=states.SimpleAdditiveState(1000.0),
     )
 
-    # Create report with symbol mappings
-    report1 = AnalysisReport()
+    # Create report
+    report = AnalysisReport()
     metric_key1 = (specs.Average("price"), key1, "sales")
     metric_key2 = (specs.Sum("quantity"), key2, "inventory")
 
-    report1[metric_key1] = metric1
-    report1[metric_key2] = metric2
+    report[metric_key1] = metric1
+    report[metric_key2] = metric2
 
-    # Add symbol mappings
-    report1.symbol_mapping[metric_key1] = "avg_price"
-    # Intentionally don't add mapping for metric2 to test missing symbol
+    # Create symbol lookup
+    import sympy as sp
 
-    return {"datasource1": report1}
+    symbol_lookup = {
+        metric_key1: sp.Symbol("x_1"),
+        # Intentionally don't add mapping for metric2 to test missing symbol
+    }
+
+    return report, symbol_lookup
 
 
 def test_metrics_to_pyarrow_basic(sample_metrics: Sequence[Metric]) -> None:
@@ -152,9 +156,10 @@ def test_metrics_to_pyarrow_empty_input() -> None:
     assert table.num_rows == 0
 
 
-def test_analysis_reports_to_pyarrow_basic(sample_analysis_reports: dict[str, AnalysisReport]) -> None:
+def test_analysis_reports_to_pyarrow_basic(sample_analysis_report: tuple[AnalysisReport, dict]) -> None:
     """Test basic conversion of analysis reports to PyArrow table."""
-    table = analysis_reports_to_pyarrow_table(sample_analysis_reports)
+    report, symbol_lookup = sample_analysis_report
+    table = analysis_reports_to_pyarrow_table(report, symbol_lookup)
 
     # Verify schema
     expected_columns = ["date", "metric", "symbol", "type", "dataset", "value", "tags"]
@@ -174,16 +179,17 @@ def test_analysis_reports_to_pyarrow_basic(sample_analysis_reports: dict[str, An
     assert "sum(quantity)" in result["metric"]
 
 
-def test_analysis_reports_to_pyarrow_symbol_mapping(sample_analysis_reports: dict[str, AnalysisReport]) -> None:
+def test_analysis_reports_to_pyarrow_symbol_mapping(sample_analysis_report: tuple[AnalysisReport, dict]) -> None:
     """Test symbol mapping in analysis reports."""
-    table = analysis_reports_to_pyarrow_table(sample_analysis_reports)
+    report, symbol_lookup = sample_analysis_report
+    table = analysis_reports_to_pyarrow_table(report, symbol_lookup)
     result = table.to_pydict()
 
     names = result["metric"]
 
     # Find symbol for average(price) - should have mapping
     avg_idx = names.index("average(price)")
-    assert result["symbol"][avg_idx] == "avg_price"
+    assert result["symbol"][avg_idx] == "x_1"
 
     # Find symbol for sum(quantity) - should be "-" (no mapping)
     sum_idx = names.index("sum(quantity)")
@@ -192,19 +198,15 @@ def test_analysis_reports_to_pyarrow_symbol_mapping(sample_analysis_reports: dic
 
 def test_analysis_reports_to_pyarrow_empty_reports() -> None:
     """Test with empty reports."""
-    # Empty dict
-    table = analysis_reports_to_pyarrow_table({})
+    # Empty report
+    empty_report = AnalysisReport()
+    table = analysis_reports_to_pyarrow_table(empty_report, {})
     assert table.num_rows == 0
     assert table.schema.names == ["date", "metric", "symbol", "type", "dataset", "value", "tags"]
 
-    # Dict with empty report
-    empty_report = AnalysisReport()
-    table = analysis_reports_to_pyarrow_table({"empty": empty_report})
-    assert table.num_rows == 0
 
-
-def test_analysis_reports_to_pyarrow_multiple_datasources() -> None:
-    """Test with multiple datasources."""
+def test_analysis_reports_to_pyarrow_multiple_metrics() -> None:
+    """Test with multiple metrics in a single report."""
     key = ResultKey(yyyy_mm_dd=dt.date(2024, 1, 26), tags={})
     metric1 = Metric.build(
         specs.NullCount("orders"),
@@ -219,14 +221,11 @@ def test_analysis_reports_to_pyarrow_multiple_datasources() -> None:
         state=states.SimpleAdditiveState(50.0),
     )
 
-    report1 = AnalysisReport()
-    report1[(specs.NullCount("orders"), key, "sales")] = metric1
+    report = AnalysisReport()
+    report[(specs.NullCount("orders"), key, "sales")] = metric1
+    report[(specs.NullCount("users"), key, "users")] = metric2
 
-    report2 = AnalysisReport()
-    report2[(specs.NullCount("users"), key, "users")] = metric2
-
-    reports = {"datasource1": report1, "datasource2": report2}
-    table = analysis_reports_to_pyarrow_table(reports)
+    table = analysis_reports_to_pyarrow_table(report, {})
 
     assert table.num_rows == 2
     result = table.to_pydict()
@@ -249,7 +248,7 @@ def test_analysis_reports_to_pyarrow_missing_dataset() -> None:
     report = AnalysisReport()
     report[(specs.NullCount("test"), key, "-")] = metric
 
-    table = analysis_reports_to_pyarrow_table({"test": report})
+    table = analysis_reports_to_pyarrow_table(report, {})
     result = table.to_pydict()
 
     # Should show "-" for missing dataset

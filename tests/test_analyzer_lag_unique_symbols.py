@@ -16,7 +16,6 @@ from dqx.common import ResultKey
 from dqx.datasource import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
-from dqx.specs import Average
 
 
 class TestLagUniqueSymbols:
@@ -58,23 +57,24 @@ class TestLagUniqueSymbols:
         key = ResultKey(datetime.date(2024, 1, 16), {})
         suite.run([ds], key)
 
-        # Get the analysis report
-        assert "taxes" in suite.analysis_reports
-        report = suite.analysis_reports["taxes"]
+        # Get the symbols from the provider
+        symbol_infos = suite.provider.collect_symbols(key)
 
-        # Collect all symbols
-        symbols = list(report.symbol_mapping.values())
+        # Filter symbols for average(tax) metrics
+        avg_tax_symbols = [s for s in symbol_infos if "average(tax)" in s.metric]
 
-        # Should have 3 unique symbols for the 3 average(tax) computations
-        assert len(symbols) == 3, f"Expected 3 symbols, got {len(symbols)}: {symbols}"
-        assert len(set(symbols)) == 3, f"Expected all unique symbols, got duplicates: {symbols}"
+        # Should have 3 symbols for the 3 average(tax) computations
+        assert len(avg_tax_symbols) == 3, f"Expected 3 average(tax) symbols, got {len(avg_tax_symbols)}"
+
+        # Extract symbol names
+        symbol_names = [s.name for s in avg_tax_symbols]
+        assert len(set(symbol_names)) == 3, f"Expected all unique symbols, got duplicates: {symbol_names}"
 
         # All symbols should follow the pattern x_N
-        assert all(s.startswith("x_") for s in symbols), f"Invalid symbol format: {symbols}"
+        assert all(s.startswith("x_") for s in symbol_names), f"Invalid symbol format: {symbol_names}"
 
         # Verify the metrics are computed for different dates
-        metric_keys = list(report.symbol_mapping.keys())
-        dates = [key[1].yyyy_mm_dd for key in metric_keys]
+        dates = [s.yyyy_mm_dd for s in avg_tax_symbols]
 
         # Should have 3 different dates
         assert len(set(dates)) == 3, f"Expected 3 different dates, got: {dates}"
@@ -123,12 +123,18 @@ class TestLagUniqueSymbols:
         key = ResultKey(datetime.date(2024, 1, 16), {})
         suite.run([ds], key)
 
-        report = suite.analysis_reports["sales"]
-        symbols = list(report.symbol_mapping.values())
+        # Get all symbols from the provider
+        symbol_infos = suite.provider.collect_symbols(key)
+
+        # Filter symbols for our metrics (2 averages + 2 sums)
+        relevant_symbols = [s for s in symbol_infos if ("average(price)" in s.metric or "sum(quantity)" in s.metric)]
 
         # Should have 4 unique symbols
-        assert len(symbols) == 4, f"Expected 4 symbols, got {len(symbols)}"
-        assert len(set(symbols)) == 4, f"Expected all unique symbols, got duplicates: {symbols}"
+        assert len(relevant_symbols) == 4, f"Expected 4 symbols, got {len(relevant_symbols)}"
+
+        # Extract symbol names
+        symbol_names = [s.name for s in relevant_symbols]
+        assert len(set(symbol_names)) == 4, f"Expected all unique symbols, got duplicates: {symbol_names}"
 
     def test_symbol_mapping_structure(self) -> None:
         """Test that symbol mapping uses (MetricSpec, ResultKey, dataset) as key."""
@@ -158,21 +164,31 @@ class TestLagUniqueSymbols:
         key = ResultKey(datetime.date(2024, 1, 3), {})
         suite.run([ds], key)
 
-        report = suite.analysis_reports["test_data"]
+        # Get all symbols from the provider
+        symbol_infos = suite.provider.collect_symbols(key)
 
-        # Verify the structure of symbol_mapping keys
-        for mapping_key in report.symbol_mapping.keys():
-            # Key should be tuple of (MetricSpec, ResultKey, dataset)
-            assert isinstance(mapping_key, tuple), f"Expected tuple key, got {type(mapping_key)}"
-            assert len(mapping_key) == 3, f"Expected 3-element tuple, got {len(mapping_key)}"
+        # Filter for average(value) metrics
+        avg_value_symbols = [s for s in symbol_infos if "average(value)" in s.metric]
 
-            metric_spec, result_key, dataset_name = mapping_key
-            assert isinstance(metric_spec, Average), f"Expected Average spec, got {type(metric_spec)}"
-            assert isinstance(result_key, ResultKey), f"Expected ResultKey, got {type(result_key)}"
-            assert dataset_name == "test_data", f"Expected dataset 'test_data', got {dataset_name}"
+        # Should have 2 symbols (current and lag)
+        assert len(avg_value_symbols) == 2, f"Expected 2 symbols, got {len(avg_value_symbols)}"
+
+        # Verify the structure of symbol info
+        for symbol_info in avg_value_symbols:
+            # Check that each symbol info has the expected attributes
+            assert hasattr(symbol_info, "name"), "Missing name attribute"
+            assert hasattr(symbol_info, "metric"), "Missing metric attribute"
+            assert hasattr(symbol_info, "dataset"), "Missing dataset attribute"
+            assert hasattr(symbol_info, "value"), "Missing value attribute"
+            assert hasattr(symbol_info, "yyyy_mm_dd"), "Missing yyyy_mm_dd attribute"
+            assert hasattr(symbol_info, "tags"), "Missing tags attribute"
+
+            # Verify attribute values
+            assert symbol_info.dataset == "test_data", f"Expected dataset 'test_data', got {symbol_info.dataset}"
+            assert symbol_info.name.startswith("x_"), f"Invalid symbol name format: {symbol_info.name}"
+            assert "average(value)" in symbol_info.metric, f"Unexpected metric: {symbol_info.metric}"
 
         # Verify we have mappings for both dates
-        result_keys = [key[1] for key in report.symbol_mapping.keys()]
-        dates = [rk.yyyy_mm_dd for rk in result_keys]
+        dates = [s.yyyy_mm_dd for s in avg_value_symbols]
         assert datetime.date(2024, 1, 3) in dates  # Current date
         assert datetime.date(2024, 1, 2) in dates  # Lag(1) date

@@ -13,7 +13,7 @@ import sympy as sp
 from returns.result import Failure, Result
 
 from dqx import compute, specs
-from dqx.common import DQXError, ExecutionId, ResultKey, RetrievalFn, Tags
+from dqx.common import DQXError, ExecutionId, MetricKey, ResultKey, RetrievalFn, Tags
 from dqx.orm.repositories import MetricDB
 from dqx.specs import MetricSpec
 
@@ -294,6 +294,95 @@ class MetricRegistry:
 
         return sorted_symbols
 
+    def topological_sort(self) -> None:
+        """Sort metrics in topological order for evaluation.
+
+        Sorts the internal _metrics list such that all required_metrics for a
+        given metric appear before that metric in the list. Simple metrics
+        (with no dependencies) will appear first, followed by extended metrics
+        in dependency order.
+
+        The sort is performed in-place on the _metrics list.
+
+        Raises:
+            DQXError: If a circular dependency is detected. The error message
+                      will include details about the metrics involved in the cycle.
+        """
+        from collections import deque
+
+        n = len(self._metrics)
+        if n == 0:
+            return
+
+        # Build dependency graph
+        in_degree: dict[sp.Symbol, int] = {}
+        adjacency: dict[sp.Symbol, list[sp.Symbol]] = {}
+
+        # Initialize structures
+        for sm in self._metrics:
+            # Only count dependencies that are actually in the registry
+            internal_deps = [req for req in sm.required_metrics if req in self._symbol_index]
+            in_degree[sm.symbol] = len(internal_deps)
+            adjacency[sm.symbol] = []
+
+        # Build reverse adjacency (who depends on me?)
+        for sm in self._metrics:
+            for req_symbol in sm.required_metrics:
+                if req_symbol in adjacency:  # Only if required metric is in current list
+                    adjacency[req_symbol].append(sm.symbol)
+
+        # Initialize queue with metrics having no dependencies
+        queue: deque[SymbolicMetric] = deque(sm for sm in self._metrics if in_degree[sm.symbol] == 0)
+        result: list[SymbolicMetric] = []
+
+        # Process metrics in topological order
+        while queue:
+            current = queue.popleft()
+            result.append(current)
+
+            # Reduce in-degree for dependent metrics
+            for dependent_symbol in adjacency[current.symbol]:
+                in_degree[dependent_symbol] -= 1
+                if in_degree[dependent_symbol] == 0:
+                    # Use self.get() to retrieve the metric
+                    queue.append(self.get(dependent_symbol))
+
+        # Check for cycles
+        if len(result) != n:
+            # Find metrics involved in cycle
+            remaining = [sm for sm in self._metrics if sm not in result]
+            cycle_info = self._find_cycle_details(remaining)
+            raise DQXError(f"Circular dependency detected:\n{cycle_info}")
+
+        # Replace _metrics with sorted order
+        self._metrics = result
+
+    def _find_cycle_details(self, remaining_metrics: list[SymbolicMetric]) -> str:
+        """Generate helpful error message about circular dependencies."""
+        cycle_symbols = {sm.symbol for sm in remaining_metrics}
+        details = []
+
+        for sm in remaining_metrics:
+            deps_in_cycle = [str(dep) for dep in sm.required_metrics if dep in cycle_symbols]
+            if deps_in_cycle:
+                details.append(f"  {sm.symbol} ({sm.name}) depends on: {', '.join(deps_in_cycle)}")
+
+        if not details:
+            # No internal cycle dependencies found, might be external
+            details.append("  Metrics depend on symbols not in the registry")
+
+        return "\n".join(details)
+
+    def symbol_lookup_table(self, key: ResultKey) -> dict[MetricKey, sp.Symbol]:
+        symbol_lookup: dict[MetricKey, str] = {}
+        for sym_metric in self.metrics:
+            if sym_metric.dataset is not None:
+                # Calculate effective key based on lag
+                effective_key = key.lag(sym_metric.lag)
+                metric_key = (sym_metric.metric_spec, effective_key, sym_metric.dataset)
+                symbol_lookup[metric_key] = str(sym_metric.symbol)
+        return symbol_lookup
+
 
 class RegistryMixin:
     @property
@@ -537,12 +626,13 @@ class ExtendedMetricProvider(RegistryMixin):
         fn = _create_lazy_extended_fn(self._provider, compute.day_over_day, spec, sym)
 
         # Register with lazy function
+        cloned_spec = specs.DayOverDay.from_base_spec(spec)
         self.registry._metrics.append(
             sm := SymbolicMetric(
-                name=specs.DayOverDay.from_base_spec(spec).name,
+                name=cloned_spec.name,
                 symbol=sym,
                 fn=fn,
-                metric_spec=specs.DayOverDay.from_base_spec(spec),
+                metric_spec=cloned_spec,
                 lag=lag,  # Use the provided lag instead of 0
                 dataset=dataset,
                 required_metrics=[lag_0, lag_1],
@@ -570,12 +660,13 @@ class ExtendedMetricProvider(RegistryMixin):
         fn = _create_lazy_extended_fn(self._provider, compute.week_over_week, spec, sym)
 
         # Register with lazy function
+        cloned_spec = specs.WeekOverWeek.from_base_spec(spec)
         self.registry._metrics.append(
             sm := SymbolicMetric(
-                name=specs.WeekOverWeek.from_base_spec(spec).name,
+                name=cloned_spec.name,
                 symbol=sym,
                 fn=fn,
-                metric_spec=specs.WeekOverWeek.from_base_spec(spec),
+                metric_spec=cloned_spec,
                 lag=lag,  # Use the provided lag instead of 0
                 dataset=dataset,
                 required_metrics=[lag_0, lag_7],
@@ -633,12 +724,13 @@ class ExtendedMetricProvider(RegistryMixin):
         )
 
         # Register with lazy function
+        cloned_spec = specs.Stddev.from_base_spec(spec, offset, n)
         self.registry._metrics.append(
             sm := SymbolicMetric(
-                name=specs.Stddev.from_base_spec(spec, offset, n).name,
+                name=cloned_spec.name,
                 symbol=sym,
                 fn=fn,
-                metric_spec=specs.Stddev.from_base_spec(spec, offset, n),
+                metric_spec=cloned_spec,
                 lag=offset,  # stddev itself should have lag=offset (not lag=0)
                 dataset=dataset,
                 required_metrics=required,
@@ -738,15 +830,16 @@ class MetricProvider(SymbolicMetricBase):
         sym = self.registry._next_symbol()
 
         # Create lazy retrieval function that will resolve dataset at evaluation time
-        fn = _create_lazy_retrieval_fn(self, metric, sym)
+        cloned_spec = metric.clone()
+        fn = _create_lazy_retrieval_fn(self, cloned_spec, sym)
 
         # Register with the lazy function
         self.registry._metrics.append(
             sm := SymbolicMetric(
-                name=metric.name,
+                name=cloned_spec.name,
                 symbol=sym,
                 fn=fn,
-                metric_spec=metric.clone(),
+                metric_spec=cloned_spec,
                 lag=lag,
                 dataset=dataset,
                 required_metrics=[],

@@ -34,14 +34,16 @@ class TestMetadataPersistence:
 
     def test_analyzer_with_metadata(self, ds: DuckRelationDataSource, db: InMemoryMetricDB) -> None:
         """Test Analyzer persists metadata correctly."""
-        # Create metadata
-        metadata = Metadata(execution_id="test-run-123", ttl_hours=48)
+        # Create analyzer with execution_id
+        from dqx.provider import MetricProvider
 
-        # Create analyzer with metadata
-        analyzer = Analyzer(metadata=metadata)
+        execution_id = "test-run-123"
+        provider = MetricProvider(db, execution_id=execution_id)
+        key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
+
+        analyzer = Analyzer(datasources=[ds], provider=provider, key=key, execution_id=execution_id)
 
         # Define metrics
-        key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
         metrics: dict[ResultKey, list[MetricSpec]] = {
             key: [
                 NumRows(),
@@ -50,7 +52,7 @@ class TestMetadataPersistence:
         }
 
         # Analyze
-        report = analyzer.analyze(ds, metrics)
+        report = analyzer.analyze_simple_metrics(ds, metrics)
 
         # Persist
         report.persist(db)
@@ -60,30 +62,37 @@ class TestMetadataPersistence:
             metric = db.get(result_key, metric_spec)
             assert metric is not None
             persisted = metric.unwrap()
-            assert persisted.metadata == metadata
+            assert persisted.metadata is not None
             assert persisted.metadata.execution_id == "test-run-123"
-            assert persisted.metadata.ttl_hours == 48
+            # Default ttl_hours is 168, not 48
+            assert persisted.metadata.ttl_hours == 168
 
     def test_analyzer_without_metadata(self, ds: DuckRelationDataSource, db: InMemoryMetricDB) -> None:
-        """Test Analyzer uses default metadata when none provided."""
-        # Create analyzer without metadata
-        analyzer = Analyzer()
+        """Test Analyzer creates metadata with execution_id."""
+        # Create analyzer with minimal required parameters
+        from dqx.provider import MetricProvider
+
+        # Use empty string instead of None for execution_id
+        provider = MetricProvider(db, execution_id="")
+        key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
+        # When no execution_id is provided, a UUID is generated
+        analyzer = Analyzer(datasources=[ds], provider=provider, key=key, execution_id="")
 
         # Define metrics
-        key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
         metrics: dict[ResultKey, list[MetricSpec]] = {key: [NumRows()]}
 
         # Analyze and persist
-        report = analyzer.analyze(ds, metrics)
+        report = analyzer.analyze_simple_metrics(ds, metrics)
         report.persist(db)
 
-        # Verify default metadata
+        # Verify metadata with execution_id was created
         for metric_spec, result_key, dataset_name in report:
             metric = db.get(result_key, metric_spec)
             assert metric is not None
             persisted = metric.unwrap()
-            assert persisted.metadata == Metadata()  # Default values
-            assert persisted.metadata.execution_id is None
+            assert persisted.metadata is not None
+            # execution_id is empty string when passed as empty string
+            assert persisted.metadata.execution_id == ""
             assert persisted.metadata.ttl_hours == 168  # Default is 7 days
 
     def test_metadata_roundtrip(self, ds: DuckRelationDataSource) -> None:
@@ -92,19 +101,24 @@ class TestMetadataPersistence:
         db1 = InMemoryMetricDB()
         db2 = InMemoryMetricDB()
 
-        # Analyze with metadata and persist to db1
-        metadata = Metadata(execution_id="roundtrip-test", ttl_hours=72)
-        analyzer = Analyzer(metadata=metadata)
+        # Analyze with execution_id and persist to db1
+        from dqx.provider import MetricProvider
 
+        execution_id = "roundtrip-test"
+        provider = MetricProvider(db1, execution_id=execution_id)
         key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
+
+        analyzer = Analyzer(datasources=[ds], provider=provider, key=key, execution_id=execution_id)
+
         metrics: dict[ResultKey, list[MetricSpec]] = {key: [NumRows()]}
 
-        report = analyzer.analyze(ds, metrics)
+        report = analyzer.analyze_simple_metrics(ds, metrics)
         persisted_metrics = list(db1.persist(report.values()))
 
         # Verify persisted metrics have metadata
         assert len(persisted_metrics) == 1
-        assert persisted_metrics[0].metadata == metadata
+        expected_metadata = Metadata(execution_id="roundtrip-test", ttl_hours=168)  # Default ttl
+        assert persisted_metrics[0].metadata == expected_metadata
 
         # Simulate retrieving from db1 and persisting to db2
         for metric in persisted_metrics:
@@ -118,4 +132,4 @@ class TestMetadataPersistence:
                 # Verify in second database
                 from_db2 = db2.get(metric.metric_id)
                 assert from_db2 is not None
-                assert from_db2.unwrap().metadata == metadata
+                assert from_db2.unwrap().metadata == expected_metadata

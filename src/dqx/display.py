@@ -5,9 +5,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Protocol, Sequence
 
 import pyarrow as pa
+import sympy as sp
 from returns.result import Result
 from rich.console import Console
 from rich.tree import Tree
+
+from dqx.common import MetricKey
 
 if TYPE_CHECKING:
     from dqx.analyzer import AnalysisReport
@@ -290,8 +293,6 @@ def print_metric_trace(trace_table: pa.Table, execution_id: str) -> None:
 
         # Format values with colors
         def format_value(value: float | None, highlight: bool = False, is_extended: bool = False) -> str:
-            if is_extended:
-                return "[green]-[/green]"
             if value is None:
                 return "-"
             if highlight:
@@ -462,7 +463,7 @@ def print_symbols(symbols: list[SymbolInfo]) -> None:
     console.print(table)
 
 
-def print_analysis_report(report: dict[str, AnalysisReport]) -> None:
+def print_analysis_report(report: AnalysisReport, symbol_lookup: dict[MetricKey, sp.Symbol]) -> None:
     """Display analysis reports in a formatted table.
 
     Args:
@@ -473,7 +474,7 @@ def print_analysis_report(report: dict[str, AnalysisReport]) -> None:
     from dqx.data import analysis_reports_to_pyarrow_table
 
     # Convert reports to PyArrow table (handles sorting, symbol mapping, etc.)
-    pa_table = analysis_reports_to_pyarrow_table(report)
+    pa_table = analysis_reports_to_pyarrow_table(report, symbol_lookup)
 
     table = Table(title="Analysis Reports", show_lines=True)
 

@@ -77,8 +77,8 @@ def test_execution_id_end_to_end() -> None:
     assert suite.provider.ext.execution_id == execution_id
 
     # Verify analysis reports contain metrics with correct execution_id
-    assert len(suite.analysis_reports) == 1
-    report = suite.analysis_reports["sales"]
+    report = suite._analysis_reports
+    assert len(report) > 0  # Should have metrics in the report
     # Check that metrics in the report have the correct execution_id
     for metric in report.values():
         assert metric.metadata is not None

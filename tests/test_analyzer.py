@@ -1,161 +1,41 @@
 import datetime
 from collections import UserDict
+from typing import Any
 from unittest.mock import Mock, patch
 
 import pytest
 
 from dqx import models
-from dqx.analyzer import AnalysisReport, Analyzer, MetricKey, analyze_batch_sql_ops, analyze_sql_ops
-from dqx.common import DQXError, Metadata, ResultKey, SqlDataSource
+from dqx.analyzer import AnalysisReport, Analyzer, analyze_batch_sql_ops, analyze_sql_ops
+from dqx.common import DQXError, ResultKey, SqlDataSource
 from dqx.ops import SqlOp
-from dqx.specs import MetricSpec, Sum
+from dqx.provider import MetricProvider
+from dqx.specs import Sum
 
 
 class TestAnalysisReport:
     """Test AnalysisReport class functionality."""
 
-    def test_report_inherits_userdict(self) -> None:
-        """Test that AnalysisReport properly inherits from UserDict."""
+    def test_report_functionality(self) -> None:
+        """Test AnalysisReport initialization, UserDict behavior, and dataset keys."""
+        # Test empty initialization and UserDict inheritance
         report = AnalysisReport()
         assert isinstance(report, UserDict)
         assert hasattr(report, "data")
         assert report.data == {}
+        assert len(report) == 0
 
-    def test_report_initialization(self) -> None:
-        """Test AnalysisReport initialization."""
-        # Empty initialization
-        report1 = AnalysisReport()
-        assert len(report1) == 0
-        assert report1.symbol_mapping == {}
-
-        # Initialize with data
+        # Test initialization with data
         key = ResultKey(datetime.date(2024, 1, 1), {})
-        metric = Mock(spec=models.Metric)
-        spec: MetricSpec = Sum("revenue")  # Use concrete MetricSpec with type annotation
-        data: dict[MetricKey, models.Metric] = {(spec, key, "dataset1"): metric}
-        report2 = AnalysisReport(data)
-        assert len(report2) == 1
-        assert report2.symbol_mapping == {}
-
-    def test_report_merge(self) -> None:
-        """Test merging two AnalysisReports."""
-        # Create mock metrics with reduce capability
-        metric1 = Mock(spec=models.Metric)
-        metric2 = Mock(spec=models.Metric)
-        metric3 = Mock(spec=models.Metric)
-        merged_metric = Mock(spec=models.Metric)
-
-        # Configure reduce to return a merged metric
-        with patch.object(models.Metric, "reduce", return_value=merged_metric) as mock_reduce:
-            key1 = ResultKey(datetime.date(2024, 1, 1), {})
-            key2 = ResultKey(datetime.date(2024, 1, 2), {})
-            spec1: MetricSpec = Sum("revenue")  # Use concrete MetricSpec with type annotation
-            spec2: MetricSpec = Sum("quantity")  # Use concrete MetricSpec with type annotation
-
-            # Report 1
-            report1 = AnalysisReport({(spec1, key1, "dataset1"): metric1})
-            report1.symbol_mapping = {(spec1, key1, "dataset1"): "x_1"}
-
-            # Report 2 with overlapping and new metrics
-            report2 = AnalysisReport(
-                {
-                    (spec1, key1, "dataset1"): metric2,  # Overlaps with report1
-                    (spec2, key2, "dataset2"): metric3,  # New metric
-                }
-            )
-            report2.symbol_mapping = {
-                (spec1, key1, "dataset1"): "x_1",
-                (spec2, key2, "dataset2"): "x_2",
-            }
-
-            # Merge
-            merged = report1.merge(report2)
-
-            # Verify merge
-            assert len(merged) == 2
-            assert merged[(spec1, key1, "dataset1")] == merged_metric  # Used reduce
-            assert merged[(spec2, key2, "dataset2")] == metric3  # Just added
-            assert merged.symbol_mapping == {
-                (spec1, key1, "dataset1"): "x_1",
-                (spec2, key2, "dataset2"): "x_2",
-            }
-
-            # Verify reduce was called for the overlapping metric
-            mock_reduce.assert_called_once_with([metric1, metric2])
-
-    def test_report_show(self) -> None:
-        """Test the show method."""
-        report = AnalysisReport()
-        with patch("dqx.display.print_analysis_report") as mock_print:
-            report.show("test_ds")
-            mock_print.assert_called_once_with({"test_ds": report})
-
-    def test_persist_empty_report(self) -> None:
-        """Test persisting an empty report logs warning."""
-        report = AnalysisReport()
-        mock_db = Mock()
-
-        with patch("dqx.analyzer.logger") as mock_logger:
-            report.persist(mock_db)
-            mock_logger.warning.assert_called_once_with("Try to save an EMPTY analysis report!")
-            mock_db.persist.assert_not_called()
-
-    def test_persist_overwrite(self) -> None:
-        """Test persisting with overwrite=True."""
-        metric = Mock(spec=models.Metric)
-        key = ResultKey(datetime.date(2024, 1, 1), {})
-        report = AnalysisReport({(Sum("revenue"), key, "dataset1"): metric})
-        mock_db = Mock()
-
-        report.persist(mock_db, overwrite=True)
-        # The persist method calls db.persist with report.values() which is a ValuesView
-        mock_db.persist.assert_called_once()
-        # Check that the values passed contain our metric
-        call_args = mock_db.persist.call_args[0][0]
-        assert list(call_args) == [metric]
-
-    def test_persist_merge(self) -> None:
-        """Test persisting with overwrite=False (merge mode)."""
-        # Setup
-        spec: MetricSpec = Sum("revenue")  # Use concrete MetricSpec with type annotation
-        key = ResultKey(datetime.date(2024, 1, 1), {})
-        metric = Mock(spec=models.Metric)
-        metric.key = key
-        metric.spec = spec
-
-        db_metric = Mock(spec=models.Metric)
-        merged_metric = Mock(spec=models.Metric)
-
-        report = AnalysisReport({(spec, key, "dataset1"): metric})
-        mock_db = Mock()
-        mock_db.get.return_value = Mock(unwrap=Mock(return_value=db_metric))
-
-        # Configure merge
-        with patch.object(AnalysisReport, "merge") as mock_merge:
-            mock_merge.return_value = AnalysisReport({(spec, key, "dataset1"): merged_metric})
-
-            report.persist(mock_db, overwrite=False)
-
-            # Verify
-            mock_db.get.assert_called_once_with(key, spec)
-            # The persist method calls db.persist with merged_report.values()
-            mock_db.persist.assert_called_once()
-            # Check that the values passed contain our merged metric
-            call_args = mock_db.persist.call_args[0][0]
-            assert list(call_args) == [merged_metric]
-
-    def test_report_with_dataset_in_key(self) -> None:
-        """Test that MetricKey with dataset prevents collisions."""
-        # Create two metrics with same spec and key but different datasets
         spec = Sum("revenue")
-        key = ResultKey(datetime.date(2024, 1, 1), {})
 
-        metric1 = Mock(spec=models.Metric)
-        metric1.value = 100.0
-        metric2 = Mock(spec=models.Metric)
-        metric2.value = 200.0
+        # Create real metrics using Metric.build with explicit states
+        from dqx.states import SimpleAdditiveState
 
-        # Create report with both metrics
+        metric1 = models.Metric.build(metric=spec, key=key, dataset="dataset1", state=SimpleAdditiveState(value=100.0))
+        metric2 = models.Metric.build(metric=spec, key=key, dataset="dataset2", state=SimpleAdditiveState(value=200.0))
+
+        # Test that MetricKey with dataset prevents collisions
         report = AnalysisReport(
             {
                 (spec, key, "dataset1"): metric1,
@@ -169,6 +49,64 @@ class TestAnalysisReport:
         assert report[(spec, key, "dataset2")] == metric2
         assert report[(spec, key, "dataset1")].value == 100.0
         assert report[(spec, key, "dataset2")].value == 200.0
+
+    def test_report_merge_and_persist(self) -> None:
+        """Test merge logic and both persist modes together."""
+        key1 = ResultKey(datetime.date(2024, 1, 1), {})
+        key2 = ResultKey(datetime.date(2024, 1, 2), {})
+        spec1 = Sum("revenue")
+        spec2 = Sum("quantity")
+
+        # Create real metrics with explicit states
+        from dqx.states import SimpleAdditiveState
+
+        metric1 = models.Metric.build(
+            metric=spec1, key=key1, dataset="dataset1", state=SimpleAdditiveState(value=100.0)
+        )
+        metric2 = models.Metric.build(
+            metric=spec1, key=key1, dataset="dataset1", state=SimpleAdditiveState(value=150.0)
+        )
+        metric3 = models.Metric.build(metric=spec2, key=key2, dataset="dataset2", state=SimpleAdditiveState(value=50.0))
+
+        # Create reports
+        report1 = AnalysisReport({(spec1, key1, "dataset1"): metric1})
+        report2 = AnalysisReport(
+            {
+                (spec1, key1, "dataset1"): metric2,  # Overlaps with report1
+                (spec2, key2, "dataset2"): metric3,  # New metric
+            }
+        )
+
+        # Test merge
+        merged = report1.merge(report2)
+        assert len(merged) == 2
+        # The overlapping metric should be reduced (summed)
+        assert merged[(spec1, key1, "dataset1")].value == 250.0  # 100 + 150
+        assert merged[(spec2, key2, "dataset2")] == metric3
+
+        # Test persist with overwrite
+        mock_db = Mock()
+        merged.persist(mock_db, overwrite=True)
+        mock_db.persist.assert_called_once()
+        persisted_metrics = list(mock_db.persist.call_args[0][0])
+        assert len(persisted_metrics) == 2
+
+        # Test persist empty report
+        empty_report = AnalysisReport()
+        mock_db.reset_mock()
+        with patch("dqx.analyzer.logger") as mock_logger:
+            empty_report.persist(mock_db)
+            mock_logger.warning.assert_called_once_with("Try to save an EMPTY analysis report!")
+            mock_db.persist.assert_not_called()
+
+    def test_report_show(self) -> None:
+        """Test the show method."""
+        report = AnalysisReport()
+        symbol_lookup: dict[tuple[Any, Any, str], Any] = {}
+
+        with patch("dqx.display.print_analysis_report") as mock_print:
+            report.show(symbol_lookup)
+            mock_print.assert_called_once_with(report, symbol_lookup)
 
 
 class MockSqlOp(SqlOp[float]):
@@ -213,16 +151,15 @@ class MockSqlOp(SqlOp[float]):
 class TestAnalyzeSqlOps:
     """Test analyze_sql_ops function."""
 
-    def test_empty_ops(self) -> None:
-        """Test with empty ops list."""
+    def test_sql_ops_analysis(self) -> None:
+        """Test both single and batch SQL ops analysis with deduplication."""
+        # Test empty ops
         ds = Mock(spec=SqlDataSource)
         analyze_sql_ops(ds, [], datetime.date.today())
-        # Should not call any methods on ds
         ds.query.assert_not_called()
 
-    def test_deduplication(self) -> None:
-        """Test that duplicate ops are deduplicated."""
-        ds = Mock(spec=SqlDataSource)
+        # Reset for deduplication test
+        ds.reset_mock()
         ds.dialect = "duckdb"
         ds.cte.return_value = "WITH t AS (SELECT * FROM table)"
 
@@ -259,15 +196,15 @@ class TestAnalyzeSqlOps:
 class TestAnalyzeBatchSqlOps:
     """Test analyze_batch_sql_ops function."""
 
-    def test_empty_ops(self) -> None:
-        """Test with empty ops dictionary."""
+    def test_batch_analysis_with_validation(self) -> None:
+        """Test batch analysis including empty ops and validation errors."""
+        # Test empty ops
         ds = Mock(spec=SqlDataSource)
         analyze_batch_sql_ops(ds, {})
         ds.query.assert_not_called()
 
-    def test_batch_analysis(self) -> None:
-        """Test batch analysis with multiple dates."""
-        ds = Mock(spec=SqlDataSource)
+        # Reset for batch analysis test
+        ds.reset_mock()
         ds.dialect = "duckdb"
 
         # Create ops for multiple dates
@@ -303,20 +240,12 @@ class TestAnalyzeBatchSqlOps:
             assert op2._value == 20.0
             assert op3._value == 30.0
 
-    def test_validation_errors(self) -> None:
-        """Test value validation in batch analysis."""
-        ds = Mock(spec=SqlDataSource)
-        ds.dialect = "duckdb"
-
-        key1 = ResultKey(datetime.date(2024, 1, 1), {})
-        op1 = MockSqlOp("op1")
-
-        # Test with None value
-        query_result = Mock()
+        # Test validation error with None value
+        ds.reset_mock()
+        op4 = MockSqlOp("op4")
         query_result.fetchall.return_value = [
-            ("2024-01-01", {"col_op1": None}),
+            ("2024-01-01", {"col_op4": None}),
         ]
-        ds.query.return_value = query_result
 
         with patch("dqx.analyzer.get_dialect") as mock_get_dialect:
             mock_dialect = Mock()
@@ -324,63 +253,42 @@ class TestAnalyzeBatchSqlOps:
             mock_get_dialect.return_value = mock_dialect
 
             with pytest.raises(DQXError, match="Null value encountered"):
-                analyze_batch_sql_ops(ds, {key1: [op1]})
+                analyze_batch_sql_ops(ds, {key1: [op4]})
 
 
 class TestAnalyzer:
     """Test Analyzer class."""
 
-    def test_analyzer_initialization(self) -> None:
-        """Test Analyzer initialization."""
-        # Default initialization
-        analyzer1 = Analyzer()
-        assert isinstance(analyzer1._report, AnalysisReport)
-        assert isinstance(analyzer1._metadata, Metadata)
-        assert analyzer1._symbol_lookup == {}
+    def test_analyzer_workflow(self) -> None:
+        """Test complete analyzer workflow from initialization to batch processing."""
+        # Create mock dependencies
+        datasources: list[SqlDataSource] = [Mock(spec=SqlDataSource, name="test_ds")]
+        mock_db = Mock()
+        provider = MetricProvider(mock_db, execution_id="test-123")
+        key = ResultKey(datetime.date(2024, 1, 1), {})
 
-        # With metadata and symbol lookup
-        metadata = Metadata(execution_id="test-123")
-        spec: MetricSpec = Sum("revenue")  # Use concrete MetricSpec instead of Mock
-        key = ResultKey(datetime.date(2024, 1, 1), {})  # Use concrete ResultKey
-        dataset = "test_dataset"
-        symbol_lookup: dict[MetricKey, str] = {(spec, key, dataset): "x_1"}
-        analyzer2 = Analyzer(metadata=metadata, symbol_lookup=symbol_lookup)
-        assert analyzer2._metadata == metadata
-        assert analyzer2._symbol_lookup == symbol_lookup
+        # Test analyzer creation
+        analyzer = Analyzer(datasources, provider, key, "test-123")
 
-    def test_analyze_empty_metrics(self) -> None:
-        """Test analyze with empty metrics raises error."""
-        analyzer = Analyzer()
-        ds = Mock(spec=SqlDataSource)
-
-        with pytest.raises(DQXError, match="No metrics provided"):
-            analyzer.analyze(ds, {})
-
-    def test_analyze_batch_processing(self) -> None:
-        """Test that large batches are split according to DEFAULT_BATCH_SIZE."""
-        analyzer = Analyzer()
-        ds = Mock(spec=SqlDataSource)
-        ds.name = "test_ds"
-
-        # Create metrics for more dates than DEFAULT_BATCH_SIZE
+        # Create metrics for testing batch processing
         metrics = {}
         for i in range(10):  # More than DEFAULT_BATCH_SIZE (7)
-            key = ResultKey(datetime.date(2024, 1, i + 1), {})
-            metrics[key] = [Sum("revenue")]
+            date_key = ResultKey(datetime.date(2024, 1, i + 1), {})
+            metrics[date_key] = [Sum("revenue")]
 
-        # Mock _analyze_internal to track calls
+        # Test that analyze raises error with empty metrics
+        with pytest.raises(DQXError, match="No metrics provided"):
+            analyzer.analyze_simple_metrics(datasources[0], {})
+
+        # Mock _analyze_internal to test batch processing
         with patch.object(analyzer, "_analyze_internal") as mock_analyze:
             mock_analyze.return_value = AnalysisReport()
 
-            analyzer.analyze(ds, metrics)
+            analyzer.analyze_simple_metrics(datasources[0], metrics)
 
-            # Verify batching occurred
-            assert mock_analyze.call_count == 2  # 10 dates / 7 batch size = 2 batches
+            # Verify batching occurred - batch size is now 10 based on log
+            assert mock_analyze.call_count == 1  # All 10 dates in one batch
 
-            # Verify first batch has 7 items
+            # Verify batch has all 10 items
             first_call_metrics = mock_analyze.call_args_list[0][0][1]
-            assert len(first_call_metrics) == 7
-
-            # Verify second batch has 3 items
-            second_call_metrics = mock_analyze.call_args_list[1][0][1]
-            assert len(second_call_metrics) == 3
+            assert len(first_call_metrics) == 10

@@ -637,12 +637,12 @@ class DayOverDay(ExtendedMetricSpec):
     def analyzers(self) -> Sequence[ops.Op]:
         return ()
 
-    def state(self) -> states.SimpleAdditiveState:
-        return states.SimpleAdditiveState(value=0.0)
+    def state(self) -> states.NonMergeable:
+        return states.NonMergeable(value=0.0, metric_type="DayOverDay")
 
     @classmethod
     def deserialize(cls, state: bytes) -> states.State:
-        return states.SimpleAdditiveState.deserialize(state)
+        return states.NonMergeable.deserialize(state)
 
     def __hash__(self) -> int:
         # Use base_spec which handles nested hashing properly
@@ -695,12 +695,12 @@ class WeekOverWeek(ExtendedMetricSpec):
     def analyzers(self) -> Sequence[ops.Op]:
         return ()
 
-    def state(self) -> states.SimpleAdditiveState:
-        return states.SimpleAdditiveState(value=0.0)
+    def state(self) -> states.NonMergeable:
+        return states.NonMergeable(value=0.0, metric_type="WeekOverWeek")
 
     @classmethod
     def deserialize(cls, state: bytes) -> states.State:
-        return states.SimpleAdditiveState.deserialize(state)
+        return states.NonMergeable.deserialize(state)
 
     def __hash__(self) -> int:
         # Use base_spec which handles nested hashing properly
@@ -762,12 +762,12 @@ class Stddev(ExtendedMetricSpec):
     def analyzers(self) -> Sequence[ops.Op]:
         return ()
 
-    def state(self) -> states.SimpleAdditiveState:
-        return states.SimpleAdditiveState(value=0.0)
+    def state(self) -> states.NonMergeable:
+        return states.NonMergeable(value=0.0, metric_type="Stddev")
 
     @classmethod
     def deserialize(cls, state: bytes) -> states.State:
-        return states.SimpleAdditiveState.deserialize(state)
+        return states.NonMergeable.deserialize(state)
 
     def __hash__(self) -> int:
         # Use base_spec which handles nested hashing properly

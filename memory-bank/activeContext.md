@@ -1,11 +1,19 @@
 # Active Context - DQX
 
 ## Current Focus
-- Completed refactoring of metric expiration logic with helper method
-- Integrated metric cleanup stats into VerificationSuite and plugin system
-- All tests passing with improved code organization and type safety
+- Implemented topological sort for MetricRegistry to ensure proper evaluation order
+- Added comprehensive cycle detection for metric dependencies
+- All tests passing with new topological sort functionality
 
 ## Recent Changes
+
+### Topological Sort Implementation (2025-10-31)
+1. **Core Method**: Added `topological_sort()` to MetricRegistry class
+2. **Cycle Detection**: Detects and reports circular dependencies with helpful error messages
+3. **External Dependencies**: Gracefully handles metrics with dependencies not in the registry
+4. **In-place Sorting**: Reorders internal `_metrics` list to respect dependencies
+5. **Comprehensive Tests**: 12 test cases covering all edge cases
+6. **Example**: Created `examples/topological_sort_example.py` demonstrating usage
 
 ### Metric Expiration Refactoring (2025-10-30)
 1. **Helper Method**: Created `_build_expiration_filter()` to eliminate duplicated SQL filter logic

@@ -4,9 +4,6 @@ import logging
 
 from rich.logging import RichHandler
 
-# Export the data module for easy access
-from dqx import data as data  # noqa: PLC0414
-
 # Version information
 try:
     from importlib.metadata import version
