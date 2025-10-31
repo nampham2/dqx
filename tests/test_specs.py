@@ -675,11 +675,12 @@ class TestDayOverDay:
     def test_state(self) -> None:
         dod = specs.DayOverDay(base_metric_type="Average", base_parameters={"column": "price"})
         state = dod.state()
-        assert isinstance(state, states.SimpleAdditiveState)
+        assert isinstance(state, states.NonMergeable)
         assert state.value == 0.0
+        assert state.metric_type == "DayOverDay"
 
     def test_deserialize(self) -> None:
-        with patch.object(states.SimpleAdditiveState, "deserialize") as mock_deserialize:
+        with patch.object(states.NonMergeable, "deserialize") as mock_deserialize:
             mock_state = Mock()
             mock_deserialize.return_value = mock_state
 
@@ -736,6 +737,219 @@ class TestDayOverDay:
         for metric_type, params, expected_name in test_cases:
             dod = specs.DayOverDay(base_metric_type=metric_type, base_parameters=params)
             assert dod.name == expected_name
+
+
+class TestWeekOverWeek:
+    """Test WeekOverWeek metric spec"""
+
+    def test_metric_type(self) -> None:
+        wow = specs.WeekOverWeek(base_metric_type="Average", base_parameters={"column": "price"})
+        assert wow.metric_type == "WeekOverWeek"
+
+    def test_name(self) -> None:
+        wow = specs.WeekOverWeek(base_metric_type="Average", base_parameters={"column": "price"})
+        assert wow.name == "wow(average(price))"
+
+    def test_name_with_sum(self) -> None:
+        wow = specs.WeekOverWeek(base_metric_type="Sum", base_parameters={"column": "revenue"})
+        assert wow.name == "wow(sum(revenue))"
+
+    def test_parameters(self) -> None:
+        wow = specs.WeekOverWeek(base_metric_type="Average", base_parameters={"column": "price"})
+        assert wow.parameters == {"base_metric_type": "Average", "base_parameters": {"column": "price"}}
+
+    def test_base_spec_property(self) -> None:
+        wow = specs.WeekOverWeek(base_metric_type="Average", base_parameters={"column": "price"})
+        base_spec = wow.base_spec
+        assert isinstance(base_spec, specs.Average)
+        assert base_spec.parameters == {"column": "price"}
+
+    def test_analyzers(self) -> None:
+        wow = specs.WeekOverWeek(base_metric_type="Average", base_parameters={"column": "price"})
+        assert len(wow.analyzers) == 0  # Extended metrics have no analyzers
+
+    def test_state(self) -> None:
+        wow = specs.WeekOverWeek(base_metric_type="Average", base_parameters={"column": "price"})
+        state = wow.state()
+        assert isinstance(state, states.NonMergeable)
+        assert state.value == 0.0
+        assert state.metric_type == "WeekOverWeek"
+
+    def test_deserialize(self) -> None:
+        with patch.object(states.NonMergeable, "deserialize") as mock_deserialize:
+            mock_state = Mock()
+            mock_deserialize.return_value = mock_state
+
+            result = specs.WeekOverWeek.deserialize(b"test_bytes")
+
+            mock_deserialize.assert_called_once_with(b"test_bytes")
+            assert result == mock_state
+
+    def test_hash(self) -> None:
+        wow1 = specs.WeekOverWeek(base_metric_type="Average", base_parameters={"column": "price"})
+        wow2 = specs.WeekOverWeek(base_metric_type="Average", base_parameters={"column": "price"})
+        wow3 = specs.WeekOverWeek(base_metric_type="Average", base_parameters={"column": "cost"})
+        wow4 = specs.WeekOverWeek(base_metric_type="Sum", base_parameters={"column": "price"})
+
+        assert hash(wow1) == hash(wow2)
+        assert hash(wow1) != hash(wow3)  # Different column
+        assert hash(wow1) != hash(wow4)  # Different metric type
+
+    def test_equality(self) -> None:
+        wow1 = specs.WeekOverWeek(base_metric_type="Average", base_parameters={"column": "price"})
+        wow2 = specs.WeekOverWeek(base_metric_type="Average", base_parameters={"column": "price"})
+        wow3 = specs.WeekOverWeek(base_metric_type="Average", base_parameters={"column": "cost"})
+        wow4 = specs.WeekOverWeek(base_metric_type="Sum", base_parameters={"column": "price"})
+
+        assert wow1 == wow2
+        assert wow1 != wow3
+        assert wow1 != wow4
+
+    def test_inequality_different_type(self) -> None:
+        wow = specs.WeekOverWeek(base_metric_type="Average", base_parameters={"column": "price"})
+        assert wow != specs.NumRows()
+        assert wow != specs.Average("price")
+        assert wow != "not_a_weekoverweek"
+        assert wow != 42
+        assert wow is not None
+
+    def test_str(self) -> None:
+        wow = specs.WeekOverWeek(base_metric_type="Average", base_parameters={"column": "price"})
+        assert str(wow) == "wow(average(price))"
+
+    def test_is_metric_spec(self) -> None:
+        wow = specs.WeekOverWeek(base_metric_type="Average", base_parameters={"column": "price"})
+        assert isinstance(wow, specs.MetricSpec)
+
+    def test_with_different_base_metrics(self) -> None:
+        """Test WeekOverWeek with various base metric types"""
+        test_cases = [
+            ("NumRows", {}, "wow(num_rows())"),
+            ("Maximum", {"column": "temp"}, "wow(maximum(temp))"),
+            ("Minimum", {"column": "temp"}, "wow(minimum(temp))"),
+            ("NullCount", {"column": "email"}, "wow(null_count(email))"),
+        ]
+
+        for metric_type, params, expected_name in test_cases:
+            wow = specs.WeekOverWeek(base_metric_type=metric_type, base_parameters=params)
+            assert wow.name == expected_name
+
+
+class TestStddev:
+    """Test Stddev metric spec"""
+
+    def test_metric_type(self) -> None:
+        stddev = specs.Stddev(base_metric_type="Average", base_parameters={"column": "price"}, offset=1, n=7)
+        assert stddev.metric_type == "Stddev"
+
+    def test_name(self) -> None:
+        stddev = specs.Stddev(base_metric_type="Average", base_parameters={"column": "price"}, offset=1, n=7)
+        assert stddev.name == "stddev(average(price), offset=1, n=7)"
+
+    def test_parameters(self) -> None:
+        stddev = specs.Stddev(base_metric_type="Average", base_parameters={"column": "price"}, offset=1, n=7)
+        assert stddev.parameters == {
+            "base_metric_type": "Average",
+            "base_parameters": {"column": "price"},
+            "offset": 1,
+            "n": 7,
+        }
+
+    def test_base_spec_property(self) -> None:
+        stddev = specs.Stddev(base_metric_type="Average", base_parameters={"column": "price"}, offset=1, n=7)
+        base_spec = stddev.base_spec
+        assert isinstance(base_spec, specs.Average)
+        assert base_spec.parameters == {"column": "price"}
+
+    def test_analyzers(self) -> None:
+        stddev = specs.Stddev(base_metric_type="Average", base_parameters={"column": "price"}, offset=1, n=7)
+        assert len(stddev.analyzers) == 0  # Extended metrics have no analyzers
+
+    def test_state(self) -> None:
+        stddev = specs.Stddev(base_metric_type="Average", base_parameters={"column": "price"}, offset=1, n=7)
+        state = stddev.state()
+        assert isinstance(state, states.NonMergeable)
+        assert state.value == 0.0
+        assert state.metric_type == "Stddev"
+
+    def test_deserialize(self) -> None:
+        with patch.object(states.NonMergeable, "deserialize") as mock_deserialize:
+            mock_state = Mock()
+            mock_deserialize.return_value = mock_state
+
+            result = specs.Stddev.deserialize(b"test_bytes")
+
+            mock_deserialize.assert_called_once_with(b"test_bytes")
+            assert result == mock_state
+
+    def test_hash(self) -> None:
+        stddev1 = specs.Stddev(base_metric_type="Average", base_parameters={"column": "price"}, offset=1, n=7)
+        stddev2 = specs.Stddev(base_metric_type="Average", base_parameters={"column": "price"}, offset=1, n=7)
+        stddev3 = specs.Stddev(base_metric_type="Average", base_parameters={"column": "cost"}, offset=1, n=7)
+        stddev4 = specs.Stddev(base_metric_type="Sum", base_parameters={"column": "price"}, offset=1, n=7)
+        stddev5 = specs.Stddev(base_metric_type="Average", base_parameters={"column": "price"}, offset=2, n=7)
+        stddev6 = specs.Stddev(base_metric_type="Average", base_parameters={"column": "price"}, offset=1, n=14)
+
+        assert hash(stddev1) == hash(stddev2)
+        assert hash(stddev1) != hash(stddev3)  # Different column
+        assert hash(stddev1) != hash(stddev4)  # Different metric type
+        assert hash(stddev1) != hash(stddev5)  # Different offset
+        assert hash(stddev1) != hash(stddev6)  # Different n
+
+    def test_equality(self) -> None:
+        stddev1 = specs.Stddev(base_metric_type="Average", base_parameters={"column": "price"}, offset=1, n=7)
+        stddev2 = specs.Stddev(base_metric_type="Average", base_parameters={"column": "price"}, offset=1, n=7)
+        stddev3 = specs.Stddev(base_metric_type="Average", base_parameters={"column": "cost"}, offset=1, n=7)
+        stddev4 = specs.Stddev(base_metric_type="Sum", base_parameters={"column": "price"}, offset=1, n=7)
+        stddev5 = specs.Stddev(base_metric_type="Average", base_parameters={"column": "price"}, offset=2, n=7)
+        stddev6 = specs.Stddev(base_metric_type="Average", base_parameters={"column": "price"}, offset=1, n=14)
+
+        assert stddev1 == stddev2
+        assert stddev1 != stddev3  # Different column
+        assert stddev1 != stddev4  # Different metric type
+        assert stddev1 != stddev5  # Different offset
+        assert stddev1 != stddev6  # Different n
+
+    def test_inequality_different_type(self) -> None:
+        stddev = specs.Stddev(base_metric_type="Average", base_parameters={"column": "price"}, offset=1, n=7)
+        assert stddev != specs.NumRows()
+        assert stddev != specs.Average("price")
+        assert stddev != "not_a_stddev"
+        assert stddev != 42
+        assert stddev is not None
+
+    def test_str(self) -> None:
+        stddev = specs.Stddev(base_metric_type="Average", base_parameters={"column": "price"}, offset=1, n=7)
+        assert str(stddev) == "stddev(average(price), offset=1, n=7)"
+
+    def test_is_metric_spec(self) -> None:
+        stddev = specs.Stddev(base_metric_type="Average", base_parameters={"column": "price"}, offset=1, n=7)
+        assert isinstance(stddev, specs.MetricSpec)
+
+    def test_with_different_base_metrics(self) -> None:
+        """Test Stddev with various base metric types"""
+        test_cases = [
+            ("NumRows", {}, 0, 3, "stddev(num_rows(), offset=0, n=3)"),
+            ("Maximum", {"column": "temp"}, 1, 7, "stddev(maximum(temp), offset=1, n=7)"),
+            ("Minimum", {"column": "temp"}, 2, 14, "stddev(minimum(temp), offset=2, n=14)"),
+            ("Sum", {"column": "revenue"}, 1, 30, "stddev(sum(revenue), offset=1, n=30)"),
+        ]
+
+        for metric_type, params, offset, n, expected_name in test_cases:
+            stddev = specs.Stddev(base_metric_type=metric_type, base_parameters=params, offset=offset, n=n)
+            assert stddev.name == expected_name
+
+    def test_from_base_spec(self) -> None:
+        """Test creating Stddev from a base spec"""
+        base_spec = specs.Average("price")
+        stddev = specs.Stddev.from_base_spec(base_spec, offset=1, n=7)
+        assert stddev.name == "stddev(average(price), offset=1, n=7)"
+        assert stddev.parameters == {
+            "base_metric_type": "Average",
+            "base_parameters": {"column": "price"},
+            "offset": 1,
+            "n": 7,
+        }
 
 
 class TestBuildRegistry:
