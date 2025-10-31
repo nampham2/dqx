@@ -290,8 +290,6 @@ def print_metric_trace(trace_table: pa.Table, execution_id: str) -> None:
 
         # Format values with colors
         def format_value(value: float | None, highlight: bool = False, is_extended: bool = False) -> str:
-            if is_extended:
-                return "[green]-[/green]"
             if value is None:
                 return "-"
             if highlight:
