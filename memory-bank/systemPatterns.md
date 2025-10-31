@@ -346,6 +346,46 @@ class SymbolRegistry:
         return symbol
 ```
 
+### Topological Sort Pattern
+The MetricRegistry uses topological sorting to ensure metrics are evaluated in dependency order.
+
+```python
+class MetricRegistry:
+    def topological_sort(self) -> None:
+        """Sort metrics in topological order for evaluation.
+
+        Ensures all required_metrics for a given metric appear
+        before that metric in the list.
+        """
+        # Build dependency graph
+        in_degree = {sm.symbol: len(internal_deps) for sm in metrics}
+        adjacency = build_adjacency_list()
+
+        # Process in topological order
+        queue = deque(metrics_with_no_deps)
+        while queue:
+            current = queue.popleft()
+            result.append(current)
+            # Update dependent metrics
+
+        # Detect cycles
+        if len(result) != n:
+            raise DQXError("Circular dependency detected")
+```
+
+**Key Features:**
+- **Dependency Resolution**: Simple metrics evaluated before extended metrics
+- **Cycle Detection**: Identifies and reports circular dependencies
+- **External Dependencies**: Gracefully handles dependencies outside registry
+- **In-place Sorting**: Modifies internal metric list for optimal evaluation
+- **Clear Error Messages**: Reports specific metrics involved in cycles
+
+**Benefits:**
+- Ensures correct evaluation order
+- Prevents infinite loops from circular dependencies
+- Optimizes computation by respecting dependencies
+- Aids debugging with clear dependency visualization
+
 ## Performance Patterns
 
 ### Lazy Evaluation
