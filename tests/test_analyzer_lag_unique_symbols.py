@@ -127,16 +127,7 @@ class TestLagUniqueSymbols:
         symbol_infos = suite.provider.collect_symbols(key)
 
         # Filter symbols for our metrics (2 averages + 2 sums)
-        relevant_symbols = [
-            s
-            for s in symbol_infos
-            if (
-                "average(price)" in s.metric
-                or "average(quantity)" in s.metric
-                or "sum(price)" in s.metric
-                or "sum(quantity)" in s.metric
-            )
-        ]
+        relevant_symbols = [s for s in symbol_infos if ("average(price)" in s.metric or "sum(quantity)" in s.metric)]
 
         # Should have 4 unique symbols
         assert len(relevant_symbols) == 4, f"Expected 4 symbols, got {len(relevant_symbols)}"
