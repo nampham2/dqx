@@ -319,13 +319,13 @@ class MetricRegistry:
 
     def symbol_lookup_table(self, key: ResultKey) -> dict[MetricKey, sp.Symbol]:
         """Create mapping from metric keys to symbol names."""
-        symbol_lookup: dict[MetricKey, str] = {}
+        symbol_lookup: dict[MetricKey, sp.Symbol] = {}
         for sym_metric in self.metrics:
             if sym_metric.dataset is not None:
                 # Calculate effective key based on lag
                 effective_key = key.lag(sym_metric.lag)
                 metric_key = (sym_metric.metric_spec, effective_key, sym_metric.dataset)
-                symbol_lookup[metric_key] = str(sym_metric.symbol)
+                symbol_lookup[metric_key] = sym_metric.symbol
         return symbol_lookup
 
 

@@ -113,6 +113,9 @@ plugins:
   - search:
       separator: '[\s\-\.]+'
 
+  # Include markdown files
+  - include-markdown
+
   # API documentation generation
   - mkdocstrings:
       default_handler: python

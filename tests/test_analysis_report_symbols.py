@@ -112,7 +112,7 @@ class TestAnalysisReportSymbols:
         assert len(symbol_lookup) > 0
         # The symbol should be in the format "x_1", "x_2" etc
         symbols = list(symbol_lookup.values())
-        assert all(isinstance(s, str) and s.startswith("x_") for s in symbols)
+        assert all(str(s).startswith("x_") for s in symbols)
 
     def test_verification_suite_stores_analysis_reports(self) -> None:
         """Test that VerificationSuite stores analysis reports."""
@@ -193,7 +193,7 @@ class TestAnalysisReportSymbols:
         # The symbols will be x_1, x_2, etc. - not the variable names from the check
         # This is because Python doesn't provide a way to capture local variable names
         # The symbol mapping maps (MetricSpec, ResultKey, dataset) -> symbol_name
-        assert all(isinstance(s, str) and s.startswith("x_") for s in symbols)
+        assert all(str(s).startswith("x_") for s in symbols)
 
         # Verify we have the right metric specs in the mapping
         metric_specs = [key[0] for key in symbol_lookup.keys()]

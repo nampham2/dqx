@@ -991,8 +991,8 @@ class TestMetricRegistryAdvanced:
         expected_key1 = (spec1, key, "sales")
         expected_key2 = (spec2, key.lag(1), "sales")  # Effective key with lag
 
-        assert lookup[expected_key1] == "x_1"
-        assert lookup[expected_key2] == "x_2"
+        assert str(lookup[expected_key1]) == "x_1"
+        assert str(lookup[expected_key2]) == "x_2"
 
 
 class TestSymbolicMetricBaseAdvanced:
