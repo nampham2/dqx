@@ -15,6 +15,7 @@ from returns.pipeline import is_successful
 from returns.result import Failure, Result, Success
 
 from dqx import compute, specs, states
+from dqx.cache import MetricCache
 from dqx.common import Metadata, ResultKey, TimeSeries
 from dqx.models import Metric
 from dqx.orm.repositories import InMemoryMetricDB
@@ -101,6 +102,7 @@ def test_get_metric_window_with_partial_metrics() -> None:
 def test_day_over_day_fails_with_missing_yesterday() -> None:
     """Test that day_over_day fails when yesterday's metric is missing."""
     db = InMemoryMetricDB()
+    cache = MetricCache(db)
     base_date = dt.date(2025, 2, 10)
     key = ResultKey(yyyy_mm_dd=base_date, tags={})
     execution_id = "test-exec-789"
@@ -118,7 +120,7 @@ def test_day_over_day_fails_with_missing_yesterday() -> None:
 
     # Try to calculate day-over-day
     result: Result[float, str] = compute.day_over_day(
-        db=db, metric=spec, dataset="test_dataset", nominal_key=key, execution_id=execution_id
+        metric=spec, dataset="test_dataset", nominal_key=key, execution_id=execution_id, cache=cache
     )
 
     # Verify using pattern matching
@@ -133,6 +135,7 @@ def test_day_over_day_fails_with_missing_yesterday() -> None:
 def test_stddev_fails_with_missing_dates_in_window() -> None:
     """Test that stddev fails when any date in the window is missing."""
     db = InMemoryMetricDB()
+    cache = MetricCache(db)
     base_date = dt.date(2025, 2, 10)
     key = ResultKey(yyyy_mm_dd=base_date, tags={})
     execution_id = "test-exec-999"
@@ -158,7 +161,7 @@ def test_stddev_fails_with_missing_dates_in_window() -> None:
 
     # Try to calculate stddev over 7-day window
     result: Result[float, str] = compute.stddev(
-        db=db, metric=spec, size=7, dataset="test_dataset", nominal_key=key, execution_id=execution_id
+        metric=spec, size=7, dataset="test_dataset", nominal_key=key, execution_id=execution_id, cache=cache
     )
 
     # Verify using pattern matching
@@ -173,6 +176,7 @@ def test_stddev_fails_with_missing_dates_in_window() -> None:
 def test_week_over_week_succeeds_with_sparse_data() -> None:
     """Test week_over_week behavior with sparse data - only needs specific lag points."""
     db = InMemoryMetricDB()
+    cache = MetricCache(db)
     base_date = dt.date(2025, 2, 10)
     key = ResultKey(yyyy_mm_dd=base_date, tags={})
     execution_id = "test-exec-wow"
@@ -201,7 +205,7 @@ def test_week_over_week_succeeds_with_sparse_data() -> None:
 
     # Calculate week-over-week (should succeed)
     result: Result[float, str] = compute.week_over_week(
-        db=db, metric=spec, dataset="test_dataset", nominal_key=key, execution_id=execution_id
+        metric=spec, dataset="test_dataset", nominal_key=key, execution_id=execution_id, cache=cache
     )
 
     # Verify using pattern matching and pipeline functions
@@ -217,6 +221,7 @@ def test_week_over_week_succeeds_with_sparse_data() -> None:
 def test_week_over_week_fails_with_missing_week_ago() -> None:
     """Test that week_over_week fails when the week-ago metric is missing."""
     db = InMemoryMetricDB()
+    cache = MetricCache(db)
     base_date = dt.date(2025, 2, 10)
     key = ResultKey(yyyy_mm_dd=base_date, tags={})
     execution_id = "test-exec-wow-fail"
@@ -235,7 +240,7 @@ def test_week_over_week_fails_with_missing_week_ago() -> None:
 
     # Try to calculate week-over-week
     result: Result[float, str] = compute.week_over_week(
-        db=db, metric=spec, dataset="test_dataset", nominal_key=key, execution_id=execution_id
+        metric=spec, dataset="test_dataset", nominal_key=key, execution_id=execution_id, cache=cache
     )
 
     # Verify it fails
@@ -252,6 +257,7 @@ def test_week_over_week_fails_with_missing_week_ago() -> None:
 def test_compute_function_with_completely_missing_metric() -> None:
     """Test compute function behavior when metric is completely missing (Nothing case)."""
     db = InMemoryMetricDB()
+    cache = MetricCache(db)
     key = ResultKey(yyyy_mm_dd=dt.date(2025, 2, 10), tags={})
     execution_id = "test-exec-nothing"
 
@@ -259,7 +265,11 @@ def test_compute_function_with_completely_missing_metric() -> None:
 
     # Test simple_metric
     result: Result[float, str] = compute.simple_metric(
-        db=db, metric=specs.Average("nonexistent"), dataset="test_dataset", nominal_key=key, execution_id=execution_id
+        metric=specs.Average("nonexistent"),
+        dataset="test_dataset",
+        nominal_key=key,
+        execution_id=execution_id,
+        cache=cache,
     )
 
     match result:
@@ -273,6 +283,7 @@ def test_compute_function_with_completely_missing_metric() -> None:
 def test_division_by_zero_handling() -> None:
     """Test that day_over_day and week_over_week handle division by zero gracefully."""
     db = InMemoryMetricDB()
+    cache = MetricCache(db)
     base_date = dt.date(2025, 2, 10)
     key = ResultKey(yyyy_mm_dd=base_date, tags={})
     execution_id = "test-exec-zero"
@@ -301,7 +312,7 @@ def test_division_by_zero_handling() -> None:
 
     # Test day_over_day with zero yesterday
     result: Result[float, str] = compute.day_over_day(
-        db=db, metric=spec, dataset="test_dataset", nominal_key=key, execution_id=execution_id
+        metric=spec, dataset="test_dataset", nominal_key=key, execution_id=execution_id, cache=cache
     )
 
     match result:

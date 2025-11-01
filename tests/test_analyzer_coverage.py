@@ -63,14 +63,16 @@ def test_persist_empty_report() -> None:
 
     # Create mock database
     db = Mock(spec=MetricDB)
+    cache = Mock()
 
     # Persist empty report - should log warning and not call db.persist
     with patch("dqx.analyzer.logger") as mock_logger:
-        report.persist(db)
+        report.persist(db, cache)
         mock_logger.warning.assert_called_once_with("Try to save an EMPTY analysis report!")
 
     # persist should not be called on db
     db.persist.assert_not_called()
+    cache.put.assert_not_called()
 
 
 def test_analyze_batch_with_more_than_4_dates() -> None:
