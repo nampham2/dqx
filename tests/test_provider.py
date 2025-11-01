@@ -1,8 +1,10 @@
+import datetime
 import threading
+from typing import Any
 
 import pytest
 import sympy as sp
-from returns.result import Failure, Success
+from returns.result import Failure, Result, Success
 
 from dqx import specs
 from dqx.common import DQXError, ResultKey
@@ -593,7 +595,6 @@ class TestLazyEvaluation:
         assert callable(registered.fn)
 
         # When called without dataset imputed, it should fail
-        import datetime
 
         from dqx.common import ResultKey
 
@@ -616,7 +617,6 @@ class TestLazyEvaluation:
 
         # Now the retrieval function should try to fetch from compute
         # (It will still fail because we don't have actual data, but differently)
-        import datetime
 
         from dqx.common import ResultKey
 
@@ -641,7 +641,6 @@ class TestSymbolDeduplication:
 
     def test_build_deduplication_map(self, provider: MetricProvider) -> None:
         """Test building deduplication map for duplicate symbols."""
-        import datetime
 
         from dqx.common import ResultKey
 
@@ -715,3 +714,431 @@ class TestSymbolDeduplication:
         assert base2 not in complex_metric.required_metrics
         assert base3 in complex_metric.required_metrics
         assert complex_metric.required_metrics.count(base1) == 2  # base1 appears twice
+
+
+class TestSymbolInfo:
+    """Test SymbolInfo dataclass with tags."""
+
+    def test_symbol_info_with_tags(self) -> None:
+        """Test SymbolInfo initialization with custom tags."""
+        from dqx.provider import SymbolInfo
+
+        # Test with custom tags
+        tags = {"env": "prod", "region": "us-east-1"}
+        info = SymbolInfo(
+            name="x_1",
+            metric="average(price)",
+            dataset="sales",
+            value=Success(100.5),
+            yyyy_mm_dd=datetime.date(2024, 1, 15),
+            tags=tags,
+        )
+
+        assert info.name == "x_1"
+        assert info.metric == "average(price)"
+        assert info.dataset == "sales"
+        assert info.value == Success(100.5)
+        assert info.yyyy_mm_dd == datetime.date(2024, 1, 15)
+        assert info.tags == tags
+
+    def test_symbol_info_default_tags(self) -> None:
+        """Test SymbolInfo with default tags."""
+        from dqx.provider import SymbolInfo
+
+        # Test without providing tags - should default to empty dict
+        info = SymbolInfo(
+            name="x_2",
+            metric="sum(revenue)",
+            dataset=None,
+            value=Failure("No data"),
+            yyyy_mm_dd=datetime.date.today(),
+        )
+
+        assert info.tags == {}
+
+
+class TestLazyRetrievalFunctions:
+    """Test the lazy retrieval function creators."""
+
+    def test_create_lazy_retrieval_fn_errors(self) -> None:
+        """Test _create_lazy_retrieval_fn error handling."""
+
+        from dqx.provider import _create_lazy_retrieval_fn
+
+        db = InMemoryMetricDB()
+        provider = MetricProvider(db, "test-exec")
+        metric_spec = specs.Average("price")
+        symbol = sp.Symbol("x_1")
+
+        # Create the lazy function
+        lazy_fn = _create_lazy_retrieval_fn(provider, metric_spec, symbol)
+
+        # Test 1: Symbol not found error
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+
+        # Provider has no symbols registered, so it should fail
+        result = lazy_fn(key)
+        assert isinstance(result, Failure)
+        assert "Failed to resolve symbol" in result.failure()
+
+        # Test 2: Dataset not imputed error
+        # Register the symbol without dataset
+        provider._registry._metrics.append(
+            SymbolicMetric(
+                name="average(price)",
+                symbol=symbol,
+                fn=lambda k: Success(0.0),
+                metric_spec=metric_spec,
+                dataset=None,  # No dataset
+            )
+        )
+        provider._registry._symbol_index[symbol] = provider._registry._metrics[-1]
+
+        result = lazy_fn(key)
+        assert isinstance(result, Failure)
+        assert "Dataset not imputed" in result.failure()
+
+    def test_create_lazy_extended_fn_errors(self) -> None:
+        """Test _create_lazy_extended_fn error handling."""
+        from dqx.provider import _create_lazy_extended_fn
+
+        db = InMemoryMetricDB()
+        provider = MetricProvider(db, "test-exec")
+
+        # Create a mock compute function
+        def mock_compute_fn(db: Any, spec: Any, dataset: Any, key: Any, exec_id: Any) -> Result[float, str]:
+            return Success(42.0)
+
+        metric_spec = specs.Average("price")
+        symbol = sp.Symbol("x_1")
+
+        # Create the lazy function
+        lazy_fn = _create_lazy_extended_fn(provider, mock_compute_fn, metric_spec, symbol)
+
+        # Test: Symbol not found error
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+        result = lazy_fn(key)
+        assert isinstance(result, Failure)
+        assert "Failed to resolve symbol" in result.failure()
+
+        # Register symbol without dataset
+        provider._registry._metrics.append(
+            SymbolicMetric(
+                name="dod(average(price))",
+                symbol=symbol,
+                fn=lambda k: Success(0.0),
+                metric_spec=metric_spec,
+                dataset=None,
+            )
+        )
+        provider._registry._symbol_index[symbol] = provider._registry._metrics[-1]
+
+        # Test: Dataset not imputed error
+        result = lazy_fn(key)
+        assert isinstance(result, Failure)
+        assert "Dataset not imputed" in result.failure()
+
+
+class TestMetricRegistryAdvanced:
+    """Test advanced MetricRegistry functionality."""
+
+    def test_registry_exists_method(self) -> None:
+        """Test the _exists method in MetricRegistry."""
+        from dqx.provider import MetricRegistry
+
+        registry = MetricRegistry()
+        spec = specs.Average("price")
+
+        # Register a metric
+        def fn(k: ResultKey) -> Result[float, str]:
+            return Success(100.0)
+
+        symbol = registry.register(fn, spec, lag=0, dataset="sales")
+
+        # Test that it finds the existing symbol
+        existing = registry._exists(spec, lag=0, dataset="sales")
+        assert existing == symbol
+
+        # Test that it doesn't find non-existent combinations
+        assert registry._exists(spec, lag=1, dataset="sales") is None
+        assert registry._exists(spec, lag=0, dataset="other") is None
+        assert registry._exists(specs.Sum("price"), lag=0, dataset="sales") is None
+
+    def test_registry_register_with_existing(self) -> None:
+        """Test registering a metric that already exists."""
+        from dqx.provider import MetricRegistry
+
+        registry = MetricRegistry()
+        spec = specs.Sum("revenue")
+
+        def fn(k: ResultKey) -> Result[float, str]:
+            return Success(200.0)
+
+        # Register the first time
+        symbol1 = registry.register(fn, spec, lag=1, dataset="prod")
+
+        # Register the same metric again - should return existing symbol
+        symbol2 = registry.register(fn, spec, lag=1, dataset="prod")
+
+        assert symbol1 == symbol2
+        assert len(registry._metrics) == 1  # Should not create duplicate
+
+    def test_collect_symbols_with_errors(self) -> None:
+        """Test collect_symbols when evaluation fails."""
+        from dqx.provider import MetricRegistry
+
+        registry = MetricRegistry()
+
+        # Create a metric that will fail to evaluate
+        def failing_fn(key: ResultKey) -> Result[float, str]:
+            raise RuntimeError("Evaluation failed")
+
+        spec = specs.NumRows()
+        registry.register(failing_fn, spec, lag=0, dataset="test")
+
+        # Collect symbols - should catch the exception
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={"env": "test"})
+        symbols = registry.collect_symbols(key)
+
+        assert len(symbols) == 1
+        assert symbols[0].name == "x_1"
+        assert isinstance(symbols[0].value, Failure)
+        assert "Not evaluated" in symbols[0].value.failure()
+        assert symbols[0].tags == {"env": "test"}
+
+    def test_topological_sort_with_circular_dependency(self) -> None:
+        """Test topological_sort with circular dependencies."""
+        from dqx.provider import MetricRegistry
+
+        registry = MetricRegistry()
+
+        # Create symbols that form a cycle
+        sym1 = sp.Symbol("x_1")
+        sym2 = sp.Symbol("x_2")
+        sym3 = sp.Symbol("x_3")
+
+        # Create metrics with circular dependencies
+        # x_1 depends on x_2
+        registry._metrics.append(
+            SymbolicMetric(
+                name="metric1",
+                symbol=sym1,
+                fn=lambda k: Success(1.0),
+                metric_spec=specs.NumRows(),
+                required_metrics=[sym2],
+            )
+        )
+        registry._symbol_index[sym1] = registry._metrics[-1]
+
+        # x_2 depends on x_3
+        registry._metrics.append(
+            SymbolicMetric(
+                name="metric2",
+                symbol=sym2,
+                fn=lambda k: Success(2.0),
+                metric_spec=specs.Average("val"),
+                required_metrics=[sym3],
+            )
+        )
+        registry._symbol_index[sym2] = registry._metrics[-1]
+
+        # x_3 depends on x_1 (creates cycle)
+        registry._metrics.append(
+            SymbolicMetric(
+                name="metric3",
+                symbol=sym3,
+                fn=lambda k: Success(3.0),
+                metric_spec=specs.Sum("val"),
+                required_metrics=[sym1],
+            )
+        )
+        registry._symbol_index[sym3] = registry._metrics[-1]
+
+        # Should raise error about circular dependency
+        with pytest.raises(DQXError) as exc_info:
+            registry.topological_sort()
+
+        assert "Circular dependency detected" in str(exc_info.value)
+        assert "x_1" in str(exc_info.value)
+        assert "x_2" in str(exc_info.value)
+        assert "x_3" in str(exc_info.value)
+
+    def test_symbol_lookup_table(self) -> None:
+        """Test symbol_lookup_table method."""
+        from dqx.provider import MetricRegistry
+
+        registry = MetricRegistry()
+
+        # Register some metrics with different lags
+        def fn(k: ResultKey) -> Result[float, str]:
+            return Success(100.0)
+
+        spec1 = specs.Average("price")
+        spec2 = specs.Sum("revenue")
+
+        registry.register(fn, spec1, lag=0, dataset="sales")
+        registry.register(fn, spec2, lag=1, dataset="sales")
+        registry.register(fn, spec1, lag=0, dataset=None)  # No dataset
+
+        # Create lookup table
+        key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 15), tags={})
+        lookup = registry.symbol_lookup_table(key)
+
+        # Check that only metrics with datasets are included
+        assert len(lookup) == 2
+
+        # Check the entries
+        expected_key1 = (spec1, key, "sales")
+        expected_key2 = (spec2, key.lag(1), "sales")  # Effective key with lag
+
+        assert lookup[expected_key1] == "x_1"
+        assert lookup[expected_key2] == "x_2"
+
+
+class TestSymbolicMetricBaseAdvanced:
+    """Test advanced SymbolicMetricBase functionality."""
+
+    def test_evaluate_method(self) -> None:
+        """Test the evaluate method."""
+        base = SymbolicMetricBase()
+
+        # Add a metric
+        def eval_fn(key: ResultKey) -> Result[float, str]:
+            return Success(42.0 * key.yyyy_mm_dd.day)
+
+        symbol = base._registry.register(eval_fn, specs.NumRows(), lag=0, dataset="test")
+
+        # Evaluate the symbol
+        key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 10), tags={})
+        result = base.evaluate(symbol, key)
+
+        assert isinstance(result, Success)
+        assert result.unwrap() == 420.0  # 42.0 * 10
+
+    def test_print_symbols(self) -> None:
+        """Test print_symbols method."""
+        from unittest.mock import patch
+
+        base = SymbolicMetricBase()
+
+        # Add some metrics
+        def metric1_fn(k: ResultKey) -> Result[float, str]:
+            return Success(100.0)
+
+        def metric2_fn(k: ResultKey) -> Result[float, str]:
+            return Failure("No data")
+
+        base._registry.register(metric1_fn, specs.Average("price"), lag=0, dataset="sales")
+        base._registry.register(metric2_fn, specs.Sum("revenue"), lag=1, dataset="prod")
+
+        # Mock the display function
+        with patch("dqx.display.print_symbols") as mock_print:
+            key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+            base.print_symbols(key)
+
+            # Verify print_symbols was called
+            mock_print.assert_called_once()
+            symbols = mock_print.call_args[0][0]
+            assert len(symbols) == 2
+
+    def test_symbol_deduplication_workflow(self) -> None:
+        """Test the full symbol deduplication workflow."""
+        from unittest.mock import Mock
+
+        provider = MetricProvider(InMemoryMetricDB(), "test-exec")
+
+        # Create duplicate symbols
+        symbol1 = provider.average("price", lag=0, dataset="sales")
+        symbol2 = provider.average("price", lag=0, dataset="sales")  # Duplicate
+        symbol3 = provider.sum("quantity", lag=0, dataset="sales")
+
+        # Create a mock graph
+        mock_graph = Mock()
+
+        # Run deduplication workflow
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+        provider.symbol_deduplication(mock_graph, key)
+
+        # Verify graph.dfs was called
+        mock_graph.dfs.assert_called_once()
+
+        # After deduplication, symbol2 should be removed
+        assert provider.get_symbol(symbol1) is not None
+        assert provider.get_symbol(symbol3) is not None
+        with pytest.raises(DQXError):
+            provider.get_symbol(symbol2)
+
+    def test_remove_symbol_recursive(self) -> None:
+        """Test recursive symbol removal."""
+        provider = MetricProvider(InMemoryMetricDB(), "test-exec")
+
+        # Create a chain of dependencies
+        base1 = provider.average("price", dataset="sales")
+        base2 = provider.sum("quantity", dataset="sales")
+
+        # Create extended metric that depends on base1
+        dod = provider.ext.day_over_day(base1, dataset="sales")
+
+        # The dod metric creates two dependencies internally
+        dod_metric = provider.get_symbol(dod)
+        assert len(dod_metric.required_metrics) == 2  # lag_0 and lag_1
+
+        # Remove dod - it will recursively remove its dependencies
+        provider.remove_symbol(dod)
+
+        # dod should be gone
+        with pytest.raises(DQXError):
+            provider.get_symbol(dod)
+
+        # base1 and base2 should still exist (they're not dependencies of dod)
+        assert provider.get_symbol(base1) is not None
+        assert provider.get_symbol(base2) is not None
+
+    def test_remove_symbol_with_dependencies(self) -> None:
+        """Test that removing a base symbol doesn't automatically remove dependent symbols."""
+        provider = MetricProvider(InMemoryMetricDB(), "test-exec")
+
+        # Create base metric
+        base = provider.average("price", dataset="sales")
+
+        # Create extended metric that depends on base
+        dod = provider.ext.day_over_day(base, dataset="sales")
+
+        # Remove base - this should NOT remove dod automatically
+        provider.remove_symbol(base)
+
+        # base should be gone
+        with pytest.raises(DQXError):
+            provider.get_symbol(base)
+
+        # dod should still exist (though it may not be evaluable)
+        assert provider.get_symbol(dod) is not None
+
+
+class TestExtendedMetricProviderProperties:
+    """Test ExtendedMetricProvider property access."""
+
+    def test_provider_property(self) -> None:
+        """Test provider property access."""
+        db = InMemoryMetricDB()
+        provider = MetricProvider(db, "test-exec")
+        ext = provider.ext
+
+        assert ext.provider == provider
+
+    def test_extended_metric_with_base_metric_without_dataset(self) -> None:
+        """Test creating extended metrics when base metric has no dataset."""
+        provider = MetricProvider(InMemoryMetricDB(), "test-exec")
+
+        # Create base metric without dataset
+        base = provider.average("price", dataset=None)
+
+        # Create extended metrics - they should inherit None dataset
+        dod = provider.ext.day_over_day(base, lag=1)
+        wow = provider.ext.week_over_week(base, lag=2)
+        stddev = provider.ext.stddev(base, offset=0, n=5)
+
+        # All should have None dataset initially
+        assert provider.get_symbol(dod).dataset is None
+        assert provider.get_symbol(wow).dataset is None
+        assert provider.get_symbol(stddev).dataset is None

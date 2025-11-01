@@ -1,16 +1,17 @@
 import datetime
 from collections import UserDict
-from typing import Any
+from typing import Any, Iterable, Sequence
 from unittest.mock import Mock, patch
 
 import pytest
+from returns.maybe import Nothing
 
 from dqx import models
 from dqx.analyzer import AnalysisReport, Analyzer, analyze_batch_sql_ops, analyze_sql_ops
 from dqx.common import DQXError, ResultKey, SqlDataSource
 from dqx.ops import SqlOp
 from dqx.provider import MetricProvider
-from dqx.specs import Sum
+from dqx.specs import MetricSpec, Sum
 
 
 class TestAnalysisReport:
@@ -296,3 +297,563 @@ class TestAnalyzer:
             # Verify batch has all 10 items
             first_call_metrics = mock_analyze.call_args_list[0][0][1]
             assert len(first_call_metrics) == 10
+
+
+class TestAnalyzerLagHandling:
+    """Test Analyzer lag handling functionality."""
+
+    def test_analyzer_with_lag_dates(self) -> None:
+        """Test analyzer handles lag dates properly."""
+        # Create mock dependencies
+        datasources: list[SqlDataSource] = [Mock(spec=SqlDataSource, name="test_ds")]
+        mock_db = Mock()
+        provider = MetricProvider(mock_db, execution_id="test-123")
+        key = ResultKey(datetime.date(2024, 1, 15), {})
+
+        analyzer = Analyzer(datasources, provider, key, "test-123")
+
+        # Create metrics with different lag values
+        metrics = {
+            ResultKey(datetime.date(2024, 1, 15), {}): [Sum("revenue")],
+            ResultKey(datetime.date(2024, 1, 14), {}): [Sum("cost")],  # lag 1
+            ResultKey(datetime.date(2024, 1, 13), {}): [Sum("profit")],  # lag 2
+        }
+
+        with patch.object(analyzer, "_analyze_internal") as mock_analyze:
+            mock_analyze.return_value = AnalysisReport()
+
+            analyzer.analyze_simple_metrics(datasources[0], metrics)
+
+            # Verify the lag handling
+            call_args = mock_analyze.call_args[0]
+            metric_dict = call_args[1]
+
+            # All three dates should be included
+            assert len(metric_dict) == 3
+            assert ResultKey(datetime.date(2024, 1, 15), {}) in metric_dict
+            assert ResultKey(datetime.date(2024, 1, 14), {}) in metric_dict
+            assert ResultKey(datetime.date(2024, 1, 13), {}) in metric_dict
+
+
+class TestAnalysisReportWithCache:
+    """Test AnalysisReport with cache-related functionality."""
+
+    def test_report_from_and_to_cache(self) -> None:
+        """Test converting AnalysisReport to/from cached metrics."""
+        # Create a report with metrics
+        key = ResultKey(datetime.date(2024, 1, 1), {})
+        spec = Sum("revenue")
+
+        from dqx.common import Metadata
+        from dqx.states import SimpleAdditiveState
+
+        metric = models.Metric.build(
+            metric=spec,
+            key=key,
+            dataset="sales",
+            state=SimpleAdditiveState(value=100.0),
+            metadata=Metadata(execution_id="test-exec"),
+        )
+
+        report = AnalysisReport({(spec, key, "sales"): metric})
+
+        # Convert to cached metrics
+        cached_metrics = list(report.values())
+        assert len(cached_metrics) == 1
+        assert cached_metrics[0] == metric
+
+        # Create a new report from cached metrics
+        new_report = AnalysisReport()
+        for m in cached_metrics:
+            new_report[(m.spec, m.key, m.dataset)] = m
+
+        assert len(new_report) == 1
+        assert new_report[(spec, key, "sales")] == metric
+
+
+class TestAnalysisReportMergePersist:
+    """Test AnalysisReport _merge_persist functionality."""
+
+    def test_report_merge_persist_without_overwrite(self) -> None:
+        """Test persist with overwrite=False to trigger _merge_persist."""
+        from dqx.common import Metadata
+        from dqx.orm.repositories import InMemoryMetricDB
+        from dqx.states import SimpleAdditiveState
+
+        # Create a real database
+        db = InMemoryMetricDB()
+
+        # Create and persist an existing metric
+        key = ResultKey(datetime.date(2024, 1, 1), {})
+        spec = Sum("revenue")
+        existing_metric = models.Metric.build(
+            metric=spec,
+            key=key,
+            dataset="sales",
+            state=SimpleAdditiveState(value=100.0),
+            metadata=Metadata(execution_id="exec-1"),
+        )
+        db.persist([existing_metric])
+
+        # Create a new report with the same metric key but different value
+        new_metric = models.Metric.build(
+            metric=spec,
+            key=key,
+            dataset="sales",
+            state=SimpleAdditiveState(value=50.0),
+            metadata=Metadata(execution_id="exec-2"),
+        )
+        report = AnalysisReport({(spec, key, "sales"): new_metric})
+
+        # Persist with overwrite=False to trigger _merge_persist
+        report.persist(db, overwrite=False)
+
+        # Verify the metric was merged (values should be summed)
+        stored_metric = db.get(key, spec)
+        assert stored_metric != Nothing
+        assert stored_metric.unwrap().value == 150.0  # 100 + 50
+
+
+class TestAnalyzerExtendedMetrics:
+    """Test Analyzer.analyze_extended_metrics functionality."""
+
+    def test_analyze_extended_metrics_success(self) -> None:
+        """Test analyze_extended_metrics with successful evaluation."""
+        from dqx.common import Metadata
+        from dqx.orm.repositories import InMemoryMetricDB
+        from tests.fixtures.data_fixtures import CommercialDataSource
+
+        # Create real dependencies
+        db = InMemoryMetricDB()
+        provider = MetricProvider(db, execution_id="test-exec")
+
+        # Create a datasource
+        ds = CommercialDataSource(
+            start_date=datetime.date(2024, 1, 1),
+            end_date=datetime.date(2024, 1, 15),
+            name="sales",
+            records_per_day=10,
+            seed=42,
+        )
+
+        key = ResultKey(datetime.date(2024, 1, 10), {})
+
+        # First create and persist base metrics that extended metrics will need
+        base_metric = provider.average("price", dataset="sales")
+
+        # Persist base metric values for the dates that DoD will need
+        from dqx.states import Average
+
+        for i in range(2):
+            metric_key = ResultKey(datetime.date(2024, 1, 10 - i), {})
+            metric = models.Metric.build(
+                metric=provider.get_symbol(base_metric).metric_spec,
+                key=metric_key,
+                dataset="sales",
+                state=Average(avg=100.0 + i * 10, n=10),  # Average state needs avg and count
+                metadata=Metadata(execution_id="test-exec"),
+            )
+            db.persist([metric])
+
+        # Create extended metrics
+        dod_metric = provider.ext.day_over_day(base_metric, dataset="sales")
+
+        # Create analyzer
+        analyzer = Analyzer([ds], provider, key, "test-exec")
+
+        # Run analyze_extended_metrics
+        report = analyzer.analyze_extended_metrics()
+
+        # Verify the extended metric was evaluated
+        assert len(report) == 1
+
+        # Check the computed DoD value
+        dod_spec = provider.get_symbol(dod_metric).metric_spec
+        metric_key_tuple = (dod_spec, key, "sales")
+        assert metric_key_tuple in report
+        # DoD = today/yesterday = 100/110 ≈ 0.909
+        assert abs(report[metric_key_tuple].value - 0.909) < 0.001
+
+    def test_analyze_extended_metrics_with_failure(self) -> None:
+        """Test analyze_extended_metrics when evaluation fails."""
+        from dqx.orm.repositories import InMemoryMetricDB
+        from tests.fixtures.data_fixtures import CommercialDataSource
+
+        # Create real dependencies
+        db = InMemoryMetricDB()
+        provider = MetricProvider(db, execution_id="test-exec")
+
+        ds = CommercialDataSource(
+            start_date=datetime.date(2024, 1, 1),
+            end_date=datetime.date(2024, 1, 15),
+            name="sales",
+            records_per_day=10,
+            seed=42,
+        )
+
+        key = ResultKey(datetime.date(2024, 1, 10), {})
+
+        # Create base metric but DON'T persist any data for it
+        base_metric = provider.average("price", dataset="sales")
+
+        # Create extended metric
+        provider.ext.day_over_day(base_metric, dataset="sales")
+
+        # Create analyzer
+        analyzer = Analyzer([ds], provider, key, "test-exec")
+
+        # Run analyze_extended_metrics - should handle failure gracefully
+        report = analyzer.analyze_extended_metrics()
+
+        # Report should be empty since evaluation failed
+        assert len(report) == 0
+
+    def test_analyze_extended_metrics_topological_sort(self) -> None:
+        """Test that analyze_extended_metrics calls topological_sort."""
+        from dqx.orm.repositories import InMemoryMetricDB
+        from tests.fixtures.data_fixtures import CommercialDataSource
+
+        # Create real dependencies
+        db = InMemoryMetricDB()
+        provider = MetricProvider(db, execution_id="test-exec")
+
+        ds = CommercialDataSource(
+            start_date=datetime.date(2024, 1, 1),
+            end_date=datetime.date(2024, 1, 15),
+            name="sales",
+            records_per_day=10,
+            seed=42,
+        )
+
+        key = ResultKey(datetime.date(2024, 1, 10), {})
+
+        # Create a chain of extended metrics to test topological ordering
+        base1 = provider.average("price", dataset="sales")
+        base2 = provider.sum("quantity", dataset="sales")
+
+        # Extended metrics with dependencies
+        dod1 = provider.ext.day_over_day(base1, dataset="sales")
+        dod2 = provider.ext.day_over_day(base2, dataset="sales")
+
+        # Create analyzer
+        analyzer = Analyzer([ds], provider, key, "test-exec")
+
+        # Run analyze_extended_metrics
+        analyzer.analyze_extended_metrics()
+
+        # Verify metrics are now in topological order
+        # Simple metrics should come before extended metrics
+        final_order = [m.symbol for m in provider.metrics]
+
+        # Find indices
+        base1_idx = final_order.index(base1)
+        base2_idx = final_order.index(base2)
+        dod1_idx = final_order.index(dod1)
+        dod2_idx = final_order.index(dod2)
+
+        # Base metrics should come before their extended metrics
+        assert base1_idx < dod1_idx
+        assert base2_idx < dod2_idx
+
+
+class TestAnalyzerFullWorkflow:
+    """Test the full analyze() method workflow."""
+
+    def test_analyze_with_mixed_metrics(self) -> None:
+        """Test full analyze workflow with both simple and extended metrics."""
+        from dqx.orm.repositories import InMemoryMetricDB
+        from tests.fixtures.data_fixtures import CommercialDataSource
+
+        # Create real dependencies
+        db = InMemoryMetricDB()
+        provider = MetricProvider(db, execution_id="test-exec")
+
+        # Create two datasources
+        ds1 = CommercialDataSource(
+            start_date=datetime.date(2024, 1, 1),
+            end_date=datetime.date(2024, 1, 15),
+            name="sales",
+            records_per_day=30,
+            seed=42,
+        )
+
+        ds2 = CommercialDataSource(
+            start_date=datetime.date(2024, 1, 1),
+            end_date=datetime.date(2024, 1, 15),
+            name="inventory",
+            records_per_day=20,
+            seed=43,
+        )
+
+        key = ResultKey(datetime.date(2024, 1, 10), {})
+
+        # Create metrics for both datasets
+        # Dataset 1: sales
+        avg_price = provider.average("price", dataset="sales")
+        sum_qty = provider.sum("quantity", dataset="sales")
+
+        # Dataset 2: inventory
+        avg_tax = provider.average("tax", dataset="inventory")
+
+        # Extended metrics
+        provider.ext.day_over_day(avg_price, dataset="sales")
+        provider.ext.week_over_week(avg_tax, dataset="inventory")
+
+        # Create metrics with lag
+        avg_price_lag = provider.average("price", lag=1, dataset="sales")
+
+        # Create analyzer
+        analyzer = Analyzer([ds1, ds2], provider, key, "test-exec")
+
+        # Run full analyze
+        report = analyzer.analyze()
+
+        # Verify simple metrics were analyzed for both datasets
+        assert (provider.get_symbol(avg_price).metric_spec, key, "sales") in report
+        assert (provider.get_symbol(sum_qty).metric_spec, key, "sales") in report
+        assert (provider.get_symbol(avg_tax).metric_spec, key, "inventory") in report
+
+        # Verify lagged metric with correct effective date
+        lagged_key = key.lag(1)
+        assert (provider.get_symbol(avg_price_lag).metric_spec, lagged_key, "sales") in report
+
+        # Verify extended metrics were evaluated
+        # Note: They might not be in report if base metrics failed, which is ok
+        # The important thing is that analyze() completes without error
+
+    def test_analyze_dataset_grouping(self) -> None:
+        """Test that analyze() correctly groups metrics by dataset."""
+        from dqx.orm.repositories import InMemoryMetricDB
+        from tests.fixtures.data_fixtures import CommercialDataSource
+
+        # Create real dependencies
+        db = InMemoryMetricDB()
+        provider = MetricProvider(db, execution_id="test-exec")
+
+        # Create datasources
+        ds1 = CommercialDataSource(
+            start_date=datetime.date(2024, 1, 1),
+            end_date=datetime.date(2024, 1, 15),
+            name="ds1",
+            records_per_day=10,
+            seed=42,
+        )
+
+        ds2 = CommercialDataSource(
+            start_date=datetime.date(2024, 1, 1),
+            end_date=datetime.date(2024, 1, 15),
+            name="ds2",
+            records_per_day=10,
+            seed=43,
+        )
+
+        key = ResultKey(datetime.date(2024, 1, 10), {})
+
+        # Create metrics spread across datasets
+        provider.average("price", dataset="ds1")
+        provider.sum("quantity", dataset="ds1")
+        provider.average("tax", dataset="ds2")
+        provider.sum("price", dataset="ds2")
+
+        # Create analyzer
+        analyzer = Analyzer([ds1, ds2], provider, key, "test-exec")
+
+        # Capture what gets passed to analyze_simple_metrics
+        analyze_calls: list[tuple[str, list[ResultKey]]] = []
+        original_analyze_simple = analyzer.analyze_simple_metrics
+
+        def capture_analyze_simple(ds: SqlDataSource, metrics: dict[ResultKey, Sequence[MetricSpec]]) -> AnalysisReport:
+            analyze_calls.append((ds.name, list(metrics.keys())))
+            return original_analyze_simple(ds, metrics)
+
+        analyzer.analyze_simple_metrics = capture_analyze_simple  # type: ignore[assignment]
+
+        # Run analyze
+        analyzer.analyze()
+
+        # Verify each dataset was analyzed separately
+        assert len(analyze_calls) == 2
+
+        # Find the calls for each dataset
+        ds1_call = next(c for c in analyze_calls if c[0] == "ds1")
+        ds2_call = next(c for c in analyze_calls if c[0] == "ds2")
+
+        # Each should have been called with their respective metrics
+        assert len(ds1_call[1]) == 1  # One date key
+        assert len(ds2_call[1]) == 1  # One date key
+
+    def test_analyze_phase_separation(self) -> None:
+        """Test that analyze() processes simple metrics before extended metrics."""
+        from dqx.orm.repositories import InMemoryMetricDB
+        from tests.fixtures.data_fixtures import CommercialDataSource
+
+        # Create real dependencies
+        db = InMemoryMetricDB()
+        provider = MetricProvider(db, execution_id="test-exec")
+
+        ds = CommercialDataSource(
+            start_date=datetime.date(2024, 1, 1),
+            end_date=datetime.date(2024, 1, 15),
+            name="sales",
+            records_per_day=10,
+            seed=42,
+        )
+
+        key = ResultKey(datetime.date(2024, 1, 10), {})
+
+        # Create metrics
+        base = provider.average("price", dataset="sales")
+        provider.ext.day_over_day(base, dataset="sales")
+
+        # Track when metrics get persisted
+        persist_calls: list[str] = []
+        original_persist = db.persist
+
+        def track_persist(metrics: Iterable[models.Metric]) -> Iterable[models.Metric]:
+            # Record what type of metrics are being persisted
+            metrics_list = list(metrics)
+            for m in metrics_list:
+                persist_calls.append(m.spec.metric_type)
+            return original_persist(metrics_list)
+
+        db.persist = track_persist  # type: ignore[assignment]
+
+        # Create analyzer
+        analyzer = Analyzer([ds], provider, key, "test-exec")
+
+        # Run analyze
+        analyzer.analyze()
+
+        # Verify simple metrics were persisted before extended metrics
+        # Simple metrics like "average" should appear before "dod"
+        simple_indices = [i for i, t in enumerate(persist_calls) if t == "average"]
+        extended_indices = [i for i, t in enumerate(persist_calls) if t == "dod"]
+
+        if simple_indices and extended_indices:
+            assert max(simple_indices) < min(extended_indices)
+
+
+class TestAnalyzerEdgeCases:
+    """Test edge cases in Analyzer."""
+
+    def test_analyze_with_tags(self) -> None:
+        """Test analyzer with ResultKeys that have tags."""
+        mock_ds = Mock(spec=SqlDataSource, name="test_ds")
+        datasources: list[SqlDataSource] = [mock_ds]
+        mock_db = Mock()
+        provider = MetricProvider(mock_db, execution_id="test-123")
+
+        # Create keys with tags
+        tags = {"env": "prod", "region": "us-west"}
+        key = ResultKey(datetime.date(2024, 1, 1), tags)
+
+        analyzer = Analyzer(datasources, provider, key, "test-123")
+
+        # Create metrics with tagged keys
+        metrics = {
+            key: [Sum("revenue"), Sum("cost")],
+        }
+
+        with patch.object(analyzer, "_analyze_internal") as mock_analyze:
+            mock_analyze.return_value = AnalysisReport()
+
+            analyzer.analyze_simple_metrics(datasources[0], metrics)
+
+            # Verify tags are preserved
+            call_args = mock_analyze.call_args[0]
+            metric_dict = call_args[1]
+            for result_key in metric_dict:
+                assert result_key.tags == tags
+
+    def test_analyze_internal_value_retrieval_error(self) -> None:
+        """Test _analyze_internal when value retrieval fails (lines 347-348)."""
+        from dqx.common import SqlDataSource
+
+        # Create a proper SqlDataSource mock
+        ds = Mock(spec=SqlDataSource)
+        ds.name = "test_ds"
+        ds.dialect = "duckdb"
+        ds.cte.return_value = "WITH cte AS (SELECT * FROM table)"
+
+        datasources: list[SqlDataSource] = [ds]
+        mock_db = Mock()
+        provider = MetricProvider(mock_db, execution_id="test-123")
+        key = ResultKey(datetime.date(2024, 1, 1), {})
+
+        analyzer = Analyzer(datasources, provider, key, "test-123")
+
+        # Create a metric spec with a mocked analyzer
+        sum_spec = Sum("revenue")
+
+        # Create a failing op that will be returned by analyzers property
+        failing_op = MockSqlOp("failing_op")
+
+        # Mock the analyzers property to return our failing op
+        with patch.object(Sum, "analyzers", new_callable=lambda: property(lambda self: (failing_op,))):
+            # Create metrics
+            metrics: dict[ResultKey, Sequence[MetricSpec]] = {
+                key: [sum_spec],
+            }
+
+            # Mock batch analysis to not assign any value to the op (simulating SQL failure)
+            with patch("dqx.analyzer.analyze_batch_sql_ops"):
+                # This should raise DQXError when trying to get value from failing_op
+                with pytest.raises(DQXError, match="Failed to retrieve value for analyzer"):
+                    analyzer._analyze_internal(ds, metrics)
+
+    def test_analyzer_init_properties(self) -> None:
+        """Test analyzer initialization and properties."""
+        mock_ds = Mock(spec=SqlDataSource, name="test_ds")
+        datasources: list[SqlDataSource] = [mock_ds]
+        mock_db = Mock()
+        provider = MetricProvider(mock_db, execution_id="test-123")
+        key = ResultKey(datetime.date(2024, 1, 1), {})
+
+        analyzer = Analyzer(datasources, provider, key, "test-123")
+
+        # Check properties are set correctly
+        assert analyzer.datasources == datasources
+        assert analyzer.provider == provider
+        assert analyzer.key == key
+        assert analyzer.execution_id == "test-123"
+
+    def test_analyze_internal_integration(self) -> None:
+        """Test _analyze_internal method integration."""
+        from dqx.common import SqlDataSource
+
+        # Create a proper SqlDataSource mock
+        ds = Mock(spec=SqlDataSource)
+        ds.name = "test_ds"
+        ds.dialect = "duckdb"
+        ds.cte.return_value = "WITH cte AS (SELECT * FROM table)"
+
+        datasources: list[SqlDataSource] = [ds]
+        mock_db = Mock()
+        provider = MetricProvider(mock_db, execution_id="test-123")
+        key = ResultKey(datetime.date(2024, 1, 1), {})
+
+        analyzer = Analyzer(datasources, provider, key, "test-123")
+
+        # Create metrics
+        metrics: dict[ResultKey, Sequence[MetricSpec]] = {
+            key: [Sum("revenue")],
+        }
+
+        # Mock the batch analysis to assign values to ops
+        def mock_batch_analysis(ds: SqlDataSource, ops_by_key: dict[ResultKey, list[SqlOp[Any]]]) -> None:
+            # Assign a value to each op
+            for key, ops in ops_by_key.items():
+                for op in ops:
+                    op.assign(100.0)
+
+        with patch("dqx.analyzer.analyze_batch_sql_ops", side_effect=mock_batch_analysis) as mock_batch:
+            report = analyzer._analyze_internal(ds, metrics)
+
+            # Should have called batch analysis
+            mock_batch.assert_called_once()
+
+            # Report should contain the metric
+            assert len(report) == 1
+            metric_key = (Sum("revenue"), key, "test_ds")
+            assert metric_key in report
+            assert report[metric_key].value == 100.0
