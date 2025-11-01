@@ -467,7 +467,8 @@ def print_analysis_report(report: AnalysisReport, symbol_lookup: dict[MetricKey,
     """Display analysis reports in a formatted table.
 
     Args:
-        report: Dictionary mapping datasource names to their AnalysisReports
+        report: AnalysisReport containing metrics from analysis
+        symbol_lookup: Dictionary mapping metric keys to their symbolic representations
     """
     from rich.table import Table
 

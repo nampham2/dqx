@@ -99,7 +99,8 @@ def analysis_reports_to_pyarrow_table(report: "AnalysisReport", symbol_lookup: d
     with columns: date, metric, symbol, type, dataset, value, tags.
 
     Args:
-        reports: Dictionary mapping datasource names to their AnalysisReports
+        report: AnalysisReport containing metrics from analysis
+        symbol_lookup: Dictionary mapping metric keys to their symbolic representations
 
     Returns:
         PyArrow table with all metrics from all reports, sorted by symbol indices

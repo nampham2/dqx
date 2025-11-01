@@ -379,7 +379,7 @@ class Analyzer:
         """Analyze multiple dates with different metrics in batch.
 
         This method processes multiple ResultKeys efficiently by batching SQL
-        operations. When the number of keys exceeds DEFAULT_BATCH_SIZE (7),
+        operations. When the number of keys exceeds DEFAULT_BATCH_SIZE (14),
         the analysis is automatically split into smaller batches to optimize
         query performance and avoid excessively large SQL queries.
 
