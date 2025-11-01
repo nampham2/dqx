@@ -91,12 +91,7 @@ class TestDuplicateCountIntegration:
         provider = MetricProvider(db, execution_id)
         key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
-        analyzer = Analyzer(
-            datasources=[data_source],
-            provider=provider,
-            key=key,
-            execution_id=execution_id,
-        )
+        analyzer = Analyzer(datasources=[data_source], provider=provider, key=key, execution_id=execution_id)
 
         # Create DuplicateCount spec
         dc_spec = specs.DuplicateCount(["product_id", "user_id"])

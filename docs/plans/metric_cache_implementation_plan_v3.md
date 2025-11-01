@@ -522,10 +522,9 @@ def analyze(self) -> AnalysisReport:
     report.update(extended_report)
 
     # Phase 3: Flush all dirty metrics to DB
-    if self.cache.get_dirty_count() > 0:
-        logger.info(f"Flushing {self.cache.get_dirty_count()} dirty metrics to DB...")
-        flushed_count = self.cache.flush_dirty()
-        logger.info(f"Successfully flushed {flushed_count} metrics to database")
+    flushed_count = self.cache.flush_dirty()
+    if flushed_count > 0:
+        logger.info(f"Flushed {flushed_count} extended metrics to database")
 
     return report
 ```

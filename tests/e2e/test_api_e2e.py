@@ -4,10 +4,7 @@ import sympy as sp
 
 from dqx.api import VerificationSuite, check
 from dqx.common import Context, ResultKey
-from dqx.display import (
-    print_assertion_results,
-    print_metric_trace,
-)
+from dqx.display import print_assertion_results, print_metric_trace
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
 from tests.fixtures.data_fixtures import CommercialDataSource
@@ -20,9 +17,9 @@ def simple_checks(mp: MetricProvider, ctx: Context) -> None:
     ctx.assert_that(mp.average("price")).where(name="Average price check").is_geq(10.0)
     ctx.assert_that(mp.ext.day_over_day(mp.average("tax"))).where(name="Tax day-over-day check").is_geq(0.5)
     ctx.assert_that(mp.duplicate_count(["name"], dataset="ds1")).where(name="No duplicates on name").is_eq(0)
-    ctx.assert_that(mp.minimum("quantity", dataset="ds1")).where(
-        name="Quantity minimum is between 1 and 5",
-    ).is_between(1, 5.0)
+    ctx.assert_that(mp.minimum("quantity", dataset="ds1")).where(name="Quantity minimum is between 1 and 5").is_between(
+        1, 5.0
+    )
     ctx.assert_that(mp.count_values("name", "np", dataset="ds1")).where(name="NP never buys here").is_eq(0)
     ctx.assert_that(mp.unique_count("name")).where(name="At least 5 unique customers").is_geq(5)
 

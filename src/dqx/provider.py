@@ -5,19 +5,23 @@ import logging
 from abc import ABC
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import timedelta
+from datetime import date, timedelta
 from threading import Lock
 from typing import TYPE_CHECKING, Callable, overload
 
 import sympy as sp
+from returns.maybe import Some
 from returns.result import Failure, Result
 
 from dqx import compute, specs
+from dqx.cache import MetricCache
 from dqx.common import DQXError, ExecutionId, MetricKey, ResultKey, RetrievalFn, Tags
+from dqx.models import Metric
 from dqx.orm.repositories import MetricDB
 from dqx.specs import MetricSpec
 
 if TYPE_CHECKING:
+    from dqx.cache import MetricCache
     from dqx.graph.traversal import Graph
 
 logger = logging.getLogger(__name__)
@@ -89,14 +93,14 @@ def _create_lazy_retrieval_fn(provider: "MetricProvider", metric_spec: MetricSpe
             return Failure(f"Dataset not imputed for metric {symbolic_metric.name}")
 
         # Call the compute function with the resolved dataset and execution_id
-        return compute.simple_metric(provider._db, metric_spec, symbolic_metric.dataset, key, provider.execution_id)
+        return compute.simple_metric(provider._cache, metric_spec, symbolic_metric.dataset, key, provider.execution_id)
 
     return lazy_retrieval_fn
 
 
 def _create_lazy_extended_fn(
     provider: "MetricProvider",
-    compute_fn: Callable[[MetricDB, MetricSpec, str, ResultKey, ExecutionId], Result[float, str]],
+    compute_fn: Callable[["MetricCache", MetricSpec, str, ResultKey, ExecutionId], Result[float, str]],
     metric_spec: MetricSpec,
     symbol: sp.Symbol,
 ) -> RetrievalFn:
@@ -126,7 +130,7 @@ def _create_lazy_extended_fn(
             return Failure(f"Dataset not imputed for metric {symbolic_metric.name}")
 
         # Call the compute function with the resolved dataset and execution_id
-        return compute_fn(provider._db, metric_spec, symbolic_metric.dataset, key, provider.execution_id)
+        return compute_fn(provider._cache, metric_spec, symbolic_metric.dataset, key, provider.execution_id)
 
     return lazy_extended_fn
 
@@ -718,7 +722,9 @@ class ExtendedMetricProvider(RegistryMixin):
         # Create lazy function for stddev using lambda to handle the size parameter
         fn = _create_lazy_extended_fn(
             self._provider,
-            lambda db, metric, dataset, key, execution_id: compute.stddev(db, metric, n, dataset, key, execution_id),
+            lambda cache, metric, dataset, key, execution_id: compute.stddev(
+                cache, metric, n, dataset, key, execution_id
+            ),
             spec,
             sym := self.registry._next_symbol(),
         )
@@ -749,14 +755,40 @@ class MetricProvider(SymbolicMetricBase):
         self._db = db
         self._execution_id = execution_id
 
+        # Create cache in provider
+        from dqx.cache import MetricCache
+
+        self._cache = MetricCache(db)
+
     @property
     def execution_id(self) -> ExecutionId:
         """The execution ID for this provider instance."""
         return self._execution_id
 
     @property
+    def cache(self) -> MetricCache:
+        """Access to the metric cache."""
+        return self._cache
+
+    @property
     def ext(self) -> ExtendedMetricProvider:
         return ExtendedMetricProvider(self)
+
+    def clear_cache(self) -> None:
+        """Clear the metric cache."""
+        self._cache.clear()
+
+    def flush_cache(self) -> int:
+        """Flush dirty cache entries to DB.
+
+        Returns:
+            Number of metrics flushed
+        """
+        return self._cache.flush_dirty()
+
+    def get_cache_stats(self) -> dict[str, int]:
+        """Get cache statistics."""
+        return {"total_cached": len(self._cache._cache), "dirty_count": self._cache.get_dirty_count()}
 
     def create_metric(
         self,
@@ -971,3 +1003,67 @@ class MetricProvider(SymbolicMetricBase):
             - null_count: For counting NULL values
         """
         return self.metric(specs.UniqueCount(column), lag, dataset)
+
+    # Cache-related methods
+    def get_metric(
+        self, metric_spec: MetricSpec, result_key: ResultKey, dataset: str, execution_id: ExecutionId
+    ) -> Result[Metric, str]:
+        """Get a metric, checking cache first."""
+        # Try cache first
+        cache_result = self._cache.get((metric_spec, result_key, dataset, execution_id))
+        if isinstance(cache_result, Some):
+            metric = cache_result.unwrap()
+            # Wrap in Result for return type compatibility
+            from returns.result import Success
+
+            return Success(metric)
+
+        # Cache miss - get from DB
+        metrics = self._db.get_by_execution_id(execution_id)
+        for metric in metrics:
+            if metric.spec == metric_spec and metric.key == result_key and metric.dataset == dataset:
+                # Populate cache before returning
+                self._cache.put(metric)
+                # Wrap in Result for return type compatibility
+                from returns.result import Success
+
+                return Success(metric)
+
+        # Return failure instead of Nothing
+        return Failure(f"Metric not found: {metric_spec.name} for {dataset}")
+
+    def persist(self, metrics: list[Metric]) -> None:
+        """Persist metrics to DB and update cache."""
+        # Persist to DB
+        self._db.persist(metrics)
+
+        # Update cache
+        self._cache.put(metrics)
+
+    def get_metrics_by_execution_id(self, execution_id: ExecutionId) -> list[Metric]:
+        """Get all metrics for an execution ID, using cache when possible."""
+        # First check if we can get all metrics from cache
+        # This is a simple implementation - in production you might want
+        # to track which execution_ids are fully cached
+        metrics_from_db = list(self._db.get_by_execution_id(execution_id))
+
+        # Try to get each metric from cache first
+        result_metrics = []
+        for metric in metrics_from_db:
+            cache_key = (metric.spec, metric.key, metric.dataset, execution_id)
+            cache_result = self._cache.get(cache_key)
+            if isinstance(cache_result, Some):
+                result_metrics.append(cache_result.unwrap())
+            else:
+                # Not in cache, add it
+                self._cache.put(metric)
+                result_metrics.append(metric)
+
+        return result_metrics
+
+    def get_metric_window(
+        self, metric_spec: MetricSpec, result_key: ResultKey, dataset: str, execution_id: ExecutionId, window_size: int
+    ) -> dict[date, float]:
+        """Get a window of metrics, using cache."""
+        # The cache returns TimeSeries which is compatible with dict[date, float]
+        return dict(self._cache.get_window(metric_spec, result_key, dataset, execution_id, window_size))

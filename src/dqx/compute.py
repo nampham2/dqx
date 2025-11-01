@@ -6,13 +6,16 @@ Each function retrieves data and performs calculations as needed.
 
 import datetime as dt
 import statistics
+from typing import TYPE_CHECKING
 
-from returns.converters import maybe_to_result as convert_maybe_to_result
+from returns.maybe import Some
 from returns.result import Failure, Result, Success
 
 from dqx.common import ExecutionId, ResultKey, TimeSeries
-from dqx.orm.repositories import MetricDB
 from dqx.specs import MetricSpec
+
+if TYPE_CHECKING:
+    from dqx.cache import MetricCache
 
 # Error messages
 METRIC_NOT_FOUND = "Metric not found in the metric database"
@@ -72,12 +75,12 @@ def _sparse_timeseries_check(
 
 
 def simple_metric(
-    db: MetricDB, metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId
+    cache: "MetricCache", metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId
 ) -> Result[float, str]:
-    """Retrieve a simple metric value from the database for a specific dataset and execution.
+    """Retrieve a simple metric value using cache then database fallback.
 
     Args:
-        db: The metric database instance.
+        cache: The metric cache instance.
         metric: The metric specification to retrieve.
         dataset: The dataset name where the metric was computed.
         nominal_key: The result key containing date and tags.
@@ -86,18 +89,25 @@ def simple_metric(
     Returns:
         Success with the metric value if found, Failure with error message otherwise.
     """
-    value = db.get_metric_value(metric, nominal_key, dataset, execution_id)
+    # Try cache first
+    cache_key = (metric, nominal_key, dataset, execution_id)
+    maybe_metric = cache.get(cache_key)
+
+    if isinstance(maybe_metric, Some):
+        return Success(maybe_metric.unwrap().value)
+
+    # If not in cache, return failure
     error_msg = f"Metric {metric.name} for {nominal_key.yyyy_mm_dd.isoformat()} on dataset '{dataset}' not found!"
-    return convert_maybe_to_result(value, error_msg)
+    return Failure(error_msg)
 
 
 def day_over_day(
-    db: MetricDB, metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId
+    cache: "MetricCache", metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId
 ) -> Result[float, str]:
     """Calculate day-over-day ratio for a metric.
 
     Args:
-        db: The metric database instance.
+        cache: The metric cache instance.
         metric: The metric specification to calculate ratio for.
         dataset: The dataset name where metrics were computed.
         nominal_key: The result key for the nominal date.
@@ -106,17 +116,9 @@ def day_over_day(
     Returns:
         Success with the ratio if calculation succeeds, Failure otherwise.
     """
-    # Get two days of data starting from the base date
+    # Get two days of data using cache
     base_key = nominal_key.lag(0)  # Use lag=0 as the base
-    maybe_ts = db.get_metric_window(metric, base_key, lag=0, window=2, dataset=dataset, execution_id=execution_id)
-
-    # Convert Maybe to Result
-    ts_result = convert_maybe_to_result(maybe_ts, METRIC_NOT_FOUND)
-    match ts_result:
-        case Failure() as failure:
-            return failure
-        case Success(ts):
-            pass
+    ts = cache.get_window(metric, base_key, dataset, execution_id, window=2)
 
     # Validate we have all required dates
     check_result = _timeseries_check(ts, base_key.yyyy_mm_dd - dt.timedelta(days=1), 2)
@@ -137,12 +139,12 @@ def day_over_day(
 
 
 def week_over_week(
-    db: MetricDB, metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId
+    cache: "MetricCache", metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId
 ) -> Result[float, str]:
     """Calculate week-over-week ratio for a metric.
 
     Args:
-        db: The metric database instance.
+        cache: The metric cache instance.
         metric: The metric specification to calculate ratio for.
         dataset: The dataset name where metrics were computed.
         nominal_key: The result key for the nominal date.
@@ -151,17 +153,9 @@ def week_over_week(
     Returns:
         Success with the ratio if calculation succeeds, Failure otherwise.
     """
-    # Get eight days of data starting from the base date
+    # Get eight days of data using cache
     base_key = nominal_key.lag(0)  # Use lag=0 as the base
-    maybe_ts = db.get_metric_window(metric, base_key, lag=0, window=8, dataset=dataset, execution_id=execution_id)
-
-    # Convert Maybe to Result
-    ts_result = convert_maybe_to_result(maybe_ts, METRIC_NOT_FOUND)
-    match ts_result:
-        case Failure() as failure:
-            return failure
-        case Success(ts):
-            pass
+    ts = cache.get_window(metric, base_key, dataset, execution_id, window=8)
 
     # We only need values at specific lag points: 0 and 7
     check_result = _sparse_timeseries_check(ts, base_key.yyyy_mm_dd, [0, 7])
@@ -182,12 +176,12 @@ def week_over_week(
 
 
 def stddev(
-    db: MetricDB, metric: MetricSpec, size: int, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId
+    cache: "MetricCache", metric: MetricSpec, size: int, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId
 ) -> Result[float, str]:
     """Calculate standard deviation for a metric over a window.
 
     Args:
-        db: The metric database instance.
+        cache: The metric cache instance.
         metric: The metric specification to calculate stddev for.
         size: Number of days to include in the calculation.
         dataset: The dataset name where metrics were computed.
@@ -197,17 +191,9 @@ def stddev(
     Returns:
         Success with the standard deviation if calculation succeeds, Failure otherwise.
     """
-    # Get the time window of data
+    # Get the time window of data using cache
     base_key = nominal_key.lag(0)  # Use lag=0 as the base
-    maybe_ts = db.get_metric_window(metric, base_key, lag=0, window=size, dataset=dataset, execution_id=execution_id)
-
-    # Convert Maybe to Result
-    ts_result = convert_maybe_to_result(maybe_ts, METRIC_NOT_FOUND)
-    match ts_result:
-        case Failure() as failure:
-            return failure
-        case Success(ts):
-            pass
+    ts = cache.get_window(metric, base_key, dataset, execution_id, window=size)
 
     # Validate we have all required dates
     from_date = base_key.yyyy_mm_dd - dt.timedelta(days=size - 1)

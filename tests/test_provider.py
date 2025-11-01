@@ -7,12 +7,7 @@ from returns.result import Failure, Success
 from dqx import specs
 from dqx.common import DQXError, ResultKey
 from dqx.orm.repositories import InMemoryMetricDB
-from dqx.provider import (
-    ExtendedMetricProvider,
-    MetricProvider,
-    SymbolicMetric,
-    SymbolicMetricBase,
-)
+from dqx.provider import ExtendedMetricProvider, MetricProvider, SymbolicMetric, SymbolicMetricBase
 
 
 class TestSymbolicMetric:

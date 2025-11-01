@@ -6,6 +6,7 @@ from datetime import date, timedelta
 import pytest
 from returns.result import Failure, Success
 
+from dqx.cache import MetricCache
 from dqx.common import ExecutionId, Metadata, ResultKey, TimeSeries
 from dqx.compute import (
     _sparse_timeseries_check,
@@ -25,6 +26,12 @@ from dqx.states import SimpleAdditiveState
 def db() -> MetricDB:
     """Create in-memory database for testing."""
     return InMemoryMetricDB()
+
+
+@pytest.fixture
+def cache(db: MetricDB) -> MetricCache:
+    """Create cache with database."""
+    return MetricCache(db)
 
 
 @pytest.fixture
@@ -92,6 +99,7 @@ class TestSimpleMetric:
     def test_success(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         result_key: ResultKey,
         execution_id: ExecutionId,
@@ -101,7 +109,7 @@ class TestSimpleMetric:
         populate_metric(db, metric_spec, result_key, 100.0, "test_dataset", execution_id)
 
         # Retrieve metric
-        result = simple_metric(db, metric_spec, "test_dataset", result_key, execution_id)
+        result = simple_metric(cache, metric_spec, "test_dataset", result_key, execution_id)
 
         # Verify
         assert isinstance(result, Success)
@@ -110,13 +118,14 @@ class TestSimpleMetric:
     def test_not_found(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         result_key: ResultKey,
         execution_id: ExecutionId,
     ) -> None:
         """Test metric not found."""
         # Empty database
-        result = simple_metric(db, metric_spec, "test_dataset", result_key, execution_id)
+        result = simple_metric(cache, metric_spec, "test_dataset", result_key, execution_id)
 
         # Verify
         assert isinstance(result, Failure)
@@ -128,6 +137,7 @@ class TestSimpleMetric:
     def test_different_datasets(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         result_key: ResultKey,
         execution_id: ExecutionId,
@@ -138,8 +148,8 @@ class TestSimpleMetric:
         populate_metric(db, metric_spec, result_key, 200.0, "dataset2", execution_id)
 
         # Retrieve from each dataset
-        result1 = simple_metric(db, metric_spec, "dataset1", result_key, execution_id)
-        result2 = simple_metric(db, metric_spec, "dataset2", result_key, execution_id)
+        result1 = simple_metric(cache, metric_spec, "dataset1", result_key, execution_id)
+        result2 = simple_metric(cache, metric_spec, "dataset2", result_key, execution_id)
 
         # Verify
         assert isinstance(result1, Success)
@@ -150,6 +160,7 @@ class TestSimpleMetric:
     def test_different_execution_ids(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         result_key: ResultKey,
     ) -> None:
@@ -159,8 +170,8 @@ class TestSimpleMetric:
         populate_metric(db, metric_spec, result_key, 200.0, "test_dataset", "exec-2")
 
         # Retrieve with each execution ID
-        result1 = simple_metric(db, metric_spec, "test_dataset", result_key, "exec-1")
-        result2 = simple_metric(db, metric_spec, "test_dataset", result_key, "exec-2")
+        result1 = simple_metric(cache, metric_spec, "test_dataset", result_key, "exec-1")
+        result2 = simple_metric(cache, metric_spec, "test_dataset", result_key, "exec-2")
 
         # Verify
         assert isinstance(result1, Success)
@@ -175,6 +186,7 @@ class TestDayOverDay:
     def test_success(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -186,7 +198,7 @@ class TestDayOverDay:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = day_over_day(db, metric_spec, "test_dataset", key, execution_id)
+        result = day_over_day(cache, metric_spec, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Success)
@@ -195,6 +207,7 @@ class TestDayOverDay:
     def test_negative_values(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -206,7 +219,7 @@ class TestDayOverDay:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = day_over_day(db, metric_spec, "test_dataset", key, execution_id)
+        result = day_over_day(cache, metric_spec, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Success)
@@ -215,6 +228,7 @@ class TestDayOverDay:
     def test_missing_today(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -226,7 +240,7 @@ class TestDayOverDay:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = day_over_day(db, metric_spec, "test_dataset", key, execution_id)
+        result = day_over_day(cache, metric_spec, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Failure)
@@ -235,6 +249,7 @@ class TestDayOverDay:
     def test_missing_yesterday(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -246,7 +261,7 @@ class TestDayOverDay:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = day_over_day(db, metric_spec, "test_dataset", key, execution_id)
+        result = day_over_day(cache, metric_spec, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Failure)
@@ -255,6 +270,7 @@ class TestDayOverDay:
     def test_division_by_zero(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -266,7 +282,7 @@ class TestDayOverDay:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = day_over_day(db, metric_spec, "test_dataset", key, execution_id)
+        result = day_over_day(cache, metric_spec, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Failure)
@@ -276,6 +292,7 @@ class TestDayOverDay:
     def test_no_data(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -283,7 +300,7 @@ class TestDayOverDay:
         """Test when database returns no data."""
         # Empty database
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = day_over_day(db, metric_spec, "test_dataset", key, execution_id)
+        result = day_over_day(cache, metric_spec, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Failure)
@@ -297,6 +314,7 @@ class TestWeekOverWeek:
     def test_success_sparse(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -308,7 +326,7 @@ class TestWeekOverWeek:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = week_over_week(db, metric_spec, "test_dataset", key, execution_id)
+        result = week_over_week(cache, metric_spec, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Success)
@@ -317,6 +335,7 @@ class TestWeekOverWeek:
     def test_success_full_window(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -328,7 +347,7 @@ class TestWeekOverWeek:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = week_over_week(db, metric_spec, "test_dataset", key, execution_id)
+        result = week_over_week(cache, metric_spec, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Success)
@@ -338,6 +357,7 @@ class TestWeekOverWeek:
     def test_missing_current_week(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -349,7 +369,7 @@ class TestWeekOverWeek:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = week_over_week(db, metric_spec, "test_dataset", key, execution_id)
+        result = week_over_week(cache, metric_spec, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Failure)
@@ -358,6 +378,7 @@ class TestWeekOverWeek:
     def test_missing_previous_week(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -369,7 +390,7 @@ class TestWeekOverWeek:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = week_over_week(db, metric_spec, "test_dataset", key, execution_id)
+        result = week_over_week(cache, metric_spec, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Failure)
@@ -378,6 +399,7 @@ class TestWeekOverWeek:
     def test_division_by_zero(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -389,7 +411,7 @@ class TestWeekOverWeek:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = week_over_week(db, metric_spec, "test_dataset", key, execution_id)
+        result = week_over_week(cache, metric_spec, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Failure)
@@ -403,6 +425,7 @@ class TestStddev:
     def test_success_multiple_values(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -414,7 +437,7 @@ class TestStddev:
 
         # Calculate stddev
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = stddev(db, metric_spec, 5, "test_dataset", key, execution_id)
+        result = stddev(cache, metric_spec, 5, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Success)
@@ -425,6 +448,7 @@ class TestStddev:
     def test_success_window_size_2(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -436,7 +460,7 @@ class TestStddev:
 
         # Calculate stddev
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = stddev(db, metric_spec, 2, "test_dataset", key, execution_id)
+        result = stddev(cache, metric_spec, 2, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Success)
@@ -446,6 +470,7 @@ class TestStddev:
     def test_success_window_size_1(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -457,7 +482,7 @@ class TestStddev:
 
         # Calculate stddev
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = stddev(db, metric_spec, 1, "test_dataset", key, execution_id)
+        result = stddev(cache, metric_spec, 1, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Success)
@@ -466,6 +491,7 @@ class TestStddev:
     def test_success_identical_values(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -477,7 +503,7 @@ class TestStddev:
 
         # Calculate stddev
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = stddev(db, metric_spec, 5, "test_dataset", key, execution_id)
+        result = stddev(cache, metric_spec, 5, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Success)
@@ -486,6 +512,7 @@ class TestStddev:
     def test_missing_dates(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -497,7 +524,7 @@ class TestStddev:
 
         # Calculate stddev for 5 days
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = stddev(db, metric_spec, 5, "test_dataset", key, execution_id)
+        result = stddev(cache, metric_spec, 5, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Failure)
@@ -506,6 +533,7 @@ class TestStddev:
     def test_no_data(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -513,7 +541,7 @@ class TestStddev:
         """Test when database returns no data."""
         # Empty database
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = stddev(db, metric_spec, 5, "test_dataset", key, execution_id)
+        result = stddev(cache, metric_spec, 5, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Failure)
@@ -523,6 +551,7 @@ class TestStddev:
     def test_large_window(
         self,
         db: MetricDB,
+        cache: MetricCache,
         metric_spec: MetricSpec,
         base_date: date,
         execution_id: ExecutionId,
@@ -534,7 +563,7 @@ class TestStddev:
 
         # Calculate stddev
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = stddev(db, metric_spec, 30, "test_dataset", key, execution_id)
+        result = stddev(cache, metric_spec, 30, "test_dataset", key, execution_id)
 
         # Verify
         assert isinstance(result, Success)

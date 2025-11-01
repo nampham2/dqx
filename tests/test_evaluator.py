@@ -72,18 +72,10 @@ class TestEvaluatorFailureHandling:
         metric_spec2 = Mock(__str__=Mock(return_value="sum(quantity)"))
 
         sm1 = SymbolicMetric(
-            name="average(price)",
-            symbol=x1,
-            fn=lambda k: Success(0.0),
-            metric_spec=metric_spec1,
-            dataset="orders",
+            name="average(price)", symbol=x1, fn=lambda k: Success(0.0), metric_spec=metric_spec1, dataset="orders"
         )
         sm2 = SymbolicMetric(
-            name="sum(quantity)",
-            symbol=x2,
-            fn=lambda k: Success(0.0),
-            metric_spec=metric_spec2,
-            dataset="inventory",
+            name="sum(quantity)", symbol=x2, fn=lambda k: Success(0.0), metric_spec=metric_spec2, dataset="inventory"
         )
 
         provider.symbolic_metrics = [sm1, sm2]
@@ -157,13 +149,7 @@ class TestEvaluatorFailureHandling:
             def metric_fn(k: ResultKey, val: float = value) -> Success[float]:
                 return Success(val)
 
-            SymbolicMetric(
-                name=str(sym),
-                symbol=sym,
-                fn=metric_fn,
-                metric_spec=Mock(name=name),
-                dataset=dataset,
-            )
+            SymbolicMetric(name=str(sym), symbol=sym, fn=metric_fn, metric_spec=Mock(name=name), dataset=dataset)
 
         def get_symbol_mock(s: sp.Symbol) -> Mock:
             # Create a mock spec that returns the metric name when converted to string
