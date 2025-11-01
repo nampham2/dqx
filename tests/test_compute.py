@@ -109,7 +109,7 @@ class TestSimpleMetric:
         populate_metric(db, metric_spec, result_key, 100.0, "test_dataset", execution_id)
 
         # Retrieve metric
-        result = simple_metric(cache, metric_spec, "test_dataset", result_key, execution_id)
+        result = simple_metric(metric_spec, "test_dataset", result_key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Success)
@@ -125,7 +125,7 @@ class TestSimpleMetric:
     ) -> None:
         """Test metric not found."""
         # Empty database
-        result = simple_metric(cache, metric_spec, "test_dataset", result_key, execution_id)
+        result = simple_metric(metric_spec, "test_dataset", result_key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Failure)
@@ -148,8 +148,8 @@ class TestSimpleMetric:
         populate_metric(db, metric_spec, result_key, 200.0, "dataset2", execution_id)
 
         # Retrieve from each dataset
-        result1 = simple_metric(cache, metric_spec, "dataset1", result_key, execution_id)
-        result2 = simple_metric(cache, metric_spec, "dataset2", result_key, execution_id)
+        result1 = simple_metric(metric_spec, "dataset1", result_key, execution_id, cache)
+        result2 = simple_metric(metric_spec, "dataset2", result_key, execution_id, cache)
 
         # Verify
         assert isinstance(result1, Success)
@@ -170,8 +170,8 @@ class TestSimpleMetric:
         populate_metric(db, metric_spec, result_key, 200.0, "test_dataset", "exec-2")
 
         # Retrieve with each execution ID
-        result1 = simple_metric(cache, metric_spec, "test_dataset", result_key, "exec-1")
-        result2 = simple_metric(cache, metric_spec, "test_dataset", result_key, "exec-2")
+        result1 = simple_metric(metric_spec, "test_dataset", result_key, "exec-1", cache)
+        result2 = simple_metric(metric_spec, "test_dataset", result_key, "exec-2", cache)
 
         # Verify
         assert isinstance(result1, Success)
@@ -198,7 +198,7 @@ class TestDayOverDay:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = day_over_day(cache, metric_spec, "test_dataset", key, execution_id)
+        result = day_over_day(metric_spec, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Success)
@@ -219,7 +219,7 @@ class TestDayOverDay:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = day_over_day(cache, metric_spec, "test_dataset", key, execution_id)
+        result = day_over_day(metric_spec, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Success)
@@ -240,7 +240,7 @@ class TestDayOverDay:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = day_over_day(cache, metric_spec, "test_dataset", key, execution_id)
+        result = day_over_day(metric_spec, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Failure)
@@ -261,7 +261,7 @@ class TestDayOverDay:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = day_over_day(cache, metric_spec, "test_dataset", key, execution_id)
+        result = day_over_day(metric_spec, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Failure)
@@ -282,7 +282,7 @@ class TestDayOverDay:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = day_over_day(cache, metric_spec, "test_dataset", key, execution_id)
+        result = day_over_day(metric_spec, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Failure)
@@ -300,7 +300,7 @@ class TestDayOverDay:
         """Test when database returns no data."""
         # Empty database
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = day_over_day(cache, metric_spec, "test_dataset", key, execution_id)
+        result = day_over_day(metric_spec, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Failure)
@@ -326,7 +326,7 @@ class TestWeekOverWeek:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = week_over_week(cache, metric_spec, "test_dataset", key, execution_id)
+        result = week_over_week(metric_spec, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Success)
@@ -347,7 +347,7 @@ class TestWeekOverWeek:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = week_over_week(cache, metric_spec, "test_dataset", key, execution_id)
+        result = week_over_week(metric_spec, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Success)
@@ -369,7 +369,7 @@ class TestWeekOverWeek:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = week_over_week(cache, metric_spec, "test_dataset", key, execution_id)
+        result = week_over_week(metric_spec, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Failure)
@@ -390,7 +390,7 @@ class TestWeekOverWeek:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = week_over_week(cache, metric_spec, "test_dataset", key, execution_id)
+        result = week_over_week(metric_spec, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Failure)
@@ -411,7 +411,7 @@ class TestWeekOverWeek:
 
         # Calculate ratio
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = week_over_week(cache, metric_spec, "test_dataset", key, execution_id)
+        result = week_over_week(metric_spec, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Failure)
@@ -437,7 +437,7 @@ class TestStddev:
 
         # Calculate stddev
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = stddev(cache, metric_spec, 5, "test_dataset", key, execution_id)
+        result = stddev(metric_spec, 5, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Success)
@@ -460,7 +460,7 @@ class TestStddev:
 
         # Calculate stddev
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = stddev(cache, metric_spec, 2, "test_dataset", key, execution_id)
+        result = stddev(metric_spec, 2, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Success)
@@ -482,7 +482,7 @@ class TestStddev:
 
         # Calculate stddev
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = stddev(cache, metric_spec, 1, "test_dataset", key, execution_id)
+        result = stddev(metric_spec, 1, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Success)
@@ -503,7 +503,7 @@ class TestStddev:
 
         # Calculate stddev
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = stddev(cache, metric_spec, 5, "test_dataset", key, execution_id)
+        result = stddev(metric_spec, 5, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Success)
@@ -524,7 +524,7 @@ class TestStddev:
 
         # Calculate stddev for 5 days
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = stddev(cache, metric_spec, 5, "test_dataset", key, execution_id)
+        result = stddev(metric_spec, 5, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Failure)
@@ -541,7 +541,7 @@ class TestStddev:
         """Test when database returns no data."""
         # Empty database
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = stddev(cache, metric_spec, 5, "test_dataset", key, execution_id)
+        result = stddev(metric_spec, 5, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Failure)
@@ -563,7 +563,7 @@ class TestStddev:
 
         # Calculate stddev
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
-        result = stddev(cache, metric_spec, 30, "test_dataset", key, execution_id)
+        result = stddev(metric_spec, 30, "test_dataset", key, execution_id, cache)
 
         # Verify
         assert isinstance(result, Success)

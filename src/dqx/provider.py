@@ -65,22 +65,7 @@ class SymbolicMetric:
 
 
 def _create_lazy_retrieval_fn(provider: "MetricProvider", metric_spec: MetricSpec, symbol: sp.Symbol) -> RetrievalFn:
-    """Create a lazy retrieval function that resolves dataset at evaluation time.
-
-    This factory creates a retrieval function that defers dataset resolution
-    until the metric is actually evaluated. This allows metrics to be created
-    before their dataset is known (during imputation), while ensuring the
-    correct dataset is used during evaluation.
-
-    Args:
-        provider: The MetricProvider instance containing the symbol registry.
-        metric_spec: The metric specification to evaluate.
-        symbol: The symbol representing this metric.
-
-    Returns:
-        A retrieval function that looks up the dataset from the SymbolicMetric
-        at evaluation time and uses it to fetch the correct metric value.
-    """
+    """Create retrieval function with deferred dataset resolution."""
 
     def lazy_retrieval_fn(key: ResultKey) -> Result[float, str]:
         # Look up the current dataset from the SymbolicMetric
@@ -93,31 +78,18 @@ def _create_lazy_retrieval_fn(provider: "MetricProvider", metric_spec: MetricSpe
             return Failure(f"Dataset not imputed for metric {symbolic_metric.name}")
 
         # Call the compute function with the resolved dataset and execution_id
-        return compute.simple_metric(provider._cache, metric_spec, symbolic_metric.dataset, key, provider.execution_id)
+        return compute.simple_metric(metric_spec, symbolic_metric.dataset, key, provider.execution_id, provider._cache)
 
     return lazy_retrieval_fn
 
 
 def _create_lazy_extended_fn(
     provider: "MetricProvider",
-    compute_fn: Callable[["MetricCache", MetricSpec, str, ResultKey, ExecutionId], Result[float, str]],
+    compute_fn: Callable[[MetricSpec, str, ResultKey, str, "MetricCache"], Result[float, str]],
     metric_spec: MetricSpec,
     symbol: sp.Symbol,
 ) -> RetrievalFn:
-    """Create a lazy retrieval function for extended metrics (DoD, WoW, etc).
-
-    Similar to _create_lazy_retrieval_fn but for extended metrics that
-    need to call specialized compute functions.
-
-    Args:
-        provider: The MetricProvider instance.
-        compute_fn: The compute function to use (e.g., compute.day_over_day).
-        metric_spec: The base metric specification.
-        symbol: The symbol representing this metric.
-
-    Returns:
-        A lazy retrieval function for the extended metric.
-    """
+    """Create retrieval function for extended metrics with deferred dataset resolution."""
 
     def lazy_extended_fn(key: ResultKey) -> Result[float, str]:
         # Look up the current dataset
@@ -130,7 +102,7 @@ def _create_lazy_extended_fn(
             return Failure(f"Dataset not imputed for metric {symbolic_metric.name}")
 
         # Call the compute function with the resolved dataset and execution_id
-        return compute_fn(provider._cache, metric_spec, symbolic_metric.dataset, key, provider.execution_id)
+        return compute_fn(metric_spec, symbolic_metric.dataset, key, provider.execution_id, provider._cache)
 
     return lazy_extended_fn
 
@@ -156,30 +128,22 @@ class MetricRegistry:
         return self._metrics
 
     def _next_symbol(self, prefix: str = "x") -> sp.Symbol:
-        """Generate the next symbolic metric.
-
-        Args:
-            prefix (str, optional): symbol prefix. Defaults to "x".
-
-        Returns:
-            str:
-        """
+        """Generate next unique symbol name (x_1, x_2, etc.)."""
         with self._mutex:
             self._curr_index += 1
             return sp.Symbol(f"{prefix}_{self._curr_index}")
 
     def get(self, symbol: sp.Symbol | str) -> SymbolicMetric:
-        """Find the first symbol data that matches the given symbol.
+        """Retrieve symbolic metric by symbol.
 
         Args:
-            symbol: Either a sympy Symbol object or a string representation
-                   of the symbol (e.g., "x_1")
+            symbol: Symbol object or string (e.g., "x_1")
 
         Returns:
             SymbolicMetric containing the symbol's metadata
 
         Raises:
-            DQXError: If the symbol is not found
+            DQXError: If symbol not found
         """
         # Convert string to Symbol if needed
         if isinstance(symbol, str):
@@ -191,11 +155,7 @@ class MetricRegistry:
         return self.index[symbol]
 
     def remove(self, symbol: sp.Symbol) -> None:
-        """Remove a symbolic metric from the registry.
-
-        Args:
-            symbol: The symbolic metric to remove
-        """
+        """Remove symbolic metric from registry."""
         # Remove from metrics list
         self._metrics = [sm for sm in self._metrics if sm.symbol != symbol]
 
@@ -204,6 +164,7 @@ class MetricRegistry:
             del self.index[symbol]
 
     def _exists(self, spec: MetricSpec, lag: int, dataset: str) -> sp.Symbol | None:
+        """Check if metric already exists in registry."""
         for sm in self._metrics:
             if sm.metric_spec == spec and sm.lag == lag and sm.dataset == dataset:
                 return sm.symbol
@@ -218,7 +179,7 @@ class MetricRegistry:
         dataset: str | None = None,
         required_metrics: list[sp.Symbol] | None = None,
     ) -> sp.Symbol:
-        """Register a symbolic metric."""
+        """Register new symbolic metric or return existing one."""
         sym = self._next_symbol()
 
         # Check if symbol already exists, returns the existing one
@@ -243,27 +204,13 @@ class MetricRegistry:
         return sym
 
     def collect_symbols(self, key: ResultKey) -> list[SymbolInfo]:
-        """
-        Collect all symbol values with metadata.
-
-        This method retrieves information about all symbols (metrics) that were
-        registered, evaluates them, and returns their values along with metadata.
-        Symbols are sorted by name for consistent ordering.
+        """Evaluate all symbols and return values with metadata.
 
         Args:
-            key: The ResultKey for evaluation context (date and tags)
+            key: ResultKey for evaluation context (date and tags)
 
         Returns:
-            List of SymbolInfo instances, sorted by symbol name in natural numeric
-            order (x_1, x_2, ..., x_10, x_11, etc. rather than lexicographic).
-            Each contains the symbol name, metric description, dataset,
-            computed value, and context information (date, tags).
-
-        Example:
-            >>> symbols = provider.collect_symbols(key)
-            >>> for s in symbols:
-            ...     if s.value.is_success():
-            ...         print(f"{s.metric}: {s.value.unwrap()}")
+            List of SymbolInfo sorted by natural numeric order (x_1, x_2, ..., x_10).
         """
         symbols = []
 
@@ -299,18 +246,10 @@ class MetricRegistry:
         return sorted_symbols
 
     def topological_sort(self) -> None:
-        """Sort metrics in topological order for evaluation.
-
-        Sorts the internal _metrics list such that all required_metrics for a
-        given metric appear before that metric in the list. Simple metrics
-        (with no dependencies) will appear first, followed by extended metrics
-        in dependency order.
-
-        The sort is performed in-place on the _metrics list.
+        """Sort metrics by dependencies for correct evaluation order.
 
         Raises:
-            DQXError: If a circular dependency is detected. The error message
-                      will include details about the metrics involved in the cycle.
+            DQXError: If circular dependency detected.
         """
         from collections import deque
 
@@ -378,6 +317,7 @@ class MetricRegistry:
         return "\n".join(details)
 
     def symbol_lookup_table(self, key: ResultKey) -> dict[MetricKey, sp.Symbol]:
+        """Create mapping from metric keys to symbol names."""
         symbol_lookup: dict[MetricKey, str] = {}
         for sym_metric in self.metrics:
             if sym_metric.dataset is not None:
@@ -391,30 +331,36 @@ class MetricRegistry:
 class RegistryMixin:
     @property
     def registry(self) -> MetricRegistry:
+        """Access to metric registry."""
         raise NotImplementedError("Subclasses must implement registry property.")
 
     @property
     def metrics(self) -> list[SymbolicMetric]:
+        """Access to all registered metrics."""
         return self.registry._metrics
 
     @property
     def index(self) -> SymbolIndex:
+        """Access to symbol index mapping."""
         return self.registry._symbol_index
 
     def symbols(self) -> Iterable[sp.Symbol]:
+        """Get all registered symbols."""
         return self.registry._symbol_index.keys()
 
     def get_symbol(self, symbol: sp.Symbol | str) -> SymbolicMetric:
+        """Retrieve symbolic metric by symbol."""
         return self.registry.get(symbol)
 
     def remove_symbol(self, symbol: sp.Symbol) -> None:
-        # Remove dependencies recursively
+        """Remove symbol and its dependencies recursively."""
         sm = self.get_symbol(symbol)
         for dep_symbol in sm.required_metrics:
             self.remove_symbol(dep_symbol)  # Recursive removal only
         self.registry.remove(symbol)
 
     def collect_symbols(self, key: ResultKey) -> list[SymbolInfo]:
+        """Evaluate all symbols and return values with metadata."""
         return self.registry.collect_symbols(key)
 
 
@@ -427,38 +373,22 @@ class SymbolicMetricBase(ABC, RegistryMixin):
         return self._registry
 
     def evaluate(self, symbol: sp.Symbol, key: ResultKey) -> Result[float, str]:
-        """
-        Evaluate the given symbolic metric.
-
-        This method takes a symbolic metric and an evaluation context (date and tags)
-        and returns the computed value of the metric along with its metadata.
+        """Evaluate symbol to compute its numeric value.
 
         Args:
             symbol: The symbolic metric to evaluate.
             key: The ResultKey for evaluation context (date and tags).
 
         Returns:
-            Result containing the computed value of the metric along with its metadata.
+            Result containing the computed value or error message.
         """
         return self.index[symbol].fn(key)
 
     def print_symbols(self, key: ResultKey) -> None:
-        """
-        Collect and display all symbol values in a formatted table.
-
-        This is a convenience method that combines collect_symbols() and
-        print_symbols() from the display module into a single call.
+        """Display all symbols in formatted table.
 
         Args:
             key: The ResultKey for evaluation context (date and tags)
-
-        Example:
-            >>> # Instead of:
-            >>> symbols = provider.collect_symbols(key)
-            >>> print_symbols(symbols)
-            >>>
-            >>> # You can now simply do:
-            >>> provider.print_symbols(key)
         """
         from dqx.display import print_symbols
 
@@ -466,33 +396,14 @@ class SymbolicMetricBase(ABC, RegistryMixin):
         print_symbols(symbols)
 
     def build_deduplication_map(self, context_key: ResultKey) -> dict[sp.Symbol, sp.Symbol]:
-        """Build symbol substitution map for deduplication.
-
-        This method identifies duplicate symbols that represent the same metric
-        computed for the same effective date and dataset. It returns a mapping
-        from duplicate symbols to their canonical representatives.
+        """Find duplicate symbols with same metric and effective date.
 
         Args:
-            context_key: The analysis date context. Used to calculate effective
-                        dates for lagged metrics.
+            context_key: Analysis date context for calculating effective dates.
 
         Returns:
-            Dict mapping duplicate symbols to canonical symbols. For example:
-            {
-                sp.Symbol('x_3'): sp.Symbol('x_1'),  # x_3 is duplicate of x_1
-                sp.Symbol('x_5'): sp.Symbol('x_2'),  # x_5 is duplicate of x_2
-            }
-
-            The canonical symbol is always the one with the lowest index number.
-            Empty dict if no duplicates found.
-
-        Example:
-            If we have:
-            - x_1: average(price) for 2024-01-15
-            - x_2: average(price) with lag=1 for 2024-01-16 (effective: 2024-01-15)
-            - x_3: average(price) for 2024-01-15 (duplicate of x_1)
-
-            This returns: {x_3: x_1, x_2: x_1}
+            Dict mapping duplicate symbols to canonical symbols.
+            Canonical symbol is always the one with lowest index number.
         """
         groups: dict[tuple[str, str, str | None], list[sp.Symbol]] = {}
 
@@ -523,7 +434,7 @@ class SymbolicMetricBase(ABC, RegistryMixin):
         return substitutions
 
     def deduplicate_required_metrics(self, substitutions: dict[sp.Symbol, sp.Symbol]) -> None:
-        """Update required_metrics in all symbolic metrics after deduplication.
+        """Update symbol dependencies after deduplication.
 
         Args:
             substitutions: Map of duplicate symbols to canonical symbols
@@ -534,7 +445,7 @@ class SymbolicMetricBase(ABC, RegistryMixin):
                 sym_metric.required_metrics = [substitutions.get(req, req) for req in sym_metric.required_metrics]
 
     def prune_duplicate_symbols(self, substitutions: dict[sp.Symbol, sp.Symbol]) -> None:
-        """Remove duplicate symbols from the provider.
+        """Remove duplicate symbols from registry.
 
         Args:
             substitutions: Map from duplicate symbols to canonical symbols
@@ -560,13 +471,7 @@ class SymbolicMetricBase(ABC, RegistryMixin):
             logger.info("Pruned %d duplicate symbols: %s", len(sorted_symbols), ", ".join(sorted_symbols))
 
     def symbol_deduplication(self, graph: "Graph", context_key: ResultKey) -> None:
-        """Apply symbol deduplication to graph and provider.
-
-        This method:
-        1. Builds a map of duplicate symbols
-        2. Applies deduplication to the graph
-        3. Updates required_metrics references
-        4. Prunes duplicate symbols
+        """Apply full deduplication workflow to graph and registry.
 
         Args:
             graph: The computation graph to apply deduplication to
@@ -599,14 +504,17 @@ class ExtendedMetricProvider(RegistryMixin):
 
     @property
     def provider(self) -> MetricProvider:
+        """Access to parent provider."""
         return self._provider
 
     @property
     def registry(self) -> MetricRegistry:
+        """Access to metric registry from parent provider."""
         return self._provider.registry
 
     @property
     def db(self) -> MetricDB:
+        """Access to metric database from parent provider."""
         return self._provider._db
 
     @property
@@ -615,6 +523,7 @@ class ExtendedMetricProvider(RegistryMixin):
         return self._provider.execution_id
 
     def day_over_day(self, metric: sp.Symbol, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        """Create day-over-day ratio metric (today/yesterday)."""
         # Get the full SymbolicMetric object
         symbolic_metric = self._provider.get_symbol(metric)
         spec = symbolic_metric.metric_spec
@@ -649,6 +558,7 @@ class ExtendedMetricProvider(RegistryMixin):
         return sym
 
     def week_over_week(self, metric: sp.Symbol, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        """Create week-over-week ratio metric (today/week_ago)."""
         # Get the full SymbolicMetric object
         symbolic_metric = self._provider.get_symbol(metric)
         spec = symbolic_metric.metric_spec
@@ -683,30 +593,16 @@ class ExtendedMetricProvider(RegistryMixin):
         return sym
 
     def stddev(self, metric: sp.Symbol, offset: int, n: int, dataset: str | None = None) -> sp.Symbol:
-        """Calculate standard deviation of a metric over a window of values.
-
-        This method computes the standard deviation of a metric across n consecutive
-        days, starting from the specified offset.
+        """Create standard deviation metric over time window.
 
         Args:
-            metric: The base metric symbol to calculate standard deviation for.
-            offset: The starting position of the window (0 = today, 1 = yesterday, etc.).
-                    This determines where the window of values begins.
-            n: The number of values to include in the standard deviation calculation.
-               The window will span from offset to offset+n-1.
-            dataset: Optional dataset name. If not provided, uses the dataset from
-                    the base metric.
+            metric: Base metric symbol to calculate standard deviation for.
+            offset: Starting position (0=today, 1=yesterday, etc.).
+            n: Number of values in window (offset to offset+n-1).
+            dataset: Optional dataset name.
 
         Returns:
-            A Symbol representing the standard deviation metric.
-
-        Example:
-            >>> # Calculate stddev of last 7 days starting from today (offset=0)
-            >>> avg_price = provider.average("price")
-            >>> stddev_7d = provider.ext.stddev(avg_price, offset=0, n=7)
-            >>>
-            >>> # Calculate stddev of 5 days starting from 2 days ago (offset=2)
-            >>> stddev_5d = provider.ext.stddev(avg_price, offset=2, n=5)
+            Symbol representing the standard deviation metric.
         """
         # Get the full SymbolicMetric object
         symbolic_metric = self._provider.get_symbol(metric)
@@ -722,8 +618,8 @@ class ExtendedMetricProvider(RegistryMixin):
         # Create lazy function for stddev using lambda to handle the size parameter
         fn = _create_lazy_extended_fn(
             self._provider,
-            lambda cache, metric, dataset, key, execution_id: compute.stddev(
-                cache, metric, n, dataset, key, execution_id
+            lambda metric, dataset, key, execution_id, cache: compute.stddev(
+                metric, n, dataset, key, execution_id, cache
             ),
             spec,
             sym := self.registry._next_symbol(),
@@ -772,6 +668,7 @@ class MetricProvider(SymbolicMetricBase):
 
     @property
     def ext(self) -> ExtendedMetricProvider:
+        """Access to extended metric provider for DoD, WoW, stddev."""
         return ExtendedMetricProvider(self)
 
     def clear_cache(self) -> None:
@@ -784,7 +681,7 @@ class MetricProvider(SymbolicMetricBase):
         Returns:
             Number of metrics flushed
         """
-        return self._cache.flush_dirty()
+        return self._cache.write_back()
 
     def get_cache_stats(self) -> dict[str, int]:
         """Get cache statistics."""
@@ -884,30 +781,39 @@ class MetricProvider(SymbolicMetricBase):
         return sym
 
     def num_rows(self, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        """Create metric counting number of rows."""
         return self.metric(specs.NumRows(), lag, dataset)
 
     def first(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        """Create metric returning first value in column."""
         return self.metric(specs.First(column), lag, dataset)
 
     def average(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        """Create metric calculating average of column."""
         return self.metric(specs.Average(column), lag, dataset)
 
     def minimum(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        """Create metric finding minimum value in column."""
         return self.metric(specs.Minimum(column), lag, dataset)
 
     def maximum(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        """Create metric finding maximum value in column."""
         return self.metric(specs.Maximum(column), lag, dataset)
 
     def sum(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        """Create metric summing values in column."""
         return self.metric(specs.Sum(column), lag, dataset)
 
     def null_count(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        """Create metric counting null values in column."""
         return self.metric(specs.NullCount(column), lag, dataset)
 
     def variance(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        """Create metric calculating variance of column."""
         return self.metric(specs.Variance(column), lag, dataset)
 
     def duplicate_count(self, columns: list[str], lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+        """Create metric counting duplicate rows by columns."""
         return self.metric(specs.DuplicateCount(columns), lag, dataset)
 
     @overload
@@ -932,52 +838,23 @@ class MetricProvider(SymbolicMetricBase):
         lag: int = 0,
         dataset: str | None = None,
     ) -> sp.Symbol:
-        """Count occurrences of specific value(s) in a column.
-
-        This operation counts only the specified values, never NULLs.
-        Empty strings are counted as values, not as NULLs.
+        """Count occurrences of specific values in column.
 
         Args:
             column: Column name to count values in
-            values: Value(s) to count - single int/str/bool or list of int/str
+            values: Value(s) to count - single value or list
             lag: Lag offset in days
             dataset: Optional dataset name
 
         Returns:
             Symbol representing the count
-
-        Examples:
-            >>> from dqx import ValidationSuite
-            >>> suite = ValidationSuite("test")
-
-            >>> # Count single value
-            >>> suite.count_values("status", "active")
-
-            >>> # Count multiple values efficiently in one query
-            >>> suite.count_values("status", ["active", "pending"])
-
-            >>> # Count integer values
-            >>> suite.count_values("type_id", [1, 2, 3])
-
-            >>> # Count boolean values
-            >>> suite.count_values("is_active", True)
-            >>> suite.count_values("is_deleted", False)
-
-        Performance Note:
-            Counting multiple values with a list is more efficient than
-            making multiple separate count_values calls.
         """
         return self.metric(specs.CountValues(column, values), lag, dataset)
 
     def unique_count(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
-        """Count unique (distinct) non-null values in a column.
+        """Count distinct non-null values in column.
 
-        This operation counts the number of distinct non-null values in a column.
-        NULL values are not included in the count.
-
-        Note: This metric cannot be merged across partitions. The unique count
-        from multiple partitions cannot be summed to get the total unique count
-        because the same values might appear in multiple partitions.
+        Note: Cannot be merged across partitions.
 
         Args:
             column: Column name to count unique values in
@@ -986,29 +863,13 @@ class MetricProvider(SymbolicMetricBase):
 
         Returns:
             Symbol representing the unique count
-
-        Examples:
-            >>> from dqx import ValidationSuite
-            >>> suite = ValidationSuite("test")
-
-            >>> # Count unique product IDs
-            >>> suite.unique_count("product_id")
-
-            >>> # Count unique users with a 7-day lag
-            >>> suite.unique_count("user_id", lag=7)
-
-        See Also:
-            - duplicate_count: For counting duplicate values
-            - count_values: For counting specific values
-            - null_count: For counting NULL values
         """
         return self.metric(specs.UniqueCount(column), lag, dataset)
 
-    # Cache-related methods
     def get_metric(
         self, metric_spec: MetricSpec, result_key: ResultKey, dataset: str, execution_id: ExecutionId
     ) -> Result[Metric, str]:
-        """Get a metric, checking cache first."""
+        """Get metric from cache or database."""
         # Try cache first
         cache_result = self._cache.get((metric_spec, result_key, dataset, execution_id))
         if isinstance(cache_result, Some):
@@ -1033,7 +894,7 @@ class MetricProvider(SymbolicMetricBase):
         return Failure(f"Metric not found: {metric_spec.name} for {dataset}")
 
     def persist(self, metrics: list[Metric]) -> None:
-        """Persist metrics to DB and update cache."""
+        """Save metrics to database and update cache."""
         # Persist to DB
         self._db.persist(metrics)
 
@@ -1041,7 +902,7 @@ class MetricProvider(SymbolicMetricBase):
         self._cache.put(metrics)
 
     def get_metrics_by_execution_id(self, execution_id: ExecutionId) -> list[Metric]:
-        """Get all metrics for an execution ID, using cache when possible."""
+        """Get all metrics for execution ID using cache."""
         # First check if we can get all metrics from cache
         # This is a simple implementation - in production you might want
         # to track which execution_ids are fully cached
@@ -1064,6 +925,6 @@ class MetricProvider(SymbolicMetricBase):
     def get_metric_window(
         self, metric_spec: MetricSpec, result_key: ResultKey, dataset: str, execution_id: ExecutionId, window_size: int
     ) -> dict[date, float]:
-        """Get a window of metrics, using cache."""
+        """Get time window of metric values from cache."""
         # The cache returns TimeSeries which is compatible with dict[date, float]
         return dict(self._cache.get_window(metric_spec, result_key, dataset, execution_id, window_size))

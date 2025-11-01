@@ -120,7 +120,7 @@ def test_day_over_day_fails_with_missing_yesterday() -> None:
 
     # Try to calculate day-over-day
     result: Result[float, str] = compute.day_over_day(
-        cache=cache, metric=spec, dataset="test_dataset", nominal_key=key, execution_id=execution_id
+        metric=spec, dataset="test_dataset", nominal_key=key, execution_id=execution_id, cache=cache
     )
 
     # Verify using pattern matching
@@ -161,7 +161,7 @@ def test_stddev_fails_with_missing_dates_in_window() -> None:
 
     # Try to calculate stddev over 7-day window
     result: Result[float, str] = compute.stddev(
-        cache=cache, metric=spec, size=7, dataset="test_dataset", nominal_key=key, execution_id=execution_id
+        metric=spec, size=7, dataset="test_dataset", nominal_key=key, execution_id=execution_id, cache=cache
     )
 
     # Verify using pattern matching
@@ -205,7 +205,7 @@ def test_week_over_week_succeeds_with_sparse_data() -> None:
 
     # Calculate week-over-week (should succeed)
     result: Result[float, str] = compute.week_over_week(
-        cache=cache, metric=spec, dataset="test_dataset", nominal_key=key, execution_id=execution_id
+        metric=spec, dataset="test_dataset", nominal_key=key, execution_id=execution_id, cache=cache
     )
 
     # Verify using pattern matching and pipeline functions
@@ -240,7 +240,7 @@ def test_week_over_week_fails_with_missing_week_ago() -> None:
 
     # Try to calculate week-over-week
     result: Result[float, str] = compute.week_over_week(
-        cache=cache, metric=spec, dataset="test_dataset", nominal_key=key, execution_id=execution_id
+        metric=spec, dataset="test_dataset", nominal_key=key, execution_id=execution_id, cache=cache
     )
 
     # Verify it fails
@@ -265,11 +265,11 @@ def test_compute_function_with_completely_missing_metric() -> None:
 
     # Test simple_metric
     result: Result[float, str] = compute.simple_metric(
-        cache=cache,
         metric=specs.Average("nonexistent"),
         dataset="test_dataset",
         nominal_key=key,
         execution_id=execution_id,
+        cache=cache,
     )
 
     match result:
@@ -312,7 +312,7 @@ def test_division_by_zero_handling() -> None:
 
     # Test day_over_day with zero yesterday
     result: Result[float, str] = compute.day_over_day(
-        cache=cache, metric=spec, dataset="test_dataset", nominal_key=key, execution_id=execution_id
+        metric=spec, dataset="test_dataset", nominal_key=key, execution_id=execution_id, cache=cache
     )
 
     match result:

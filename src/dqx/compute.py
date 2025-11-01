@@ -75,16 +75,16 @@ def _sparse_timeseries_check(
 
 
 def simple_metric(
-    cache: "MetricCache", metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId
+    metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId, cache: "MetricCache"
 ) -> Result[float, str]:
     """Retrieve a simple metric value using cache then database fallback.
 
     Args:
-        cache: The metric cache instance.
         metric: The metric specification to retrieve.
         dataset: The dataset name where the metric was computed.
         nominal_key: The result key containing date and tags.
         execution_id: The execution ID to filter by.
+        cache: The metric cache instance.
 
     Returns:
         Success with the metric value if found, Failure with error message otherwise.
@@ -93,25 +93,28 @@ def simple_metric(
     cache_key = (metric, nominal_key, dataset, execution_id)
     maybe_metric = cache.get(cache_key)
 
-    if isinstance(maybe_metric, Some):
-        return Success(maybe_metric.unwrap().value)
-
-    # If not in cache, return failure
-    error_msg = f"Metric {metric.name} for {nominal_key.yyyy_mm_dd.isoformat()} on dataset '{dataset}' not found!"
-    return Failure(error_msg)
+    match maybe_metric:
+        case Some(metric_value):
+            return Success(metric_value.value)
+        case _:
+            # If not in cache, return failure
+            error_msg = (
+                f"Metric {metric.name} for {nominal_key.yyyy_mm_dd.isoformat()} on dataset '{dataset}' not found!"
+            )
+            return Failure(error_msg)
 
 
 def day_over_day(
-    cache: "MetricCache", metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId
+    metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId, cache: "MetricCache"
 ) -> Result[float, str]:
     """Calculate day-over-day ratio for a metric.
 
     Args:
-        cache: The metric cache instance.
         metric: The metric specification to calculate ratio for.
         dataset: The dataset name where metrics were computed.
         nominal_key: The result key for the nominal date.
         execution_id: The execution ID to filter by.
+        cache: The metric cache instance.
 
     Returns:
         Success with the ratio if calculation succeeds, Failure otherwise.
@@ -139,16 +142,16 @@ def day_over_day(
 
 
 def week_over_week(
-    cache: "MetricCache", metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId
+    metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId, cache: "MetricCache"
 ) -> Result[float, str]:
     """Calculate week-over-week ratio for a metric.
 
     Args:
-        cache: The metric cache instance.
         metric: The metric specification to calculate ratio for.
         dataset: The dataset name where metrics were computed.
         nominal_key: The result key for the nominal date.
         execution_id: The execution ID to filter by.
+        cache: The metric cache instance.
 
     Returns:
         Success with the ratio if calculation succeeds, Failure otherwise.
@@ -176,17 +179,17 @@ def week_over_week(
 
 
 def stddev(
-    cache: "MetricCache", metric: MetricSpec, size: int, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId
+    metric: MetricSpec, size: int, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId, cache: "MetricCache"
 ) -> Result[float, str]:
     """Calculate standard deviation for a metric over a window.
 
     Args:
-        cache: The metric cache instance.
         metric: The metric specification to calculate stddev for.
         size: Number of days to include in the calculation.
         dataset: The dataset name where metrics were computed.
         nominal_key: The result key for the end date of the window.
         execution_id: The execution ID to filter by.
+        cache: The metric cache instance.
 
     Returns:
         Success with the standard deviation if calculation succeeds, Failure otherwise.

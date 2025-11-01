@@ -12,6 +12,7 @@ from returns.maybe import Some
 from returns.result import Failure, Success
 
 from dqx import models, states
+from dqx.cache import MetricCache
 from dqx.common import (
     DQXError,
     ExecutionId,
@@ -111,7 +112,7 @@ class AnalysisReport(UserDict[MetricKey, models.Metric]):
 
         print_analysis_report(self, symbol_lookup)
 
-    def persist(self, db: MetricDB, overwrite: bool = True, provider: MetricProvider | None = None) -> None:
+    def persist(self, db: MetricDB, cache: MetricCache, overwrite: bool = True) -> None:
         """Persist the analysis report to the metric database.
 
         NOTE: This method is NOT thread-safe. If thread safety is required,
@@ -119,8 +120,8 @@ class AnalysisReport(UserDict[MetricKey, models.Metric]):
 
         Args:
             db: MetricDB instance for persistence
+            cache: MetricCache instance to warm the cache when persisting
             overwrite: If True, overwrite existing metrics. If False, merge with existing.
-            provider: Optional MetricProvider to warm the cache when persisting
         """
         if len(self) == 0:  # Changed from self._report
             logger.warning("Try to save an EMPTY analysis report!")
@@ -129,21 +130,20 @@ class AnalysisReport(UserDict[MetricKey, models.Metric]):
         if overwrite:
             logger.info("Overwriting analysis report ...")
             db.persist(self.values())
-            # Warm cache if provider is available
-            if provider:
-                provider._cache.put(list(self.values()))
+            # Warm cache
+            cache.put(list(self.values()))
         else:
             logger.info("Merging analysis report ...")
-            self._merge_persist(db, provider)
+            self._merge_persist(db, cache)
 
-    def _merge_persist(self, db: MetricDB, provider: MetricProvider | None = None) -> None:
+    def _merge_persist(self, db: MetricDB, cache: MetricCache) -> None:
         """Merge with existing metrics in the database before persisting.
 
         NOTE: This method is NOT thread-safe.
 
         Args:
             db: MetricDB instance for persistence
-            provider: Optional MetricProvider to warm the cache when persisting
+            cache: MetricCache instance to warm the cache when persisting
         """
         db_report = AnalysisReport()
 
@@ -156,9 +156,8 @@ class AnalysisReport(UserDict[MetricKey, models.Metric]):
         # Merge and persist
         merged_report = self.merge(db_report)
         db.persist(merged_report.values())
-        # Warm cache if provider is available
-        if provider:
-            provider._cache.put(list(merged_report.values()))
+        # Warm cache
+        cache.put(list(merged_report.values()))
 
 
 def analyze_sql_ops(ds: T, ops: Sequence[SqlOp], nominal_date: datetime.date) -> None:
@@ -291,6 +290,10 @@ class Analyzer:
     @property
     def db(self) -> MetricDB:
         return self.provider._db
+
+    @property
+    def cache(self) -> MetricCache:
+        return self.provider._cache
 
     def _analyze_internal(
         self,
@@ -464,7 +467,7 @@ class Analyzer:
 
                             report[metric_key] = metric
                             # Mark as dirty for batch persistence
-                            self.provider._cache.put(metric, mark_dirty=True)
+                            self.cache.put(metric, mark_dirty=True)
 
                         case Failure(error):
                             logger.warning(f"Failed to evaluate {sym_metric.name}: {error}")
@@ -473,6 +476,10 @@ class Analyzer:
                     logger.error(f"Error evaluating {sym_metric.name}: {e}", exc_info=True)
 
         logger.info(f"Evaluated {len(report)} extended metrics")
+
+        # Flush all dirty metrics to DB
+        self.cache.write_back()
+
         return report
 
     def analyze(self) -> AnalysisReport:
@@ -506,24 +513,14 @@ class Analyzer:
 
             # Analyze each date group separately
             this_report = self.analyze_simple_metrics(ds, metrics_by_date)
-
             report.update(this_report)
 
         # Persist simple metrics before evaluating extended metrics
-        report.persist(self.db, provider=self.provider)
+        report.persist(self.db, self.cache)
 
         # Phase 2: Evaluate extended metrics AFTER all simple metrics are persisted
         logger.info("Evaluating extended metrics...")
         extended_report = self.analyze_extended_metrics()
         report.update(extended_report)
-
-        # Persist extended metrics to database
-        if extended_report:
-            extended_report.persist(self.db, provider=self.provider)
-
-        # Phase 3: Flush all dirty metrics to DB
-        flushed_count = self.provider._cache.flush_dirty()
-        if flushed_count > 0:
-            logger.info(f"Flushed {flushed_count} extended metrics to database")
 
         return report

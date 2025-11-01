@@ -10,11 +10,11 @@ import logging
 from collections.abc import Sequence
 from datetime import timedelta
 from threading import RLock
-from typing import TYPE_CHECKING, TypeAlias
+from typing import TYPE_CHECKING, TypeAlias, overload
 
 from returns.maybe import Maybe, Nothing, Some
 
-from dqx.common import ExecutionId, ResultKey, TimeSeries
+from dqx.common import DatasetName, ExecutionId, ResultKey, TimeSeries
 from dqx.models import Metric
 from dqx.specs import MetricSpec
 
@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Type alias for cache key
-CacheKey: TypeAlias = tuple[MetricSpec, ResultKey, str, str]
+CacheKey: TypeAlias = tuple[MetricSpec, ResultKey, DatasetName, ExecutionId]
 
 
 class MetricCache:
@@ -68,12 +68,12 @@ class MetricCache:
         with self._lock:
             # Check cache first
             if key in self._cache:
-                logger.debug("Cache hit for key: %s", key)
+                # logger.debug("Cache hit for key: %s", key)
                 self._hit_count += 1
                 return Some(self._cache[key])
 
             # Fall back to DB
-            logger.debug("Cache miss for key: %s, checking DB", key)
+            # logger.debug("Cache miss for key: %s, checking DB", key)
             metric_spec, result_key, dataset, execution_id = key
 
             # Query DB with execution_id filter
@@ -86,7 +86,7 @@ class MetricCache:
                 for metric in metrics:
                     if metric.spec == metric_spec and metric.key == result_key and metric.dataset == dataset:
                         self._cache[key] = metric
-                        logger.debug("Loaded metric from DB and cached: %s", key)
+                        # logger.debug("Loaded metric from DB and cached: %s", key)
                         return Some(metric)
                 # If we got here, we found a value but not the full metric
                 # This shouldn't happen in normal operation
@@ -95,6 +95,26 @@ class MetricCache:
             else:  # Nothing case
                 logger.debug("Metric not found in DB for key: %s", key)
                 return Nothing
+
+    @overload
+    def put(self, metrics: Metric, mark_dirty: bool = False) -> None:
+        """Put a single metric into cache.
+
+        Args:
+            metrics: Single metric to cache
+            mark_dirty: If True, marks metric as dirty (not persisted)
+        """
+        ...
+
+    @overload
+    def put(self, metrics: Sequence[Metric], mark_dirty: bool = False) -> None:
+        """Put a sequence of metrics into cache.
+
+        Args:
+            metrics: Sequence of metrics to cache
+            mark_dirty: If True, marks metrics as dirty (not persisted)
+        """
+        ...
 
     def put(self, metrics: Metric | Sequence[Metric], mark_dirty: bool = False) -> None:
         """Put metric(s) into cache.
@@ -118,7 +138,7 @@ class MetricCache:
                     # Clean put removes dirty flag
                     self._dirty.discard(key)
 
-                logger.debug("Cached metric: %s (dirty=%s)", key, mark_dirty)
+                # logger.debug("Cached metric: %s (dirty=%s)", key, mark_dirty)
 
     def get_window(
         self,
@@ -161,9 +181,9 @@ class MetricCache:
                     time_series_dict = dict(time_series)
                     time_series_dict[date_key] = metric.value
                     time_series = time_series_dict
-                else:  # Nothing case
-                    # Skip missing dates
-                    logger.debug("Missing metric for date %s in window", date_key)
+                # else:  # Nothing case
+                # Skip missing dates
+                # logger.debug("Missing metric for date %s in window", date_key)
 
         return time_series
 
@@ -195,11 +215,11 @@ class MetricCache:
         with self._lock:
             return len(self._dirty)
 
-    def flush_dirty(self) -> int:
-        """Persist all dirty metrics to database.
+    def write_back(self) -> int:
+        """Write back all cached dirty metrics to the database.
 
         Returns:
-            Number of metrics flushed
+            Number of metrics written to database
         """
         with self._lock:
             if not self._dirty:
@@ -231,9 +251,13 @@ class MetricCache:
         Returns:
             Cache key tuple
         """
-        # All metrics should have metadata and execution_id
-        if not metric.metadata or not metric.metadata.execution_id:
-            raise ValueError(f"Metric missing metadata or execution_id: {metric}")
+        # All metrics should have metadata
+        if not metric.metadata:
+            raise ValueError(f"Metric missing metadata: {metric}")
+
+        # execution_id can be empty string but not None
+        if metric.metadata.execution_id is None:
+            raise ValueError(f"Metric missing execution_id: {metric}")
 
         return (
             metric.spec,

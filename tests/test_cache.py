@@ -215,7 +215,7 @@ class TestMetricCache:
         assert cache.get_dirty_count() == 1
 
         # Flush to DB
-        flushed = cache.flush_dirty()
+        flushed = cache.write_back()
         assert flushed == 1
         assert cache.get_dirty_count() == 0
         assert not cache.is_dirty(key)
@@ -232,7 +232,7 @@ class TestMetricCache:
 
     def test_flush_empty_dirty_set(self, cache: MetricCache) -> None:
         """Test flushing with no dirty metrics."""
-        assert cache.flush_dirty() == 0
+        assert cache.write_back() == 0
 
     def test_get_window_with_missing_dates(self, cache: MetricCache) -> None:
         """Test get_window handles missing dates gracefully."""
@@ -285,7 +285,7 @@ class TestMetricCache:
             metadata=Metadata(execution_id=None),
         )
 
-        with pytest.raises(ValueError, match="Metric missing metadata or execution_id"):
+        with pytest.raises(ValueError, match="Metric missing execution_id"):
             cache._build_key(metric)
 
     def test_db_value_without_full_metric(self) -> None:

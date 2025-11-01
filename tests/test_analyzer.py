@@ -86,18 +86,22 @@ class TestAnalysisReport:
 
         # Test persist with overwrite
         mock_db = Mock()
-        merged.persist(mock_db, overwrite=True)
+        mock_cache = Mock()
+        merged.persist(mock_db, mock_cache, overwrite=True)
         mock_db.persist.assert_called_once()
         persisted_metrics = list(mock_db.persist.call_args[0][0])
         assert len(persisted_metrics) == 2
+        mock_cache.put.assert_called_once()
 
         # Test persist empty report
         empty_report = AnalysisReport()
         mock_db.reset_mock()
+        mock_cache.reset_mock()
         with patch("dqx.analyzer.logger") as mock_logger:
-            empty_report.persist(mock_db)
+            empty_report.persist(mock_db, mock_cache)
             mock_logger.warning.assert_called_once_with("Try to save an EMPTY analysis report!")
             mock_db.persist.assert_not_called()
+            mock_cache.put.assert_not_called()
 
     def test_report_show(self) -> None:
         """Test the show method."""
