@@ -77,7 +77,7 @@ def test_metadata_with_custom_ttl() -> None:
     report = analyzer.analyze_simple_metrics(datasource, metrics_by_date)
 
     # Persist
-    report.persist(db)
+    report.persist(db, provider._cache)
 
     # Retrieve and verify
     metrics = db.get_by_execution_id("test-123")

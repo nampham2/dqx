@@ -7,10 +7,7 @@ import pyarrow as pa
 import pytest
 
 from dqx.api import Context, VerificationSuite, check
-from dqx.common import (
-    PluginMetadata,
-    ResultKey,
-)
+from dqx.common import PluginMetadata, ResultKey
 from dqx.datasource import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.plugins import PluginExecutionContext
@@ -24,12 +21,7 @@ class TestPlugin:
 
     @staticmethod
     def metadata() -> PluginMetadata:
-        return PluginMetadata(
-            name="test",
-            version="1.0.0",
-            author="Test",
-            description="Test plugin",
-        )
+        return PluginMetadata(name="test", version="1.0.0", author="Test", description="Test plugin")
 
     def process(self, context: PluginExecutionContext) -> None:
         TestPlugin.called = True
@@ -54,12 +46,7 @@ def test_enable_plugins_true_by_default(test_data: pa.Table, test_db: InMemoryMe
     class LocalTestPlugin:
         @staticmethod
         def metadata() -> PluginMetadata:
-            return PluginMetadata(
-                name="test",
-                version="1.0.0",
-                author="Test",
-                description="Test plugin",
-            )
+            return PluginMetadata(name="test", version="1.0.0", author="Test", description="Test plugin")
 
         def process(self, context: PluginExecutionContext) -> None:
             nonlocal plugin_called
@@ -95,12 +82,7 @@ def test_enable_plugins_false_disables_plugins(test_data: pa.Table, test_db: InM
     class LocalTestPlugin:
         @staticmethod
         def metadata() -> PluginMetadata:
-            return PluginMetadata(
-                name="test",
-                version="1.0.0",
-                author="Test",
-                description="Test plugin",
-            )
+            return PluginMetadata(name="test", version="1.0.0", author="Test", description="Test plugin")
 
         def process(self, context: PluginExecutionContext) -> None:
             nonlocal plugin_called
@@ -136,12 +118,7 @@ def test_enable_plugins_true_explicit(test_data: pa.Table, test_db: InMemoryMetr
     class LocalTestPlugin:
         @staticmethod
         def metadata() -> PluginMetadata:
-            return PluginMetadata(
-                name="test",
-                version="1.0.0",
-                author="Test",
-                description="Test plugin",
-            )
+            return PluginMetadata(name="test", version="1.0.0", author="Test", description="Test plugin")
 
         def process(self, context: PluginExecutionContext) -> None:
             nonlocal plugin_called
@@ -211,10 +188,7 @@ def test_plugin_receives_correct_context(test_data: pa.Table, test_db: InMemoryM
         @staticmethod
         def metadata() -> PluginMetadata:
             return PluginMetadata(
-                name="capture",
-                version="1.0.0",
-                author="Test",
-                description="Captures execution context",
+                name="capture", version="1.0.0", author="Test", description="Captures execution context"
             )
 
         def process(self, context: PluginExecutionContext) -> None:

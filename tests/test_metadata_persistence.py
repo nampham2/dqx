@@ -55,7 +55,7 @@ class TestMetadataPersistence:
         report = analyzer.analyze_simple_metrics(ds, metrics)
 
         # Persist
-        report.persist(db)
+        report.persist(db, provider._cache)
 
         # Verify metadata was persisted
         for metric_spec, result_key, dataset_name in report:
@@ -83,7 +83,7 @@ class TestMetadataPersistence:
 
         # Analyze and persist
         report = analyzer.analyze_simple_metrics(ds, metrics)
-        report.persist(db)
+        report.persist(db, provider._cache)
 
         # Verify metadata with execution_id was created
         for metric_spec, result_key, dataset_name in report:

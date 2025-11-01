@@ -50,11 +50,7 @@ class TestSymbolInfoExtended:
     def test_symbol_info_with_none_dataset(self) -> None:
         """Test SymbolInfo with None dataset."""
         info = SymbolInfo(
-            name="x_1",
-            metric="constant",
-            dataset=None,
-            value=Success(42.0),
-            yyyy_mm_dd=date(2025, 1, 13),
+            name="x_1", metric="constant", dataset=None, value=Success(42.0), yyyy_mm_dd=date(2025, 1, 13)
         )
 
         assert info.dataset is None
@@ -70,12 +66,7 @@ class TestGetSymbolWithString:
         metric_spec = Mock(__str__=Mock(return_value="average(price)"))
 
         symbolic_metric = SymbolicMetric(
-            name="x_1",
-            symbol=symbol,
-            fn=lambda k: Success(100.0),
-            metric_spec=metric_spec,
-            lag=0,
-            dataset="orders",
+            name="x_1", symbol=symbol, fn=lambda k: Success(100.0), metric_spec=metric_spec, lag=0, dataset="orders"
         )
 
         provider._metrics = [symbolic_metric]
@@ -93,12 +84,7 @@ class TestGetSymbolWithString:
         metric_spec = Mock(__str__=Mock(return_value="average(price)"))
 
         symbolic_metric = SymbolicMetric(
-            name="x_1",
-            symbol=symbol,
-            fn=lambda k: Success(100.0),
-            metric_spec=metric_spec,
-            lag=0,
-            dataset="orders",
+            name="x_1", symbol=symbol, fn=lambda k: Success(100.0), metric_spec=metric_spec, lag=0, dataset="orders"
         )
 
         provider._metrics = [symbolic_metric]
@@ -193,12 +179,7 @@ class TestCollectSymbols:
         metric_spec2 = Mock(__str__=Mock(return_value="sum(quantity)"))
 
         sm1 = SymbolicMetric(
-            name="x_1",
-            symbol=x1,
-            fn=lambda k: Success(100.0),
-            metric_spec=metric_spec1,
-            lag=0,
-            dataset="orders",
+            name="x_1", symbol=x1, fn=lambda k: Success(100.0), metric_spec=metric_spec1, lag=0, dataset="orders"
         )
         sm2 = SymbolicMetric(
             name="x_2",
@@ -248,12 +229,7 @@ class TestCollectSymbols:
         for sym, name, metric_str, dataset, value in metrics_data:
             metric_spec = Mock(__str__=Mock(return_value=metric_str))
             sm = SymbolicMetric(
-                name=name,
-                symbol=sym,
-                fn=make_fn(value),
-                metric_spec=metric_spec,
-                lag=0,
-                dataset=dataset,
+                name=name, symbol=sym, fn=make_fn(value), metric_spec=metric_spec, lag=0, dataset=dataset
             )
             symbolic_metrics[sym] = sm
 
@@ -325,10 +301,7 @@ class TestEvaluatorWithContext:
     def test_evaluator_populates_context_fields(self) -> None:
         """Test that _gather correctly populates all context fields."""
         provider = Mock(spec=MetricProvider)
-        key = ResultKey(
-            yyyy_mm_dd=date(2025, 1, 15),
-            tags={"env": "staging", "version": "2.0"},
-        )
+        key = ResultKey(yyyy_mm_dd=date(2025, 1, 15), tags={"env": "staging", "version": "2.0"})
         evaluator = Evaluator(provider, key, "Production Suite")
 
         # Create a symbol
@@ -336,12 +309,7 @@ class TestEvaluatorWithContext:
         metric_spec = Mock(__str__=Mock(return_value="average(revenue)"))
 
         sm = SymbolicMetric(
-            name="x_1",
-            symbol=x1,
-            fn=lambda k: Success(1000.0),
-            metric_spec=metric_spec,
-            lag=0,
-            dataset="sales",
+            name="x_1", symbol=x1, fn=lambda k: Success(1000.0), metric_spec=metric_spec, lag=0, dataset="sales"
         )
 
         provider.get_symbol.return_value = sm

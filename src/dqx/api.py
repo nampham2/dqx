@@ -213,6 +213,7 @@ class Context:
             execution_id: Unique identifier for this execution
         """
         self._graph = Graph(RootNode(name=suite))
+        # MetricProvider now creates its own cache internally
         self._provider = MetricProvider(db, execution_id=execution_id)
         self._local = threading.local()
 
