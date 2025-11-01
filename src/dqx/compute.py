@@ -179,16 +179,16 @@ def week_over_week(
 
 
 def stddev(
-    metric: MetricSpec, size: int, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId, cache: "MetricCache"
+    metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId, size: int, cache: "MetricCache"
 ) -> Result[float, str]:
     """Calculate standard deviation for a metric over a window.
 
     Args:
         metric: The metric specification to calculate stddev for.
-        size: Number of days to include in the calculation.
         dataset: The dataset name where metrics were computed.
         nominal_key: The result key for the end date of the window.
         execution_id: The execution ID to filter by.
+        size: Number of days to include in the calculation.
         cache: The metric cache instance.
 
     Returns:

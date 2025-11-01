@@ -85,7 +85,7 @@ def _create_lazy_retrieval_fn(provider: "MetricProvider", metric_spec: MetricSpe
 
 def _create_lazy_extended_fn(
     provider: "MetricProvider",
-    compute_fn: Callable[[MetricSpec, str, ResultKey, str, "MetricCache"], Result[float, str]],
+    compute_fn: Callable[..., Result[float, str]],
     metric_spec: MetricSpec,
     symbol: sp.Symbol,
 ) -> RetrievalFn:
@@ -102,6 +102,7 @@ def _create_lazy_extended_fn(
             return Failure(f"Dataset not imputed for metric {symbolic_metric.name}")
 
         # Call the compute function with the resolved dataset and execution_id
+        # Note: compute_fn may be a lambda that already includes additional parameters
         return compute_fn(metric_spec, symbolic_metric.dataset, key, provider.execution_id, provider._cache)
 
     return lazy_extended_fn
@@ -615,14 +616,17 @@ class ExtendedMetricProvider(RegistryMixin):
             required_metric = self.provider.create_metric(spec, lag=i, dataset=symbolic_metric.dataset)
             required.append(required_metric)
 
+        # Generate symbol first
+        sym = self.registry._next_symbol()
+
         # Create lazy function for stddev using lambda to handle the size parameter
         fn = _create_lazy_extended_fn(
             self._provider,
             lambda metric, dataset, key, execution_id, cache: compute.stddev(
-                metric, n, dataset, key, execution_id, cache
+                metric, dataset, key, execution_id, n, cache
             ),
             spec,
-            sym := self.registry._next_symbol(),
+            sym,
         )
 
         # Register with lazy function

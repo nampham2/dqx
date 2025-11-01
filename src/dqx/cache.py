@@ -65,6 +65,7 @@ class MetricCache:
         Returns:
             Maybe[Metric]: Some(metric) if found, Nothing otherwise
         """
+        # First check: acquire lock just for cache lookup
         with self._lock:
             # Check cache first
             if key in self._cache:
@@ -72,29 +73,35 @@ class MetricCache:
                 self._hit_count += 1
                 return Some(self._cache[key])
 
-            # Fall back to DB
-            # logger.debug("Cache miss for key: %s, checking DB", key)
-            metric_spec, result_key, dataset, execution_id = key
+        # Cache miss - perform DB I/O without holding lock
+        # logger.debug("Cache miss for key: %s, checking DB", key)
+        metric_spec, result_key, dataset, execution_id = key
 
-            # Query DB with execution_id filter
-            db_result = self._db.get_metric_value(metric_spec, result_key, dataset, execution_id)
+        # Query DB with execution_id filter (no lock held)
+        db_result = self._db.get_metric_value(metric_spec, result_key, dataset, execution_id)
 
-            if isinstance(db_result, Some):
-                # Reconstruct metric from DB value
-                # We need to get the full metric, not just the value
-                metrics = list(self._db.get_by_execution_id(execution_id))
-                for metric in metrics:
-                    if metric.spec == metric_spec and metric.key == result_key and metric.dataset == dataset:
+        if isinstance(db_result, Some):
+            # Reconstruct metric from DB value
+            # We need to get the full metric, not just the value
+            metrics = list(self._db.get_by_execution_id(execution_id))
+            for metric in metrics:
+                if metric.spec == metric_spec and metric.key == result_key and metric.dataset == dataset:
+                    # Reacquire lock to update cache
+                    with self._lock:
+                        # Double-check: another thread might have populated it
+                        if key in self._cache:
+                            return Some(self._cache[key])
+                        # Update cache
                         self._cache[key] = metric
                         # logger.debug("Loaded metric from DB and cached: %s", key)
-                        return Some(metric)
-                # If we got here, we found a value but not the full metric
-                # This shouldn't happen in normal operation
-                logger.warning("Found value in DB but not full metric for key: %s", key)
-                return Nothing
-            else:  # Nothing case
-                logger.debug("Metric not found in DB for key: %s", key)
-                return Nothing
+                    return Some(metric)
+            # If we got here, we found a value but not the full metric
+            # This shouldn't happen in normal operation
+            logger.warning("Found value in DB but not full metric for key: %s", key)
+            return Nothing
+        else:  # Nothing case
+            logger.debug("Metric not found in DB for key: %s", key)
+            return Nothing
 
     @overload
     def put(self, metrics: Metric, mark_dirty: bool = False) -> None:

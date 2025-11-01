@@ -376,12 +376,14 @@ class TestAnalysisReportMergePersist:
 
     def test_report_merge_persist_without_overwrite(self) -> None:
         """Test persist with overwrite=False to trigger _merge_persist."""
+        from dqx.cache import MetricCache
         from dqx.common import Metadata
         from dqx.orm.repositories import InMemoryMetricDB
         from dqx.states import SimpleAdditiveState
 
-        # Create a real database
+        # Create a real database and cache
         db = InMemoryMetricDB()
+        cache = MetricCache(db)
 
         # Create and persist an existing metric
         key = ResultKey(datetime.date(2024, 1, 1), {})
@@ -406,7 +408,7 @@ class TestAnalysisReportMergePersist:
         report = AnalysisReport({(spec, key, "sales"): new_metric})
 
         # Persist with overwrite=False to trigger _merge_persist
-        report.persist(db, overwrite=False)
+        report.persist(db, cache, overwrite=False)
 
         # Verify the metric was merged (values should be summed)
         stored_metric = db.get(key, spec)

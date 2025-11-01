@@ -74,7 +74,7 @@ def test_stddev_with_failing_get_metric_window() -> None:
     key = ResultKey(yyyy_mm_dd=date(2024, 1, 10), tags={})
 
     # Don't add any metrics to DB, so cache will return empty window
-    result = stddev(metric_spec, 5, "test_dataset", key, "exec-123", cache)
+    result = stddev(metric_spec, "test_dataset", key, "exec-123", 5, cache)
 
     # Should return Failure with missing dates message
     assert isinstance(result, Failure)
@@ -96,7 +96,7 @@ def test_stddev_with_statistics_error() -> None:
 
     # Mock statistics.stdev to raise StatisticsError
     with patch("dqx.compute.statistics.stdev", side_effect=statistics.StatisticsError("Test error")):
-        result = stddev(metric_spec, 5, "test_dataset", key, "exec-123", cache)
+        result = stddev(metric_spec, "test_dataset", key, "exec-123", 5, cache)
 
         # Should return Failure with the error message
         assert isinstance(result, Failure)
@@ -144,7 +144,7 @@ def test_pass_statements_coverage() -> None:
         date_key = ResultKey(yyyy_mm_dd=base_date - timedelta(days=i), tags={})
         populate_metric(db, metric_spec, date_key, float(10 + i * 5), "test_dataset", "stddev-exec-123")
 
-    result = stddev(metric_spec, 5, "test_dataset", key, "stddev-exec-123", cache)
+    result = stddev(metric_spec, "test_dataset", key, "stddev-exec-123", 5, cache)
     assert isinstance(result, Success)
 
     # The stddev function extracts values in chronological order (oldest to newest)
