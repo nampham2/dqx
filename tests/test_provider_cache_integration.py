@@ -65,7 +65,8 @@ class TestProviderCacheIntegration:
         assert result.unwrap() == sample_metric
 
         # Verify it came from cache by checking cache stats
-        assert provider.cache.get_hit_count() > 0
+        stats = provider.cache.get_stats()
+        assert stats.hit > 0
 
     def test_provider_populates_cache_on_miss(
         self, provider: MetricProvider, db: InMemoryMetricDB, sample_metric: Metric
@@ -122,7 +123,8 @@ class TestProviderCacheIntegration:
         assert len(results) == 5
 
         # All should have been served from cache
-        assert provider.cache.get_hit_count() >= 5
+        stats = provider.cache.get_stats()
+        assert stats.hit >= 5
 
     def test_provider_cache_invalidation_on_update(self, provider: MetricProvider, sample_metric: Metric) -> None:
         """Test cache is properly updated when metric is updated."""
@@ -225,4 +227,5 @@ class TestProviderCacheIntegration:
         assert window[base_date - timedelta(days=4)].value == 104.0
 
         # Should have used cache
-        assert provider.cache.get_hit_count() > 0
+        stats = provider.cache.get_stats()
+        assert stats.hit > 0

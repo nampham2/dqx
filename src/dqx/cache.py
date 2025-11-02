@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import timedelta
 from threading import RLock
 from typing import TYPE_CHECKING, TypeAlias, overload
@@ -25,6 +26,23 @@ logger = logging.getLogger(__name__)
 
 # Type alias for cache key
 CacheKey: TypeAlias = tuple[MetricSpec, ResultKey, DatasetName, ExecutionId]
+
+
+@dataclass(frozen=True)
+class CacheStats:
+    """Statistics for cache performance tracking."""
+
+    hit: int = 0
+    missed: int = 0
+
+    def hit_ratio(self) -> float:
+        """Calculate cache hit ratio.
+
+        Returns:
+            Hit ratio as hit / (hit + missed), or 0.0 if no requests
+        """
+        total = self.hit + self.missed
+        return self.hit / total if total > 0 else 0.0
 
 
 class MetricCache:
@@ -51,7 +69,7 @@ class MetricCache:
         self._cache: dict[CacheKey, Metric] = {}
         self._dirty: set[CacheKey] = set()
         self._lock = RLock()
-        self._hit_count = 0
+        self._stats = CacheStats()
 
     def get(self, key: CacheKey) -> Maybe[Metric]:
         """Get metric from cache or DB.
@@ -69,7 +87,7 @@ class MetricCache:
         with self._lock:
             # Check cache first
             if key in self._cache:
-                self._hit_count += 1
+                self._stats = CacheStats(hit=self._stats.hit + 1, missed=self._stats.missed)
                 return Some(self._cache[key])
 
         # Cache miss - perform DB I/O without holding lock
@@ -84,6 +102,8 @@ class MetricCache:
                     self._cache[key] = value
                     return Some(value)
             case _:
+                with self._lock:
+                    self._stats = CacheStats(hit=self._stats.hit, missed=self._stats.missed + 1)
                 return Nothing
 
     @overload
@@ -200,6 +220,7 @@ class MetricCache:
         with self._lock:
             self._cache.clear()
             self._dirty.clear()
+            self._stats = CacheStats()
             logger.info("Cache cleared")
 
     def is_dirty(self, key: CacheKey) -> bool:
@@ -274,11 +295,11 @@ class MetricCache:
             metric.metadata.execution_id,
         )
 
-    def get_hit_count(self) -> int:
-        """Get the number of cache hits.
+    def get_stats(self) -> CacheStats:
+        """Get cache performance statistics.
 
         Returns:
-            Number of times cache was hit (not missed)
+            CacheStats with current hit/miss counts and ratio
         """
         with self._lock:
-            return self._hit_count
+            return self._stats

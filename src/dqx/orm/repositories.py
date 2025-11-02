@@ -297,7 +297,7 @@ class MetricDB:
 
         # Convert CTE results to metrics
         if result:
-            time_series = {}
+            time_series: TimeSeries = {}
             for row in result:
                 # Reconstruct Metric object from CTE columns
                 metric_obj = Metric(
