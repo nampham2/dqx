@@ -95,7 +95,11 @@ def simple_metric(
 
     match maybe_metric:
         case Some(metric_value):
-            return Success(metric_value.value)
+            # Handle both Metric objects and raw float values
+            if hasattr(metric_value, "value"):
+                return Success(metric_value.value)
+            else:
+                return Success(metric_value)
         case _:
             # If not in cache, return failure
             error_msg = (
@@ -121,10 +125,10 @@ def day_over_day(
     """
     # Get two days of data using cache
     base_key = nominal_key.lag(0)  # Use lag=0 as the base
-    ts = cache.get_window(metric, base_key, dataset, execution_id, window=2)
+    ts = cache.get_sparse_timeseries(metric, base_key, dataset, execution_id, lags=[0, 1])
 
     # Validate we have all required dates
-    check_result = _timeseries_check(ts, base_key.yyyy_mm_dd - dt.timedelta(days=1), 2)
+    check_result = _sparse_timeseries_check(ts, base_key.yyyy_mm_dd, [0, 1])
     match check_result:
         case Failure() as failure:
             return failure
@@ -135,10 +139,10 @@ def day_over_day(
     today = base_key.yyyy_mm_dd
     yesterday = today - dt.timedelta(days=1)
 
-    if ts[yesterday] == 0:
+    if ts[yesterday].value == 0:
         return Failure(f"Cannot calculate day over day: previous day value ({yesterday}) is zero.")
 
-    return Success(ts[today] / ts[yesterday])
+    return Success(ts[today].value / ts[yesterday].value)
 
 
 def week_over_week(
@@ -158,10 +162,12 @@ def week_over_week(
     """
     # Get eight days of data using cache
     base_key = nominal_key.lag(0)  # Use lag=0 as the base
-    ts = cache.get_window(metric, base_key, dataset, execution_id, window=8)
+    lags = [0, 7]
+
+    ts = cache.get_sparse_timeseries(metric, base_key, dataset, execution_id, lags=lags)
 
     # We only need values at specific lag points: 0 and 7
-    check_result = _sparse_timeseries_check(ts, base_key.yyyy_mm_dd, [0, 7])
+    check_result = _sparse_timeseries_check(ts, base_key.yyyy_mm_dd, lags)
     match check_result:
         case Failure() as failure:
             return failure
@@ -172,10 +178,10 @@ def week_over_week(
     today = base_key.yyyy_mm_dd
     week_ago = today - dt.timedelta(days=7)
 
-    if ts[week_ago] == 0:
+    if ts[week_ago].value == 0:
         return Failure(f"Cannot calculate week over week: week ago value ({week_ago}) is zero.")
 
-    return Success(ts[today] / ts[week_ago])
+    return Success(ts[today].value / ts[week_ago].value)
 
 
 def stddev(
@@ -196,7 +202,7 @@ def stddev(
     """
     # Get the time window of data using cache
     base_key = nominal_key.lag(0)  # Use lag=0 as the base
-    ts = cache.get_window(metric, base_key, dataset, execution_id, window=size)
+    ts = cache.get_timeseries(metric, base_key, dataset, execution_id, window=size)
 
     # Validate we have all required dates
     from_date = base_key.yyyy_mm_dd - dt.timedelta(days=size - 1)
@@ -208,7 +214,7 @@ def stddev(
             pass
 
     # Extract values in chronological order
-    values = [ts[from_date + dt.timedelta(days=i)] for i in range(size)]
+    values: list[float] = [ts[from_date + dt.timedelta(days=i)].value for i in range(size)]
 
     # Calculate standard deviation
     if len(values) < 2:

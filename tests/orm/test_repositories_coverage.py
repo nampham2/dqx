@@ -4,7 +4,7 @@ import datetime as dt
 from unittest.mock import Mock, patch
 
 import pytest
-from returns.maybe import Nothing
+from returns.maybe import Nothing, Some
 from sqlalchemy import create_engine
 
 from dqx.common import Metadata, ResultKey
@@ -52,8 +52,8 @@ def test_ensure_indexes_failure() -> None:
             db._ensure_indexes()
 
 
-def test_get_by_key_with_dataset() -> None:
-    """Test _get_by_key method with dataset parameter."""
+def test_get_metric_with_dataset() -> None:
+    """Test get_metric method with dataset parameter."""
     db = InMemoryMetricDB()
 
     # Create metrics with different datasets
@@ -69,36 +69,35 @@ def test_get_by_key_with_dataset() -> None:
 
     db.persist([metric1, metric2])
 
-    # Test getting by key with specific dataset
-    result1 = db._get_by_key(key, spec, dataset="dataset1")
+    # Test getting by key with specific dataset and execution_id
+    result1 = db.get_metric(spec, key, dataset="dataset1", execution_id="exec-1")
     assert result1.unwrap().dataset == "dataset1"
     assert result1.unwrap().value == pytest.approx(10.0)
 
-    result2 = db._get_by_key(key, spec, dataset="dataset2")
+    result2 = db.get_metric(spec, key, dataset="dataset2", execution_id="exec-2")
     assert result2.unwrap().dataset == "dataset2"
     assert result2.unwrap().value == pytest.approx(20.0)
 
     # Test with non-existent dataset
-    result3 = db._get_by_key(key, spec, dataset="non_existent")
+    result3 = db.get_metric(spec, key, dataset="non_existent", execution_id="exec-1")
     assert result3 == Nothing
 
+    # Test with non-existent execution_id
+    result4 = db.get_metric(spec, key, dataset="dataset1", execution_id="non_existent")
+    assert result4 == Nothing
 
-def test_get_metric_window_returns_none() -> None:
-    """Test get_metric_window when execute returns None (should not happen but handled)."""
+
+def test_get_metric_window_returns_empty() -> None:
+    """Test get_metric_window when no metrics found returns empty TimeSeries."""
     db = InMemoryMetricDB()
 
-    # This test verifies the None check is properly handled
-    # In practice, SQLAlchemy execute() shouldn't return None, but the code handles it
-    with patch.object(db, "new_session") as mock_session:
-        mock_session_instance = Mock()
-        # Make execute return None
-        mock_session_instance.execute.return_value = None
-        mock_session.return_value = mock_session_instance
+    # This test verifies that an empty TimeSeries is returned when no metrics match
+    spec = Average("test_column")
+    key = ResultKey(yyyy_mm_dd=dt.date(2024, 1, 10), tags={})
 
-        spec = Average("test_column")
-        key = ResultKey(yyyy_mm_dd=dt.date(2024, 1, 10), tags={})
+    # Call with parameters that won't match any metrics
+    result = db.get_metric_window(spec, key, lag=0, window=5, dataset="test", execution_id="exec-123")
 
-        result = db.get_metric_window(spec, key, lag=0, window=5, dataset="test", execution_id="exec-123")
-
-        # Should return Nothing when execute returns None
-        assert result == Nothing
+    # Should return Some with empty dict when no metrics found
+    assert isinstance(result, Some)
+    assert result.unwrap() == {}

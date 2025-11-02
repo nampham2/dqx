@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import datetime
 import datetime as dt
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
@@ -13,14 +13,14 @@ from returns.result import Result
 if TYPE_CHECKING:
     from dqx.analyzer import AnalysisReport
     from dqx.api import AssertionDraft
+    from dqx.models import Metric
     from dqx.provider import SymbolInfo
     from dqx.specs import MetricSpec
-
 
 # Type aliases
 DatasetName = str
 ExecutionId = str
-TimeSeries = Mapping[dt.date, float]
+TimeSeries = dict[dt.date, "Metric"]
 Tags = dict[str, Any]
 Parameters = dict[str, Any]
 SeverityLevel = Literal["P0", "P1", "P2", "P3"]

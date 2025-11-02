@@ -127,14 +127,14 @@ def _assert_trace_values_consistent(trace: pa.Table, run_number: int, epsilon: f
 def _retrieve_metric_values(
     db: InMemoryMetricDB, avg_spec: specs.Average, sum_spec: specs.Sum, key: ResultKey, execution_id: str
 ) -> tuple[float, float]:
-    """Retrieve metric values using get_metric_value."""
-    avg_value = db.get_metric_value(avg_spec, key, "test_data", execution_id)
-    sum_value = db.get_metric_value(sum_spec, key, "test_data", execution_id)
+    """Retrieve metric values using get_metric."""
+    avg_value = db.get_metric(avg_spec, key, "test_data", execution_id)
+    sum_value = db.get_metric(sum_spec, key, "test_data", execution_id)
 
     assert isinstance(avg_value, Some), "Average metric not found"
     assert isinstance(sum_value, Some), "Sum metric not found"
 
-    return avg_value.unwrap(), sum_value.unwrap()
+    return avg_value.unwrap().value, sum_value.unwrap().value
 
 
 def _retrieve_metric_windows(
@@ -155,7 +155,7 @@ def _retrieve_metric_windows(
     assert key.yyyy_mm_dd in avg_ts, "Date not found in average window"
     assert key.yyyy_mm_dd in sum_ts, "Date not found in sum window"
 
-    return avg_ts[key.yyyy_mm_dd], sum_ts[key.yyyy_mm_dd]
+    return avg_ts[key.yyyy_mm_dd].value, sum_ts[key.yyyy_mm_dd].value
 
 
 def _get_execution_metrics(db: InMemoryMetricDB, execution_id: str) -> list[Metric]:

@@ -72,7 +72,13 @@ class Evaluator:
             Dictionary mapping symbolic expressions to their Result values.
             Each Result is either Success[float] or Failure[str].
         """
-        return {metric.symbol: metric.fn(key) for metric in self.provider.metrics}
+        result: dict[sp.Basic, Result[float, str]] = {}
+        for sm in self.provider.metrics:
+            result[sm.symbol] = sm.fn(key)
+
+        return result
+
+        # return {metric.symbol: metric.fn(key) for metric in self.provider.metrics}
 
     def metric_for_symbol(self, symbol: sp.Symbol) -> SymbolicMetric:
         """Retrieve the SymbolicMetric associated with a given symbol.

@@ -5,7 +5,7 @@ from returns.maybe import Nothing, Some
 from rich.console import Console
 
 from dqx import specs, states
-from dqx.common import DQXError, Metadata, ResultKey
+from dqx.common import Metadata, ResultKey
 from dqx.models import Metric
 from dqx.orm import repositories
 from dqx.orm.repositories import InMemoryMetricDB
@@ -36,22 +36,8 @@ def test_crud(metric_1: Metric) -> None:
     console.print(metric_1)
 
     assert db.exists(metric_1.metric_id)
-    console.print(db.get(metric_1.metric_id))
-    assert db.get(metric_1.metric_id) == Some(metric_1)
-    assert db.search(repositories.Metric.metric_id == metric_1.metric_id) == [metric_1]
     db.delete(metric_1.metric_id)
     assert db.exists(metric_1.metric_id) is False
-    assert db.search(repositories.Metric.metric_id == metric_1.metric_id) == []
-
-
-def test_search_by_parameter(metric_1: Metric) -> None:
-    db = InMemoryMetricDB()
-    db.persist([metric_1])
-    results = db.search(repositories.Metric.parameters == {"column": "page_views"})
-    assert len(results) == 1
-
-    results = db.search(repositories.Metric.parameters == {"column": "impressions"})
-    assert len(results) == 0
 
 
 def test_get_metric_value(metric_1: Metric, key: ResultKey) -> None:
@@ -68,14 +54,24 @@ def test_get_metric_value(metric_1: Metric, key: ResultKey) -> None:
     db.persist([metric_with_exec_id])
 
     # Test with correct execution_id
-    value = db.get_metric_value(specs.Average("page_views"), key, dataset="test_dataset", execution_id=execution_id)
-    assert value == Some(pytest.approx(5.2))
+    result = db.get_metric(specs.Average("page_views"), key, dataset="test_dataset", execution_id=execution_id)
+
+    # Use pattern matching instead of isinstance
+    match result:
+        case Some(retrieved_metric):
+            # Compare the retrieved metric's attributes, not the object itself
+            assert retrieved_metric.spec.metric_type == metric_with_exec_id.spec.metric_type
+            assert retrieved_metric.spec.parameters == metric_with_exec_id.spec.parameters
+            assert retrieved_metric.key == metric_with_exec_id.key
+            assert retrieved_metric.dataset == metric_with_exec_id.dataset
+            assert retrieved_metric.value == metric_with_exec_id.value
+            assert retrieved_metric.metadata == metric_with_exec_id.metadata
+        case _:
+            pytest.fail("Expected Some but got Nothing")
 
     # Test with wrong execution_id
-    value_wrong = db.get_metric_value(
-        specs.Average("page_views"), key, dataset="test_dataset", execution_id="wrong-exec-id"
-    )
-    assert value_wrong == Nothing
+    result_wrong = db.get_metric(specs.Average("page_views"), key, dataset="test_dataset", execution_id="wrong-exec-id")
+    assert result_wrong == Nothing
 
 
 def test_get_metric_window(metric_window: list[Metric], key: ResultKey) -> None:
@@ -102,8 +98,10 @@ def test_get_metric_window(metric_window: list[Metric], key: ResultKey) -> None:
     assert len(value) == 5
     assert min(value.keys()) == dt.date.fromisoformat("2025-01-30")
     assert max(value.keys()) == dt.date.fromisoformat("2025-02-03")
-    assert min(value.values()) == pytest.approx(5.2)
-    assert max(value.values()) == pytest.approx(5.2)
+
+    # Check values of all metrics in the window
+    for metric in value.values():
+        assert metric.value == pytest.approx(5.2)
 
     # Test with wrong execution_id - should return empty
     value_wrong = db.get_metric_window(
@@ -112,51 +110,12 @@ def test_get_metric_window(metric_window: list[Metric], key: ResultKey) -> None:
     assert value_wrong == Some({})  # Returns Some with empty dict
 
 
-def test_get_missing_metric_by_uuid(key: ResultKey) -> None:
-    """Test getting a non-existent metric by UUID returns empty Maybe."""
-    db = InMemoryMetricDB()
-    import uuid
-
-    non_existent_id = uuid.uuid4()
-    result = db.get(non_existent_id)
-    assert result == Nothing
-
-
-def test_get_missing_metric_by_key(key: ResultKey) -> None:
-    """Test getting a non-existent metric by ResultKey returns empty Maybe."""
-    db = InMemoryMetricDB()
-    spec = specs.Average("non_existent_column")
-    result = db.get(key, spec)
-    assert result == Nothing
-
-
-def test_get_with_result_key_no_spec(key: ResultKey) -> None:
-    """Test that using ResultKey without MetricSpec raises DQXError."""
-    db = InMemoryMetricDB()
-    with pytest.raises(DQXError, match="MetricSpec must be provided when using ResultKey"):
-        db.get(key)  # type: ignore[call-overload]
-
-
-def test_get_with_unsupported_key_type() -> None:
-    """Test that using unsupported key type raises DQXError."""
-    db = InMemoryMetricDB()
-    with pytest.raises(DQXError, match="Unsupported key type"):
-        db.get("invalid_key")  # type: ignore
-
-
-def test_search_empty_expressions() -> None:
-    """Test that searching with no filter expressions raises DQXError."""
-    db = InMemoryMetricDB()
-    with pytest.raises(DQXError, match="Filter expressions cannot be empty"):
-        db.search()
-
-
 def test_get_metric_value_missing(key: ResultKey) -> None:
     """Test getting value for non-existent metric returns empty Maybe."""
     db = InMemoryMetricDB()
     spec = specs.Average("non_existent_column")
     execution_id = "test-exec-123"
-    result = db.get_metric_value(spec, key, dataset="test_dataset", execution_id=execution_id)
+    result = db.get_metric(spec, key, dataset="test_dataset", execution_id=execution_id)
     assert result == Nothing
 
 
@@ -181,27 +140,6 @@ def test_metric_to_spec(metric_1: Metric) -> None:
     spec = db_metric.to_spec()
     assert spec.metric_type == "Average"
     assert spec.parameters == {"column": "page_views"}
-
-
-def test_get_metric_window_with_no_scalars_result(key: ResultKey) -> None:
-    """Test get_metric_window when session.execute returns None."""
-    from unittest.mock import Mock, patch
-
-    db = InMemoryMetricDB()
-    spec = specs.Average("test_column")
-    execution_id = "test-exec-123"
-
-    # Mock the session to return None from execute()
-    with patch.object(db, "new_session") as mock_session:
-        mock_session_instance = Mock()
-        mock_session_instance.execute.return_value = None
-        mock_session.return_value = mock_session_instance
-
-        result = db.get_metric_window(spec, key, lag=1, window=5, dataset="test_dataset", execution_id=execution_id)
-        assert result == Nothing
-
-
-# Tests for get_by_execution_id method
 
 
 def test_get_by_execution_id_basic(key: ResultKey) -> None:
@@ -308,3 +246,206 @@ def test_get_by_execution_id_different_ids(key: ResultKey) -> None:
     assert len(results) == 1
     assert results[0].dataset == "ds1"
     assert results[0].metadata and results[0].metadata.execution_id == target_id
+
+
+# Tests for expiration functionality
+
+
+def test_get_metrics_stats_empty_db() -> None:
+    """Test getting stats from empty database."""
+    db = InMemoryMetricDB()
+    stats = db.get_metrics_stats()
+    assert stats.total_metrics == 0
+    assert stats.expired_metrics == 0
+
+
+def test_get_metrics_stats_no_expired(key: ResultKey) -> None:
+    """Test getting stats when no metrics are expired."""
+    db = InMemoryMetricDB()
+
+    # Create metrics with long TTL (won't expire)
+    metric1 = Metric.build(
+        specs.Average("views"),
+        key,
+        dataset="ds1",
+        state=states.Average(10.0, 5),
+        metadata=Metadata(ttl_hours=168),  # 7 days
+    )
+    metric2 = Metric.build(
+        specs.Sum("revenue"),
+        key,
+        dataset="ds2",
+        state=states.SimpleAdditiveState(100.0),
+        metadata=Metadata(ttl_hours=168),  # 7 days
+    )
+
+    db.persist([metric1, metric2])
+
+    stats = db.get_metrics_stats()
+    assert stats.total_metrics == 2
+    assert stats.expired_metrics == 0
+
+
+def test_get_metrics_stats_with_expired(key: ResultKey) -> None:
+    """Test getting stats when some metrics are expired."""
+    from datetime import datetime, timedelta, timezone
+
+    db = InMemoryMetricDB()
+
+    # Create metrics with very short TTL
+    metric_expired = Metric.build(
+        specs.Average("views"),
+        key,
+        dataset="ds1",
+        state=states.Average(10.0, 5),
+        metadata=Metadata(ttl_hours=1),  # 1 hour TTL
+    )
+
+    # Create metric with long TTL
+    metric_valid = Metric.build(
+        specs.Sum("revenue"),
+        key,
+        dataset="ds2",
+        state=states.SimpleAdditiveState(100.0),
+        metadata=Metadata(ttl_hours=168),  # 7 days
+    )
+
+    # Persist metrics
+    persisted = list(db.persist([metric_expired, metric_valid]))
+
+    # Manually update the created timestamp of the first metric to be old
+    with db.new_session() as session:
+        db_metric = session.get(repositories.Metric, persisted[0].metric_id)
+        if db_metric:
+            # Set created time to 2 hours ago
+            db_metric.created = datetime.now(timezone.utc) - timedelta(hours=2)
+            session.commit()
+
+    stats = db.get_metrics_stats()
+    assert stats.total_metrics == 2
+    assert stats.expired_metrics == 1
+
+
+def test_delete_expired_metrics_empty_db() -> None:
+    """Test deleting expired metrics from empty database."""
+    db = InMemoryMetricDB()
+    # Should not raise any errors
+    db.delete_expired_metrics()
+
+    stats = db.get_metrics_stats()
+    assert stats.total_metrics == 0
+    assert stats.expired_metrics == 0
+
+
+def test_delete_expired_metrics(key: ResultKey) -> None:
+    """Test deleting expired metrics."""
+    from datetime import datetime, timedelta, timezone
+
+    db = InMemoryMetricDB()
+
+    # Create metrics with short TTL
+    metric_expired1 = Metric.build(
+        specs.Average("views"),
+        key,
+        dataset="ds1",
+        state=states.Average(10.0, 5),
+        metadata=Metadata(ttl_hours=1),  # 1 hour TTL
+    )
+    metric_expired2 = Metric.build(
+        specs.Average("clicks"),
+        key,
+        dataset="ds2",
+        state=states.Average(20.0, 5),
+        metadata=Metadata(ttl_hours=1),  # 1 hour TTL
+    )
+
+    # Create metrics with long TTL
+    metric_valid = Metric.build(
+        specs.Sum("revenue"),
+        key,
+        dataset="ds3",
+        state=states.SimpleAdditiveState(100.0),
+        metadata=Metadata(ttl_hours=168),  # 7 days
+    )
+
+    persisted = list(db.persist([metric_expired1, metric_expired2, metric_valid]))
+    valid_metric_id = persisted[2].metric_id
+
+    # Manually update the created timestamps of expired metrics to be old
+    with db.new_session() as session:
+        for i in range(2):  # First two metrics should expire
+            db_metric = session.get(repositories.Metric, persisted[i].metric_id)
+            if db_metric:
+                # Set created time to 2 hours ago (past the 1 hour TTL)
+                db_metric.created = datetime.now(timezone.utc) - timedelta(hours=2)
+        session.commit()
+
+    # Check stats before deletion
+    stats_before = db.get_metrics_stats()
+    assert stats_before.total_metrics == 3
+    assert stats_before.expired_metrics == 2
+
+    # Delete expired metrics
+    db.delete_expired_metrics()
+
+    # Check stats after deletion
+    stats_after = db.get_metrics_stats()
+    assert stats_after.total_metrics == 1
+    assert stats_after.expired_metrics == 0
+
+    # Verify the valid metric still exists
+    assert valid_metric_id is not None
+    assert db.exists(valid_metric_id)
+
+
+def test_metric_default_ttl(key: ResultKey) -> None:
+    """Test that metrics get default TTL when metadata is not provided."""
+    db = InMemoryMetricDB()
+
+    # Create metric without explicit metadata
+    metric = Metric.build(
+        specs.Average("views"),
+        key,
+        dataset="ds1",
+        state=states.Average(10.0, 5),
+    )
+
+    persisted = list(db.persist([metric]))[0]
+
+    # Verify default TTL is applied
+    assert persisted.metadata is not None
+    assert persisted.metadata.ttl_hours == 168  # 7 days default
+
+
+def test_expiration_with_mixed_ttl_hours(key: ResultKey) -> None:
+    """Test expiration logic with various TTL values."""
+    from datetime import datetime, timedelta, timezone
+
+    db = InMemoryMetricDB()
+
+    # Create metrics with different TTL values
+    ttl_values = [1, 24, 48, 168, 720]  # 1h, 1d, 2d, 1w, 1month
+    metrics = [
+        Metric.build(
+            specs.Average(f"metric_{i}"),
+            key,
+            dataset=f"ds_{i}",
+            state=states.Average(float(i), 5),
+            metadata=Metadata(ttl_hours=ttl),
+        )
+        for i, ttl in enumerate(ttl_values)
+    ]
+
+    persisted = list(db.persist(metrics))
+
+    # Manually expire the first metric (1 hour TTL)
+    with db.new_session() as session:
+        db_metric = session.get(repositories.Metric, persisted[0].metric_id)
+        if db_metric:
+            # Set created time to 2 hours ago (past the 1 hour TTL)
+            db_metric.created = datetime.now(timezone.utc) - timedelta(hours=2)
+            session.commit()
+
+    stats = db.get_metrics_stats()
+    assert stats.total_metrics == 5
+    assert stats.expired_metrics == 1  # Only the 1-hour TTL metric should be expired

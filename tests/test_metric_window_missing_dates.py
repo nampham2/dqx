@@ -86,12 +86,14 @@ def test_get_metric_window_with_partial_metrics() -> None:
     # Verify using pattern matching
     match result:
         case Some(ts):
-            expected_timeseries: TimeSeries = {
+            # Extract values from Metric objects for comparison
+            actual_values = {date: metric.value for date, metric in ts.items()}
+            expected_values = {
                 dt.date(2025, 2, 6): 100.0,
                 dt.date(2025, 2, 8): 300.0,
                 dt.date(2025, 2, 10): 500.0,
             }
-            assert ts == expected_timeseries
+            assert actual_values == expected_values
             # Verify missing dates are not filled with 0
             assert dt.date(2025, 2, 7) not in ts
             assert dt.date(2025, 2, 9) not in ts

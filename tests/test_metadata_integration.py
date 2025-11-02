@@ -145,10 +145,8 @@ def test_no_execution_id_tag_injection() -> None:
     key = ResultKey(date.today(), {"env": "test", "custom": "tag"})
     suite.run([datasource], key)
 
-    # Query all metrics
-    from dqx.orm.repositories import Metric as DBMetric
-
-    all_metrics = db.search(DBMetric.yyyy_mm_dd == date.today())
+    # Query all metrics by execution ID
+    all_metrics = db.get_by_execution_id(suite.execution_id)
 
     # Verify no __execution_id in tags
     for metric in all_metrics:

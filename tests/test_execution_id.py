@@ -57,13 +57,14 @@ def test_execution_id_in_metadata() -> None:
     # Check that all metrics in the DB have execution_id in metadata
     execution_id = suite.execution_id
 
-    # Query all metrics from the DB for this date
-    from dqx.orm.repositories import Metric
-
-    all_metrics = db.search(Metric.yyyy_mm_dd == date.today(), Metric.dataset == "test_data")
+    # Get all metrics with this execution_id
+    all_metrics = db.get_by_execution_id(execution_id)
 
     # Verify all metrics have the execution_id in metadata
     assert len(all_metrics) > 0, "Should have at least one metric persisted"
     for metric in all_metrics:
         assert metric.metadata is not None
         assert metric.metadata.execution_id == execution_id
+        # Also verify the metric is from the correct date and dataset
+        assert metric.key.yyyy_mm_dd == date.today()
+        assert metric.dataset == "test_data"

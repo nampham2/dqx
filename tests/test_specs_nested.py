@@ -75,6 +75,13 @@ class TestNestedExtendedMetrics:
 
         # Retrieve and verify
         assert persisted.metric_id is not None
-        retrieved = db.get(persisted.metric_id).unwrap()
-        assert retrieved.spec == stddev
-        assert retrieved.spec.name == "stddev(dod(average(tax)), offset=1, n=7)"
+
+        # Since the get() method is no longer available, verify the persisted metric directly
+        # The persist() method returns the model with all fields populated
+        assert persisted.spec == stddev
+        assert persisted.spec.name == "stddev(dod(average(tax)), offset=1, n=7)"
+        assert persisted.key == key
+        assert persisted.dataset == "test_dataset"
+
+        # Verify it exists in the database
+        assert db.exists(persisted.metric_id)

@@ -5,7 +5,7 @@ import logging
 from abc import ABC
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import timedelta
 from threading import Lock
 from typing import TYPE_CHECKING, Callable, overload
 
@@ -925,10 +925,3 @@ class MetricProvider(SymbolicMetricBase):
                 result_metrics.append(metric)
 
         return result_metrics
-
-    def get_metric_window(
-        self, metric_spec: MetricSpec, result_key: ResultKey, dataset: str, execution_id: ExecutionId, window_size: int
-    ) -> dict[date, float]:
-        """Get time window of metric values from cache."""
-        # The cache returns TimeSeries which is compatible with dict[date, float]
-        return dict(self._cache.get_window(metric_spec, result_key, dataset, execution_id, window_size))

@@ -8,16 +8,16 @@ from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from threading import Lock
-from typing import Any, ClassVar, overload
+from typing import Any, ClassVar
 
 import sqlalchemy as sa
-from returns.maybe import Maybe, Nothing, Some
+from returns.maybe import Maybe
 from sqlalchemy import BinaryExpression, ColumnElement, create_engine, delete, func, select, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 from sqlalchemy.types import JSON, TypeDecorator
 
 from dqx import models, specs
-from dqx.common import DQXError, Metadata, ResultKey, Tags, TimeSeries
+from dqx.common import Metadata, ResultKey, Tags, TimeSeries
 from dqx.orm.session import db_session_factory
 from dqx.specs import MetricSpec, MetricType
 from dqx.states import State
@@ -162,74 +162,74 @@ class MetricDB:
 
             return [metric.to_model() for metric in db_metrics]
 
-    @overload
-    def get(self, key: uuid.UUID) -> Maybe[models.Metric]: ...
+    # @overload
+    # def get(self, key: uuid.UUID) -> Maybe[models.Metric]: ...
 
-    @overload
-    def get(self, key: ResultKey, spec: MetricSpec) -> Maybe[models.Metric]: ...
+    # @overload
+    # def get(self, key: ResultKey, spec: MetricSpec) -> Maybe[models.Metric]: ...
 
-    def get(self, key: uuid.UUID | ResultKey, spec: MetricSpec | None = None) -> Maybe[models.Metric]:
-        if isinstance(key, uuid.UUID):
-            return self._get_by_uuid(key)
+    # def get(self, key: uuid.UUID | ResultKey, spec: MetricSpec | None = None) -> Maybe[models.Metric]:
+    #     if isinstance(key, uuid.UUID):
+    #         return self._get_by_uuid(key)
 
-        if isinstance(key, ResultKey):
-            if spec is None:
-                raise DQXError("MetricSpec must be provided when using ResultKey!")
-            return self._get_by_key(key, spec)
+    #     if isinstance(key, ResultKey):
+    #         if spec is None:
+    #             raise DQXError("MetricSpec must be provided when using ResultKey!")
+    #         return self._get_by_key(key, spec)
 
-        raise DQXError(f"Unsupported key type: {type(key)}")
+    #     raise DQXError(f"Unsupported key type: {type(key)}")
 
-    def _get_by_uuid(self, metric_id: uuid.UUID | ResultKey) -> Maybe[models.Metric]:
-        result = self.new_session().get(Metric, metric_id)
-        if result:
-            return Maybe.from_value(result.to_model())
+    # def _get_by_uuid(self, metric_id: uuid.UUID | ResultKey) -> Maybe[models.Metric]:
+    #     result = self.new_session().get(Metric, metric_id)
+    #     if result:
+    #         return Maybe.from_value(result.to_model())
 
-        return Maybe.empty
+    #     return Maybe.empty
 
-    def _get_by_key(self, key: ResultKey, spec: MetricSpec, dataset: str | None = None) -> Maybe[models.Metric]:
-        """Get a metric by its specification and result key, optionally filtered by dataset.
+    # def _get_by_key(self, key: ResultKey, spec: MetricSpec, dataset: str | None = None) -> Maybe[models.Metric]:
+    #     """Get a metric by its specification and result key, optionally filtered by dataset.
 
-        Args:
-            key: The result key containing date and tags.
-            spec: The metric specification.
-            dataset: Optional dataset name to filter by.
+    #     Args:
+    #         key: The result key containing date and tags.
+    #         spec: The metric specification.
+    #         dataset: Optional dataset name to filter by.
 
-        Returns:
-            Maybe containing the metric if found, Nothing otherwise.
-        """
-        query = select(Metric).where(
-            Metric.metric_type == spec.metric_type,
-            Metric.parameters == spec.parameters,
-            Metric.yyyy_mm_dd == key.yyyy_mm_dd,
-            Metric.tags == key.tags,
-        )
+    #     Returns:
+    #         Maybe containing the metric if found, Nothing otherwise.
+    #     """
+    #     query = select(Metric).where(
+    #         Metric.metric_type == spec.metric_type,
+    #         Metric.parameters == spec.parameters,
+    #         Metric.yyyy_mm_dd == key.yyyy_mm_dd,
+    #         Metric.tags == key.tags,
+    #     )
 
-        if dataset is not None:
-            query = query.where(Metric.dataset == dataset)
+    #     if dataset is not None:
+    #         query = query.where(Metric.dataset == dataset)
 
-        # Get the latest metric based on created timestamp
-        query = query.order_by(Metric.created.desc()).limit(1)
+    #     # Get the latest metric based on created timestamp
+    #     query = query.order_by(Metric.created.desc()).limit(1)
 
-        result = self.new_session().scalar(query)
+    #     result = self.new_session().scalar(query)
 
-        if result:
-            return Maybe.from_value(result.to_model())
+    #     if result:
+    #         return Maybe.from_value(result.to_model())
 
-        return Maybe.empty
+    #     return Maybe.empty
 
-    def search(self, *expressions: Predicate) -> Sequence[models.Metric]:
-        if len(expressions) == 0:
-            raise DQXError("Filter expressions cannot be empty")
+    # def search(self, *expressions: Predicate) -> Sequence[models.Metric]:
+    #     if len(expressions) == 0:
+    #         raise DQXError("Filter expressions cannot be empty")
 
-        query = select(Metric).where(*expressions)
-        return [metric.to_model() for metric in self.new_session().scalars(query)]
+    #     query = select(Metric).where(*expressions)
+    #     return [metric.to_model() for metric in self.new_session().scalars(query)]
 
     def delete(self, metric_id: uuid.UUID) -> None:
         with self._mutex:
             query = delete(Metric).where(Metric.metric_id == metric_id)
             self.new_session().execute(query)
 
-    def get_metric_value(self, metric: MetricSpec, key: ResultKey, dataset: str, execution_id: str) -> Maybe[float]:
+    def get_metric(self, metric: MetricSpec, key: ResultKey, dataset: str, execution_id: str) -> Maybe[models.Metric]:
         """Get a single metric value for a specific dataset and execution.
 
         Args:
@@ -242,7 +242,7 @@ class MetricDB:
             Maybe containing the metric value if found, Nothing otherwise.
         """
         query = (
-            select(Metric.value)
+            select(Metric)
             .where(
                 Metric.metric_type == metric.metric_type,
                 Metric.parameters == metric.parameters,
@@ -255,7 +255,7 @@ class MetricDB:
             .limit(1)
         )
 
-        return Maybe.from_optional(self.new_session().scalar(query))
+        return Maybe.from_optional(self.new_session().scalar(query)).map(Metric.to_model)
 
     def get_metric_window(
         self, metric: MetricSpec, key: ResultKey, lag: int, window: int, dataset: str, execution_id: str
@@ -278,8 +278,7 @@ class MetricDB:
         # Create CTE for finding latest metrics per day within execution
         latest_metrics_cte = (
             select(
-                Metric.yyyy_mm_dd,
-                Metric.value,
+                Metric,
                 func.row_number().over(partition_by=Metric.yyyy_mm_dd, order_by=Metric.created.desc()).label("rn"),
             ).where(
                 Metric.metric_type == metric.metric_type,
@@ -293,21 +292,29 @@ class MetricDB:
         ).cte("latest_metrics")
 
         # Select only the rows with rn=1 (the latest for each date)
-        query = (
-            select(latest_metrics_cte.c.yyyy_mm_dd, latest_metrics_cte.c.value)
-            .where(latest_metrics_cte.c.rn == 1)
-            .order_by(latest_metrics_cte.c.yyyy_mm_dd)
-        )
-
+        query = select(latest_metrics_cte).where(latest_metrics_cte.c.rn == 1).order_by(latest_metrics_cte.c.yyyy_mm_dd)
         result = self.new_session().execute(query)
-        if result is None:
-            return Nothing
 
-        # Convert to TimeSeries dict
-        time_series = {row.yyyy_mm_dd: row.value for row in result}
-
-        # Always return Some, even if empty (to match existing behavior)
-        return Some(time_series)
+        # Convert CTE results to metrics
+        if result:
+            time_series = {}
+            for row in result:
+                # Reconstruct Metric object from CTE columns
+                metric_obj = Metric(
+                    metric_id=row.metric_id,
+                    metric_type=row.metric_type,
+                    parameters=row.parameters,
+                    dataset=row.dataset,
+                    state=row.state,
+                    value=row.value,
+                    yyyy_mm_dd=row.yyyy_mm_dd,
+                    tags=row.tags,
+                    meta=row.meta,
+                    created=row.created,
+                )
+                time_series[row.yyyy_mm_dd] = metric_obj.to_model()
+            return Maybe.from_value(time_series)
+        return Maybe.from_value({})
 
     def get_by_execution_id(self, execution_id: str) -> Sequence[models.Metric]:
         """Retrieve all metrics with the specified execution ID.

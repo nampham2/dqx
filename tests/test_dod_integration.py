@@ -75,13 +75,18 @@ def test_day_over_day_integration() -> None:
 
     # Verify the metric is stored in the database
     # The metric should be retrievable by key and spec
-    stored_metric = db.get(key_today, dod_spec)
-    assert stored_metric, "DayOverDay metric not found in database"
+    from returns.maybe import Maybe, Some
 
-    # Verify the stored metric matches our spec
-    stored_value = stored_metric.unwrap()
-    assert stored_value.spec == dod_spec
-    assert stored_value.key == key_today
+    stored_metric = db.get_metric(dod_spec, key_today, "revenue_data", suite.execution_id)
+
+    # Use pattern matching for Maybe type
+    match stored_metric:
+        case Some(stored_value):
+            # Pattern matching automatically unwraps Some values
+            assert stored_value.spec == dod_spec
+            assert stored_value.key == key_today
+        case Maybe.empty:
+            raise AssertionError("DayOverDay metric not found in database")
 
     # Verify the suite results (from today's suite)
     results = suite.collect_results()
