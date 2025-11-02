@@ -100,6 +100,7 @@ class MetricCache:
             case Some(value):
                 with self._lock:
                     self._cache[key] = value
+                    self._stats = CacheStats(hit=self._stats.hit, missed=self._stats.missed + 1)
                     return Some(value)
             case _:
                 with self._lock:
