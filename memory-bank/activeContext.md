@@ -1,86 +1,106 @@
 # Active Context - DQX
 
 ## Current Focus
-- Implemented topological sort for MetricRegistry to ensure proper evaluation order
-- Added comprehensive cycle detection for metric dependencies
-- All tests passing with new topological sort functionality
+- Cache system performance improvements and statistics tracking
+- Achieved 100% test coverage for compute and repositories modules
+- Working on `fix/metric_db_access` branch
 
 ## Recent Changes
 
-### Topological Sort Implementation (2025-10-31)
-1. **Core Method**: Added `topological_sort()` to MetricRegistry class
-2. **Cycle Detection**: Detects and reports circular dependencies with helpful error messages
-3. **External Dependencies**: Gracefully handles metrics with dependencies not in the registry
-4. **In-place Sorting**: Reorders internal `_metrics` list to respect dependencies
-5. **Comprehensive Tests**: 12 test cases covering all edge cases
-6. **Example**: Created `examples/topological_sort_example.py` demonstrating usage
+### Cache System Overhaul (2025-11-02)
+1. **CacheStats Implementation**: Added mutable statistics tracking with `hit`, `missed` counts and `hit_ratio()` calculation
+2. **Performance Optimizations**: Removed outer locks from cache timeseries methods for better concurrency
+3. **TimeSeries Refactoring**: Now stores full `Metric` objects instead of just float values
+4. **Bug Fixes**: Fixed cache miss counter to properly increment for successful DB fallbacks
+5. **Plugin Integration**: Cache statistics now integrated into PluginExecutionContext
+6. **Audit Display**: AuditPlugin shows cache performance metrics (hits, misses, hit rate)
 
-### Metric Expiration Refactoring (2025-10-30)
-1. **Helper Method**: Created `_build_expiration_filter()` to eliminate duplicated SQL filter logic
-2. **MetricStats Dataclass**: New frozen dataclass for metric statistics
-3. **API Simplification**: Renamed `get_expired_metrics_stats` to `get_metrics_stats`
-4. **Integration**: Added metric cleanup to VerificationSuite before analysis
-5. **Plugin Context**: Made `metrics_stats` mandatory in PluginExecutionContext
-6. **Audit Plugin**: Enhanced to display metric cleanup information
-7. **Caching**: Added `_metrics_stats` property to VerificationSuite to avoid duplicate DB calls
+### Test Coverage Improvements (2025-11-02)
+1. **100% Coverage**: Achieved complete test coverage for compute and repositories modules
+2. **Edge Case Testing**: Added test for cache returning raw float values
+3. **Pragma Usage**: Marked genuinely unreachable code with `pragma: no cover`
+4. **Code Cleanup**: Removed commented-out deprecated methods from MetricDB
 
-### Previous Implementation (2024-10-30)
-- Metadata.ttl_hours as required field with default 168 hours
-- Timezone-aware datetime handling throughout
-- Optimized DELETE query for expired metrics
-- Removed antipatterns and improved type safety
-
-### Code Quality Improvements
-- Consistent use of timezone-aware datetime objects
-- Better type hints throughout the codebase
-- Simplified API surface for metric expiration
-- Atomic database operations for better concurrency
+### Previous Work
+- Added CommercialDataSource with date filtering support
+- Implemented metric expiration functionality in MetricDB
+- Version bumped to 0.5.5
 
 ## Next Steps
-- Monitor the automatic metric cleanup in VerificationSuite runs
-- Consider exposing metric cleanup stats in API responses
-- Potential optimization: batch cleanup operations by TTL groups
+- Monitor cache performance in production scenarios
+- Consider additional cache optimization strategies
+- Potentially add cache size limits and eviction policies
 
 ## Important Patterns and Preferences
 
-### Database Operations
-- Always use timezone-aware datetime (datetime.now(timezone.utc))
-- Prefer single atomic queries over multiple operations
-- Use SQLAlchemy's func for database functions
-- Extract common SQL conditions into helper methods to avoid duplication
-- Use frozen dataclasses for read-only data structures
+### Cache Design Principles
+- Thread-safe operations with minimal lock contention
+- Automatic DB fallback on cache miss
+- Dirty tracking for batch persistence
+- Clear separation between cache lookup and DB I/O
+- Performance metrics integrated into monitoring
 
-### Type Safety
-- Always provide proper type hints for function parameters
-- Use MetricProvider and Context types in test functions
-- Pattern matching preferred over isinstance checks where mypy allows
+### Testing Philosophy
+- Comprehensive edge case coverage
+- Test both success and failure paths
+- Use pragma comments judiciously for truly unreachable code
+- Maintain 100% coverage as a quality standard
 
-### Testing
-- Comprehensive edge case testing for time-based operations
-- Mock time-sensitive operations for deterministic tests
-- Verify both success and failure paths
+### Performance Considerations
+- Lock acquisition only for in-memory operations
+- DB queries performed without holding locks
+- Statistics tracking with minimal overhead
+- Mutable stats objects to avoid allocation overhead
 
 ## Recent Learnings
 
-### SQLAlchemy JSON Operations
-- Use func.json_extract() for accessing JSON fields in WHERE clauses
-- Cast JSON values to appropriate types: .cast(Integer)
-- SQLite's julianday() useful for date arithmetic
+### Threading Best Practices
+- Acquire locks for shortest possible duration
+- Perform I/O operations outside of critical sections
+- Use RLock for recursive locking scenarios
+- Consider lock-free designs where possible
 
-### Pattern Matching Limitations
-- Mypy has limitations with Maybe type pattern matching
-- Fallback to isinstance(maybe, Some) when needed
-- Result types work well with match statements
+### Statistics Collection
+- Mutable dataclasses can be efficient for frequently updated stats
+- Helper methods (record_hit, record_miss) improve API clarity
+- Reset functionality important for testing and monitoring
+- Hit ratio calculation should handle zero-division gracefully
 
-### Performance Considerations
-- Single DELETE query significantly faster than SELECT + DELETE
-- Database indexes crucial for expiration queries
-- Consider batch size limits for large-scale operations
-- Cache computed values (like metrics_stats) to avoid repeated DB queries
-- Cleanup operations integrated into analysis workflow for efficiency
+### Type System Integration
+- TypeAlias helpful for complex tuple types (CacheKey)
+- Overloading allows flexible APIs (single metric vs sequence)
+- Protocol types ensure proper plugin implementation
+- Maybe type effectively handles cache miss scenarios
 
-### Plugin System Integration
-- PluginExecutionContext now carries metrics_stats for audit trail
-- Automatic metric cleanup happens before suite analysis
-- Plugin authors can access cleanup statistics via context.metrics_stats
-- Audit plugin provides visibility into cleanup operations
+### Returns Library Best Practices
+- ALWAYS use pattern matching with Result and Maybe types
+- NEVER use isinstance(value, Some/Nothing) - this is an anti-pattern
+- NEVER use hasattr to check for unwrap method
+- Pattern matching is the ONLY correct way to handle returns types
+- Read https://returns.readthedocs.io/en/latest/pages/result.html before using
+
+## Recently Fixed Issues
+
+### provider.py isinstance Usage (FIXED 2025-11-02)
+Fixed incorrect usage of isinstance with Maybe types in provider.py:
+- Replaced `isinstance(cache_result, Some)` with proper pattern matching in `get_metric` method
+- Replaced `isinstance(cache_result, Some)` with proper pattern matching in `get_metrics_by_execution_id` method
+- All tests pass and type checking confirms correctness
+
+### Testing Standards Documentation (ADDED 2025-11-02)
+Comprehensive testing standards now documented in memory bank:
+- Added detailed Testing Patterns section to systemPatterns.md
+- Updated Testing Philosophy in techContext.md
+- Emphasizes real objects over mocks
+- Requires type annotations in all test code
+- Mandates pattern matching for Result/Maybe assertions
+- Follows "minimal tests, maximal coverage" principle
+
+### Git Workflow Documentation (ADDED 2025-11-02)
+Complete Git workflow patterns now documented in memory bank:
+- Added Git Workflow Patterns section to systemPatterns.md
+- Enhanced Git Workflow section in techContext.md
+- Conventional commit format is mandatory
+- Detailed commit and PR creation workflows
+- Branch naming conventions documented
+- Emphasizes --no-pager usage and permission-based commits

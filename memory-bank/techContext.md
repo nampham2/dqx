@@ -193,11 +193,14 @@ Result[float, str]  # Success has float, Failure has error string
 
 ## Testing Philosophy
 
+### Core Principle
+**Test code quality equals source code quality**. Tests should be concise, modern, and maintainable with full type annotations.
+
 ### Test-Driven Development
 1. Write failing test first
 2. Implement minimal code to pass
 3. Refactor while keeping tests green
-4. Maintain 100% coverage
+4. Maintain or exceed current coverage levels
 
 ### Test Categories
 - **Unit tests**: Individual components
@@ -207,11 +210,60 @@ Result[float, str]  # Success has float, Failure has error string
 - **Plugin tests**: Plugin functionality
 
 ### Testing Best Practices
-- Prefer native objects over mocks
-- Test actual behavior, not implementation
-- Clear test names describing scenarios
+
+#### 1. Real Objects Over Mocks
+- **Use real objects whenever possible** - mocks hide bugs
+- Prefer in-memory databases over database mocks
+- Use real instances of classes, not mock objects
+- Only mock external services that can't be controlled
+
+#### 2. Type Safety Required
+- **All test code MUST have type annotations**
+- No `Any` types unless absolutely necessary
+- Full type hints for fixtures, parameters, and returns
+- Type check tests with mypy
+
+#### 3. Returns Library Testing
+- **Always use pattern matching** for Result/Maybe types
+- Never use `isinstance(result, Success/Failure)`
+- Never use `hasattr` to check for methods
+- Pattern matching is the ONLY correct approach
+
+```python
+# Testing Result types
+match result:
+    case Success(value):
+        assert value == expected
+    case Failure(error):
+        pytest.fail(f"Expected Success: {error}")
+
+# Testing Maybe types
+match maybe_value:
+    case Some(value):
+        assert value.name == "test"
+    case Nothing():
+        pytest.fail("Expected Some, got Nothing")
+```
+
+#### 4. Minimal Tests, Maximal Coverage
+- Write fewest tests that provide most coverage
+- Use parametrized tests for similar scenarios
+- Focus on critical paths and edge cases
+- No need for 100% coverage unless requested
+
+#### 5. Functional Testing Style
+- Chain operations functionally where appropriate
+- Use Result/Maybe composition features
+- Test pipelines end-to-end
+- Verify functional transformations
+
+### Testing Standards
+- Clear, descriptive test names
 - Isolated tests with no dependencies
 - Test error paths as thoroughly as success paths
+- Use fixtures for common setup
+- Group related tests in classes
+- Maintain test performance (fast feedback)
 
 ## Performance Considerations
 
@@ -249,6 +301,68 @@ Result[float, str]  # Success has float, Failure has error string
 - Time-limited execution
 - Error isolation
 - No access to sensitive internals
+
+## Git Workflow
+
+### Conventional Commits Required
+All commits and PR titles **MUST** follow conventional commit format:
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+**Types**: feat, fix, docs, style, refactor, perf, test, build, ci, chore
+
+### Commit Process
+1. **Read context first**: `git --no-pager diff`, check README.md, code, tests
+2. **Prepare message**: <10 lines, focus on high-level goal
+3. **Get permission**: Show message before committing
+4. **Never auto-push**: Only push when explicitly asked
+
+**For complex commits**:
+```bash
+# Create message file
+echo "type(scope): description
+
+Body..." > .tmp/commit-msg.txt
+
+git commit --file .tmp/commit-msg.txt
+rm .tmp/commit-msg.txt
+```
+
+### Pull Request Process
+1. **Check clean branch**: `git --no-pager status`
+2. **Read all changes**: `git --no-pager diff main...HEAD`
+3. **Push branch**: `git push -u origin <branch>`
+4. **Create PR**: Title in conventional format, body <10 lines
+
+**For complex PRs**:
+```bash
+# Create PR body
+cat > .tmp/pr-body.md << EOF
+High-level summary...
+EOF
+
+gh pr create --title "type(scope): description" \
+             --body-file .tmp/pr-body.md
+rm .tmp/pr-body.md
+```
+
+### Branch Naming
+- feature/description
+- bugfix/issue-description
+- release/version
+- hotfix/urgent-fix
+
+### Git Commands
+- **Always use --no-pager**: `git --no-pager log`
+- **Never use `git add -A`** without checking status
+- **Commit frequently**: Small, focused commits
+- **Never skip pre-commit hooks**: Fix and retry
 
 ## Deployment Patterns
 
