@@ -2,6 +2,7 @@ import math
 from typing import Tuple
 
 import sympy as sp
+from returns.pipeline import is_successful
 from returns.result import Failure, Result, Success
 
 from dqx.common import DQXError, EvaluationFailure, ResultKey
@@ -145,8 +146,11 @@ class Evaluator:
             symbol_infos.append(symbol_info)
 
             # Collect successful values
-            if isinstance(metric_result, Success):
-                symbol_values[sym] = metric_result.unwrap()
+            match metric_result:
+                case Success(value):
+                    symbol_values[sym] = value
+                case _:
+                    pass
 
         return symbol_values, symbol_infos
 
@@ -176,7 +180,7 @@ class Evaluator:
         symbol_values, symbol_infos = self._gather(expr)
 
         # Check if any symbols failed to evaluate
-        failed_symbols = [si for si in symbol_infos if isinstance(si.value, Failure)]
+        failed_symbols = [si for si in symbol_infos if not is_successful(si.value)]
         if failed_symbols:
             return Failure(
                 [

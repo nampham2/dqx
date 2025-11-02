@@ -248,6 +248,30 @@ if hasattr(result, 'unwrap'):  # Anti-pattern!
     value = result.unwrap()
 ```
 
+#### Helper Functions for Result Checking
+
+For cases where you need to filter or check Result types in list comprehensions or other functional contexts, use the `is_successful` helper from `returns.pipeline`:
+
+```python
+from returns.pipeline import is_successful
+
+# ✅ CORRECT - Using is_successful for filtering
+failed_symbols = [si for si in symbol_infos if not is_successful(si.value)]
+failure_count = sum(1 for s in symbols if not is_successful(s.value))
+
+# The helper works with both Result and Maybe types
+assert is_successful(Success(1)) is True
+assert is_successful(Failure("error")) is False
+assert is_successful(Some(1)) is True
+assert is_successful(Nothing) is False
+```
+
+This helper is particularly useful in:
+- List comprehensions where pattern matching would be verbose
+- Counting operations
+- Filtering collections
+- Boolean checks in functional pipelines
+
 #### Early Return Pattern
 
 ```python
@@ -398,7 +422,8 @@ match result:
 - **Functional Purity**: No side effects in error handling
 
 #### Known Issues in Codebase
-- provider.py currently has incorrect isinstance usage that needs fixing
+- ~~provider.py currently has incorrect isinstance usage that needs fixing~~ (Fixed)
+- ~~evaluator.py and plugins.py had isinstance usage~~ (Fixed - now uses pattern matching and `is_successful`)
 - Some older code might still use Optional instead of Maybe
 
 **Remember**: When in doubt, use pattern matching. It's the only correct way to handle Result and Maybe types.

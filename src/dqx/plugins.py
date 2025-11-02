@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, overload, runtime_checkable
 
 import pyarrow as pa
+from returns.pipeline import is_successful
 from rich.console import Console
 
 from dqx.common import (
@@ -69,9 +70,7 @@ class PluginExecutionContext:
 
     def failed_symbols(self) -> int:
         """Number of symbols with failed computations."""
-        from returns.result import Failure
-
-        return sum(1 for s in self.symbols if isinstance(s.value, Failure))
+        return sum(1 for s in self.symbols if not is_successful(s.value))
 
     def assertions_by_severity(self) -> dict[str, int]:
         """Count of assertions grouped by severity."""
