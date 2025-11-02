@@ -179,35 +179,6 @@ class TestSimpleMetric:
         assert isinstance(result2, Success)
         assert result2.unwrap() == pytest.approx(200.0)
 
-    def test_cache_returns_raw_float(
-        self,
-        metric_spec: MetricSpec,
-        result_key: ResultKey,
-        execution_id: ExecutionId,
-    ) -> None:
-        """Test simple_metric when cache returns a raw float value instead of a Metric object.
-
-        This covers line 102 in compute.py where the else branch handles non-Metric values.
-        """
-        from unittest.mock import Mock
-
-        from returns.maybe import Some
-
-        # Create a mock cache that returns Some(float) instead of Some(Metric)
-        mock_cache = Mock()
-        mock_cache.get.return_value = Some(42.5)
-
-        # Call simple_metric with the mock cache
-        result = simple_metric(metric_spec, "test_dataset", result_key, execution_id, mock_cache)
-
-        # Verify it returns Success with the float value
-        assert isinstance(result, Success)
-        assert result.unwrap() == pytest.approx(42.5)
-
-        # Verify the cache was called with correct parameters
-        expected_key = (metric_spec, result_key, "test_dataset", execution_id)
-        mock_cache.get.assert_called_once_with(expected_key)
-
 
 class TestDayOverDay:
     """Tests for day_over_day function."""

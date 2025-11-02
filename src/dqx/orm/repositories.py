@@ -234,25 +234,23 @@ class MetricDB:
         result = self.new_session().execute(query)
 
         # Convert CTE results to metrics
-        if result:
-            time_series: TimeSeries = {}
-            for row in result:
-                # Reconstruct Metric object from CTE columns
-                metric_obj = Metric(
-                    metric_id=row.metric_id,
-                    metric_type=row.metric_type,
-                    parameters=row.parameters,
-                    dataset=row.dataset,
-                    state=row.state,
-                    value=row.value,
-                    yyyy_mm_dd=row.yyyy_mm_dd,
-                    tags=row.tags,
-                    meta=row.meta,
-                    created=row.created,
-                )
-                time_series[row.yyyy_mm_dd] = metric_obj.to_model()
-            return Maybe.from_value(time_series)
-        return Maybe.from_value({})  # pragma: no cover
+        time_series: TimeSeries = {}
+        for row in result:
+            # Reconstruct Metric object from CTE columns
+            metric_obj = Metric(
+                metric_id=row.metric_id,
+                metric_type=row.metric_type,
+                parameters=row.parameters,
+                dataset=row.dataset,
+                state=row.state,
+                value=row.value,
+                yyyy_mm_dd=row.yyyy_mm_dd,
+                tags=row.tags,
+                meta=row.meta,
+                created=row.created,
+            )
+            time_series[row.yyyy_mm_dd] = metric_obj.to_model()
+        return Maybe.from_value(time_series)
 
     def get_by_execution_id(self, execution_id: str) -> Sequence[models.Metric]:
         """Retrieve all metrics with the specified execution ID.

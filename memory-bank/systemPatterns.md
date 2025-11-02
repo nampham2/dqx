@@ -285,7 +285,9 @@ def get(self, key: CacheKey) -> Maybe[Metric]:
 
 **Compute Functions (compute.py)**:
 ```python
-def simple_metric(...) -> Result[float, str]:
+def simple_metric(
+    metric: MetricSpec, cache: MetricCache, key: CacheKey
+) -> Result[float, str]:
     maybe_metric = cache.get(cache_key)
 
     match maybe_metric:

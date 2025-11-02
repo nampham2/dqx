@@ -95,11 +95,8 @@ def simple_metric(
 
     match maybe_metric:
         case Some(metric_value):
-            # Handle both Metric objects and raw float values
-            if hasattr(metric_value, "value"):
-                return Success(metric_value.value)
-            else:
-                return Success(metric_value)
+            # Cache always returns Metric objects
+            return Success(metric_value.value)
         case _:
             # If not in cache, return failure
             error_msg = (
