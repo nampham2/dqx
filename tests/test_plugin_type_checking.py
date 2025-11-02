@@ -100,6 +100,7 @@ class TestPluginTypeChecking:
 
         import pyarrow as pa
 
+        from dqx.cache import CacheStats
         from dqx.common import ResultKey
         from dqx.orm.repositories import MetricStats
 
@@ -114,6 +115,7 @@ class TestPluginTypeChecking:
             symbols=[],
             trace=pa.table({}),
             metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         # Verify method return types

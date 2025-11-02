@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import timedelta
 from threading import RLock
 from typing import TYPE_CHECKING, TypeAlias, overload
@@ -25,6 +26,36 @@ logger = logging.getLogger(__name__)
 
 # Type alias for cache key
 CacheKey: TypeAlias = tuple[MetricSpec, ResultKey, DatasetName, ExecutionId]
+
+
+@dataclass
+class CacheStats:
+    """Statistics for cache performance tracking."""
+
+    hit: int = 0
+    missed: int = 0
+
+    def hit_ratio(self) -> float:
+        """Calculate cache hit ratio.
+
+        Returns:
+            Hit ratio as hit / (hit + missed), or 0.0 if no requests
+        """
+        total = self.hit + self.missed
+        return self.hit / total if total > 0 else 0.0
+
+    def record_hit(self) -> None:
+        """Record a cache hit."""
+        self.hit += 1
+
+    def record_miss(self) -> None:
+        """Record a cache miss."""
+        self.missed += 1
+
+    def reset(self) -> None:
+        """Reset all statistics to zero."""
+        self.hit = 0
+        self.missed = 0
 
 
 class MetricCache:
@@ -51,7 +82,7 @@ class MetricCache:
         self._cache: dict[CacheKey, Metric] = {}
         self._dirty: set[CacheKey] = set()
         self._lock = RLock()
-        self._hit_count = 0
+        self._stats = CacheStats()
 
     def get(self, key: CacheKey) -> Maybe[Metric]:
         """Get metric from cache or DB.
@@ -69,39 +100,25 @@ class MetricCache:
         with self._lock:
             # Check cache first
             if key in self._cache:
-                # logger.debug("Cache hit for key: %s", key)
-                self._hit_count += 1
+                self._stats.record_hit()
                 return Some(self._cache[key])
 
         # Cache miss - perform DB I/O without holding lock
-        # logger.debug("Cache miss for key: %s, checking DB", key)
         metric_spec, result_key, dataset, execution_id = key
 
         # Query DB with execution_id filter (no lock held)
-        db_result = self._db.get_metric_value(metric_spec, result_key, dataset, execution_id)
+        db_result: Maybe[Metric] = self._db.get_metric(metric_spec, result_key, dataset, execution_id)
 
-        if isinstance(db_result, Some):
-            # Reconstruct metric from DB value
-            # We need to get the full metric, not just the value
-            metrics = list(self._db.get_by_execution_id(execution_id))
-            for metric in metrics:
-                if metric.spec == metric_spec and metric.key == result_key and metric.dataset == dataset:
-                    # Reacquire lock to update cache
-                    with self._lock:
-                        # Double-check: another thread might have populated it
-                        if key in self._cache:
-                            return Some(self._cache[key])
-                        # Update cache
-                        self._cache[key] = metric
-                        # logger.debug("Loaded metric from DB and cached: %s", key)
-                    return Some(metric)
-            # If we got here, we found a value but not the full metric
-            # This shouldn't happen in normal operation
-            logger.warning("Found value in DB but not full metric for key: %s", key)
-            return Nothing
-        else:  # Nothing case
-            logger.debug("Metric not found in DB for key: %s", key)
-            return Nothing
+        match db_result:
+            case Some(value):
+                with self._lock:
+                    self._cache[key] = value
+                    self._stats.record_miss()
+                    return Some(value)
+            case _:
+                with self._lock:
+                    self._stats.record_miss()
+                return Nothing
 
     @overload
     def put(self, metrics: Metric, mark_dirty: bool = False) -> None:
@@ -147,7 +164,7 @@ class MetricCache:
 
                 # logger.debug("Cached metric: %s (dirty=%s)", key, mark_dirty)
 
-    def get_window(
+    def get_timeseries(
         self,
         metric_spec: MetricSpec,
         nominal_key: ResultKey,
@@ -171,26 +188,42 @@ class MetricCache:
         """
         time_series: TimeSeries = {}
 
-        with self._lock:
-            for i in range(window):
-                date_key = nominal_key.yyyy_mm_dd - timedelta(days=i)
-                key = (
-                    metric_spec,
-                    ResultKey(yyyy_mm_dd=date_key, tags=nominal_key.tags),
-                    dataset,
-                    execution_id,
-                )
+        for lag in range(window):
+            date_key = nominal_key.yyyy_mm_dd - timedelta(days=lag)
+            key = (
+                metric_spec,
+                ResultKey(yyyy_mm_dd=date_key, tags=nominal_key.tags),
+                dataset,
+                execution_id,
+            )
 
-                result = self.get(key)
-                if isinstance(result, Some):
-                    metric = result.unwrap()
-                    # Cast to dict to allow assignment
-                    time_series_dict = dict(time_series)
-                    time_series_dict[date_key] = metric.value
-                    time_series = time_series_dict
-                # else:  # Nothing case
-                # Skip missing dates
-                # logger.debug("Missing metric for date %s in window", date_key)
+            result: Maybe[Metric] = self.get(key)
+            match result:
+                case Some(metric):
+                    time_series[metric.key.yyyy_mm_dd] = metric
+                case _:
+                    pass  # Skip missing dates
+        return time_series
+
+    def get_sparse_timeseries(
+        self,
+        metric_spec: MetricSpec,
+        nominal_key: ResultKey,
+        dataset: str,
+        execution_id: ExecutionId,
+        lags: Sequence[int],
+    ) -> TimeSeries:
+        time_series: TimeSeries = {}
+
+        for lag in lags:
+            key = (metric_spec, nominal_key.lag(lag), dataset, execution_id)
+            result: Maybe[Metric] = self.get(key)
+
+            match result:
+                case Some(metric):
+                    time_series[metric.key.yyyy_mm_dd] = metric
+                case _:
+                    pass  # Skip missing dates
 
         return time_series
 
@@ -199,6 +232,7 @@ class MetricCache:
         with self._lock:
             self._cache.clear()
             self._dirty.clear()
+            self._stats.reset()
             logger.info("Cache cleared")
 
     def is_dirty(self, key: CacheKey) -> bool:
@@ -273,11 +307,11 @@ class MetricCache:
             metric.metadata.execution_id,
         )
 
-    def get_hit_count(self) -> int:
-        """Get the number of cache hits.
+    def get_stats(self) -> CacheStats:
+        """Get cache performance statistics.
 
         Returns:
-            Number of times cache was hit (not missed)
+            CacheStats with current hit/miss counts and ratio
         """
         with self._lock:
-            return self._hit_count
+            return self._stats

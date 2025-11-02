@@ -12,6 +12,7 @@ from dqx.common import (
 )
 from dqx.orm.repositories import MetricStats
 from dqx.plugins import PluginExecutionContext, PluginManager
+from dqx.cache import CacheStats
 
 
 def _create_empty_trace() -> pa.Table:
@@ -231,6 +232,7 @@ class TestPluginPublicAPI:
             symbols=[],
             trace=_create_empty_trace(),
             metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         manager.process_all(context)

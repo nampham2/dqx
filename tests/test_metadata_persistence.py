@@ -58,14 +58,19 @@ class TestMetadataPersistence:
         report.persist(db, provider._cache)
 
         # Verify metadata was persisted
+        from returns.maybe import Maybe, Some
+
         for metric_spec, result_key, dataset_name in report:
-            metric = db.get(result_key, metric_spec)
-            assert metric is not None
-            persisted = metric.unwrap()
-            assert persisted.metadata is not None
-            assert persisted.metadata.execution_id == "test-run-123"
-            # Default ttl_hours is 168, not 48
-            assert persisted.metadata.ttl_hours == 168
+            metric = db.get_metric(metric_spec, result_key, dataset_name, execution_id)
+
+            match metric:
+                case Some(persisted):
+                    assert persisted.metadata is not None
+                    assert persisted.metadata.execution_id == "test-run-123"
+                    # Default ttl_hours is 168, not 48
+                    assert persisted.metadata.ttl_hours == 168
+                case Maybe.empty:
+                    raise AssertionError(f"Metric not found: {metric_spec}")
 
     def test_analyzer_without_metadata(self, ds: DuckRelationDataSource, db: InMemoryMetricDB) -> None:
         """Test Analyzer creates metadata with execution_id."""
@@ -86,14 +91,19 @@ class TestMetadataPersistence:
         report.persist(db, provider._cache)
 
         # Verify metadata with execution_id was created
+        from returns.maybe import Maybe, Some
+
         for metric_spec, result_key, dataset_name in report:
-            metric = db.get(result_key, metric_spec)
-            assert metric is not None
-            persisted = metric.unwrap()
-            assert persisted.metadata is not None
-            # execution_id is empty string when passed as empty string
-            assert persisted.metadata.execution_id == ""
-            assert persisted.metadata.ttl_hours == 168  # Default is 7 days
+            metric = db.get_metric(metric_spec, result_key, dataset_name, "")
+
+            match metric:
+                case Some(persisted):
+                    assert persisted.metadata is not None
+                    # execution_id is empty string when passed as empty string
+                    assert persisted.metadata.execution_id == ""
+                    assert persisted.metadata.ttl_hours == 168  # Default is 7 days
+                case Maybe.empty:
+                    raise AssertionError(f"Metric not found: {metric_spec}")
 
     def test_metadata_roundtrip(self, ds: DuckRelationDataSource) -> None:
         """Test metadata survives full roundtrip."""
@@ -121,15 +131,25 @@ class TestMetadataPersistence:
         assert persisted_metrics[0].metadata == expected_metadata
 
         # Simulate retrieving from db1 and persisting to db2
+        from returns.maybe import Maybe, Some
+
         for metric in persisted_metrics:
             if metric.metric_id is not None:
-                retrieved = db1.get(metric.metric_id)
-                assert retrieved is not None
+                # Retrieve using the metric's properties
+                retrieved = db1.get_metric(metric.spec, metric.key, metric.dataset, "roundtrip-test")
 
-                # Persist to second database
-                db2.persist([retrieved.unwrap()])
+                match retrieved:
+                    case Some(retrieved_metric):
+                        # Persist to second database
+                        db2.persist([retrieved_metric])
 
-                # Verify in second database
-                from_db2 = db2.get(metric.metric_id)
-                assert from_db2 is not None
-                assert from_db2.unwrap().metadata == expected_metadata
+                        # Verify in second database
+                        from_db2 = db2.get_metric(metric.spec, metric.key, metric.dataset, "roundtrip-test")
+
+                        match from_db2:
+                            case Some(verified_metric):
+                                assert verified_metric.metadata == expected_metadata
+                            case Maybe.empty:
+                                raise AssertionError("Metric not found in db2")
+                    case Maybe.empty:
+                        raise AssertionError("Metric not found in db1")

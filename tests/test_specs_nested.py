@@ -69,12 +69,35 @@ class TestNestedExtendedMetrics:
         # Store in database
         db = InMemoryMetricDB()
         key = ResultKey(yyyy_mm_dd=dt.date(2024, 10, 24), tags={})
-        metric = models.Metric.build(stddev, key, dataset="test_dataset", state=stddev.state())
+
+        # Create metric with explicit metadata including execution_id
+        from dqx.common import Metadata
+
+        metadata = Metadata(execution_id="test_execution")
+        metric = models.Metric.build(stddev, key, dataset="test_dataset", state=stddev.state(), metadata=metadata)
 
         persisted = list(db.persist([metric]))[0]
 
         # Retrieve and verify
         assert persisted.metric_id is not None
-        retrieved = db.get(persisted.metric_id).unwrap()
-        assert retrieved.spec == stddev
-        assert retrieved.spec.name == "stddev(dod(average(tax)), offset=1, n=7)"
+
+        # Verify database roundtrip by fetching the stored metric
+
+        # Fetch the metric from database using the same execution_id
+        fetched = db.get_metric(metric=stddev, key=key, dataset="test_dataset", execution_id="test_execution")
+
+        # Verify the fetched metric matches what was persisted
+        from returns.maybe import Some
+
+        match fetched:
+            case Some(fetched_metric):
+                assert fetched_metric.spec == stddev
+                assert fetched_metric.spec.name == "stddev(dod(average(tax)), offset=1, n=7)"
+                assert fetched_metric.key == key
+                assert fetched_metric.dataset == "test_dataset"
+                assert fetched_metric.metric_id == persisted.metric_id
+            case _:
+                raise AssertionError("Expected to fetch metric from database")
+
+        # Also verify it exists in the database
+        assert db.exists(persisted.metric_id)

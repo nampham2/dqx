@@ -10,6 +10,7 @@ from returns.result import Failure
 
 from dqx.analyzer import AnalysisReport, Analyzer
 from dqx.api import AssertionDraft, Context, VerificationSuite, check
+from dqx.cache import CacheStats
 from dqx.common import AssertionResult, DQXError, ResultKey
 from dqx.graph.nodes import CheckNode
 from dqx.orm.repositories import MetricStats
@@ -278,6 +279,7 @@ class TestPluginsCoverage:
             ],
             trace=pa.table({"col": [1, 2, 3]}),
             metrics_stats=MetricStats(total_metrics=100, expired_metrics=5),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         # Mock the data discrepancy stats
@@ -311,6 +313,7 @@ class TestPluginsCoverage:
             symbols=[],  # No symbols
             trace=pa.table({"col": []}),
             metrics_stats=MetricStats(total_metrics=50, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         # Mock no discrepancies
@@ -353,6 +356,7 @@ class TestPluginsCoverage:
             ],
             trace=pa.table({"col": []}),
             metrics_stats=MetricStats(total_metrics=10, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         with patch.object(context3, "data_discrepancy_stats", return_value=None):

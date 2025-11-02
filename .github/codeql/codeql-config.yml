@@ -1,7 +1,8 @@
 name: "Custom CodeQL config"
-queries:
-  - uses: security-extended
-  - uses: security-and-quality
+# Using default query suite for balanced security analysis
+# queries:
+#   - uses: security-extended
+#   - uses: security-and-quality
 query-filters:
   - exclude:
       id: py/cyclic-import

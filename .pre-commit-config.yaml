@@ -100,7 +100,7 @@ repos:
         args: ['--line-length=88']  # Match Black's default
         files: '\.(md|rst|tex)$'
         types: [text]
-        exclude: '^docs/plans/'  # Exclude planning docs with pseudo-code
+        exclude: '^(docs/plans/|memory-bank/)'  # Exclude planning docs and memory bank
         stages: [pre-commit]
 
   # YAML validation and linting

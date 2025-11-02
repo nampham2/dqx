@@ -3,7 +3,6 @@
 from datetime import date
 
 import pyarrow as pa
-from returns.maybe import Nothing
 
 from dqx import specs
 from dqx.api import Context, VerificationSuite, check
@@ -50,25 +49,48 @@ def test_stddev_of_dod_creates_dependencies() -> None:
         key = ResultKey(yyyy_mm_dd=key_date, tags={"test": "stddev_dod"})
         suite.run([datasource], key)
 
-    # Verify all required metrics exist in DB
-    # Should have average(tax) for days 1-9 (to compute DoD for days 2-9)
-    for day in range(1, 10):
-        key_day = ResultKey(yyyy_mm_dd=date(2024, 1, day), tags={"test": "stddev_dod"})
-        avg_metric = db.get(key_day, specs.Average("tax"))
-        assert avg_metric != Nothing, f"Missing average(tax) for day {day}"
+    # Since each suite run has a different execution ID, we need to check metrics differently
+    # For each day, verify that the required metrics were computed during that day's suite run
 
-    # Verify DoD metrics exist for days 2-9
-    for day in range(2, 10):
-        key_day = ResultKey(yyyy_mm_dd=date(2024, 1, day), tags={"test": "stddev_dod"})
-        dod_spec = specs.DayOverDay.from_base_spec(specs.Average("tax"))
-        dod_metric = db.get(key_day, dod_spec)
-        assert dod_metric != Nothing, f"Missing dod(average(tax)) for day {day}"
+    # Verify all required metrics exist in DB by checking if we can retrieve them
+    # Should have average(tax) for all days where suites were run
 
-    # Verify the final stddev metric exists
-    final_key = ResultKey(yyyy_mm_dd=date(2024, 1, 10), tags={"test": "stddev_dod"})
-    stddev_spec = specs.Stddev.from_base_spec(specs.DayOverDay.from_base_spec(specs.Average("tax")), offset=0, n=7)
-    final_metric = db.get(final_key, stddev_spec)
-    assert final_metric != Nothing
+    # We can't use get_metric without execution_id, so let's just verify the last execution has all the metrics it needs
+
+    # For the last execution (day 10), it should have computed:
+    # - Average(tax) for days 3-10 (8 days)
+    # - DayOverDay for days 4-10 (7 days)
+    # - Stddev for day 10 (1 metric)
+    last_suite = suite  # The last suite from the loop above
+    all_metrics = db.get_by_execution_id(last_suite.execution_id)
+
+    # Group metrics by type
+    metrics_by_type: dict[str, list] = {"Average": [], "DayOverDay": [], "Stddev": [], "NumRows": []}
+    for metric in all_metrics:
+        metric_type = metric.spec.metric_type
+        if metric_type in metrics_by_type:
+            metrics_by_type[metric_type].append(metric)
+
+    # Verify we have the right number of each metric type
+    # The last suite (day 10) computes stddev which needs 7 days of DoD values
+    # Each DoD needs the current and previous day's average
+    # So we need averages for days 3-10 (8 days) and DoD for days 4-10 (7 days)
+    assert len(metrics_by_type["Average"]) >= 8, (
+        f"Expected at least 8 Average metrics, got {len(metrics_by_type['Average'])}"
+    )
+    assert len(metrics_by_type["DayOverDay"]) >= 7, (
+        f"Expected at least 7 DayOverDay metrics, got {len(metrics_by_type['DayOverDay'])}"
+    )
+    assert len(metrics_by_type["Stddev"]) >= 1, (
+        f"Expected at least 1 Stddev metric, got {len(metrics_by_type['Stddev'])}"
+    )
+
+    # Verify the stddev metric has the expected parameters
+    stddev_metrics = [m for m in all_metrics if m.spec.metric_type == "Stddev"]
+    assert len(stddev_metrics) > 0, "No Stddev metric found"
+    stddev_metric_obj = stddev_metrics[0]
+    assert stddev_metric_obj.spec.parameters.get("offset") == 0
+    assert stddev_metric_obj.spec.parameters.get("n") == 7
 
 
 def test_nested_extended_metrics_combinations() -> None:
@@ -136,12 +158,23 @@ def test_extended_metric_dependency_creation_bug() -> None:
     # If the bug was present, the execution would have failed
     # Let's verify the metrics were created correctly by checking the database
 
+    # Get all metrics from the execution
+    all_metrics = db.get_by_execution_id(suite.execution_id)
+
     # Check that the stddev metric was computed
-    stddev_spec = specs.Stddev.from_base_spec(specs.DayOverDay.from_base_spec(specs.Average("tax")), offset=0, n=7)
-    stddev_result = db.get(key, stddev_spec)
+    found_stddev = False
+    for metric in all_metrics:
+        if (
+            metric.spec.metric_type == "Stddev"
+            and metric.spec.parameters.get("offset") == 0
+            and metric.spec.parameters.get("n") == 7
+            and metric.key == key
+        ):
+            found_stddev = True
+            break
 
     # The bug is fixed if we can successfully get a result
-    assert stddev_result != Nothing, "Stddev metric was not computed - bug still present"
+    assert found_stddev, "Stddev metric was not computed - bug still present"
 
     # Additionally verify the dependencies are correct
     stddev_metric = provider.get_symbol(stddev)

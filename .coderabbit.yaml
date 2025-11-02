@@ -37,6 +37,8 @@ path_filters:
     - "**/dist/**"
     - "**/build/**"
     - "**/*.egg-info/**"
+    - "**/docs/**"
+    - "**/memory-bank/**"
 
   # Always review these critical files
   always_include:

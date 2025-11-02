@@ -65,7 +65,8 @@ class TestProviderCacheIntegration:
         assert result.unwrap() == sample_metric
 
         # Verify it came from cache by checking cache stats
-        assert provider.cache.get_hit_count() > 0
+        stats = provider.cache.get_stats()
+        assert stats.hit > 0
 
     def test_provider_populates_cache_on_miss(
         self, provider: MetricProvider, db: InMemoryMetricDB, sample_metric: Metric
@@ -122,7 +123,8 @@ class TestProviderCacheIntegration:
         assert len(results) == 5
 
         # All should have been served from cache
-        assert provider.cache.get_hit_count() >= 5
+        stats = provider.cache.get_stats()
+        assert stats.hit >= 5
 
     def test_provider_cache_invalidation_on_update(self, provider: MetricProvider, sample_metric: Metric) -> None:
         """Test cache is properly updated when metric is updated."""
@@ -198,7 +200,7 @@ class TestProviderCacheIntegration:
         assert provider.cache.get_dirty_count() == 0
 
     def test_provider_get_window_uses_cache(self, provider: MetricProvider) -> None:
-        """Test provider get_window leverages cache."""
+        """Test provider's cache can serve time windows."""
         # Create metrics for multiple days
         metrics = []
         base_date = date(2024, 1, 10)
@@ -215,18 +217,15 @@ class TestProviderCacheIntegration:
         # Persist through provider
         provider.persist(metrics)
 
-        # Get window through provider
-        window = provider.get_metric_window(
-            metric_spec=Sum("revenue"),
-            result_key=ResultKey(yyyy_mm_dd=base_date, tags={}),
-            dataset="sales",
-            execution_id="exec-123",
-            window_size=5,
+        # Get window through provider's cache
+        window = provider.cache.get_timeseries(
+            Sum("revenue"), ResultKey(yyyy_mm_dd=base_date, tags={}), "sales", "exec-123", 5
         )
 
         assert len(window) == 5
-        assert window[base_date] == 100.0
-        assert window[base_date - timedelta(days=4)] == 104.0
+        assert window[base_date].value == 100.0
+        assert window[base_date - timedelta(days=4)].value == 104.0
 
         # Should have used cache
-        assert provider.cache.get_hit_count() > 0
+        stats = provider.cache.get_stats()
+        assert stats.hit > 0

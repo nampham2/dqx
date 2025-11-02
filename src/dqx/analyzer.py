@@ -8,7 +8,6 @@ from typing import Any, TypeVar
 
 import numpy as np
 import sqlparse
-from returns.maybe import Some
 from returns.result import Failure, Success
 
 from dqx import models, states
@@ -112,7 +111,7 @@ class AnalysisReport(UserDict[MetricKey, models.Metric]):
 
         print_analysis_report(self, symbol_lookup)
 
-    def persist(self, db: MetricDB, cache: MetricCache, overwrite: bool = True) -> None:
+    def persist(self, db: MetricDB, cache: MetricCache) -> None:
         """Persist the analysis report to the metric database.
 
         NOTE: This method is NOT thread-safe. If thread safety is required,
@@ -127,37 +126,10 @@ class AnalysisReport(UserDict[MetricKey, models.Metric]):
             logger.warning("Try to save an EMPTY analysis report!")
             return
 
-        if overwrite:
-            logger.info("Overwriting analysis report ...")
-            db.persist(self.values())
-            # Warm cache
-            cache.put(list(self.values()))
-        else:
-            logger.info("Merging analysis report ...")
-            self._merge_persist(db, cache)
-
-    def _merge_persist(self, db: MetricDB, cache: MetricCache) -> None:
-        """Merge with existing metrics in the database before persisting.
-
-        NOTE: This method is NOT thread-safe.
-
-        Args:
-            db: MetricDB instance for persistence
-            cache: MetricCache instance to warm the cache when persisting
-        """
-        db_report = AnalysisReport()
-
-        for key, metric in self.items():  # Changed from self._report.items()
-            # Find the metric in DB
-            db_metric_maybe = db.get(metric.key, metric.spec)
-            if isinstance(db_metric_maybe, Some):
-                db_report[key] = db_metric_maybe.unwrap()
-
-        # Merge and persist
-        merged_report = self.merge(db_report)
-        db.persist(merged_report.values())
-        # Warm cache
-        cache.put(list(merged_report.values()))
+        # Overwrite metrics in DB
+        logger.info("Overwriting analysis report ...")
+        cache.put(list(self.values()), mark_dirty=True)
+        cache.write_back()
 
 
 def analyze_sql_ops(ds: T, ops: Sequence[SqlOp], nominal_date: datetime.date) -> None:

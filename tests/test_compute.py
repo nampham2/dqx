@@ -576,14 +576,23 @@ class TestStddev:
 class TestTimeseriesCheck:
     """Tests for _timeseries_check helper function."""
 
+    def _create_mock_metric(self, value: float) -> Metric:
+        """Create a mock metric for testing."""
+        return Metric(
+            spec=Sum("test"),
+            state=SimpleAdditiveState(value=value),
+            key=ResultKey(yyyy_mm_dd=date(2024, 1, 1), tags={}),
+            dataset="test",
+        )
+
     def test_success_all_dates_present(self) -> None:
         """Test with all expected dates present."""
         # Create timeseries with all dates
         base = date(2024, 1, 10)
         ts: TimeSeries = {
-            base: 100.0,
-            base + timedelta(days=1): 110.0,
-            base + timedelta(days=2): 120.0,
+            base: self._create_mock_metric(100.0),
+            base + timedelta(days=1): self._create_mock_metric(110.0),
+            base + timedelta(days=2): self._create_mock_metric(120.0),
         }
 
         # Check
@@ -598,11 +607,11 @@ class TestTimeseriesCheck:
         # Create timeseries with extra dates
         base = date(2024, 1, 10)
         ts: TimeSeries = {
-            base - timedelta(days=1): 90.0,  # Extra before
-            base: 100.0,
-            base + timedelta(days=1): 110.0,
-            base + timedelta(days=2): 120.0,
-            base + timedelta(days=3): 130.0,  # Extra after
+            base - timedelta(days=1): self._create_mock_metric(90.0),  # Extra before
+            base: self._create_mock_metric(100.0),
+            base + timedelta(days=1): self._create_mock_metric(110.0),
+            base + timedelta(days=2): self._create_mock_metric(120.0),
+            base + timedelta(days=3): self._create_mock_metric(130.0),  # Extra after
         }
 
         # Check for 3 days starting from base
@@ -617,9 +626,9 @@ class TestTimeseriesCheck:
         # Create timeseries missing one date
         base = date(2024, 1, 10)
         ts: TimeSeries = {
-            base: 100.0,
+            base: self._create_mock_metric(100.0),
             # Missing: base + timedelta(days=1)
-            base + timedelta(days=2): 120.0,
+            base + timedelta(days=2): self._create_mock_metric(120.0),
         }
 
         # Check
@@ -635,9 +644,9 @@ class TestTimeseriesCheck:
         # Create timeseries missing multiple dates
         base = date(2024, 1, 10)
         ts: TimeSeries = {
-            base: 100.0,
+            base: self._create_mock_metric(100.0),
             # Missing: base + 1, 2, 3, 4
-            base + timedelta(days=5): 150.0,
+            base + timedelta(days=5): self._create_mock_metric(150.0),
         }
 
         # Check for 6 days
@@ -651,7 +660,7 @@ class TestTimeseriesCheck:
         """Test that limit parameter controls error message."""
         # Create timeseries missing many dates
         base = date(2024, 1, 1)
-        ts: TimeSeries = {base: 100.0}  # Only first date
+        ts: TimeSeries = {base: self._create_mock_metric(100.0)}  # Only first date
 
         # Check for 10 days with limit=3
         result = _timeseries_check(ts, base, 10, limit=3)
@@ -681,14 +690,23 @@ class TestTimeseriesCheck:
 class TestSparseTimeseriesCheck:
     """Tests for _sparse_timeseries_check helper function."""
 
+    def _create_mock_metric(self, value: float) -> Metric:
+        """Create a mock metric for testing."""
+        return Metric(
+            spec=Sum("test"),
+            state=SimpleAdditiveState(value=value),
+            key=ResultKey(yyyy_mm_dd=date(2024, 1, 1), tags={}),
+            dataset="test",
+        )
+
     def test_success_all_lag_points_present(self) -> None:
         """Test with all required lag points present."""
         # Create timeseries with specific lag points
         base = date(2024, 1, 10)
         ts: TimeSeries = {
-            base: 100.0,  # lag 0
-            base - timedelta(days=7): 70.0,  # lag 7
-            base - timedelta(days=30): 30.0,  # lag 30
+            base: self._create_mock_metric(100.0),  # lag 0
+            base - timedelta(days=7): self._create_mock_metric(70.0),  # lag 7
+            base - timedelta(days=30): self._create_mock_metric(30.0),  # lag 30
         }
 
         # Check for specific lag points
@@ -703,10 +721,10 @@ class TestSparseTimeseriesCheck:
         # Create timeseries with extra dates
         base = date(2024, 1, 10)
         ts: TimeSeries = {
-            base: 100.0,  # lag 0
-            base - timedelta(days=1): 90.0,  # Extra
-            base - timedelta(days=7): 70.0,  # lag 7
-            base - timedelta(days=15): 50.0,  # Extra
+            base: self._create_mock_metric(100.0),  # lag 0
+            base - timedelta(days=1): self._create_mock_metric(90.0),  # Extra
+            base - timedelta(days=7): self._create_mock_metric(70.0),  # lag 7
+            base - timedelta(days=15): self._create_mock_metric(50.0),  # Extra
         }
 
         # Check for specific lag points
@@ -721,9 +739,9 @@ class TestSparseTimeseriesCheck:
         # Create timeseries missing some lag points
         base = date(2024, 1, 10)
         ts: TimeSeries = {
-            base: 100.0,  # lag 0
+            base: self._create_mock_metric(100.0),  # lag 0
             # Missing: lag 7
-            base - timedelta(days=30): 30.0,  # lag 30
+            base - timedelta(days=30): self._create_mock_metric(30.0),  # lag 30
         }
 
         # Check
@@ -739,8 +757,8 @@ class TestSparseTimeseriesCheck:
         # Create timeseries with some data
         base = date(2024, 1, 10)
         ts: TimeSeries = {
-            base: 100.0,
-            base - timedelta(days=1): 90.0,
+            base: self._create_mock_metric(100.0),
+            base - timedelta(days=1): self._create_mock_metric(90.0),
         }
 
         # Check with empty lag points
@@ -755,8 +773,8 @@ class TestSparseTimeseriesCheck:
         # Create timeseries
         base = date(2024, 1, 10)
         ts: TimeSeries = {
-            base: 100.0,  # lag 0
-            base - timedelta(days=7): 70.0,  # lag 7
+            base: self._create_mock_metric(100.0),  # lag 0
+            base - timedelta(days=7): self._create_mock_metric(70.0),  # lag 7
         }
 
         # Check with duplicate lag points

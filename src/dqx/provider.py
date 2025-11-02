@@ -5,7 +5,7 @@ import logging
 from abc import ABC
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import date, timedelta
+from datetime import timedelta
 from threading import Lock
 from typing import TYPE_CHECKING, Callable, overload
 
@@ -876,12 +876,15 @@ class MetricProvider(SymbolicMetricBase):
         """Get metric from cache or database."""
         # Try cache first
         cache_result = self._cache.get((metric_spec, result_key, dataset, execution_id))
-        if isinstance(cache_result, Some):
-            metric = cache_result.unwrap()
-            # Wrap in Result for return type compatibility
-            from returns.result import Success
+        match cache_result:
+            case Some(metric):
+                # Wrap in Result for return type compatibility
+                from returns.result import Success
 
-            return Success(metric)
+                return Success(metric)
+            case _:
+                # Cache miss - continue to DB lookup
+                pass
 
         # Cache miss - get from DB
         metrics = self._db.get_by_execution_id(execution_id)
@@ -917,18 +920,12 @@ class MetricProvider(SymbolicMetricBase):
         for metric in metrics_from_db:
             cache_key = (metric.spec, metric.key, metric.dataset, execution_id)
             cache_result = self._cache.get(cache_key)
-            if isinstance(cache_result, Some):
-                result_metrics.append(cache_result.unwrap())
-            else:
-                # Not in cache, add it
-                self._cache.put(metric)
-                result_metrics.append(metric)
+            match cache_result:
+                case Some(cached_metric):
+                    result_metrics.append(cached_metric)
+                case _:
+                    # Not in cache, add it
+                    self._cache.put(metric)
+                    result_metrics.append(metric)
 
         return result_metrics
-
-    def get_metric_window(
-        self, metric_spec: MetricSpec, result_key: ResultKey, dataset: str, execution_id: ExecutionId, window_size: int
-    ) -> dict[date, float]:
-        """Get time window of metric values from cache."""
-        # The cache returns TimeSeries which is compatible with dict[date, float]
-        return dict(self._cache.get_window(metric_spec, result_key, dataset, execution_id, window_size))

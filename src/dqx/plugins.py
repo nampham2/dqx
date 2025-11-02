@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol, overload, runtime_checkable
 
 import pyarrow as pa
+from returns.pipeline import is_successful
 from rich.console import Console
 
 from dqx.common import (
@@ -15,12 +16,11 @@ from dqx.common import (
     PluginMetadata,
     ResultKey,
 )
-
-# from dqx.orm.repositories import MetricStats  # Removed to break cyclic import
 from dqx.provider import SymbolInfo
 from dqx.timer import TimeLimitExceededError, TimeLimiting
 
 if TYPE_CHECKING:
+    from dqx.cache import CacheStats
     from dqx.data import MetricTraceStats
     from dqx.orm.repositories import MetricStats
 
@@ -43,7 +43,8 @@ class PluginExecutionContext:
     results: list[AssertionResult]
     symbols: list[SymbolInfo]
     trace: pa.Table
-    metrics_stats: "MetricStats"  # type: ignore[name-defined]
+    metrics_stats: "MetricStats"
+    cache_stats: "CacheStats"
 
     def total_assertions(self) -> int:
         """Total number of assertions."""
@@ -69,9 +70,7 @@ class PluginExecutionContext:
 
     def failed_symbols(self) -> int:
         """Number of symbols with failed computations."""
-        from returns.result import Failure
-
-        return sum(1 for s in self.symbols if isinstance(s.value, Failure))
+        return sum(1 for s in self.symbols if not is_successful(s.value))
 
     def assertions_by_severity(self) -> dict[str, int]:
         """Count of assertions grouped by severity."""
@@ -367,6 +366,16 @@ class AuditPlugin:
         self.console.print(
             f"  Metrics Cleanup: [green]{context.metrics_stats.expired_metrics} expired metrics removed[/green]"
         )
+
+        # Cache performance line
+        stats = context.cache_stats
+        if stats.hit + stats.missed > 0:
+            hit_rate = stats.hit_ratio() * 100
+            self.console.print(
+                f"  Cache Performance: [green]hit: {stats.hit}[/green], [red]missed: {stats.missed}[/red] ({hit_rate:.1f}% hit rate)"
+            )
+        else:
+            self.console.print("  Cache Performance: [green]hit: 0[/green], [red]missed: 0[/red]")
 
         # Data discrepancy line
         discrepancy_stats = context.data_discrepancy_stats()

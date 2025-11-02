@@ -88,11 +88,9 @@ class TestAnalysisReport:
         # Test persist with overwrite
         mock_db = Mock()
         mock_cache = Mock()
-        merged.persist(mock_db, mock_cache, overwrite=True)
-        mock_db.persist.assert_called_once()
-        persisted_metrics = list(mock_db.persist.call_args[0][0])
-        assert len(persisted_metrics) == 2
-        mock_cache.put.assert_called_once()
+        merged.persist(mock_db, mock_cache)
+        mock_cache.put.assert_called_once_with(list(merged.values()), mark_dirty=True)
+        mock_cache.write_back.assert_called_once()
 
         # Test persist empty report
         empty_report = AnalysisReport()
@@ -374,8 +372,8 @@ class TestAnalysisReportWithCache:
 class TestAnalysisReportMergePersist:
     """Test AnalysisReport _merge_persist functionality."""
 
-    def test_report_merge_persist_without_overwrite(self) -> None:
-        """Test persist with overwrite=False to trigger _merge_persist."""
+    def test_report_persist_with_cache(self) -> None:
+        """Test persist with new cache-based implementation."""
         from dqx.cache import MetricCache
         from dqx.common import Metadata
         from dqx.orm.repositories import InMemoryMetricDB
@@ -397,7 +395,7 @@ class TestAnalysisReportMergePersist:
         )
         db.persist([existing_metric])
 
-        # Create a new report with the same metric key but different value
+        # Create a new report with a new metric
         new_metric = models.Metric.build(
             metric=spec,
             key=key,
@@ -407,13 +405,13 @@ class TestAnalysisReportMergePersist:
         )
         report = AnalysisReport({(spec, key, "sales"): new_metric})
 
-        # Persist with overwrite=False to trigger _merge_persist
-        report.persist(db, cache, overwrite=False)
+        # Persist using new cache-based implementation
+        report.persist(db, cache)
 
-        # Verify the metric was merged (values should be summed)
-        stored_metric = db.get(key, spec)
+        # Verify the new metric overwrote the old one (no merging)
+        stored_metric = db.get_metric(spec, key, "sales", "exec-2")
         assert stored_metric != Nothing
-        assert stored_metric.unwrap().value == 150.0  # 100 + 50
+        assert stored_metric.unwrap().value == 50.0  # New value, not merged
 
 
 class TestAnalyzerExtendedMetrics:
