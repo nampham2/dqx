@@ -345,74 +345,74 @@ match result:
 #### Common Patterns in DQX
 
 1. **Cache Miss Handling**:
-   ```python
-   match cache.get(key):
-       case Some(metric):
-           return Success(metric.value)
-       case Nothing():
-           return Failure("Not in cache")
-   ```
+```python
+match cache.get(key):
+    case Some(metric):
+        return Success(metric.value)
+    case Nothing():
+        return Failure("Not in cache")
+```
 
 2. **Validation Chains**:
-   ```python
-   match validate_dates(ts, expected_dates):
-       case Failure() as f:
-           return f
-       case Success():
-           # Continue processing
-   ```
+```python
+match validate_dates(ts, expected_dates):
+    case Failure() as f:
+        return f
+    case Success():
+        # Continue processing
+```
 
 3. **Database Fallback**:
-   ```python
-   # Cache first, then database
-   match cache_result:
-       case Some(value):
-           return Success(value)
-       case Nothing():
-           # Try database
-           match db_result:
-               case Some(value):
-                   cache.put(value)
-                   return Success(value)
-               case Nothing():
-                   return Failure("Not found")
-   ```
+```python
+# Cache first, then database
+match cache_result:
+    case Some(value):
+        return Success(value)
+    case Nothing():
+        # Try database
+        match db_result:
+            case Some(value):
+                cache.put(value)
+                return Success(value)
+            case Nothing():
+                return Failure("Not found")
+```
 
 #### Anti-Patterns to Avoid
 
 1. **❌ isinstance Checking**:
-   ```python
-   # WRONG - breaks functional paradigm
-   if isinstance(maybe, Some):
-       value = maybe.unwrap()
-   ```
+```python
+# WRONG - breaks functional paradigm
+if isinstance(maybe, Some):
+    value = maybe.unwrap()
+```
 
 2. **❌ hasattr Checking**:
-   ```python
-   # WRONG - implementation detail leak
-   if hasattr(result, 'failure'):
-       handle_error(result.failure())
-   ```
+```python
+# WRONG - implementation detail leak
+if hasattr(result, 'failure'):
+    handle_error(result.failure())
+```
 
 3. **❌ Try-Except with Result**:
-   ```python
-   # WRONG - mixing paradigms
-   try:
-       return Success(risky_operation())
-   except Exception as e:
-       return Failure(str(e))
-   ```
+```python
+# WRONG - mixing paradigms
+try:
+    return Success(risky_operation())
+except Exception as e:
+    return Failure(str(e))
+```
 
 4. **❌ Using None Instead of Nothing**:
-   ```python
-   # WRONG - use Maybe type
-   def get_value() -> Optional[float]:  # Bad
-       return None
+```python
+# WRONG - use Maybe type
+def get_value() -> Optional[float]:  # Bad
+    return None
 
-   # CORRECT
-   def get_value() -> Maybe[float]:
-       return Nothing
-   ```
+# CORRECT
+def get_value() -> Maybe[float]:
+    return Nothing
+```
 
 #### Benefits
 - **Explicit Error Handling**: All failure points visible in type signatures
@@ -1046,11 +1046,11 @@ refactor(analyzer): simplify SQL generation logic
 **Step-by-step process for committing changes**:
 
 1. **Read Context First**:
-   ```bash
-   git --no-pager diff
-   git --no-pager status
-   # Review README.md, related code, and tests
-   ```
+```bash
+git --no-pager diff
+git --no-pager status
+# Review README.md, related code, and tests
+```
 
 2. **Prepare Commit Message**:
    - **< 10 lines** total
@@ -1059,24 +1059,24 @@ refactor(analyzer): simplify SQL generation logic
    - Use conventional commit format
 
 3. **For Simple Commits**:
-   ```bash
-   git add <files>  # Never use -A without checking status
-   git commit -m "type(scope): description"
-   ```
+```bash
+git add <files>  # Never use -A without checking status
+git commit -m "type(scope): description"
+```
 
 4. **For Complex Commits**:
-   ```bash
-   # Create message file
-   echo "type(scope): description
+```bash
+# Create message file
+echo "type(scope): description
 
-   Body explaining the high-level goal..." > .tmp/commit-msg.txt
+Body explaining the high-level goal..." > .tmp/commit-msg.txt
 
-   # Commit with file
-   git commit --file .tmp/commit-msg.txt
+# Commit with file
+git commit --file .tmp/commit-msg.txt
 
-   # Clean up
-   rm .tmp/commit-msg.txt
-   ```
+# Clean up
+rm .tmp/commit-msg.txt
+```
 
 5. **Always Get Permission**:
    - Show complete commit message
@@ -1088,25 +1088,25 @@ refactor(analyzer): simplify SQL generation logic
 **Workflow for creating PRs**:
 
 1. **Pre-flight Checks**:
-   ```bash
-   # Check branch is clean
-   git --no-pager status
+```bash
+# Check branch is clean
+git --no-pager status
 
-   # If not clean, STOP and ask to clean first
-   ```
+# If not clean, STOP and ask to clean first
+```
 
 2. **Read All Changes**:
-   ```bash
-   git --no-pager diff main...HEAD
-   git --no-pager log --oneline main...HEAD
+```bash
+git --no-pager diff main...HEAD
+git --no-pager log --oneline main...HEAD
 
-   # Review README.md, code changes, test changes
-   ```
+# Review README.md, code changes, test changes
+```
 
 3. **Push Branch**:
-   ```bash
-   git push -u origin <branch-name>
-   ```
+```bash
+git push -u origin <branch-name>
+```
 
 4. **Prepare PR Message**:
    - Title: Conventional commit format
@@ -1115,30 +1115,30 @@ refactor(analyzer): simplify SQL generation logic
    - Generic, not mundane details
 
 5. **For Simple PRs**:
-   ```bash
-   gh pr create --title "type(scope): description" \
-                --body "High-level explanation..."
-   ```
+```bash
+gh pr create --title "type(scope): description" \
+             --body "High-level explanation..."
+```
 
 6. **For Complex PRs**:
-   ```bash
-   # Create PR body file
-   cat > .tmp/pr-body.md << EOF
-   ## Summary
-   High-level goal explanation...
+```bash
+# Create PR body file
+cat > .tmp/pr-body.md << EOF
+## Summary
+High-level goal explanation...
 
-   ## Key Changes
-   - Major change 1
-   - Major change 2
-   EOF
+## Key Changes
+- Major change 1
+- Major change 2
+EOF
 
-   # Create PR with file
-   gh pr create --title "type(scope): description" \
-                --body-file .tmp/pr-body.md
+# Create PR with file
+gh pr create --title "type(scope): description" \
+             --body-file .tmp/pr-body.md
 
-   # Clean up
-   rm .tmp/pr-body.md
-   ```
+# Clean up
+rm .tmp/pr-body.md
+```
 
 ### 4. Branch Management Pattern
 
