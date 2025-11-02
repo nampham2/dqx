@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 CacheKey: TypeAlias = tuple[MetricSpec, ResultKey, DatasetName, ExecutionId]
 
 
-@dataclass(frozen=True)
+@dataclass
 class CacheStats:
     """Statistics for cache performance tracking."""
 
@@ -43,6 +43,19 @@ class CacheStats:
         """
         total = self.hit + self.missed
         return self.hit / total if total > 0 else 0.0
+
+    def record_hit(self) -> None:
+        """Record a cache hit."""
+        self.hit += 1
+
+    def record_miss(self) -> None:
+        """Record a cache miss."""
+        self.missed += 1
+
+    def reset(self) -> None:
+        """Reset all statistics to zero."""
+        self.hit = 0
+        self.missed = 0
 
 
 class MetricCache:
@@ -87,7 +100,7 @@ class MetricCache:
         with self._lock:
             # Check cache first
             if key in self._cache:
-                self._stats = CacheStats(hit=self._stats.hit + 1, missed=self._stats.missed)
+                self._stats.record_hit()
                 return Some(self._cache[key])
 
         # Cache miss - perform DB I/O without holding lock
@@ -100,11 +113,11 @@ class MetricCache:
             case Some(value):
                 with self._lock:
                     self._cache[key] = value
-                    self._stats = CacheStats(hit=self._stats.hit, missed=self._stats.missed + 1)
+                    self._stats.record_miss()
                     return Some(value)
             case _:
                 with self._lock:
-                    self._stats = CacheStats(hit=self._stats.hit, missed=self._stats.missed + 1)
+                    self._stats.record_miss()
                 return Nothing
 
     @overload
@@ -219,7 +232,7 @@ class MetricCache:
         with self._lock:
             self._cache.clear()
             self._dirty.clear()
-            self._stats = CacheStats()
+            self._stats.reset()
             logger.info("Cache cleared")
 
     def is_dirty(self, key: CacheKey) -> bool:
