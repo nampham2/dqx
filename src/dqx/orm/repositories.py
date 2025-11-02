@@ -162,68 +162,6 @@ class MetricDB:
 
             return [metric.to_model() for metric in db_metrics]
 
-    # @overload
-    # def get(self, key: uuid.UUID) -> Maybe[models.Metric]: ...
-
-    # @overload
-    # def get(self, key: ResultKey, spec: MetricSpec) -> Maybe[models.Metric]: ...
-
-    # def get(self, key: uuid.UUID | ResultKey, spec: MetricSpec | None = None) -> Maybe[models.Metric]:
-    #     if isinstance(key, uuid.UUID):
-    #         return self._get_by_uuid(key)
-
-    #     if isinstance(key, ResultKey):
-    #         if spec is None:
-    #             raise DQXError("MetricSpec must be provided when using ResultKey!")
-    #         return self._get_by_key(key, spec)
-
-    #     raise DQXError(f"Unsupported key type: {type(key)}")
-
-    # def _get_by_uuid(self, metric_id: uuid.UUID | ResultKey) -> Maybe[models.Metric]:
-    #     result = self.new_session().get(Metric, metric_id)
-    #     if result:
-    #         return Maybe.from_value(result.to_model())
-
-    #     return Maybe.empty
-
-    # def _get_by_key(self, key: ResultKey, spec: MetricSpec, dataset: str | None = None) -> Maybe[models.Metric]:
-    #     """Get a metric by its specification and result key, optionally filtered by dataset.
-
-    #     Args:
-    #         key: The result key containing date and tags.
-    #         spec: The metric specification.
-    #         dataset: Optional dataset name to filter by.
-
-    #     Returns:
-    #         Maybe containing the metric if found, Nothing otherwise.
-    #     """
-    #     query = select(Metric).where(
-    #         Metric.metric_type == spec.metric_type,
-    #         Metric.parameters == spec.parameters,
-    #         Metric.yyyy_mm_dd == key.yyyy_mm_dd,
-    #         Metric.tags == key.tags,
-    #     )
-
-    #     if dataset is not None:
-    #         query = query.where(Metric.dataset == dataset)
-
-    #     # Get the latest metric based on created timestamp
-    #     query = query.order_by(Metric.created.desc()).limit(1)
-
-    #     result = self.new_session().scalar(query)
-
-    #     if result:
-    #         return Maybe.from_value(result.to_model())
-
-    #     return Maybe.empty
-
-    # def search(self, *expressions: Predicate) -> Sequence[models.Metric]:
-    #     if len(expressions) == 0:
-    #         raise DQXError("Filter expressions cannot be empty")
-
-    #     query = select(Metric).where(*expressions)
-    #     return [metric.to_model() for metric in self.new_session().scalars(query)]
-
     def delete(self, metric_id: uuid.UUID) -> None:
         with self._mutex:
             query = delete(Metric).where(Metric.metric_id == metric_id)
