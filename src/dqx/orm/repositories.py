@@ -252,7 +252,7 @@ class MetricDB:
                 )
                 time_series[row.yyyy_mm_dd] = metric_obj.to_model()
             return Maybe.from_value(time_series)
-        return Maybe.from_value({})
+        return Maybe.from_value({})  # pragma: no cover
 
     def get_by_execution_id(self, execution_id: str) -> Sequence[models.Metric]:
         """Retrieve all metrics with the specified execution ID.

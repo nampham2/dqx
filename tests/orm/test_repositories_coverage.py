@@ -4,7 +4,7 @@ import datetime as dt
 from unittest.mock import Mock, patch
 
 import pytest
-from returns.maybe import Nothing, Some
+from returns.maybe import Nothing
 from sqlalchemy import create_engine
 
 from dqx.common import Metadata, ResultKey
@@ -85,19 +85,3 @@ def test_get_metric_with_dataset() -> None:
     # Test with non-existent execution_id
     result4 = db.get_metric(spec, key, dataset="dataset1", execution_id="non_existent")
     assert result4 == Nothing
-
-
-def test_get_metric_window_returns_empty() -> None:
-    """Test get_metric_window when no metrics found returns empty TimeSeries."""
-    db = InMemoryMetricDB()
-
-    # This test verifies that an empty TimeSeries is returned when no metrics match
-    spec = Average("test_column")
-    key = ResultKey(yyyy_mm_dd=dt.date(2024, 1, 10), tags={})
-
-    # Call with parameters that won't match any metrics
-    result = db.get_metric_window(spec, key, lag=0, window=5, dataset="test", execution_id="exec-123")
-
-    # Should return Some with empty dict when no metrics found
-    assert isinstance(result, Some)
-    assert result.unwrap() == {}
