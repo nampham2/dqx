@@ -7,6 +7,7 @@ import pyarrow as pa
 import pytest
 from returns.result import Failure, Success
 
+from dqx.cache import CacheStats
 from dqx.common import (
     AssertionResult,
     PluginMetadata,
@@ -98,6 +99,7 @@ def test_plugin_execution_context_creation() -> None:
         symbols=symbols,
         trace=_create_empty_trace(),
         metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+        cache_stats=CacheStats(hit=10, missed=2),
     )
 
     assert context.suite_name == "test"
@@ -136,6 +138,7 @@ def test_context_total_assertions() -> None:
         symbols=[],
         trace=_create_empty_trace(),
         metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+        cache_stats=CacheStats(hit=0, missed=0),
     )
 
     assert context.total_assertions() == 5
@@ -169,6 +172,7 @@ def test_context_failed_assertions() -> None:
         symbols=[],
         trace=_create_empty_trace(),
         metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+        cache_stats=CacheStats(hit=0, missed=0),
     )
 
     assert context.failed_assertions() == 3
@@ -204,6 +208,7 @@ def test_context_assertion_pass_rate() -> None:
         symbols=[],
         trace=_create_empty_trace(),
         metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+        cache_stats=CacheStats(hit=0, missed=0),
     )
 
     assert context.assertion_pass_rate() == 60.0
@@ -220,6 +225,7 @@ def test_context_assertion_pass_rate() -> None:
         symbols=[],
         trace=_create_empty_trace(),
         metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+        cache_stats=CacheStats(hit=0, missed=0),
     )
 
     assert empty_context.assertion_pass_rate() == 100.0
@@ -250,6 +256,7 @@ def test_context_symbol_methods() -> None:
         symbols=symbols,
         trace=_create_empty_trace(),
         metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+        cache_stats=CacheStats(hit=0, missed=0),
     )
 
     assert context.total_symbols() == 5
@@ -284,6 +291,7 @@ def test_context_assertions_by_severity() -> None:
         symbols=[],
         trace=_create_empty_trace(),
         metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+        cache_stats=CacheStats(hit=0, missed=0),
     )
 
     by_severity = context.assertions_by_severity()
@@ -318,8 +326,53 @@ def test_context_failures_by_severity() -> None:
         symbols=[],
         trace=_create_empty_trace(),
         metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+        cache_stats=CacheStats(hit=0, missed=0),
     )
 
     failures = context.failures_by_severity()
     assert failures == {"P0": 1, "P1": 1, "P2": 1}
     # P3 and P4 passed, so not in failures
+
+
+def test_context_cache_stats_access() -> None:
+    """Test that cache_stats is accessible in the context."""
+    cache_stats = CacheStats(hit=100, missed=25)
+
+    context = PluginExecutionContext(
+        suite_name="test",
+        execution_id="test_cache_stats",
+        datasources=[],
+        key=ResultKey(date(2024, 1, 1), {}),
+        timestamp=0.0,
+        duration_ms=0.0,
+        results=[],
+        symbols=[],
+        trace=_create_empty_trace(),
+        metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+        cache_stats=cache_stats,
+    )
+
+    # Test that we can access cache_stats
+    assert context.cache_stats.hit == 100
+    assert context.cache_stats.missed == 25
+    assert context.cache_stats.hit_ratio() == 0.8  # 100 / (100 + 25)
+
+    # Test with no cache activity
+    empty_cache_stats = CacheStats(hit=0, missed=0)
+    empty_context = PluginExecutionContext(
+        suite_name="test",
+        execution_id="test_empty_cache",
+        datasources=[],
+        key=ResultKey(date(2024, 1, 1), {}),
+        timestamp=0.0,
+        duration_ms=0.0,
+        results=[],
+        symbols=[],
+        trace=_create_empty_trace(),
+        metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+        cache_stats=empty_cache_stats,
+    )
+
+    assert empty_context.cache_stats.hit == 0
+    assert empty_context.cache_stats.missed == 0
+    assert empty_context.cache_stats.hit_ratio() == 0.0

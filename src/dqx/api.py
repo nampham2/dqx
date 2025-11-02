@@ -787,6 +787,7 @@ class VerificationSuite:
             symbols=self.provider.collect_symbols(self.key),
             trace=self.metric_trace(self.provider._db),
             metrics_stats=self.metrics_stats,
+            cache_stats=self.provider.cache.get_stats(),
         )
 
         # Process through all plugins

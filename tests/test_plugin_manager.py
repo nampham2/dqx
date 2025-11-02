@@ -7,6 +7,7 @@ import pyarrow as pa
 import pytest
 from returns.result import Failure, Success
 
+from dqx.cache import CacheStats
 from dqx.common import (
     AssertionResult,
     DQXError,
@@ -151,6 +152,7 @@ class TestPluginManager:
             symbols=[],
             trace=_create_empty_trace(),
             metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         context2 = PluginExecutionContext(
@@ -164,6 +166,7 @@ class TestPluginManager:
             symbols=[],
             trace=_create_empty_trace(),
             metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         # Process through manager
@@ -340,6 +343,7 @@ class TestPluginManager:
             symbols=[],
             trace=_create_empty_trace(),
             metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         # Should not raise any errors
@@ -376,6 +380,7 @@ class TestPluginManager:
             symbols=[],
             trace=_create_empty_trace(),
             metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         # Clear the plugins and add only our failing plugin
@@ -415,6 +420,7 @@ class TestPluginManager:
             symbols=[],
             trace=_create_empty_trace(),
             metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         # Clear the plugins and add only our slow plugin
@@ -467,6 +473,7 @@ class TestPluginManager:
             symbols=[],
             trace=_create_empty_trace(),
             metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         # Clear the plugins and add only our success plugin
@@ -666,6 +673,7 @@ class TestAuditPlugin:
             symbols=symbols,
             trace=_create_empty_trace(),
             metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         # Process the context
@@ -720,6 +728,7 @@ class TestAuditPlugin:
             symbols=[],
             trace=_create_empty_trace(),
             metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         plugin.process(context)
@@ -754,6 +763,7 @@ class TestAuditPlugin:
             symbols=[],
             trace=_create_empty_trace(),
             metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         plugin.process(context)
@@ -789,6 +799,7 @@ class TestAuditPlugin:
             symbols=[],
             trace=_create_empty_trace(),
             metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         # Should not raise any errors
@@ -798,6 +809,69 @@ class TestAuditPlugin:
 
         # Should display empty statistics
         assert "Assertions: 0 total, 0 passed (0.0%), 0 failed (0.0%)" in captured_output
+
+    def test_audit_plugin_with_cache_stats(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test AuditPlugin displays cache statistics."""
+
+        plugin = AuditPlugin()
+
+        # Track console print calls
+        print_calls: list[str] = []
+
+        def mock_print(*args: object, **kwargs: object) -> None:
+            if args:
+                text = str(args[0]) if len(args) == 1 else " ".join(str(arg) for arg in args)
+                print_calls.append(text)
+
+        monkeypatch.setattr(plugin.console, "print", mock_print)
+
+        # Create context with cache stats
+        context = PluginExecutionContext(
+            suite_name="Cache Test Suite",
+            execution_id="test_cache_stats",
+            datasources=["ds1"],
+            key=ResultKey(datetime.now().date(), {"env": "test"}),
+            timestamp=time.time(),
+            duration_ms=100.0,
+            results=[
+                AssertionResult(
+                    yyyy_mm_dd=datetime.now().date(),
+                    suite="Test Suite",
+                    check="check1",
+                    assertion="a1",
+                    severity="P0",
+                    status="OK",
+                    metric=Success(1.0),
+                    expression="x > 0",
+                    tags={},
+                ),
+            ],
+            symbols=[
+                SymbolInfo(
+                    name="x_1",
+                    metric="count(*)",
+                    dataset="ds1",
+                    value=Success(50.0),
+                    yyyy_mm_dd=datetime.now().date(),
+                    tags={},
+                )
+            ],
+            trace=_create_empty_trace(),
+            metrics_stats=MetricStats(total_metrics=5, expired_metrics=2),
+            cache_stats=CacheStats(hit=150, missed=50),
+        )
+
+        # Process the context
+        plugin.process(context)
+
+        # Join all output
+        captured_output = "\n".join(print_calls)
+
+        # Check for cache performance display
+        assert "Cache Performance:" in captured_output
+        assert "hit: 150" in captured_output
+        assert "missed: 50" in captured_output
+        assert "75.0% hit rate" in captured_output
 
     def test_audit_plugin_with_statistics(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test AuditPlugin displays statistics correctly."""
@@ -915,6 +989,7 @@ class TestAuditPlugin:
             symbols=symbols,
             trace=_create_empty_trace(),
             metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         with pytest.raises(DQXError, match=r"\[InternalError\] Symbols failed to evaluate during execution!"):
@@ -1000,6 +1075,7 @@ class TestPluginInstanceEdgeCases:
             symbols=[],
             trace=_create_empty_trace(),
             metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         # Process
@@ -1122,6 +1198,7 @@ class TestPluginIntegration:
             symbols=[],
             trace=_create_empty_trace(),
             metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
         )
 
         # Process all
