@@ -20,7 +20,12 @@ if TYPE_CHECKING:
 # Type aliases
 DatasetName = str
 ExecutionId = str
-TimeSeries = dict[dt.date, "Metric"]
+# Use TYPE_CHECKING to handle forward reference
+if TYPE_CHECKING:
+    TimeSeries = dict[dt.date, "Metric"]
+else:
+    # At runtime, use Any to avoid circular import
+    TimeSeries = dict[dt.date, Any]
 Tags = dict[str, Any]
 Parameters = dict[str, Any]
 SeverityLevel = Literal["P0", "P1", "P2", "P3"]

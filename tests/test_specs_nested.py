@@ -76,12 +76,26 @@ class TestNestedExtendedMetrics:
         # Retrieve and verify
         assert persisted.metric_id is not None
 
-        # Since the get() method is no longer available, verify the persisted metric directly
-        # The persist() method returns the model with all fields populated
-        assert persisted.spec == stddev
-        assert persisted.spec.name == "stddev(dod(average(tax)), offset=1, n=7)"
-        assert persisted.key == key
-        assert persisted.dataset == "test_dataset"
+        # Verify database roundtrip by fetching the stored metric
 
-        # Verify it exists in the database
+        # Set execution_id for retrieval (using default from persisted metric)
+        execution_id = persisted.metadata.execution_id if persisted.metadata and persisted.metadata.execution_id else ""
+
+        # Fetch the metric from database
+        fetched = db.get_metric(metric=stddev, key=key, dataset="test_dataset", execution_id=execution_id)
+
+        # Verify the fetched metric matches what was persisted
+        from returns.maybe import Some
+
+        match fetched:
+            case Some(fetched_metric):
+                assert fetched_metric.spec == stddev
+                assert fetched_metric.spec.name == "stddev(dod(average(tax)), offset=1, n=7)"
+                assert fetched_metric.key == key
+                assert fetched_metric.dataset == "test_dataset"
+                assert fetched_metric.metric_id == persisted.metric_id
+            case _:
+                raise AssertionError("Expected to fetch metric from database")
+
+        # Also verify it exists in the database
         assert db.exists(persisted.metric_id)
