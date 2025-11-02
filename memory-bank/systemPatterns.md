@@ -1010,7 +1010,7 @@ def test_provider_falls_back_to_db_on_cache_miss() -> None: ...
 
 **All commits MUST follow conventional commit format**:
 
-```
+```text
 <type>[optional scope]: <description>
 
 [optional body]
@@ -1020,7 +1020,7 @@ def test_provider_falls_back_to_db_on_cache_miss() -> None: ...
 
 **Types**:
 - `feat`: New feature
-- `fix`: Bug fix
+- `fix`: Bug-fix
 - `docs`: Documentation only changes
 - `style`: Code style changes (formatting, missing semicolons, etc.)
 - `refactor`: Code change that neither fixes a bug nor adds a feature
@@ -1031,7 +1031,7 @@ def test_provider_falls_back_to_db_on_cache_miss() -> None: ...
 - `chore`: Other changes that don't modify src or test files
 
 **Examples**:
-```
+```text
 feat(cache): add performance statistics tracking
 
 fix(provider): use pattern matching for Maybe types instead of isinstance
@@ -1143,7 +1143,7 @@ rm .tmp/pr-body.md
 ### 4. Branch Management Pattern
 
 **Naming Conventions**:
-```
+```text
 feature/description-of-feature
 bugfix/issue-description
 release/version-number
