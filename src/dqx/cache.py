@@ -174,23 +174,22 @@ class MetricCache:
         """
         time_series: TimeSeries = {}
 
-        with self._lock:
-            for lag in range(window):
-                date_key = nominal_key.yyyy_mm_dd - timedelta(days=lag)
-                key = (
-                    metric_spec,
-                    ResultKey(yyyy_mm_dd=date_key, tags=nominal_key.tags),
-                    dataset,
-                    execution_id,
-                )
+        for lag in range(window):
+            date_key = nominal_key.yyyy_mm_dd - timedelta(days=lag)
+            key = (
+                metric_spec,
+                ResultKey(yyyy_mm_dd=date_key, tags=nominal_key.tags),
+                dataset,
+                execution_id,
+            )
 
-                result: Maybe[Metric] = self.get(key)
-                match result:
-                    case Some(metric):
-                        time_series[metric.key.yyyy_mm_dd] = metric
-                    case _:
-                        pass  # Skip missing dates
-            return time_series
+            result: Maybe[Metric] = self.get(key)
+            match result:
+                case Some(metric):
+                    time_series[metric.key.yyyy_mm_dd] = metric
+                case _:
+                    pass  # Skip missing dates
+        return time_series
 
     def get_sparse_timeseries(
         self,
@@ -202,16 +201,15 @@ class MetricCache:
     ) -> TimeSeries:
         time_series: TimeSeries = {}
 
-        with self._lock:
-            for lag in lags:
-                key = (metric_spec, nominal_key.lag(lag), dataset, execution_id)
-                result: Maybe[Metric] = self.get(key)
+        for lag in lags:
+            key = (metric_spec, nominal_key.lag(lag), dataset, execution_id)
+            result: Maybe[Metric] = self.get(key)
 
-                match result:
-                    case Some(metric):
-                        time_series[metric.key.yyyy_mm_dd] = metric
-                    case _:
-                        pass  # Skip missing dates
+            match result:
+                case Some(metric):
+                    time_series[metric.key.yyyy_mm_dd] = metric
+                case _:
+                    pass  # Skip missing dates
 
         return time_series
 
