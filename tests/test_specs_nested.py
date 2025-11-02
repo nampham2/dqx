@@ -69,7 +69,12 @@ class TestNestedExtendedMetrics:
         # Store in database
         db = InMemoryMetricDB()
         key = ResultKey(yyyy_mm_dd=dt.date(2024, 10, 24), tags={})
-        metric = models.Metric.build(stddev, key, dataset="test_dataset", state=stddev.state())
+
+        # Create metric with explicit metadata including execution_id
+        from dqx.common import Metadata
+
+        metadata = Metadata(execution_id="test_execution")
+        metric = models.Metric.build(stddev, key, dataset="test_dataset", state=stddev.state(), metadata=metadata)
 
         persisted = list(db.persist([metric]))[0]
 
@@ -78,11 +83,8 @@ class TestNestedExtendedMetrics:
 
         # Verify database roundtrip by fetching the stored metric
 
-        # Set execution_id for retrieval (using default from persisted metric)
-        execution_id = persisted.metadata.execution_id if persisted.metadata and persisted.metadata.execution_id else ""
-
-        # Fetch the metric from database
-        fetched = db.get_metric(metric=stddev, key=key, dataset="test_dataset", execution_id=execution_id)
+        # Fetch the metric from database using the same execution_id
+        fetched = db.get_metric(metric=stddev, key=key, dataset="test_dataset", execution_id="test_execution")
 
         # Verify the fetched metric matches what was persisted
         from returns.maybe import Some
