@@ -164,8 +164,17 @@ def analyze_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> None:
     # Execute query and process MAP results
     result = ds.query(sql).fetchall()
 
+    # Build date lookup map to ensure proper alignment
+    date_to_ops: dict[str, tuple[ResultKey, list[SqlOp]]] = {
+        key.yyyy_mm_dd.isoformat(): (key, ops) for key, ops in ops_by_key.items()
+    }
+
     # Process results - expecting (date, values) tuples
-    for (date_str, values_data), (key, ops) in zip(result, ops_by_key.items()):
+    for date_str, values_data in result:
+        if date_str not in date_to_ops:
+            raise DQXError(f"Unexpected date '{date_str}' in SQL results. Expected dates: {sorted(date_to_ops.keys())}")
+
+        key, ops = date_to_ops[date_str]
         # values_data is array of {key: str, value: float}
         values_map = {item["key"]: item["value"] for item in values_data}
 
@@ -174,6 +183,13 @@ def analyze_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> None:
                 # Validate and assign the value
                 validated_value = _validate_value(values_map[op.sql_col], date_str, op.sql_col)
                 op.assign(validated_value)
+
+    # Check that all expected dates were present in results
+    result_dates = {row[0] for row in result}
+    expected_dates = set(date_to_ops.keys())
+    missing_dates = expected_dates - result_dates
+    if missing_dates:
+        raise DQXError(f"Missing dates in SQL results: {sorted(missing_dates)}. Got: {sorted(result_dates)}")
 
 
 class Analyzer:
