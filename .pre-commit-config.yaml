@@ -2,7 +2,7 @@
 # See https://pre-commit.com for more information
 
 # Don't run on files in these directories
-exclude: '^(\.git|\.mypy_cache|\.pytest_cache|\.ruff_cache|\.venv|dist|build|uv\.lock)/'
+exclude: '^(\.git|\.mypy_cache|\.pytest_cache|\.ruff_cache|\.venv|dist|build|uv\.lock|examples)/'
 
 # Run all hooks on all files by default
 fail_fast: false
