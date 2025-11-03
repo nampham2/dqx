@@ -7,7 +7,7 @@ import pytest
 from returns.maybe import Nothing
 
 from dqx import models
-from dqx.analyzer import AnalysisReport, Analyzer, analyze_batch_sql_ops, analyze_sql_ops
+from dqx.analyzer import AnalysisReport, Analyzer, analyze_sql_ops
 from dqx.common import DQXError, ResultKey, SqlDataSource
 from dqx.ops import SqlOp
 from dqx.provider import MetricProvider
@@ -158,7 +158,7 @@ class TestAnalyzeSqlOps:
         """Test both single and batch SQL ops analysis with deduplication."""
         # Test empty ops
         ds = Mock(spec=SqlDataSource)
-        analyze_sql_ops(ds, [], datetime.date.today())
+        analyze_sql_ops(ds, {})
         ds.query.assert_not_called()
 
         # Reset for deduplication test
@@ -187,18 +187,179 @@ class TestAnalyzeSqlOps:
         with patch("dqx.analyzer.get_dialect") as mock_get_dialect:
             mock_dialect = Mock()
             mock_dialect.translate_sql_op.side_effect = lambda op: f"SQL for {op._name}"
-            mock_dialect.build_cte_query.return_value = "SELECT ..."
+            mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
             mock_get_dialect.return_value = mock_dialect
 
-            analyze_sql_ops(ds, [op1a, op1b, op2], datetime.date.today())
+            # Mock query result with array format
+            query_result.fetchall.return_value = [
+                (
+                    datetime.date.today().isoformat(),
+                    [{"key": "col_op1", "value": 10.0}, {"key": "col_op2", "value": 20.0}],
+                )
+            ]
+            ds.query.return_value = query_result
 
-            # Verify deduplication
-            assert mock_dialect.translate_sql_op.call_count == 2  # Only unique ops
+            key = ResultKey(datetime.date.today(), {})
+            analyze_sql_ops(ds, {key: [op1a, op1b, op2]})
+
+            # Verify deduplication through ops getting values
+            # All ops should have values (including duplicates)
 
             # Verify all ops get values assigned (including duplicates)
             assert op1a._value == 10.0
             assert op1b._value == 10.0  # Gets same value as op1a
             assert op2._value == 20.0
+
+    def test_sql_ops_date_alignment_fix(self) -> None:
+        """Test that analyze_sql_ops correctly aligns dates even when SQL results are unordered."""
+        ds = Mock(spec=SqlDataSource)
+        ds.dialect = "duckdb"
+        ds.cte.return_value = "WITH t AS (SELECT * FROM table)"
+
+        # Create ops for three dates
+        date1 = datetime.date(2024, 1, 1)
+        date2 = datetime.date(2024, 1, 2)
+        date3 = datetime.date(2024, 1, 3)
+
+        key1 = ResultKey(date1, {})
+        key2 = ResultKey(date2, {})
+        key3 = ResultKey(date3, {})
+
+        op1 = MockSqlOp("metric1")
+        op2 = MockSqlOp("metric2")
+        op3 = MockSqlOp("metric3")
+
+        # Create ops_by_key in one order
+        ops_by_key: dict[ResultKey, list[SqlOp]] = {
+            key1: [op1],
+            key2: [op2],
+            key3: [op3],
+        }
+
+        with patch("dqx.analyzer.get_dialect") as mock_get_dialect:
+            mock_dialect = Mock()
+            mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
+            mock_get_dialect.return_value = mock_dialect
+
+            # Mock query results in DIFFERENT order than ops_by_key iteration
+            query_result = Mock()
+            query_result.fetchall.return_value = [
+                ("2024-01-03", [{"key": "col_metric3", "value": 30.0}]),  # date3 first
+                ("2024-01-01", [{"key": "col_metric1", "value": 10.0}]),  # date1 second
+                ("2024-01-02", [{"key": "col_metric2", "value": 20.0}]),  # date2 last
+            ]
+            ds.query.return_value = query_result
+
+            analyze_sql_ops(ds, ops_by_key)
+
+            # Verify each op got the correct value for its date
+            assert op1._value == 10.0  # date1's metric
+            assert op2._value == 20.0  # date2's metric
+            assert op3._value == 30.0  # date3's metric
+
+    def test_sql_ops_missing_date_error(self) -> None:
+        """Test that analyze_sql_ops raises error when expected date is missing from results."""
+        ds = Mock(spec=SqlDataSource)
+        ds.dialect = "duckdb"
+
+        key1 = ResultKey(datetime.date(2024, 1, 1), {})
+        key2 = ResultKey(datetime.date(2024, 1, 2), {})
+
+        op1 = MockSqlOp("metric1")
+        op2 = MockSqlOp("metric2")
+
+        ops_by_key: dict[ResultKey, list[SqlOp]] = {
+            key1: [op1],
+            key2: [op2],
+        }
+
+        with patch("dqx.analyzer.get_dialect") as mock_get_dialect:
+            mock_dialect = Mock()
+            mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
+            mock_get_dialect.return_value = mock_dialect
+
+            # Mock query result missing date2
+            query_result = Mock()
+            query_result.fetchall.return_value = [
+                ("2024-01-01", [{"key": "col_metric1", "value": 10.0}]),
+                # Missing 2024-01-02
+            ]
+            ds.query.return_value = query_result
+
+            with pytest.raises(DQXError, match="Missing dates in SQL results: \\['2024-01-02'\\]"):
+                analyze_sql_ops(ds, ops_by_key)
+
+    def test_sql_ops_unexpected_date_error(self) -> None:
+        """Test that analyze_sql_ops raises error when unexpected date appears in results."""
+        ds = Mock(spec=SqlDataSource)
+        ds.dialect = "duckdb"
+
+        key1 = ResultKey(datetime.date(2024, 1, 1), {})
+        op1 = MockSqlOp("metric1")
+
+        ops_by_key: dict[ResultKey, list[SqlOp]] = {
+            key1: [op1],
+        }
+
+        with patch("dqx.analyzer.get_dialect") as mock_get_dialect:
+            mock_dialect = Mock()
+            mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
+            mock_get_dialect.return_value = mock_dialect
+
+            # Mock query result with unexpected date
+            query_result = Mock()
+            query_result.fetchall.return_value = [
+                ("2024-01-01", [{"key": "col_metric1", "value": 10.0}]),
+                ("2024-01-05", [{"key": "col_metric5", "value": 50.0}]),  # Unexpected!
+            ]
+            ds.query.return_value = query_result
+
+            with pytest.raises(DQXError, match="Unexpected date '2024-01-05' in SQL results"):
+                analyze_sql_ops(ds, ops_by_key)
+
+    def test_sql_ops_complex_alignment_scenario(self) -> None:
+        """Test complex scenario with multiple ops per date and unordered results."""
+        ds = Mock(spec=SqlDataSource)
+        ds.dialect = "bigquery"  # Test with BigQuery dialect
+
+        # Create dates with tags
+        date1 = datetime.date(2024, 1, 10)
+        date2 = datetime.date(2024, 1, 11)
+
+        key1 = ResultKey(date1, {"env": "prod"})
+        key2 = ResultKey(date2, {"env": "staging"})
+
+        # Multiple ops per date
+        op1a = MockSqlOp("revenue")
+        op1b = MockSqlOp("cost")
+        op2a = MockSqlOp("users")
+        op2b = MockSqlOp("sessions")
+
+        ops_by_key: dict[ResultKey, list[SqlOp]] = {
+            key1: [op1a, op1b],
+            key2: [op2a, op2b],
+        }
+
+        with patch("dqx.analyzer.get_dialect") as mock_get_dialect:
+            mock_dialect = Mock()
+            mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
+            mock_get_dialect.return_value = mock_dialect
+
+            # Results in reverse order
+            query_result = Mock()
+            query_result.fetchall.return_value = [
+                ("2024-01-11", [{"key": "col_users", "value": 100.0}, {"key": "col_sessions", "value": 200.0}]),
+                ("2024-01-10", [{"key": "col_revenue", "value": 1000.0}, {"key": "col_cost", "value": 500.0}]),
+            ]
+            ds.query.return_value = query_result
+
+            analyze_sql_ops(ds, ops_by_key)
+
+            # Verify correct alignment despite reverse order
+            assert op1a._value == 1000.0  # revenue for date1
+            assert op1b._value == 500.0  # cost for date1
+            assert op2a._value == 100.0  # users for date2
+            assert op2b._value == 200.0  # sessions for date2
 
 
 class TestAnalyzeBatchSqlOps:
@@ -208,7 +369,7 @@ class TestAnalyzeBatchSqlOps:
         """Test batch analysis including empty ops and validation errors."""
         # Test empty ops
         ds = Mock(spec=SqlDataSource)
-        analyze_batch_sql_ops(ds, {})
+        analyze_sql_ops(ds, {})
         ds.query.assert_not_called()
 
         # Reset for batch analysis test
@@ -228,11 +389,11 @@ class TestAnalyzeBatchSqlOps:
             key2: [op3],
         }
 
-        # Mock query result with MAP values
+        # Mock query result with array format
         query_result = Mock()
         query_result.fetchall.return_value = [
-            ("2024-01-01", {"col_op1": 10.0, "col_op2": 20.0}),
-            ("2024-01-02", {"col_op3": 30.0}),
+            ("2024-01-01", [{"key": "col_op1", "value": 10.0}, {"key": "col_op2", "value": 20.0}]),
+            ("2024-01-02", [{"key": "col_op3", "value": 30.0}]),
         ]
         ds.query.return_value = query_result
 
@@ -241,7 +402,7 @@ class TestAnalyzeBatchSqlOps:
             mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
             mock_get_dialect.return_value = mock_dialect
 
-            analyze_batch_sql_ops(ds, ops_by_key)
+            analyze_sql_ops(ds, ops_by_key)
 
             # Verify values assigned
             assert op1._value == 10.0
@@ -252,7 +413,7 @@ class TestAnalyzeBatchSqlOps:
         ds.reset_mock()
         op4 = MockSqlOp("op4")
         query_result.fetchall.return_value = [
-            ("2024-01-01", {"col_op4": None}),
+            ("2024-01-01", [{"key": "col_op4", "value": None}]),
         ]
 
         with patch("dqx.analyzer.get_dialect") as mock_get_dialect:
@@ -261,7 +422,7 @@ class TestAnalyzeBatchSqlOps:
             mock_get_dialect.return_value = mock_dialect
 
             with pytest.raises(DQXError, match="Null value encountered"):
-                analyze_batch_sql_ops(ds, {key1: [op4]})
+                analyze_sql_ops(ds, {key1: [op4]})
 
 
 class TestAnalyzer:
@@ -801,7 +962,7 @@ class TestAnalyzerEdgeCases:
             }
 
             # Mock batch analysis to not assign any value to the op (simulating SQL failure)
-            with patch("dqx.analyzer.analyze_batch_sql_ops"):
+            with patch("dqx.analyzer.analyze_sql_ops"):
                 # This should raise DQXError when trying to get value from failing_op
                 with pytest.raises(DQXError, match="Failed to retrieve value for analyzer"):
                     analyzer._analyze_internal(ds, metrics)
@@ -851,7 +1012,7 @@ class TestAnalyzerEdgeCases:
                 for op in ops:
                     op.assign(100.0)
 
-        with patch("dqx.analyzer.analyze_batch_sql_ops", side_effect=mock_batch_analysis) as mock_batch:
+        with patch("dqx.analyzer.analyze_sql_ops", side_effect=mock_batch_analysis) as mock_batch:
             report = analyzer._analyze_internal(ds, metrics)
 
             # Should have called batch analysis

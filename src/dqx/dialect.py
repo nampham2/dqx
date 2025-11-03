@@ -414,10 +414,10 @@ class DuckDBDialect:
         return build_cte_query(cte_sql, select_expressions)
 
     def build_batch_cte_query(self, cte_data: list["BatchCTEData"]) -> str:
-        """Build batch CTE query using MAP for DuckDB.
+        """Build batch CTE query using array format for DuckDB.
 
-        This method uses DuckDB's MAP feature to return all metrics as a single
-        MAP per date, reducing the result from N*M rows to just N rows.
+        This method uses an array of key-value pairs to return metrics,
+        providing a uniform structure across all dialects.
 
         Args:
             cte_data: List of BatchCTEData objects containing:
@@ -426,21 +426,33 @@ class DuckDBDialect:
                 - ops: List of SqlOp objects to translate
 
         Returns:
-            Complete SQL query with CTEs and MAP-based results
+            Complete SQL query with CTEs and array-based results
 
         Example output:
             WITH
               source_2024_01_01_0 AS (...),
               metrics_2024_01_01_0 AS (SELECT ... FROM source_2024_01_01_0)
-            SELECT '2024-01-01' as date, MAP {'x_1': "x_1", 'x_2': "x_2"} as values
+            SELECT '2024-01-01' as date,
+                   [{'key': 'x_1', 'value': "x_1"}, {'key': 'x_2', 'value': "x_2"}] as values
             FROM metrics_2024_01_01_0
         """
 
-        def format_map_values(ops: list[ops.SqlOp]) -> str:
-            map_entries = [f"'{op.sql_col}': \"{op.sql_col}\"" for op in ops]
-            return "MAP {\n" + ", \n".join(map_entries) + "\n}"
+        def format_array_values(ops: list[ops.SqlOp]) -> str:
+            """Format ops as DuckDB array of key-value pairs.
 
-        return _build_batch_query_with_values(self, cte_data, format_map_values)
+            Args:
+                ops: List of SqlOp objects
+
+            Returns:
+                SQL array expression
+            """
+            array_entries = []
+            for op in ops:
+                # DuckDB syntax: {'key': 'name', 'value': column}
+                array_entries.append(f"{{'key': '{op.sql_col}', 'value': \"{op.sql_col}\"}}")
+            return "[" + ", ".join(array_entries) + "]"
+
+        return _build_batch_query_with_values(self, cte_data, format_array_values)
 
 
 @auto_register
@@ -530,32 +542,44 @@ class BigQueryDialect:
         return build_cte_query(cte_sql, select_expressions)
 
     def build_batch_cte_query(self, cte_data: list["BatchCTEData"]) -> str:
-        """Build batch CTE query using STRUCT for BigQuery.
+        """Build batch CTE query using array format for BigQuery.
 
         This method generates a query that returns results as:
         - date: The date string
-        - values: A STRUCT containing all metric values
+        - values: An array of STRUCTs with key and value fields
 
-        The STRUCT approach reduces the result set size compared to UNPIVOT,
-        similar to DuckDB's MAP feature.
+        This uniform array approach allows UNION ALL across different dates
+        with different metrics, solving the STRUCT schema mismatch issue.
 
         Args:
             cte_data: List of BatchCTEData objects
 
         Returns:
-            Complete SQL query with CTEs and STRUCT-based results
+            Complete SQL query with CTEs and array-based results
 
         Example output:
             WITH
               source_2024_01_01_0 AS (...),
               metrics_2024_01_01_0 AS (SELECT ... FROM source_2024_01_01_0)
             SELECT '2024-01-01' as date,
-                   STRUCT(x_1 AS `x_1`, x_2 AS `x_2`) as values
+                   [STRUCT('x_1' AS key, `x_1` AS value),
+                    STRUCT('x_2' AS key, `x_2` AS value)] as values
             FROM metrics_2024_01_01_0
         """
 
-        def format_struct_values(ops: list[ops.SqlOp]) -> str:
-            struct_entries = [f"`{op.sql_col}` AS `{op.sql_col}`" for op in ops]
-            return "STRUCT(" + ", ".join(struct_entries) + ")"
+        def format_array_values(ops: list[ops.SqlOp]) -> str:
+            """Format ops as BigQuery array of key-value STRUCTs.
 
-        return _build_batch_query_with_values(self, cte_data, format_struct_values)
+            Args:
+                ops: List of SqlOp objects
+
+            Returns:
+                SQL array expression
+            """
+            array_entries = []
+            for op in ops:
+                # BigQuery syntax: STRUCT('name' AS key, column AS value)
+                array_entries.append(f"STRUCT('{op.sql_col}' AS key, `{op.sql_col}` AS value)")
+            return "[" + ", ".join(array_entries) + "]"
+
+        return _build_batch_query_with_values(self, cte_data, format_array_values)

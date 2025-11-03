@@ -8,7 +8,7 @@ from rich.logging import RichHandler
 try:
     from importlib.metadata import version
 
-    __version__ = version("dqx")
+    __version__ = version("dqlib")
 except Exception:
     # Fallback for development or when package isn't installed
     __version__ = "0.0.0.dev"

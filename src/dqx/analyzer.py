@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import datetime
 import logging
 import math
 from collections import UserDict, defaultdict
 from collections.abc import Mapping, Sequence
 from typing import Any, TypeVar
 
-import pyarrow as pa
 import sqlparse
 from returns.result import Failure, Success
 
@@ -126,59 +124,7 @@ class AnalysisReport(UserDict[MetricKey, models.Metric]):
         cache.write_back()
 
 
-def analyze_sql_ops(ds: T, ops: Sequence[SqlOp], nominal_date: datetime.date) -> None:
-    if len(ops) == 0:
-        return
-
-    # Deduping the ops preserving order of first occurrence
-    seen = set()
-    distinct_ops = []
-    for op in ops:
-        if op not in seen:
-            seen.add(op)
-            distinct_ops.append(op)
-
-    # Constructing the query
-    logger.info(f"Analyzing SqlOps: {distinct_ops}")
-
-    # Get the dialect instance from the registry
-    dialect_instance = get_dialect(ds.dialect)
-
-    # Generate SQL expressions using the dialect
-    expressions = [dialect_instance.translate_sql_op(op) for op in distinct_ops]
-    sql = dialect_instance.build_cte_query(ds.cte(nominal_date), expressions)
-
-    # Format SQL for consistent output
-    sql = sqlparse.format(
-        sql,
-        reindent=True,
-        keyword_case="upper",
-        identifier_case="lower",
-        indent_width=2,
-        wrap_after=120,
-        comma_first=False,
-    )
-
-    # Execute the query
-    logger.debug(f"SQL Query:\n{sql}")
-    result: pa.Table = ds.query(sql).fetch_arrow_table()
-
-    # Assign the collected values to the ops
-    # Create a mapping from all ops to their sql_col (duplicates will map to same col)
-    cols: dict[SqlOp, str] = {}
-    for op in ops:
-        # Find the corresponding distinct op that has the same value
-        for distinct_op in distinct_ops:
-            if op == distinct_op:
-                cols[op] = distinct_op.sql_col
-                break
-
-    # Now assign values to all ops
-    for op in ops:
-        op.assign(result[cols[op]][0].as_py())
-
-
-def analyze_batch_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> None:
+def analyze_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> None:
     """Analyze SQL ops for multiple dates in one query.
 
     Args:
@@ -214,19 +160,38 @@ def analyze_batch_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> No
         compact=True,
     )
 
-    logger.info(f"Batch SQL Query:\n{sql}")
+    if logger.isEnabledFor(logging.DEBUG):
+        print(f"SQL Query:\n{sql}")
 
     # Execute query and process MAP results
     result = ds.query(sql).fetchall()
 
-    # Process results - expecting (date, values_map) tuples
-    for (date_str, values_map), (key, ops) in zip(result, ops_by_key.items()):
-        # values_map is a dict returned by DuckDB's MAP type
+    # Build date lookup map to ensure proper alignment
+    date_to_ops: dict[str, tuple[ResultKey, list[SqlOp]]] = {
+        key.yyyy_mm_dd.isoformat(): (key, ops) for key, ops in ops_by_key.items()
+    }
+
+    # Process results - expecting (date, values) tuples
+    for date_str, values_data in result:
+        if date_str not in date_to_ops:
+            raise DQXError(f"Unexpected date '{date_str}' in SQL results. Expected dates: {sorted(date_to_ops.keys())}")
+
+        key, ops = date_to_ops[date_str]
+        # values_data is array of {key: str, value: float}
+        values_map = {item["key"]: item["value"] for item in values_data}
+
         for op in ops:
             if op.sql_col in values_map:
                 # Validate and assign the value
                 validated_value = _validate_value(values_map[op.sql_col], date_str, op.sql_col)
                 op.assign(validated_value)
+
+    # Check that all expected dates were present in results
+    result_dates = {row[0] for row in result}
+    expected_dates = set(date_to_ops.keys())
+    missing_dates = expected_dates - result_dates
+    if missing_dates:
+        raise DQXError(f"Missing dates in SQL results: {sorted(missing_dates)}. Got: {sorted(result_dates)}")
 
 
 class Analyzer:
@@ -311,7 +276,7 @@ class Analyzer:
 
         # Phase 3: Execute SQL with deduplicated ops
         if ops_by_key:
-            analyze_batch_sql_ops(ds, dict(ops_by_key))
+            analyze_sql_ops(ds, dict(ops_by_key))
 
             # Phase 4: Propagate values to all equivalent analyzer instances
             for (key, representative), equivalent_instances in analyzer_equivalence_map.items():
@@ -404,7 +369,6 @@ class Analyzer:
         metadata = Metadata(execution_id=self.execution_id)
 
         for sym_metric in self.metrics:
-            # Check if it's an extended metric using isinstance
             if sym_metric.metric_spec.is_extended:
                 # Calculate effective key with lag
                 effective_key = self.key.lag(sym_metric.lag)

@@ -1,3 +1,38 @@
+## v0.5.7 (2025-11-03)
+
+### Perf
+
+- **analyzer**: optimize SQL logging and formatting
+
+## v0.5.7a4 (2025-11-03)
+
+### Fix
+
+- **analyzer**: ensure correct date alignment in analyze_sql_ops
+- **analyzer**: handle BigQuery dict format in batch query results
+
+## v0.5.7a1 (2025-11-03)
+
+### Fix
+
+- **analyzer**: handle BigQuery uppercase KEY in batch query results
+
+### Refactor
+
+- **analyzer**: consolidate SQL ops analysis into single batch function
+
+## v0.5.7a0 (2025-11-03)
+
+### Fix
+
+- correct package name in version import
+- resolve BigQuery UNION ALL incompatibility in batch optimization
+
+### Refactor
+
+- remove backward compatibility in analyzer
+- remove numpy dependency and cleanup project structure (#24)
+
 ## v0.5.6 (2025-11-03)
 
 ### Fix
