@@ -164,15 +164,10 @@ def analyze_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> None:
     # Execute query and process MAP results
     result = ds.query(sql).fetchall()
 
-    # Determine field names based on dialect
-    # BigQuery returns uppercase KEY, other dialects use lowercase
-    key_field = "KEY" if ds.dialect == "bigquery" else "key"
-    value_field = "value"  # Always lowercase
-
     # Process results - expecting (date, values) tuples
     for (date_str, values_data), (key, ops) in zip(result, ops_by_key.items()):
         # values_data is array of {key: str, value: float}
-        values_map = {item[key_field]: item[value_field] for item in values_data}
+        values_map = {item["key"]: item["value"] for item in values_data}
 
         for op in ops:
             if op.sql_col in values_map:
