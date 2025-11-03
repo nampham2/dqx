@@ -179,15 +179,17 @@ class TestBigQueryDialect:
 
         # Should contain:
         # - WITH clause with source and metrics CTEs
-        # - SELECT with date and STRUCT
+        # - SELECT with date and array of STRUCTs
         assert "WITH" in query
         assert "source_2024_01_01_0" in query
         assert "metrics_2024_01_01_0" in query
         assert "'2024-01-01' as date" in query
-        assert "STRUCT(" in query
-        # Check for metric names in STRUCT
-        assert f"`{ops[0].sql_col}`" in query
-        assert f"`{ops[1].sql_col}`" in query
+        # Check for array format
+        assert "[STRUCT(" in query
+        assert f"'{ops[0].sql_col}' AS key" in query
+        assert f"'{ops[1].sql_col}' AS key" in query
+        assert f"`{ops[0].sql_col}` AS value" in query
+        assert f"`{ops[1].sql_col}` AS value" in query
 
     def test_build_batch_cte_query_multiple_dates(self) -> None:
         """Test batch CTE query with multiple dates."""

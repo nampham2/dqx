@@ -219,9 +219,16 @@ def analyze_batch_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> No
     # Execute query and process MAP results
     result = ds.query(sql).fetchall()
 
-    # Process results - expecting (date, values_map) tuples
-    for (date_str, values_map), (key, ops) in zip(result, ops_by_key.items()):
-        # values_map is a dict returned by DuckDB's MAP type
+    # Process results - expecting (date, values) tuples
+    for (date_str, values_data), (key, ops) in zip(result, ops_by_key.items()):
+        # Handle both dict (old format) and array (new format) for backward compatibility
+        if isinstance(values_data, dict):
+            # Old format: values_data is already a dict
+            values_map = values_data
+        else:
+            # New format: values_data is array of {key: str, value: float}
+            values_map = {item["key"]: item["value"] for item in values_data}
+
         for op in ops:
             if op.sql_col in values_map:
                 # Validate and assign the value

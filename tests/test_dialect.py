@@ -254,7 +254,7 @@ def test_auto_register_decorator(isolated_dialect_registry: dict[str, type]) -> 
 
 
 def test_batch_cte_query_duckdb() -> None:
-    """Test DuckDB batch CTE query generation with MAP."""
+    """Test DuckDB batch CTE query generation with array format."""
     dialect = DuckDBDialect()
 
     # Create test data
@@ -283,13 +283,14 @@ def test_batch_cte_query_duckdb() -> None:
     assert "source_2024_01_02_1" in query
     assert "metrics_2024_01_02_1" in query
     assert "UNION ALL" in query
-    assert "MAP {" in query
+    # Check for array format instead of MAP
+    assert "[{'key':" in query
     assert "'2024-01-01' as date" in query
     assert "'2024-01-02' as date" in query
 
 
 def test_batch_cte_query_bigquery() -> None:
-    """Test BigQuery batch CTE query generation with STRUCT."""
+    """Test BigQuery batch CTE query generation with array format."""
     dialect = BigQueryDialect()
 
     key = ResultKey(yyyy_mm_dd=date(2024, 3, 15), tags={})
@@ -307,7 +308,8 @@ def test_batch_cte_query_bigquery() -> None:
     assert "WITH" in query
     assert "source_2024_03_15_0" in query
     assert "metrics_2024_03_15_0" in query
-    assert "STRUCT(" in query
+    # Check for array format
+    assert "[STRUCT(" in query
     assert "'2024-03-15' as date" in query
     # BigQuery uses backticks for column aliases
     assert "`" in query

@@ -57,8 +57,8 @@ def test_batch_optimization_with_count_values_duckdb() -> None:
     assert "COUNT_IF(status = 'cancelled')" in query
     assert "COUNT_IF(region IN ('US', 'EU', 'APAC'))" in query
 
-    # Check MAP structure
-    assert "MAP {" in query
+    # Check array structure
+    assert "[{" in query  # Array of structs
     assert "'2024-01-01' as date" in query
     assert "'2024-01-02' as date" in query
 
@@ -94,8 +94,8 @@ def test_batch_optimization_with_count_values_bigquery() -> None:
     assert "COUNTIF(amount_range IN (100, 200, 300))" in query
     assert "COUNTIF(customer_id IS NULL)" in query
 
-    # Check STRUCT usage
-    assert "STRUCT(" in query
+    # Check array usage (BigQuery uses arrays like DuckDB)
+    assert "[STRUCT(" in query  # BigQuery uses STRUCT syntax
     assert "'2024-03-15' as date" in query
 
     # Verify backticks for column aliases
@@ -266,11 +266,7 @@ def test_batch_optimization_consistent_ordering() -> None:
 
     query = dialect.build_batch_cte_query(cte_data)
 
-    # Extract the MAP section to verify ordering
-    map_start = query.find("MAP {")
-    map_end = query.find("}", map_start)
-    map_content = query[map_start:map_end]
-
-    # Verify all ops are present in the MAP
+    # Verify all ops are present in the VALUES array
     for op in ops_list:
-        assert op.sql_col in map_content
+        assert op.sql_col in query
+        assert f"'key': '{op.sql_col}'" in query
