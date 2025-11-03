@@ -111,9 +111,12 @@ class TestSimpleMetric:
         # Retrieve metric
         result = simple_metric(metric_spec, "test_dataset", result_key, execution_id, cache)
 
-        # Verify
-        assert isinstance(result, Success)
-        assert result.unwrap() == pytest.approx(100.0)
+        # Verify using pattern matching
+        match result:
+            case Success(value):
+                assert value == pytest.approx(100.0)
+            case Failure(error):
+                pytest.fail(f"Expected Success, got Failure: {error}")
 
     def test_not_found(
         self,
@@ -127,12 +130,13 @@ class TestSimpleMetric:
         # Empty database
         result = simple_metric(metric_spec, "test_dataset", result_key, execution_id, cache)
 
-        # Verify
-        assert isinstance(result, Failure)
-        expected_msg = (
-            f"Metric {metric_spec.name} for {result_key.yyyy_mm_dd.isoformat()} on dataset 'test_dataset' not found!"
-        )
-        assert result.failure() == expected_msg
+        # Verify using pattern matching
+        match result:
+            case Failure(error):
+                expected_msg = f"Metric {metric_spec.name} for {result_key.yyyy_mm_dd.isoformat()} on dataset 'test_dataset' not found!"
+                assert error == expected_msg
+            case Success(_):
+                pytest.fail("Expected Failure, got Success")
 
     def test_different_datasets(
         self,
@@ -151,11 +155,18 @@ class TestSimpleMetric:
         result1 = simple_metric(metric_spec, "dataset1", result_key, execution_id, cache)
         result2 = simple_metric(metric_spec, "dataset2", result_key, execution_id, cache)
 
-        # Verify
-        assert isinstance(result1, Success)
-        assert result1.unwrap() == pytest.approx(100.0)
-        assert isinstance(result2, Success)
-        assert result2.unwrap() == pytest.approx(200.0)
+        # Verify using pattern matching
+        match result1:
+            case Success(value):
+                assert value == pytest.approx(100.0)
+            case Failure(error):
+                pytest.fail(f"Expected Success for dataset1, got Failure: {error}")
+
+        match result2:
+            case Success(value):
+                assert value == pytest.approx(200.0)
+            case Failure(error):
+                pytest.fail(f"Expected Success for dataset2, got Failure: {error}")
 
     def test_different_execution_ids(
         self,
@@ -173,11 +184,18 @@ class TestSimpleMetric:
         result1 = simple_metric(metric_spec, "test_dataset", result_key, "exec-1", cache)
         result2 = simple_metric(metric_spec, "test_dataset", result_key, "exec-2", cache)
 
-        # Verify
-        assert isinstance(result1, Success)
-        assert result1.unwrap() == pytest.approx(100.0)
-        assert isinstance(result2, Success)
-        assert result2.unwrap() == pytest.approx(200.0)
+        # Verify using pattern matching
+        match result1:
+            case Success(value):
+                assert value == pytest.approx(100.0)
+            case Failure(error):
+                pytest.fail(f"Expected Success for exec-1, got Failure: {error}")
+
+        match result2:
+            case Success(value):
+                assert value == pytest.approx(200.0)
+            case Failure(error):
+                pytest.fail(f"Expected Success for exec-2, got Failure: {error}")
 
 
 class TestDayOverDay:
@@ -196,13 +214,17 @@ class TestDayOverDay:
         values = {0: 150.0, -1: 100.0}  # Today: 150, Yesterday: 100
         populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
 
-        # Calculate ratio
+        # Calculate percentage change
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = day_over_day(metric_spec, "test_dataset", key, execution_id, cache)
 
-        # Verify
-        assert isinstance(result, Success)
-        assert result.unwrap() == pytest.approx(1.5)  # 150/100
+        # Verify using pattern matching
+        match result:
+            case Success(value):
+                # Now calculates |150-100|/100 = 0.5 (50% change)
+                assert value == pytest.approx(0.5)
+            case Failure(error):
+                pytest.fail(f"Expected Success, got Failure: {error}")
 
     def test_negative_values(
         self,
@@ -217,13 +239,17 @@ class TestDayOverDay:
         values = {0: -50.0, -1: -100.0}
         populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
 
-        # Calculate ratio
+        # Calculate percentage change
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = day_over_day(metric_spec, "test_dataset", key, execution_id, cache)
 
-        # Verify
-        assert isinstance(result, Success)
-        assert result.unwrap() == pytest.approx(0.5)  # -50/-100
+        # Verify using pattern matching
+        match result:
+            case Success(value):
+                # Now calculates |-50-(-100)|/|-100| = 50/100 = 0.5
+                assert value == pytest.approx(0.5)
+            case Failure(error):
+                pytest.fail(f"Expected Success, got Failure: {error}")
 
     def test_missing_today(
         self,
@@ -238,13 +264,16 @@ class TestDayOverDay:
         values = {-1: 100.0}
         populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
 
-        # Calculate ratio
+        # Calculate percentage change
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = day_over_day(metric_spec, "test_dataset", key, execution_id, cache)
 
-        # Verify
-        assert isinstance(result, Failure)
-        assert "There are 1 dates with missing metrics" in result.failure()
+        # Verify using pattern matching
+        match result:
+            case Failure(error):
+                assert "There are 1 dates with missing metrics" in error
+            case Success(_):
+                pytest.fail("Expected Failure for missing data, got Success")
 
     def test_missing_yesterday(
         self,
@@ -259,13 +288,16 @@ class TestDayOverDay:
         values = {0: 100.0}
         populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
 
-        # Calculate ratio
+        # Calculate percentage change
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = day_over_day(metric_spec, "test_dataset", key, execution_id, cache)
 
-        # Verify
-        assert isinstance(result, Failure)
-        assert "There are 1 dates with missing metrics" in result.failure()
+        # Verify using pattern matching
+        match result:
+            case Failure(error):
+                assert "There are 1 dates with missing metrics" in error
+            case Success(_):
+                pytest.fail("Expected Failure for missing data, got Success")
 
     def test_division_by_zero(
         self,
@@ -280,14 +312,17 @@ class TestDayOverDay:
         values = {0: 100.0, -1: 0.0}
         populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
 
-        # Calculate ratio
+        # Calculate percentage change
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = day_over_day(metric_spec, "test_dataset", key, execution_id, cache)
 
-        # Verify
-        assert isinstance(result, Failure)
-        assert "Cannot calculate day over day: previous day value" in result.failure()
-        assert "is zero" in result.failure()
+        # Verify using pattern matching
+        match result:
+            case Failure(error):
+                assert "Cannot calculate day over day: previous day value" in error
+                assert "is zero" in error
+            case Success(_):
+                pytest.fail("Expected Failure for division by zero, got Success")
 
     def test_no_data(
         self,
@@ -302,10 +337,13 @@ class TestDayOverDay:
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = day_over_day(metric_spec, "test_dataset", key, execution_id, cache)
 
-        # Verify
-        assert isinstance(result, Failure)
-        # DB returns empty TimeSeries, so _timeseries_check reports missing dates
-        assert "There are 2 dates with missing metrics" in result.failure()
+        # Verify using pattern matching
+        match result:
+            case Failure(error):
+                # DB returns empty TimeSeries, so _timeseries_check reports missing dates
+                assert "There are 2 dates with missing metrics" in error
+            case Success(_):
+                pytest.fail("Expected Failure for no data, got Success")
 
 
 class TestWeekOverWeek:
@@ -324,13 +362,17 @@ class TestWeekOverWeek:
         values = {0: 210.0, -7: 100.0}  # Today: 210, Week ago: 100
         populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
 
-        # Calculate ratio
+        # Calculate percentage change
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = week_over_week(metric_spec, "test_dataset", key, execution_id, cache)
 
-        # Verify
-        assert isinstance(result, Success)
-        assert result.unwrap() == pytest.approx(2.1)  # 210/100
+        # Verify using pattern matching
+        match result:
+            case Success(value):
+                # Now calculates |210-100|/100 = 1.1 (110% change)
+                assert value == pytest.approx(1.1)
+            case Failure(error):
+                pytest.fail(f"Expected Success, got Failure: {error}")
 
     def test_success_full_window(
         self,
@@ -345,14 +387,18 @@ class TestWeekOverWeek:
         values: dict[int, float] = {i: 100.0 + i * 10.0 for i in range(-7, 1)}  # -7 to 0
         populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
 
-        # Calculate ratio
+        # Calculate percentage change
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = week_over_week(metric_spec, "test_dataset", key, execution_id, cache)
 
-        # Verify
-        assert isinstance(result, Success)
-        # Today: 100 + 0*10 = 100, Week ago: 100 + (-7)*10 = 30
-        assert result.unwrap() == pytest.approx(100.0 / 30.0)
+        # Verify using pattern matching
+        match result:
+            case Success(value):
+                # Today: 100 + 0*10 = 100, Week ago: 100 + (-7)*10 = 30
+                # Now calculates |100-30|/30 = 70/30 ≈ 2.333
+                assert value == pytest.approx(70.0 / 30.0)
+            case Failure(error):
+                pytest.fail(f"Expected Success, got Failure: {error}")
 
     def test_missing_current_week(
         self,
@@ -367,13 +413,16 @@ class TestWeekOverWeek:
         values = {-7: 100.0}
         populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
 
-        # Calculate ratio
+        # Calculate percentage change
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = week_over_week(metric_spec, "test_dataset", key, execution_id, cache)
 
-        # Verify
-        assert isinstance(result, Failure)
-        assert "There are 1 dates with missing metrics" in result.failure()
+        # Verify using pattern matching
+        match result:
+            case Failure(error):
+                assert "There are 1 dates with missing metrics" in error
+            case Success(_):
+                pytest.fail("Expected Failure for missing data, got Success")
 
     def test_missing_previous_week(
         self,
@@ -388,13 +437,16 @@ class TestWeekOverWeek:
         values = {0: 100.0}
         populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
 
-        # Calculate ratio
+        # Calculate percentage change
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = week_over_week(metric_spec, "test_dataset", key, execution_id, cache)
 
-        # Verify
-        assert isinstance(result, Failure)
-        assert "There are 1 dates with missing metrics" in result.failure()
+        # Verify using pattern matching
+        match result:
+            case Failure(error):
+                assert "There are 1 dates with missing metrics" in error
+            case Success(_):
+                pytest.fail("Expected Failure for missing data, got Success")
 
     def test_division_by_zero(
         self,
@@ -409,14 +461,17 @@ class TestWeekOverWeek:
         values = {0: 100.0, -7: 0.0}
         populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
 
-        # Calculate ratio
+        # Calculate percentage change
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = week_over_week(metric_spec, "test_dataset", key, execution_id, cache)
 
-        # Verify
-        assert isinstance(result, Failure)
-        assert "Cannot calculate week over week: week ago value" in result.failure()
-        assert "is zero" in result.failure()
+        # Verify using pattern matching
+        match result:
+            case Failure(error):
+                assert "Cannot calculate week over week: week ago value" in error
+                assert "is zero" in error
+            case Success(_):
+                pytest.fail("Expected Failure for division by zero, got Success")
 
 
 class TestStddev:
@@ -439,11 +494,14 @@ class TestStddev:
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = stddev(metric_spec, "test_dataset", key, execution_id, 5, cache)
 
-        # Verify
-        assert isinstance(result, Success)
-        # Standard deviation of [10, 20, 30, 40, 50]
-        expected = statistics.stdev([10, 20, 30, 40, 50])
-        assert result.unwrap() == pytest.approx(expected)
+        # Verify using pattern matching
+        match result:
+            case Success(value):
+                # Standard deviation of [10, 20, 30, 40, 50]
+                expected = statistics.stdev([10, 20, 30, 40, 50])
+                assert value == pytest.approx(expected)
+            case Failure(error):
+                pytest.fail(f"Expected Success, got Failure: {error}")
 
     def test_success_window_size_2(
         self,
@@ -462,10 +520,13 @@ class TestStddev:
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = stddev(metric_spec, "test_dataset", key, execution_id, 2, cache)
 
-        # Verify
-        assert isinstance(result, Success)
-        expected = statistics.stdev([20.0, 10.0])  # Chronological order
-        assert result.unwrap() == pytest.approx(expected)
+        # Verify using pattern matching
+        match result:
+            case Success(value):
+                expected = statistics.stdev([20.0, 10.0])  # Chronological order
+                assert value == pytest.approx(expected)
+            case Failure(error):
+                pytest.fail(f"Expected Success, got Failure: {error}")
 
     def test_success_window_size_1(
         self,
@@ -484,9 +545,12 @@ class TestStddev:
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = stddev(metric_spec, "test_dataset", key, execution_id, 1, cache)
 
-        # Verify
-        assert isinstance(result, Success)
-        assert result.unwrap() == 0.0  # Standard deviation of single value
+        # Verify using pattern matching
+        match result:
+            case Success(value):
+                assert value == 0.0  # Standard deviation of single value
+            case Failure(error):
+                pytest.fail(f"Expected Success, got Failure: {error}")
 
     def test_success_identical_values(
         self,
@@ -505,9 +569,12 @@ class TestStddev:
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = stddev(metric_spec, "test_dataset", key, execution_id, 5, cache)
 
-        # Verify
-        assert isinstance(result, Success)
-        assert result.unwrap() == 0.0
+        # Verify using pattern matching
+        match result:
+            case Success(value):
+                assert value == 0.0
+            case Failure(error):
+                pytest.fail(f"Expected Success, got Failure: {error}")
 
     def test_missing_dates(
         self,
@@ -526,9 +593,12 @@ class TestStddev:
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = stddev(metric_spec, "test_dataset", key, execution_id, 5, cache)
 
-        # Verify
-        assert isinstance(result, Failure)
-        assert "There are 2 dates with missing metrics" in result.failure()
+        # Verify using pattern matching
+        match result:
+            case Failure(error):
+                assert "There are 2 dates with missing metrics" in error
+            case Success(_):
+                pytest.fail("Expected Failure for missing dates, got Success")
 
     def test_no_data(
         self,
@@ -543,10 +613,13 @@ class TestStddev:
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = stddev(metric_spec, "test_dataset", key, execution_id, 5, cache)
 
-        # Verify
-        assert isinstance(result, Failure)
-        # DB returns empty TimeSeries, so _timeseries_check reports missing dates
-        assert "There are 5 dates with missing metrics" in result.failure()
+        # Verify using pattern matching
+        match result:
+            case Failure(error):
+                # DB returns empty TimeSeries, so _timeseries_check reports missing dates
+                assert "There are 5 dates with missing metrics" in error
+            case Success(_):
+                pytest.fail("Expected Failure for no data, got Success")
 
     def test_large_window(
         self,
@@ -565,12 +638,47 @@ class TestStddev:
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = stddev(metric_spec, "test_dataset", key, execution_id, 30, cache)
 
-        # Verify
-        assert isinstance(result, Success)
-        # Calculate expected stddev
-        expected_values = [float(i * i) for i in range(30)]
-        expected = statistics.stdev(expected_values)
-        assert result.unwrap() == pytest.approx(expected)
+        # Verify using pattern matching
+        match result:
+            case Success(value):
+                # Calculate expected stddev
+                expected_values = [float(i * i) for i in range(30)]
+                expected = statistics.stdev(expected_values)
+                assert value == pytest.approx(expected)
+            case Failure(error):
+                pytest.fail(f"Expected Success, got Failure: {error}")
+
+    def test_statistics_error_edge_case(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        db: MetricDB,
+        cache: MetricCache,
+        metric_spec: MetricSpec,
+        base_date: date,
+        execution_id: ExecutionId,
+    ) -> None:
+        """Test edge case where statistics.stdev raises an error."""
+        # Populate some data
+        values = {0: 10.0, -1: 20.0}
+        populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
+
+        # Mock statistics.stdev to raise an error
+        def mock_stdev(_: list[float]) -> float:
+            raise statistics.StatisticsError("Mocked error")
+
+        monkeypatch.setattr(statistics, "stdev", mock_stdev)
+
+        # Calculate stddev
+        key = ResultKey(yyyy_mm_dd=base_date, tags={})
+        result = stddev(metric_spec, "test_dataset", key, execution_id, 2, cache)
+
+        # Verify using pattern matching
+        match result:
+            case Failure(error):
+                assert "Failed to calculate standard deviation" in error
+                assert "Mocked error" in error
+            case Success(_):
+                pytest.fail("Expected Failure for StatisticsError, got Success")
 
 
 class TestTimeseriesCheck:
@@ -598,9 +706,12 @@ class TestTimeseriesCheck:
         # Check
         result = _timeseries_check(ts, base, 3)
 
-        # Verify
-        assert isinstance(result, Success)
-        assert result.unwrap() == ts
+        # Verify using pattern matching
+        match result:
+            case Success(value):
+                assert value == ts
+            case Failure(error):
+                pytest.fail(f"Expected Success, got Failure: {error}")
 
     def test_success_extra_dates(self) -> None:
         """Test with extra dates beyond expected range."""
@@ -617,9 +728,12 @@ class TestTimeseriesCheck:
         # Check for 3 days starting from base
         result = _timeseries_check(ts, base, 3)
 
-        # Verify
-        assert isinstance(result, Success)
-        assert result.unwrap() == ts
+        # Verify using pattern matching
+        match result:
+            case Success(value):
+                assert value == ts
+            case Failure(error):
+                pytest.fail(f"Expected Success, got Failure: {error}")
 
     def test_failure_single_missing_date(self) -> None:
         """Test with one missing date."""
@@ -634,10 +748,13 @@ class TestTimeseriesCheck:
         # Check
         result = _timeseries_check(ts, base, 3)
 
-        # Verify
-        assert isinstance(result, Failure)
-        assert "There are 1 dates with missing metrics" in result.failure()
-        assert "2024-01-11" in result.failure()
+        # Verify using pattern matching
+        match result:
+            case Failure(error):
+                assert "There are 1 dates with missing metrics" in error
+                assert "2024-01-11" in error
+            case Success(_):
+                pytest.fail("Expected Failure for missing date, got Success")
 
     def test_failure_multiple_missing_dates(self) -> None:
         """Test with multiple missing dates."""
@@ -652,9 +769,12 @@ class TestTimeseriesCheck:
         # Check for 6 days
         result = _timeseries_check(ts, base, 6)
 
-        # Verify
-        assert isinstance(result, Failure)
-        assert "There are 4 dates with missing metrics" in result.failure()
+        # Verify using pattern matching
+        match result:
+            case Failure(error):
+                assert "There are 4 dates with missing metrics" in error
+            case Success(_):
+                pytest.fail("Expected Failure for missing dates, got Success")
 
     def test_failure_with_limit(self) -> None:
         """Test that limit parameter controls error message."""
@@ -665,13 +785,15 @@ class TestTimeseriesCheck:
         # Check for 10 days with limit=3
         result = _timeseries_check(ts, base, 10, limit=3)
 
-        # Verify
-        assert isinstance(result, Failure)
-        failure_msg = result.failure()
-        assert "There are 9 dates with missing metrics" in failure_msg
-        # Should only list 3 dates due to limit
-        date_count = failure_msg.count("2024-01-")
-        assert date_count == 3
+        # Verify using pattern matching
+        match result:
+            case Failure(error):
+                assert "There are 9 dates with missing metrics" in error
+                # Should only list 3 dates due to limit
+                date_count = error.count("2024-01-")
+                assert date_count == 3
+            case Success(_):
+                pytest.fail("Expected Failure for missing dates, got Success")
 
     def test_empty_timeseries(self) -> None:
         """Test with empty timeseries."""
@@ -682,9 +804,12 @@ class TestTimeseriesCheck:
         # Check
         result = _timeseries_check(ts, base, 3)
 
-        # Verify
-        assert isinstance(result, Failure)
-        assert "There are 3 dates with missing metrics" in result.failure()
+        # Verify using pattern matching
+        match result:
+            case Failure(error):
+                assert "There are 3 dates with missing metrics" in error
+            case Success(_):
+                pytest.fail("Expected Failure for empty timeseries, got Success")
 
 
 class TestSparseTimeseriesCheck:
@@ -712,9 +837,12 @@ class TestSparseTimeseriesCheck:
         # Check for specific lag points
         result = _sparse_timeseries_check(ts, base, [0, 7, 30])
 
-        # Verify
-        assert isinstance(result, Success)
-        assert result.unwrap() == ts
+        # Verify using pattern matching
+        match result:
+            case Success(value):
+                assert value == ts
+            case Failure(error):
+                pytest.fail(f"Expected Success, got Failure: {error}")
 
     def test_success_extra_dates(self) -> None:
         """Test with extra dates beyond lag points."""
@@ -730,9 +858,12 @@ class TestSparseTimeseriesCheck:
         # Check for specific lag points
         result = _sparse_timeseries_check(ts, base, [0, 7])
 
-        # Verify
-        assert isinstance(result, Success)
-        assert result.unwrap() == ts
+        # Verify using pattern matching
+        match result:
+            case Success(value):
+                assert value == ts
+            case Failure(error):
+                pytest.fail(f"Expected Success, got Failure: {error}")
 
     def test_failure_missing_lag_points(self) -> None:
         """Test with missing lag points."""
@@ -747,10 +878,13 @@ class TestSparseTimeseriesCheck:
         # Check
         result = _sparse_timeseries_check(ts, base, [0, 7, 30])
 
-        # Verify
-        assert isinstance(result, Failure)
-        assert "There are 1 dates with missing metrics" in result.failure()
-        assert "2024-01-03" in result.failure()  # base - 7 days
+        # Verify using pattern matching
+        match result:
+            case Failure(error):
+                assert "There are 1 dates with missing metrics" in error
+                assert "2024-01-03" in error  # base - 7 days
+            case Success(_):
+                pytest.fail("Expected Failure for missing lag points, got Success")
 
     def test_empty_lag_points(self) -> None:
         """Test with empty lag points list."""
@@ -764,9 +898,12 @@ class TestSparseTimeseriesCheck:
         # Check with empty lag points
         result = _sparse_timeseries_check(ts, base, [])
 
-        # Verify - should succeed as no lag points are required
-        assert isinstance(result, Success)
-        assert result.unwrap() == ts
+        # Verify using pattern matching - should succeed as no lag points are required
+        match result:
+            case Success(value):
+                assert value == ts
+            case Failure(error):
+                pytest.fail(f"Expected Success, got Failure: {error}")
 
     def test_duplicate_lag_points(self) -> None:
         """Test with duplicate lag points."""
@@ -780,9 +917,12 @@ class TestSparseTimeseriesCheck:
         # Check with duplicate lag points
         result = _sparse_timeseries_check(ts, base, [0, 7, 7, 0])
 
-        # Verify - should succeed as duplicates resolve to same dates
-        assert isinstance(result, Success)
-        assert result.unwrap() == ts
+        # Verify using pattern matching - should succeed as duplicates resolve to same dates
+        match result:
+            case Success(value):
+                assert value == ts
+            case Failure(error):
+                pytest.fail(f"Expected Success, got Failure: {error}")
 
     def test_with_limit(self) -> None:
         """Test that limit parameter controls error message."""
@@ -793,10 +933,12 @@ class TestSparseTimeseriesCheck:
         # Check for many lag points with limit=2
         result = _sparse_timeseries_check(ts, base, [7, 14, 21, 28, 35], limit=2)
 
-        # Verify
-        assert isinstance(result, Failure)
-        failure_msg = result.failure()
-        assert "There are 5 dates with missing metrics" in failure_msg
-        # Should only list 2 dates due to limit (expect dates like "2024-01-03", "2024-01-")
-        dates_listed = failure_msg.split(": ")[1].count(",") + 1
-        assert dates_listed == 2
+        # Verify using pattern matching
+        match result:
+            case Failure(error):
+                assert "There are 5 dates with missing metrics" in error
+                # Should only list 2 dates due to limit (expect dates like "2024-01-03", "2024-01-")
+                dates_listed = error.split(": ")[1].count(",") + 1
+                assert dates_listed == 2
+            case Success(_):
+                pytest.fail("Expected Failure for missing dates, got Success")

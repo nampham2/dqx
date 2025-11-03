@@ -637,8 +637,8 @@ class TestAnalyzerExtendedMetrics:
         dod_spec = provider.get_symbol(dod_metric).metric_spec
         metric_key_tuple = (dod_spec, key, "sales")
         assert metric_key_tuple in report
-        # DoD = today/yesterday = 100/110 ≈ 0.909
-        assert abs(report[metric_key_tuple].value - 0.909) < 0.001
+        # DoD = |100-110|/110 = 10/110 ≈ 0.0909 (percentage change)
+        assert abs(report[metric_key_tuple].value - 0.0909) < 0.001
 
     def test_analyze_extended_metrics_with_failure(self) -> None:
         """Test analyze_extended_metrics when evaluation fails."""

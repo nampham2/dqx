@@ -121,7 +121,8 @@ def test_pass_statements_coverage() -> None:
 
     result = day_over_day(metric_spec, "test_dataset", key, "exec-123", cache)
     assert isinstance(result, Success)
-    assert result.unwrap() == pytest.approx(1.5)
+    # DoD = |150-100|/100 = 50/100 = 0.5 (percentage change)
+    assert result.unwrap() == pytest.approx(0.5)
 
     # For week_over_week - populate valid data that will pass both checks
     week_ago_key = ResultKey(yyyy_mm_dd=base_date - timedelta(days=7), tags={})
@@ -129,7 +130,8 @@ def test_pass_statements_coverage() -> None:
 
     result = week_over_week(metric_spec, "test_dataset", key, "exec-123", cache)
     assert isinstance(result, Success)
-    assert result.unwrap() == pytest.approx(3.0)  # 150/50
+    # WoW = |150-50|/50 = 100/50 = 2.0 (percentage change)
+    assert result.unwrap() == pytest.approx(2.0)
 
     # For stddev - populate valid data for all 5 days with a different execution_id
     # to avoid interfering with the previous tests

@@ -215,7 +215,8 @@ def test_week_over_week_succeeds_with_sparse_data() -> None:
 
     match result:
         case Success(value):
-            assert value == pytest.approx(2.0)  # 700 / 350 = 2.0
+            # WoW = |700-350|/350 = 350/350 = 1.0 (percentage change)
+            assert value == pytest.approx(1.0)
         case Failure(_):
             pytest.fail("Expected Success for week-over-week with required lag points")
 

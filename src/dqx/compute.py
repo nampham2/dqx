@@ -139,7 +139,7 @@ def day_over_day(
     if ts[yesterday].value == 0:
         return Failure(f"Cannot calculate day over day: previous day value ({yesterday}) is zero.")
 
-    return Success(ts[today].value / ts[yesterday].value)
+    return Success(abs((ts[today].value - ts[yesterday].value) / ts[yesterday].value))
 
 
 def week_over_week(
@@ -178,7 +178,7 @@ def week_over_week(
     if ts[week_ago].value == 0:
         return Failure(f"Cannot calculate week over week: week ago value ({week_ago}) is zero.")
 
-    return Success(ts[today].value / ts[week_ago].value)
+    return Success(abs((ts[today].value - ts[week_ago].value) / ts[week_ago].value))
 
 
 def stddev(
