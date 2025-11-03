@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import datetime
 import logging
 import math
 from collections import UserDict, defaultdict
 from collections.abc import Mapping, Sequence
 from typing import Any, TypeVar
 
-import pyarrow as pa
 import sqlparse
 from returns.result import Failure, Success
 
@@ -126,59 +124,7 @@ class AnalysisReport(UserDict[MetricKey, models.Metric]):
         cache.write_back()
 
 
-def analyze_sql_ops(ds: T, ops: Sequence[SqlOp], nominal_date: datetime.date) -> None:
-    if len(ops) == 0:
-        return
-
-    # Deduping the ops preserving order of first occurrence
-    seen = set()
-    distinct_ops = []
-    for op in ops:
-        if op not in seen:
-            seen.add(op)
-            distinct_ops.append(op)
-
-    # Constructing the query
-    logger.info(f"Analyzing SqlOps: {distinct_ops}")
-
-    # Get the dialect instance from the registry
-    dialect_instance = get_dialect(ds.dialect)
-
-    # Generate SQL expressions using the dialect
-    expressions = [dialect_instance.translate_sql_op(op) for op in distinct_ops]
-    sql = dialect_instance.build_cte_query(ds.cte(nominal_date), expressions)
-
-    # Format SQL for consistent output
-    sql = sqlparse.format(
-        sql,
-        reindent=True,
-        keyword_case="upper",
-        identifier_case="lower",
-        indent_width=2,
-        wrap_after=120,
-        comma_first=False,
-    )
-
-    # Execute the query
-    logger.debug(f"SQL Query:\n{sql}")
-    result: pa.Table = ds.query(sql).fetch_arrow_table()
-
-    # Assign the collected values to the ops
-    # Create a mapping from all ops to their sql_col (duplicates will map to same col)
-    cols: dict[SqlOp, str] = {}
-    for op in ops:
-        # Find the corresponding distinct op that has the same value
-        for distinct_op in distinct_ops:
-            if op == distinct_op:
-                cols[op] = distinct_op.sql_col
-                break
-
-    # Now assign values to all ops
-    for op in ops:
-        op.assign(result[cols[op]][0].as_py())
-
-
-def analyze_batch_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> None:
+def analyze_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> None:
     """Analyze SQL ops for multiple dates in one query.
 
     Args:
@@ -211,7 +157,6 @@ def analyze_batch_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> No
         indent_width=2,
         wrap_after=120,
         comma_first=False,
-        compact=True,
     )
 
     logger.info(f"Batch SQL Query:\n{sql}")
@@ -313,7 +258,7 @@ class Analyzer:
 
         # Phase 3: Execute SQL with deduplicated ops
         if ops_by_key:
-            analyze_batch_sql_ops(ds, dict(ops_by_key))
+            analyze_sql_ops(ds, dict(ops_by_key))
 
             # Phase 4: Propagate values to all equivalent analyzer instances
             for (key, representative), equivalent_instances in analyzer_equivalence_map.items():

@@ -5,7 +5,7 @@ import datetime
 import duckdb
 
 from dqx import ops
-from dqx.analyzer import Analyzer, analyze_batch_sql_ops
+from dqx.analyzer import Analyzer, analyze_sql_ops
 from dqx.common import ResultKey
 from dqx.dialect import BatchCTEData, DuckDBDialect
 from tests.fixtures.data_fixtures import CommercialDataSource
@@ -41,7 +41,7 @@ class TestAnalyzerBatchOptimization:
             ops_by_key[key] = ops_list
 
         # Execute batch analysis
-        analyze_batch_sql_ops(ds, ops_by_key)  # type: ignore[arg-type]
+        analyze_sql_ops(ds, ops_by_key)  # type: ignore[arg-type]
 
         # Verify results for each date
         # With seed=42 and the known data generation pattern, we can verify:

@@ -103,7 +103,7 @@ class TestAnalysisReportSymbols:
                 for op in ops:
                     op._value = 100.0
 
-        with patch("dqx.analyzer.analyze_batch_sql_ops", side_effect=mock_analyze):
+        with patch("dqx.analyzer.analyze_sql_ops", side_effect=mock_analyze):
             analyzer.analyze_simple_metrics(mock_ds, metrics_by_key)
 
         # Check that symbol exists in provider's registry

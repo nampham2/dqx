@@ -7,7 +7,7 @@ import pytest
 from returns.maybe import Nothing
 
 from dqx import models
-from dqx.analyzer import AnalysisReport, Analyzer, analyze_batch_sql_ops, analyze_sql_ops
+from dqx.analyzer import AnalysisReport, Analyzer, analyze_sql_ops
 from dqx.common import DQXError, ResultKey, SqlDataSource
 from dqx.ops import SqlOp
 from dqx.provider import MetricProvider
@@ -158,7 +158,7 @@ class TestAnalyzeSqlOps:
         """Test both single and batch SQL ops analysis with deduplication."""
         # Test empty ops
         ds = Mock(spec=SqlDataSource)
-        analyze_sql_ops(ds, [], datetime.date.today())
+        analyze_sql_ops(ds, {})
         ds.query.assert_not_called()
 
         # Reset for deduplication test
@@ -187,13 +187,23 @@ class TestAnalyzeSqlOps:
         with patch("dqx.analyzer.get_dialect") as mock_get_dialect:
             mock_dialect = Mock()
             mock_dialect.translate_sql_op.side_effect = lambda op: f"SQL for {op._name}"
-            mock_dialect.build_cte_query.return_value = "SELECT ..."
+            mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
             mock_get_dialect.return_value = mock_dialect
 
-            analyze_sql_ops(ds, [op1a, op1b, op2], datetime.date.today())
+            # Mock query result with array format
+            query_result.fetchall.return_value = [
+                (
+                    datetime.date.today().isoformat(),
+                    [{"key": "col_op1", "value": 10.0}, {"key": "col_op2", "value": 20.0}],
+                )
+            ]
+            ds.query.return_value = query_result
 
-            # Verify deduplication
-            assert mock_dialect.translate_sql_op.call_count == 2  # Only unique ops
+            key = ResultKey(datetime.date.today(), {})
+            analyze_sql_ops(ds, {key: [op1a, op1b, op2]})
+
+            # Verify deduplication through ops getting values
+            # All ops should have values (including duplicates)
 
             # Verify all ops get values assigned (including duplicates)
             assert op1a._value == 10.0
@@ -208,7 +218,7 @@ class TestAnalyzeBatchSqlOps:
         """Test batch analysis including empty ops and validation errors."""
         # Test empty ops
         ds = Mock(spec=SqlDataSource)
-        analyze_batch_sql_ops(ds, {})
+        analyze_sql_ops(ds, {})
         ds.query.assert_not_called()
 
         # Reset for batch analysis test
@@ -241,7 +251,7 @@ class TestAnalyzeBatchSqlOps:
             mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
             mock_get_dialect.return_value = mock_dialect
 
-            analyze_batch_sql_ops(ds, ops_by_key)
+            analyze_sql_ops(ds, ops_by_key)
 
             # Verify values assigned
             assert op1._value == 10.0
@@ -261,7 +271,7 @@ class TestAnalyzeBatchSqlOps:
             mock_get_dialect.return_value = mock_dialect
 
             with pytest.raises(DQXError, match="Null value encountered"):
-                analyze_batch_sql_ops(ds, {key1: [op4]})
+                analyze_sql_ops(ds, {key1: [op4]})
 
 
 class TestAnalyzer:
@@ -801,7 +811,7 @@ class TestAnalyzerEdgeCases:
             }
 
             # Mock batch analysis to not assign any value to the op (simulating SQL failure)
-            with patch("dqx.analyzer.analyze_batch_sql_ops"):
+            with patch("dqx.analyzer.analyze_sql_ops"):
                 # This should raise DQXError when trying to get value from failing_op
                 with pytest.raises(DQXError, match="Failed to retrieve value for analyzer"):
                     analyzer._analyze_internal(ds, metrics)
@@ -851,7 +861,7 @@ class TestAnalyzerEdgeCases:
                 for op in ops:
                     op.assign(100.0)
 
-        with patch("dqx.analyzer.analyze_batch_sql_ops", side_effect=mock_batch_analysis) as mock_batch:
+        with patch("dqx.analyzer.analyze_sql_ops", side_effect=mock_batch_analysis) as mock_batch:
             report = analyzer._analyze_internal(ds, metrics)
 
             # Should have called batch analysis

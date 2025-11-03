@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from dqx.analyzer import AnalysisReport, Analyzer, analyze_batch_sql_ops
+from dqx.analyzer import AnalysisReport, Analyzer, analyze_sql_ops
 from dqx.common import DQXError, ResultKey, SqlDataSource
 from dqx.models import Metric
 from dqx.ops import Sum
@@ -202,7 +202,7 @@ def test_analyze_batch_sql_ops_with_empty_ops() -> None:
     ds = Mock(spec=SqlDataSource)
 
     # Call analyze_batch_sql_ops with empty dict
-    analyze_batch_sql_ops(ds, {})
+    analyze_sql_ops(ds, {})
 
     # Should return early without doing anything
     # No query should be made
