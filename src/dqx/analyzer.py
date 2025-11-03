@@ -406,7 +406,6 @@ class Analyzer:
         metadata = Metadata(execution_id=self.execution_id)
 
         for sym_metric in self.metrics:
-            # Check if it's an extended metric using isinstance
             if sym_metric.metric_spec.is_extended:
                 # Calculate effective key with lag
                 effective_key = self.key.lag(sym_metric.lag)
