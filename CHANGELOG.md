@@ -1,3 +1,9 @@
+## v0.5.7 (2025-11-03)
+
+### Perf
+
+- **analyzer**: optimize SQL logging and formatting
+
 ## v0.5.7a4 (2025-11-03)
 
 ### Fix
