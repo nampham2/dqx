@@ -1,3 +1,9 @@
+## v0.5.7a2 (2025-11-03)
+
+### Fix
+
+- **analyzer**: handle BigQuery dict format in batch query results
+
 ## v0.5.7a1 (2025-11-03)
 
 ### Fix

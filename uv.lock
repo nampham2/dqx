@@ -222,7 +222,7 @@ wheels = [
 
 [[package]]
 name = "dqlib"
-version = "0.5.7a0"
+version = "0.5.7a2"
 source = { editable = "." }
 dependencies = [
     { name = "duckdb" },
