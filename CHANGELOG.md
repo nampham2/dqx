@@ -1,3 +1,13 @@
+## v0.5.7a1 (2025-11-03)
+
+### Fix
+
+- **analyzer**: handle BigQuery uppercase KEY in batch query results
+
+### Refactor
+
+- **analyzer**: consolidate SQL ops analysis into single batch function
+
 ## v0.5.7a0 (2025-11-03)
 
 ### Fix
