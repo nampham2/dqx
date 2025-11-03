@@ -228,11 +228,11 @@ class TestAnalyzeBatchSqlOps:
             key2: [op3],
         }
 
-        # Mock query result with MAP values
+        # Mock query result with array format
         query_result = Mock()
         query_result.fetchall.return_value = [
-            ("2024-01-01", {"col_op1": 10.0, "col_op2": 20.0}),
-            ("2024-01-02", {"col_op3": 30.0}),
+            ("2024-01-01", [{"key": "col_op1", "value": 10.0}, {"key": "col_op2", "value": 20.0}]),
+            ("2024-01-02", [{"key": "col_op3", "value": 30.0}]),
         ]
         ds.query.return_value = query_result
 
@@ -252,7 +252,7 @@ class TestAnalyzeBatchSqlOps:
         ds.reset_mock()
         op4 = MockSqlOp("op4")
         query_result.fetchall.return_value = [
-            ("2024-01-01", {"col_op4": None}),
+            ("2024-01-01", [{"key": "col_op4", "value": None}]),
         ]
 
         with patch("dqx.analyzer.get_dialect") as mock_get_dialect:

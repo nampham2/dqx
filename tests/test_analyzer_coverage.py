@@ -153,10 +153,10 @@ def test_analyze_batch_sql_ops_value_retrieval_failure() -> None:
     ds.cte = Mock(return_value="WITH data AS (...)")
     ds.name = "test_ds"
 
-    # Create mock query result with MAP format - the op's sql_col won't be in the MAP
+    # Create mock query result with array format - the op's sql_col won't be in the array
     mock_result = Mock()
-    # Return a result that has date and MAP, but the MAP doesn't contain our metric
-    mock_result.fetchall.return_value = [("2024-01-01", {"other_metric": 123.0})]
+    # Return a result that has date and array, but the array doesn't contain our metric
+    mock_result.fetchall.return_value = [("2024-01-01", [{"key": "other_metric", "value": 123.0}])]
     ds.query = Mock(return_value=mock_result)
 
     # Create a real SqlOp and a metric that uses it
