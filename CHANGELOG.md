@@ -1,3 +1,19 @@
+## v0.5.6 (2025-11-03)
+
+### Fix
+
+- improve metric handling and analyzer architecture (#19)
+
+### Refactor
+
+- remove numpy dependency from analyzer
+- **cache**: enhance metric storage and add performance tracking (#23)
+- **cache**: enhance metric storage and add performance tracking
+
+### Perf
+
+- optimize metric cache and improve code quality (#20)
+
 ## v0.5.5 (2025-10-30)
 
 ### Feat

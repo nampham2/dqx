@@ -1,6 +1,5 @@
 """Test coverage for _validate_value function in analyzer.py."""
 
-import numpy as np
 import pytest
 
 from dqx.analyzer import _validate_value
@@ -10,12 +9,7 @@ from dqx.common import DQXError
 class TestValidateValue:
     """Test the _validate_value function."""
 
-    def test_validate_value_with_masked(self) -> None:
-        """Test that masked values raise DQXError."""
-        masked_value = np.ma.masked
-
-        with pytest.raises(DQXError, match="Masked value encountered for symbol 'test_col' on date 2024-01-01"):
-            _validate_value(masked_value, "2024-01-01", "test_col")
+    # Removed test_validate_value_with_masked since we no longer check for numpy masked arrays
 
     def test_validate_value_with_none(self) -> None:
         """Test that None values raise DQXError."""
@@ -42,7 +36,7 @@ class TestValidateValue:
     def test_validate_value_with_nan(self) -> None:
         """Test that NaN values raise DQXError."""
         with pytest.raises(DQXError, match="NaN value encountered for symbol 'test_col' on date 2024-01-01"):
-            _validate_value(np.nan, "2024-01-01", "test_col")
+            _validate_value(float("nan"), "2024-01-01", "test_col")
 
     def test_validate_value_success(self) -> None:
         """Test that valid values are returned as floats."""
@@ -55,5 +49,5 @@ class TestValidateValue:
         # Test with string that can be converted
         assert _validate_value("123.45", "2024-01-01", "test_col") == 123.45
 
-        # Test with numpy float
-        assert _validate_value(np.float64(99.9), "2024-01-01", "test_col") == 99.9
+        # Test with negative float
+        assert _validate_value(-99.9, "2024-01-01", "test_col") == -99.9
