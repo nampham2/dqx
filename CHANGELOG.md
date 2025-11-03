@@ -1,3 +1,15 @@
+## v0.5.7a0 (2025-11-03)
+
+### Fix
+
+- correct package name in version import
+- resolve BigQuery UNION ALL incompatibility in batch optimization
+
+### Refactor
+
+- remove backward compatibility in analyzer
+- remove numpy dependency and cleanup project structure (#24)
+
 ## v0.5.6 (2025-11-03)
 
 ### Fix

@@ -1,6 +1,6 @@
 [project]
 name = "dqlib"
-version = "0.5.6"
+version = "0.5.7a0"
 description = "Data Quality eXcellence"
 readme = "README.md"
 authors = [{ name = "Nam Pham", email = "phamducnam@gmail.com" }]
