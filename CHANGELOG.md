@@ -1,3 +1,11 @@
+## v0.5.8 (2025-11-03)
+
+### Fix
+
+- correct DoD/WoW calculations to use percentage change
+- BigQuery SQL generation compatibility
+- BigQuery SQL generation compatibility fixes
+
 ## v0.5.7 (2025-11-03)
 
 ### Perf
