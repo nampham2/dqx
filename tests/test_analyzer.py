@@ -210,13 +210,13 @@ class TestAnalyzeSqlOps:
             assert op1b._value == 10.0  # Gets same value as op1a
             assert op2._value == 20.0
 
-    def test_sql_ops_analysis_field_name_variations(self) -> None:
-        """Test handling of different result formats between dialects."""
-        # Test DuckDB format (tuple)
+    def test_sql_ops_analysis_bigquery_dialect(self) -> None:
+        """Test BigQuery dialect returns uppercase KEY in results."""
         ds = Mock(spec=SqlDataSource)
-        ds.dialect = "duckdb"
+        ds.dialect = "bigquery"
         ds.cte.return_value = "WITH t AS (SELECT * FROM table)"
 
+        # Create ops
         op1 = MockSqlOp("op1")
         op2 = MockSqlOp("op2")
 
@@ -225,12 +225,12 @@ class TestAnalyzeSqlOps:
             mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
             mock_get_dialect.return_value = mock_dialect
 
-            # DuckDB returns tuple format
+            # Mock query result with BigQuery uppercase KEY format
             query_result = Mock()
             query_result.fetchall.return_value = [
                 (
                     "2024-01-01",
-                    [{"key": "col_op1", "value": 10.0}, {"key": "col_op2", "value": 20.0}],
+                    [{"KEY": "col_op1", "value": 10.0}, {"KEY": "col_op2", "value": 20.0}],
                 )
             ]
             ds.query.return_value = query_result
@@ -238,33 +238,7 @@ class TestAnalyzeSqlOps:
             key = ResultKey(datetime.date(2024, 1, 1), {})
             analyze_sql_ops(ds, {key: [op1, op2]})
 
-            # Verify values assigned correctly
-            assert op1._value == 10.0
-            assert op2._value == 20.0
-
-        # Reset for BigQuery test
-        op1.clear()
-        op2.clear()
-        ds.dialect = "bigquery"
-
-        with patch("dqx.analyzer.get_dialect") as mock_get_dialect:
-            mock_dialect = Mock()
-            mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
-            mock_get_dialect.return_value = mock_dialect
-
-            # BigQuery returns dict format with uppercase VALUES
-            query_result = Mock()
-            query_result.fetchall.return_value = [
-                {
-                    "date": "2024-01-01",
-                    "VALUES": [{"key": "col_op1", "value": 10.0}, {"key": "col_op2", "value": 20.0}],
-                }
-            ]
-            ds.query.return_value = query_result
-
-            analyze_sql_ops(ds, {key: [op1, op2]})
-
-            # Verify values assigned correctly with dict format
+            # Verify values assigned correctly despite uppercase KEY
             assert op1._value == 10.0
             assert op2._value == 20.0
 
