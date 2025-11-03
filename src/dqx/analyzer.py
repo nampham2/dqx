@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import datetime
 import logging
+import math
 from collections import UserDict, defaultdict
 from collections.abc import Mapping, Sequence
 from typing import Any, TypeVar
 
-import numpy as np
+import pyarrow as pa
 import sqlparse
 from returns.result import Failure, Success
 
@@ -47,15 +48,8 @@ def _validate_value(value: Any, date_str: str, symbol: str) -> float:
         The validated float value
 
     Raises:
-        DQXError: If value is masked, nan, null, or cannot be converted to float
+        DQXError: If value is null or cannot be converted to float
     """
-    # Check for numpy masked value
-    if np.ma.is_masked(value):
-        raise DQXError(
-            f"Masked value encountered for symbol '{symbol}' on date {date_str}. "
-            f"This typically means no data was found for the requested date."
-        )
-
     # Check for None/null
     if value is None:
         raise DQXError(f"Null value encountered for symbol '{symbol}' on date {date_str}")
@@ -68,7 +62,7 @@ def _validate_value(value: Any, date_str: str, symbol: str) -> float:
             f"Cannot convert value to float for symbol '{symbol}' on date {date_str}. Value: {value!r}, Error: {e}"
         )
 
-    if np.isnan(float_value):
+    if math.isnan(float_value):
         raise DQXError(f"NaN value encountered for symbol '{symbol}' on date {date_str}")
 
     return float_value
@@ -167,7 +161,7 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp], nominal_date: datetime.date) ->
 
     # Execute the query
     logger.debug(f"SQL Query:\n{sql}")
-    result: dict[str, np.ndarray] = ds.query(sql).fetchnumpy()
+    result: pa.Table = ds.query(sql).fetch_arrow_table()
 
     # Assign the collected values to the ops
     # Create a mapping from all ops to their sql_col (duplicates will map to same col)
@@ -181,7 +175,7 @@ def analyze_sql_ops(ds: T, ops: Sequence[SqlOp], nominal_date: datetime.date) ->
 
     # Now assign values to all ops
     for op in ops:
-        op.assign(result[cols[op]][0])
+        op.assign(result[cols[op]][0].as_py())
 
 
 def analyze_batch_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> None:

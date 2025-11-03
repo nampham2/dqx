@@ -167,11 +167,16 @@ class TestAnalyzeSqlOps:
         ds.cte.return_value = "WITH t AS (SELECT * FROM table)"
 
         # Mock query result
+        import pyarrow as pa
+
         query_result = Mock()
-        query_result.fetchnumpy.return_value = {
-            "col_op1": [10.0],
-            "col_op2": [20.0],
-        }
+        mock_table = pa.table(
+            {
+                "col_op1": [10.0],
+                "col_op2": [20.0],
+            }
+        )
+        query_result.fetch_arrow_table.return_value = mock_table
         ds.query.return_value = query_result
 
         # Create ops with duplicates
