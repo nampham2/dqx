@@ -157,9 +157,11 @@ def analyze_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> None:
         indent_width=2,
         wrap_after=120,
         comma_first=False,
+        compact=True,
     )
 
-    logger.info(f"Batch SQL Query:\n{sql}")
+    if logger.isEnabledFor(logging.DEBUG):
+        print(f"SQL Query:\n{sql}")
 
     # Execute query and process MAP results
     result = ds.query(sql).fetchall()
