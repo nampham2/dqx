@@ -108,17 +108,21 @@ def simple_metric(
 def day_over_day(
     metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId, cache: "MetricCache"
 ) -> Result[float, str]:
-    """Calculate day-over-day ratio for a metric.
+    """Calculate day-over-day absolute percentage change for a metric.
+
+    Computes the absolute percentage change between today's value and yesterday's value
+    using the formula: abs((today - yesterday) / yesterday).
 
     Args:
-        metric: The metric specification to calculate ratio for.
+        metric: The metric specification to calculate percentage change for.
         dataset: The dataset name where metrics were computed.
         nominal_key: The result key for the nominal date.
         execution_id: The execution ID to filter by.
         cache: The metric cache instance.
 
     Returns:
-        Success with the ratio if calculation succeeds, Failure otherwise.
+        Success with the absolute percentage change (e.g., 0.5 for 50% change)
+        if calculation succeeds, Failure otherwise.
     """
     # Get two days of data using cache
     base_key = nominal_key.lag(0)  # Use lag=0 as the base
@@ -139,23 +143,27 @@ def day_over_day(
     if ts[yesterday].value == 0:
         return Failure(f"Cannot calculate day over day: previous day value ({yesterday}) is zero.")
 
-    return Success(ts[today].value / ts[yesterday].value)
+    return Success(abs((ts[today].value - ts[yesterday].value) / ts[yesterday].value))
 
 
 def week_over_week(
     metric: MetricSpec, dataset: str, nominal_key: ResultKey, execution_id: ExecutionId, cache: "MetricCache"
 ) -> Result[float, str]:
-    """Calculate week-over-week ratio for a metric.
+    """Calculate week-over-week absolute percentage change for a metric.
+
+    Computes the absolute percentage change between today's value and the value
+    from 7 days ago using the formula: abs((today - week_ago) / week_ago).
 
     Args:
-        metric: The metric specification to calculate ratio for.
+        metric: The metric specification to calculate percentage change for.
         dataset: The dataset name where metrics were computed.
         nominal_key: The result key for the nominal date.
         execution_id: The execution ID to filter by.
         cache: The metric cache instance.
 
     Returns:
-        Success with the ratio if calculation succeeds, Failure otherwise.
+        Success with the absolute percentage change (e.g., 1.1 for 110% change)
+        if calculation succeeds, Failure otherwise.
     """
     # Get eight days of data using cache
     base_key = nominal_key.lag(0)  # Use lag=0 as the base
@@ -178,7 +186,7 @@ def week_over_week(
     if ts[week_ago].value == 0:
         return Failure(f"Cannot calculate week over week: week ago value ({week_ago}) is zero.")
 
-    return Success(ts[today].value / ts[week_ago].value)
+    return Success(abs((ts[today].value - ts[week_ago].value) / ts[week_ago].value))
 
 
 def stddev(
