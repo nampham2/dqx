@@ -17,7 +17,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 from sqlalchemy.types import JSON, TypeDecorator
 
 from dqx import models, specs
-from dqx.common import Metadata, ResultKey, Tags, TimeSeries
+from dqx.common import Metadata, Parameters, ResultKey, Tags, TimeSeries
 from dqx.orm.session import db_session_factory
 from dqx.specs import MetricSpec, MetricType
 from dqx.states import State
@@ -61,6 +61,7 @@ class MetadataType(TypeDecorator):
 class Base(DeclarativeBase):
     type_annotation_map: ClassVar = {
         datetime: sa.TIMESTAMP(timezone=True),
+        Parameters: sa.JSON,
         Tags: sa.JSON,
     }
 
@@ -70,7 +71,7 @@ class Metric(Base):
 
     metric_id: Mapped[uuid.UUID] = mapped_column(nullable=False, primary_key=True, default=uuid.uuid4)
     metric_type: Mapped[str] = mapped_column(nullable=False)
-    parameters: Mapped[dict[str, Any]] = mapped_column(nullable=False)
+    parameters: Mapped[Parameters] = mapped_column(nullable=False)
     dataset: Mapped[str] = mapped_column(nullable=False)
     state: Mapped[bytes] = mapped_column(nullable=False)
     value: Mapped[float] = mapped_column(nullable=False)

@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 else:
     # At runtime, use Any to avoid circular import
     TimeSeries = dict[dt.date, Any]
-Tags = dict[str, Any]
+Tags = dict[str, str]
 Parameters = dict[str, Any]
 SeverityLevel = Literal["P0", "P1", "P2", "P3"]
 RecomputeStrategy = Literal["ALWAYS", "MISSING", "NEVER"]

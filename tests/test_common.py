@@ -4,7 +4,7 @@ from dqx.common import ResultKey
 
 
 def test_result_key() -> None:
-    tags = {"partner": "baguette", "group": {"name": "french", "size": "small"}}
+    tags = {"partner": "baguette", "group_name": "french", "group_size": "small"}
     yyyy_mm_dd = dt.date.fromisoformat("2025-02-09")
     key = ResultKey(yyyy_mm_dd=yyyy_mm_dd, tags=tags)
     assert key.yyyy_mm_dd == yyyy_mm_dd
