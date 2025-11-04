@@ -330,7 +330,7 @@ class TestPluginsCoverage:
                 call_strings2 = [str(call) for call in print_calls2]
 
                 # Check no tags displayed
-                assert any("Tags:" in str(call) and "none" in str(call) for call in call_strings2)
+                assert any("Tags:" in str(call) and "None" in str(call) for call in call_strings2)
 
                 # Check clean data integrity
                 assert any("No discrepancies found" in str(call) for call in call_strings2)

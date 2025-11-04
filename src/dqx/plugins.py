@@ -325,12 +325,19 @@ class AuditPlugin:
             sorted_tags = ", ".join(f"{k}={v}" for k, v in sorted(context.key.tags.items()))
             self.console.print(f"[cyan]Tags:[/cyan] {sorted_tags}")
         else:
-            self.console.print("[cyan]Tags:[/cyan] none")
+            self.console.print("[cyan]Tags:[/cyan] None")
 
         self.console.print(f"[cyan]Duration:[/cyan] {f'{context.duration_ms:.2f}ms'}", highlight=False)
 
         if context.datasources:
-            self.console.print(f"[cyan]Datasets:[/cyan] {', '.join(context.datasources)}")
+            if len(context.datasources) == 1:
+                # Single dataset - singular label and inline display
+                self.console.print(f"[cyan]Dataset:[/cyan] {context.datasources[0]}")
+            else:
+                # Multiple datasets - plural label and bulleted list
+                self.console.print("[cyan]Datasets:[/cyan]")
+                for dataset in context.datasources:
+                    self.console.print(f"  - {dataset}")
 
         # Calculate statistics
         total = context.total_assertions()
