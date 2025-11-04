@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import functools
+import logging
 import threading
 import time
 import uuid
@@ -11,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 import pyarrow as pa
 import sympy as sp
 
-from dqx import functions, get_logger
+from dqx import functions
 from dqx.analyzer import AnalysisReport, Analyzer
 from dqx.common import (
     AssertionResult,
@@ -38,7 +39,7 @@ CheckProducer = Callable[[MetricProvider, "Context"], None]
 CheckCreator = Callable[[CheckProducer], CheckProducer]
 
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 timer_registry = Registry()
 
 
