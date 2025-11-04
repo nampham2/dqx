@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 import pyarrow as pa
 import sympy as sp
 
-from dqx import functions
+from dqx import functions, setup_logger
 from dqx.analyzer import AnalysisReport, Analyzer
 from dqx.common import (
     AssertionResult,
@@ -324,6 +324,7 @@ class VerificationSuite:
         checks: Sequence[CheckProducer | DecoratedCheck],
         db: "MetricDB",
         name: str,
+        log_level: int = logging.INFO,
     ) -> None:
         """
         Initialize the verification suite.
@@ -336,6 +337,9 @@ class VerificationSuite:
         Raises:
             DQXError: If no checks provided or name is empty
         """
+        # Setting up the logger
+        setup_logger(level=log_level)
+
         if not checks:
             raise DQXError("At least one check must be provided")
         if not name.strip():
@@ -560,6 +564,7 @@ class VerificationSuite:
         Raises:
             DQXError: If no data sources provided or suite already executed
         """
+
         # Prevent multiple runs
         if self.is_evaluated:
             raise DQXError("Verification suite has already been executed. Create a new suite instance to run again.")

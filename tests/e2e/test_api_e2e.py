@@ -95,7 +95,7 @@ def test_e2e_suite() -> None:
         seed=2100,  # Same seed as original commerce_data_c2
     )
 
-    key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={})
+    key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={"env": "prod", "partner": {"gha"}})
     checks = [simple_checks, manual_day_over_day, rate_of_change, null_percentage, cross_dataset_check, complex_metrics]
 
     # Run for today

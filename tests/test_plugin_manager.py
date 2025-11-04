@@ -708,6 +708,92 @@ class TestAuditPlugin:
         # Should not raise any errors
         plugin.process(context)
 
+    def test_audit_plugin_single_dataset_display(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test AuditPlugin displays single dataset with singular label."""
+        plugin = AuditPlugin()
+
+        # Track console print calls
+        print_calls: list[str] = []
+
+        def capture_print(*args: object, **kwargs: object) -> None:
+            if args:
+                text = str(args[0]) if len(args) == 1 else " ".join(str(arg) for arg in args)
+                print_calls.append(text)
+
+        monkeypatch.setattr(plugin.console, "print", capture_print)
+
+        context = PluginExecutionContext(
+            suite_name="Single Dataset Suite",
+            execution_id="test_single_ds",
+            datasources=["production_db"],
+            key=ResultKey(datetime.now().date(), {}),
+            timestamp=time.time(),
+            duration_ms=50.0,
+            results=[],
+            symbols=[],
+            trace=_create_empty_trace(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
+        )
+
+        # Process the context
+        plugin.process(context)
+
+        # Find the dataset line
+        dataset_prints = [p for p in print_calls if "[cyan]Dataset:" in p or "[cyan]Datasets:" in p]
+        assert len(dataset_prints) == 1
+        assert "[cyan]Dataset:[/cyan] production_db" in dataset_prints[0]
+
+    def test_audit_plugin_multiple_datasets_display(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test AuditPlugin displays multiple datasets with bulleted list."""
+        plugin = AuditPlugin()
+
+        # Track console print calls
+        print_calls: list[str] = []
+
+        def capture_print(*args: object, **kwargs: object) -> None:
+            if args:
+                text = str(args[0]) if len(args) == 1 else " ".join(str(arg) for arg in args)
+                print_calls.append(text)
+
+        monkeypatch.setattr(plugin.console, "print", capture_print)
+
+        context = PluginExecutionContext(
+            suite_name="Multi Dataset Suite",
+            execution_id="test_multi_ds",
+            datasources=["production_db", "staging_db", "analytics_db"],
+            key=ResultKey(datetime.now().date(), {}),
+            timestamp=time.time(),
+            duration_ms=75.0,
+            results=[],
+            symbols=[],
+            trace=_create_empty_trace(),
+            metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
+            cache_stats=CacheStats(hit=0, missed=0),
+        )
+
+        # Process the context
+        plugin.process(context)
+
+        # Find the datasets header line
+        dataset_header = [p for p in print_calls if "[cyan]Datasets:[/cyan]" in p]
+        assert len(dataset_header) == 1
+
+        # Find the bulleted list items
+        bullet_points = [p for p in print_calls if p.strip().startswith("- ")]
+        assert len(bullet_points) == 3
+        assert "  - production_db" in print_calls
+        assert "  - staging_db" in print_calls
+        assert "  - analytics_db" in print_calls
+
+        # Verify order of display (header followed by bullets)
+        header_idx = print_calls.index("[cyan]Datasets:[/cyan]")
+        prod_idx = print_calls.index("  - production_db")
+        staging_idx = print_calls.index("  - staging_db")
+        analytics_idx = print_calls.index("  - analytics_db")
+
+        assert header_idx < prod_idx < staging_idx < analytics_idx
+
     def test_audit_plugin_with_cache_stats(self) -> None:
         """Test AuditPlugin with cache statistics."""
         plugin = AuditPlugin()
