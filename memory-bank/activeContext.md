@@ -1,50 +1,52 @@
 # Active Context - DQX
 
 ## Current Focus
-- Cache system performance improvements and statistics tracking
-- Achieved 100% test coverage for compute and repositories modules
-- Working on `fix/metric_db_access` branch
+- Logger test consolidation and refactoring
+- Working on `feat/bkng-integration` branch
 
 ## Recent Changes
 
-### Cache System Overhaul (2025-11-02)
-1. **CacheStats Implementation**: Added mutable statistics tracking with `hit`, `missed` counts and `hit_ratio()` calculation
-2. **Performance Optimizations**: Removed outer locks from cache timeseries methods for better concurrency
-3. **TimeSeries Refactoring**: Now stores full `Metric` objects instead of just float values
-4. **Bug Fixes**: Fixed cache miss counter to properly increment for successful DB fallbacks
-5. **Plugin Integration**: Cache statistics now integrated into PluginExecutionContext
-6. **Audit Display**: AuditPlugin shows cache performance metrics (hits, misses, hit rate)
+### Logger Test Refactoring (2025-11-04)
+1. **Test Consolidation**: Merged `test_rich_logging.py` into `test_logger.py`
+2. **API Update**: Updated all tests to use `setup_logger()` instead of old `get_logger()`
+3. **Test Organization**: Organized tests into two classes:
+   - `TestSetupLogger`: Basic logger functionality tests
+   - `TestRichIntegration`: Rich-specific feature tests
+4. **Pattern Change**: Tests now use proper pattern:
+   ```python
+   setup_logger("test.name", level=logging.INFO)
+   logger = logging.getLogger("test.name")
+   ```
+5. **Cleanup**: Removed duplicate tests and deleted `test_rich_logging.py`
 
-### Test Coverage Improvements (2025-11-02)
-1. **100% Coverage**: Achieved complete test coverage for compute and repositories modules
-2. **Edge Case Testing**: Added test for cache returning raw float values
-3. **Pragma Usage**: Marked genuinely unreachable code with `pragma: no cover`
-4. **Code Cleanup**: Removed commented-out deprecated methods from MetricDB
-
-### Previous Work
+### Previous Work (2025-11-02)
+- Cache system performance improvements and statistics tracking
+- Achieved 100% test coverage for compute and repositories modules
 - Added CommercialDataSource with date filtering support
 - Implemented metric expiration functionality in MetricDB
 - Version bumped to 0.5.5
 
 ## Next Steps
-- Monitor cache performance in production scenarios
-- Consider additional cache optimization strategies
-- Potentially add cache size limits and eviction policies
+- Continue with Booking.com integration features
+- Monitor logger performance in production scenarios
+- Consider additional logging enhancements
 
 ## Important Patterns and Preferences
 
-### Cache Design Principles
-- Thread-safe operations with minimal lock contention
-- Automatic DB fallback on cache miss
-- Dirty tracking for batch persistence
-- Clear separation between cache lookup and DB I/O
-- Performance metrics integrated into monitoring
+### Logger Design Principles
+- `setup_logger()` is for configuration only
+- Users get loggers via standard `logging.getLogger()`
+- Root logger configuration stays internal
+- Rich handler provides enhanced formatting capabilities
+- No logger object returned from setup function
 
 ### Testing Philosophy
 - Comprehensive edge case coverage
 - Test both success and failure paths
 - Use pragma comments judiciously for truly unreachable code
 - Maintain 100% coverage as a quality standard
+- Real objects over mocks
+- Pattern matching for Result/Maybe types
 
 ### Performance Considerations
 - Lock acquisition only for in-memory operations
@@ -53,6 +55,18 @@
 - Mutable stats objects to avoid allocation overhead
 
 ## Recent Learnings
+
+### Logger Best Practices
+- Setup functions should configure but not return logger objects
+- Standard Python logging.getLogger() maintains proper separation
+- Rich handler configuration through handler parameters, not formatter
+- Force reconfigure option allows clean reinitialization when needed
+
+### Test Organization
+- Group related tests into logical classes
+- Remove duplicate tests when consolidating files
+- Maintain backward compatibility in test coverage
+- Use unique logger names in tests to prevent interference
 
 ### Threading Best Practices
 - Acquire locks for shortest possible duration
@@ -80,6 +94,13 @@
 - Read https://returns.readthedocs.io/en/latest/pages/result.html before using
 
 ## Recently Fixed Issues
+
+### Logger Test Migration (FIXED 2025-11-04)
+Successfully migrated all logger tests from old `get_logger()` API to new `setup_logger()` pattern:
+- Updated test_logger.py with proper setup/get pattern
+- Merged Rich-specific tests from test_rich_logging.py
+- Organized tests into logical classes
+- All 20 tests passing
 
 ### provider.py isinstance Usage (FIXED 2025-11-02)
 Fixed incorrect usage of isinstance with Maybe types in provider.py:

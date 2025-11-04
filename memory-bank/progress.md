@@ -15,6 +15,7 @@
 - **Cache performance tracking with hit/miss statistics**
 - **TimeSeries now stores full Metric objects for richer data**
 - **100% test coverage achieved for compute and repositories modules**
+- **Consolidated logger tests with proper setup_logger pattern**
 
 ## What's Left to Build
 - Additional plugin types beyond audit
@@ -23,6 +24,7 @@
 - Performance optimizations for very large datasets
 - Cache size limits and eviction policies
 - Advanced cache warming strategies
+- Booking.com integration features
 
 ## Current Status
 - Project is stable and production-ready
@@ -34,6 +36,13 @@
 - None currently reported
 
 ## Evolution of Project Decisions
+
+### 2025-11-04: Logger Test Consolidation
+- Merged test_rich_logging.py into test_logger.py for better organization
+- Updated all tests from old get_logger() to new setup_logger() pattern
+- Organized tests into TestSetupLogger and TestRichIntegration classes
+- Established proper separation: setup_logger() configures, logging.getLogger() retrieves
+- Maintained 100% test coverage with 20 passing tests
 
 ### 2025-11-02: Git Workflow Documentation
 - Added comprehensive Git Workflow Patterns section to systemPatterns.md
