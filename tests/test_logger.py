@@ -101,14 +101,13 @@ class TestSetupLogger:
         assert formatted == "Test message"
 
     def test_setup_logger_custom_format(self) -> None:
-        """Test setting custom format string."""
-        custom_format = "%(name)s - %(message)s"
-        setup_logger(format_string=custom_format, force_reconfigure=True)
+        """Test that Rich always uses message-only formatter."""
+        setup_logger(force_reconfigure=True)
         logger = logging.getLogger(DEFAULT_LOGGER_NAME)
         handler = logger.handlers[0]
         formatter = handler.formatter
         assert formatter is not None
-        # Rich ignores custom format and uses message-only formatter
+        # Rich uses message-only formatter
         record = logging.LogRecord(
             name="dqx",
             level=logging.INFO,
@@ -162,8 +161,8 @@ class TestSetupLogger:
         logger = logging.getLogger(logger_name)
         original_handler = logger.handlers[0]
 
-        # Force reconfigure with different format
-        setup_logger(logger_name, format_string="%(message)s", force_reconfigure=True)
+        # Force reconfigure
+        setup_logger(logger_name, force_reconfigure=True)
         logger = logging.getLogger(logger_name)
 
         assert len(logger.handlers) == 1
