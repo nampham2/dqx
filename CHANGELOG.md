@@ -1,3 +1,18 @@
+## v0.5.9a0 (2025-11-04)
+
+### Feat
+
+- **plugins**: enhance audit plugin display formatting and add logging support
+
+### Fix
+
+- correct DoD/WoW calculations to use percentage change (#26)
+
+### Refactor
+
+- enforce string-only values in Tags type
+- **tests**: consolidate logger tests and update to use setup_logger
+
 ## v0.5.8 (2025-11-03)
 
 ### Fix
