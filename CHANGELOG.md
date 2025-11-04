@@ -1,3 +1,10 @@
+## v0.5.9 (2025-11-04)
+
+### Fix
+
+- **tests**: remove format_string parameter from logger tests
+- **tests**: remove format_string parameter from logger tests
+
 ## v0.5.9a0 (2025-11-04)
 
 ### Feat
