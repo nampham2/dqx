@@ -13,14 +13,12 @@ except Exception:
     # Fallback for development or when package isn't installed
     __version__ = "0.0.0.dev"
 
-DEFAULT_FORMAT = "%(asctime)s [%(levelname).1s] %(message)s"
 DEFAULT_LOGGER_NAME = "dqx"
 
 
 def setup_logger(
     name: str = DEFAULT_LOGGER_NAME,
     level: int = logging.INFO,
-    format_string: str = DEFAULT_FORMAT,
     force_reconfigure: bool = False,
 ) -> None:
     # Get or create logger
