@@ -18,6 +18,13 @@ This plan implements a date exclusion feature for DQX that allows users to exclu
 3. **Evaluator**: Check availability before evaluation, set SKIPPED status
 4. **AssertionStatus**: Extend to include "SKIPPED" literal
 
+## Backward Compatibility Note
+
+This implementation maintains backward compatibility by using default parameter values:
+- The `Evaluator` constructor adds `data_av_threshold` with a default value of 0.8
+- This ensures all 28 existing call sites continue to work without modification
+- Sites that need custom thresholds can pass the parameter explicitly
+
 ## Implementation Tasks
 
 ### Task Group 1: Core Type Updates and Foundation
@@ -358,7 +365,7 @@ import pytest
 from dqx import check
 from dqx.api import Context, MetricProvider, VerificationSuite
 from dqx.common import ResultKey
-from dqx.data import DuckRelationDataSource
+from dqx.datasource import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 
 
@@ -456,16 +463,13 @@ uv run hooks
 def visit(self, node: BaseNode) -> None:
     """Visit a node in the graph during evaluation."""
     if isinstance(node, AssertionNode):
-        # NEW: Check data availability before evaluation
-        availability = self._check_data_availability(node.actual)
-
-        # Get threshold from suite (passed via constructor)
-        if availability < self._data_av_threshold:
+        # NEW: Check if expression has insufficient data
+        if self._has_insufficient_data(node.actual):
             # Skip this assertion
             node._result = "SKIPPED"
             node._metric = Failure([
                 EvaluationFailure(
-                    error_message=f"Data availability {availability:.2f} below threshold {self._data_av_threshold}",
+                    error_message=f"Expression contains metrics with insufficient data availability (threshold: {self._data_av_threshold})",
                     expression=str(node.actual),
                     symbols=[]  # Will be populated if needed
                 )
@@ -480,31 +484,38 @@ def visit(self, node: BaseNode) -> None:
 #### Task 4.2: Add Helper Method for Availability Check
 **File**: `src/dqx/evaluator.py`
 ```python
+# Add import at top of file if not already present:
+import logging
+from dqx.common import DQXError
+
+logger = logging.getLogger(__name__)
+
 # Add new method to Evaluator class:
-def _check_data_availability(self, expr: sp.Expr) -> float:
-    """Check minimum data availability for expression.
+def _has_insufficient_data(self, expr: sp.Expr) -> bool:
+    """Check if expression contains symbols with insufficient data availability.
 
     Args:
         expr: Symbolic expression to check
 
     Returns:
-        Minimum availability ratio across all symbols in expression
+        True if any symbol has availability below threshold, False otherwise
     """
     symbols = expr.free_symbols
     if not symbols:
-        return 1.0  # Constants are always available
+        return False  # Constants always have sufficient data
 
-    min_availability = 1.0
     for symbol in symbols:
         try:
             metric = self._provider.get_symbol(symbol)
             if metric.data_av_ratio is not None:
-                min_availability = min(min_availability, metric.data_av_ratio)
-        except Exception:
+                if metric.data_av_ratio < self._data_av_threshold:
+                    return True  # Found insufficient data
+        except DQXError as e:
             # If we can't find the metric, assume it's available
+            logger.debug(f"Symbol {symbol} not found in provider: {e}")
             pass
 
-    return min_availability
+    return False  # All symbols have sufficient data
 ```
 
 #### Task 4.3: Update Evaluator Constructor
@@ -615,7 +626,7 @@ class TestEvaluatorSkipLogic:
         assert isinstance(assertion._metric, Failure)
         failures = assertion._metric.failure()
         assert len(failures) == 1
-        assert "below threshold" in failures[0].error_message
+        assert "insufficient data availability" in failures[0].error_message
 
     def test_assertion_evaluated_above_threshold(self, provider: MetricProvider) -> None:
         """Assertions are evaluated when availability above threshold."""
@@ -683,7 +694,7 @@ import pytest
 from dqx import check
 from dqx.api import Context, MetricProvider, VerificationSuite
 from dqx.common import ResultKey
-from dqx.data import DuckRelationDataSource
+from dqx.datasource import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 
 
