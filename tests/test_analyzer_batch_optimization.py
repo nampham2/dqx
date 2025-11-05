@@ -1,6 +1,7 @@
 """Test analyzer with MAP-based batch optimization."""
 
 import datetime
+from collections.abc import Sequence
 
 import duckdb
 
@@ -26,12 +27,12 @@ class TestAnalyzerBatchOptimization:
         )
 
         # Create ops for multiple dates
-        ops_by_key = {}
+        ops_by_key: dict[ResultKey, list[ops.SqlOp]] = {}
         for day in [1, 2, 3]:
             date = datetime.date(2024, 1, day)
             key = ResultKey(date, {})
 
-            ops_list = [
+            ops_list: list[ops.SqlOp] = [
                 ops.Sum("price"),
                 ops.Average("price"),
                 ops.NullCount("delivered"),
@@ -41,7 +42,7 @@ class TestAnalyzerBatchOptimization:
             ops_by_key[key] = ops_list
 
         # Execute batch analysis
-        analyze_sql_ops(ds, ops_by_key)  # type: ignore[arg-type]
+        analyze_sql_ops(ds, ops_by_key)
 
         # Verify results for each date
         # With seed=42 and the known data generation pattern, we can verify:
@@ -114,7 +115,7 @@ class TestAnalyzerBatchOptimization:
         )
 
         # Run batch analysis
-        report = analyzer.analyze_simple_metrics(ds, metrics_by_key)  # type: ignore[arg-type]
+        report = analyzer.analyze_simple_metrics(ds, metrics_by_key)
 
         # Verify report contains all metrics
         assert len(report) == 9  # 3 metrics × 3 dates
@@ -161,7 +162,7 @@ class TestAnalyzerBatchOptimization:
 
         # Create batch data with many metrics
         key = ResultKey(datetime.date(2024, 1, 1), {})
-        many_ops = [
+        many_ops: Sequence[ops.SqlOp] = [
             ops.Sum("value1"),
             ops.Sum("value2"),
             ops.Sum("value3"),
@@ -175,7 +176,7 @@ class TestAnalyzerBatchOptimization:
         ]
 
         cte_data = [
-            BatchCTEData(key=key, cte_sql="SELECT * FROM test_data WHERE yyyy_mm_dd = '2024-01-01'", ops=many_ops)  # type: ignore[arg-type]
+            BatchCTEData(key=key, cte_sql="SELECT * FROM test_data WHERE yyyy_mm_dd = '2024-01-01'", ops=many_ops)
         ]
 
         # Generate MAP query
@@ -222,7 +223,7 @@ def test_performance_comparison() -> None:
         key = ResultKey(date, {})
 
         # Create 10 different metrics
-        ops_list = [
+        ops_list: Sequence[ops.SqlOp] = [
             ops.Sum("revenue"),
             ops.Average("revenue"),
             ops.Minimum("revenue"),
@@ -239,7 +240,7 @@ def test_performance_comparison() -> None:
             BatchCTEData(
                 key=key,
                 cte_sql=f"SELECT * FROM large_sales WHERE yyyy_mm_dd = '2024-01-{day:02d}'",
-                ops=ops_list,  # type: ignore[arg-type]
+                ops=ops_list,
             )
         )
 

@@ -1,3 +1,4 @@
+import logging
 import math
 from typing import Tuple
 
@@ -9,6 +10,8 @@ from dqx.common import DQXError, EvaluationFailure, ResultKey
 from dqx.graph.base import BaseNode
 from dqx.graph.nodes import AssertionNode
 from dqx.provider import MetricProvider, SymbolicMetric, SymbolInfo
+
+logger = logging.getLogger(__name__)
 
 
 class Evaluator:
@@ -30,17 +33,19 @@ class Evaluator:
         _metrics: Dictionary mapping symbols to their computed Result values
     """
 
-    def __init__(self, provider: MetricProvider, key: ResultKey, suite_name: str):
+    def __init__(self, provider: MetricProvider, key: ResultKey, suite_name: str, data_av_threshold: float = 0.8):
         """Initialize the Evaluator with a metric provider and result key.
 
         Args:
             provider: MetricProvider instance containing symbolic metric definitions
             key: ResultKey specifying the context for metric evaluation (e.g., date, tags)
             suite_name: Name of the verification suite for context tracking
+            data_av_threshold: Minimum data availability ratio to evaluate assertions (default: 0.8)
         """
         self.provider = provider
         self._key = key
         self._suite_name = suite_name
+        self._data_av_threshold = data_av_threshold
         self._metrics: dict[sp.Basic, Result[float, str]] | None = None
 
     @property
@@ -254,15 +259,64 @@ class Evaluator:
                 ]
             )
 
+    def _check_data_availability(self, expr: sp.Expr) -> bool:
+        """Check if all metrics in the expression meet the data availability threshold.
+
+        Args:
+            expr: Symbolic expression containing metrics to check
+
+        Returns:
+            True if all metrics meet the threshold, False otherwise
+        """
+        # Convert to sympy expression if needed
+        if not isinstance(expr, sp.Basic):
+            expr = sp.sympify(expr)
+
+        # Check each symbol in the expression
+        for sym in expr.free_symbols:
+            if sym in self.metrics:
+                # Get the symbolic metric
+                sm = self.metric_for_symbol(sym)
+
+                # Get data availability ratio from provider
+                data_av_ratio = self.provider.get_data_av_ratio(sm.metric_spec, sm.dataset)
+
+                # If ratio is below threshold, return False
+                if data_av_ratio is not None and data_av_ratio < self._data_av_threshold:
+                    logger.info(
+                        f"Metric {sm.name} has data availability {data_av_ratio:.2%} "
+                        f"below threshold {self._data_av_threshold:.2%}"
+                    )
+                    return False
+
+        return True
+
     def visit(self, node: BaseNode) -> None:
         """Visit a node in the DQX graph and evaluate assertions.
 
         For AssertionNodes:
-        1. Evaluates the metric expression
-        2. Applies the validator function if metric succeeds
-        3. Stores both metric result and validation status
+        1. Checks data availability for all metrics in the expression
+        2. Skips evaluation if any metric is below the threshold
+        3. Evaluates the metric expression if data is available
+        4. Applies the validator function if metric succeeds
+        5. Stores both metric result and validation status
         """
         if isinstance(node, AssertionNode):
+            # Check data availability first
+            if not self._check_data_availability(node.actual):
+                # Skip this assertion due to insufficient data
+                node._result = "SKIPPED"
+                node._metric = Failure(
+                    [
+                        EvaluationFailure(
+                            error_message="Skipped due to insufficient data availability",
+                            expression=str(node.actual),
+                            symbols=[],
+                        )
+                    ]
+                )
+                return
+
             # Evaluate the metric
             node._metric = self.evaluate(node.actual)
 

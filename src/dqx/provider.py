@@ -62,6 +62,7 @@ class SymbolicMetric:
     lag: int = 0
     dataset: str | None = None
     required_metrics: list[sp.Symbol] = field(default_factory=list)
+    data_av_ratio: float | None = None  # NEW FIELD
 
 
 def _create_lazy_retrieval_fn(provider: "MetricProvider", metric_spec: MetricSpec, symbol: sp.Symbol) -> RetrievalFn:
@@ -300,6 +301,44 @@ class MetricRegistry:
 
         # Replace _metrics with sorted order
         self._metrics = result
+
+    def calculate_data_av_ratios(self, skip_dates: set[datetime.date], context_key: ResultKey) -> None:
+        """Calculate data availability ratios for all metrics.
+
+        Updates the data_av_ratio field of each SymbolicMetric based on
+        whether its effective dates are in the skip_dates set.
+
+        For simple metrics: 0.0 if date is excluded, 1.0 otherwise
+        For extended metrics: average of child metric ratios
+
+        Args:
+            skip_dates: Set of dates to exclude from calculations
+            context_key: ResultKey providing context date for lag calculations
+        """
+        # Ensure metrics are sorted by dependencies
+        self.topological_sort()
+
+        # Calculate ratios in dependency order
+        for sm in self._metrics:
+            if not sm.required_metrics:
+                # Simple metric - check if its effective date is excluded
+                effective_date = context_key.yyyy_mm_dd - timedelta(days=sm.lag)
+                sm.data_av_ratio = 0.0 if effective_date in skip_dates else 1.0
+            else:
+                # Extended metric - average child ratios
+                child_ratios = []
+                for req_symbol in sm.required_metrics:
+                    req_metric = self.get(req_symbol)
+                    if req_metric.data_av_ratio is not None:
+                        child_ratios.append(req_metric.data_av_ratio)
+
+                if child_ratios:
+                    sm.data_av_ratio = sum(child_ratios) / len(child_ratios)
+                else:
+                    # No child ratios available, default to 1.0
+                    sm.data_av_ratio = 1.0
+            if sm.data_av_ratio < 1.0:
+                logger.info("Data availability ratio for %s is %f", sm.symbol, sm.data_av_ratio)
 
     def _find_cycle_details(self, remaining_metrics: list[SymbolicMetric]) -> str:
         """Generate helpful error message about circular dependencies."""
@@ -929,3 +968,19 @@ class MetricProvider(SymbolicMetricBase):
                     result_metrics.append(metric)
 
         return result_metrics
+
+    def get_data_av_ratio(self, spec: MetricSpec, dataset: str | None) -> float | None:
+        """Get data availability ratio for a specific metric.
+
+        Args:
+            spec: The metric specification
+            dataset: The dataset name
+
+        Returns:
+            The data availability ratio (0.0-1.0) or None if not calculated
+        """
+        # Find the symbolic metric with matching spec and dataset
+        for sm in self.registry.metrics:
+            if sm.metric_spec == spec and sm.dataset == dataset:
+                return sm.data_av_ratio
+        return None

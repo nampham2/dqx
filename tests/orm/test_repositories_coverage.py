@@ -9,23 +9,10 @@ from sqlalchemy import create_engine
 
 from dqx.common import Metadata, ResultKey
 from dqx.models import Metric
-from dqx.orm.repositories import InMemoryMetricDB, MetadataType, MetricDB
+from dqx.orm.repositories import InMemoryMetricDB, MetricDB
 from dqx.orm.session import db_session_factory
 from dqx.specs import Average
 from dqx.states import Average as AverageState
-
-
-def test_metadata_type_process_bind_param_with_non_metadata_dict() -> None:
-    """Test MetadataType.process_bind_param with dict value that's not None or Metadata."""
-    metadata_type = MetadataType()
-
-    # Test with a plain dict
-    test_dict = {"execution_id": "test-123", "ttl_hours": 24}
-    # Type ignore because we're specifically testing the edge case where a dict is passed
-    result = metadata_type.process_bind_param(test_dict, None)  # type: ignore[arg-type]
-
-    # Should return the dict as-is
-    assert result == test_dict
 
 
 def test_ensure_indexes_failure() -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 import functools
 import logging
 import threading
@@ -325,6 +326,8 @@ class VerificationSuite:
         db: "MetricDB",
         name: str,
         log_level: int = logging.INFO,
+        skip_dates: set[datetime.date] | None = None,
+        data_av_threshold: float = 0.8,
     ) -> None:
         """
         Initialize the verification suite.
@@ -333,6 +336,8 @@ class VerificationSuite:
             checks: Sequence of check functions to execute
             db: Database for storing and retrieving metrics
             name: Human-readable name for the suite
+            skip_dates: Set of dates to exclude from calculations
+            data_av_threshold: Minimum data availability to evaluate assertions (default: 0.8)
 
         Raises:
             DQXError: If no checks provided or name is empty
@@ -372,6 +377,10 @@ class VerificationSuite:
 
         # Cache for metrics stats
         self._metrics_stats: "MetricStats | None" = None
+
+        # Store skip dates for date exclusion
+        self._skip_dates: set[datetime.date] = skip_dates or set()
+        self._data_av_threshold = data_av_threshold
 
     @property
     def execution_id(self) -> str:
@@ -488,6 +497,29 @@ class VerificationSuite:
         return self._key
 
     @property
+    def skip_dates(self) -> set[datetime.date]:
+        """
+        Set of dates excluded from metric calculations.
+
+        Returns:
+            Set of date objects to skip
+        """
+        return self._skip_dates
+
+    @property
+    def data_av_threshold(self) -> float:
+        """
+        Minimum data availability threshold for assertion evaluation.
+
+        Assertions depending on metrics with availability below this
+        threshold will be marked as SKIPPED rather than evaluated.
+
+        Returns:
+            Float between 0.0 and 1.0 (default: 0.8)
+        """
+        return self._data_av_threshold
+
+    @property
     def is_evaluated(self) -> bool:
         """
         Check if the suite has been evaluated.
@@ -594,6 +626,11 @@ class VerificationSuite:
         # Apply symbol deduplication BEFORE analysis
         self._context.provider.symbol_deduplication(self._context._graph, key)
 
+        # Calculate data availability ratios for date exclusion
+        if self._skip_dates:
+            logger.info(f"Calculating data availability ratios with {len(self._skip_dates)} excluded dates")
+            self._context.provider.registry.calculate_data_av_ratios(self._skip_dates, key)
+
         # Collect metrics stats and cleanup expired metrics BEFORE analysis
         self._metrics_stats = self.provider._db.get_metrics_stats()
         logger.info(
@@ -612,7 +649,7 @@ class VerificationSuite:
 
         # 3. Evaluate assertions
         # Use graph in the context to avoid the check if the suite has been evaluated
-        evaluator = Evaluator(self.provider, key, self._name)
+        evaluator = Evaluator(self.provider, key, self._name, self._data_av_threshold)
         self._context._graph.bfs(evaluator)
 
         # Mark suite as evaluated only after successful completion

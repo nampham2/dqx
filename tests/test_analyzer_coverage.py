@@ -189,7 +189,7 @@ def test_analyze_batch_sql_ops_value_retrieval_failure() -> None:
         # Cast to proper type for mypy
         metrics_for_analyze: Mapping[ResultKey, Sequence[MetricSpec]] = metrics
         with pytest.raises(DQXError) as exc_info:
-            analyzer._analyze_internal(ds, metrics_for_analyze)  # type: ignore[arg-type]
+            analyzer._analyze_internal(ds, dict(metrics_for_analyze))
 
         # Check the error message
         assert "Failed to retrieve value for analyzer" in str(exc_info.value)

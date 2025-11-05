@@ -1,5 +1,6 @@
 """Tests for plugin data structures."""
 
+import typing
 from dataclasses import FrozenInstanceError
 from datetime import date
 
@@ -271,7 +272,7 @@ def test_context_assertions_by_severity() -> None:
             suite="test",
             check="check",
             assertion=f"assert{i}",
-            severity=f"P{i % 3}" if i % 3 < 4 else "P3",  # type: ignore[arg-type]
+            severity=typing.cast(typing.Literal["P0", "P1", "P2", "P3"], f"P{i % 3}" if i % 3 < 4 else "P3"),
             status="OK",
             metric=Success(100.0),
             expression="x > 0",
@@ -306,7 +307,7 @@ def test_context_failures_by_severity() -> None:
             suite="test",
             check="check",
             assertion=f"assert{i}",
-            severity=f"P{i}" if i < 4 else "P3",  # type: ignore[arg-type]
+            severity=typing.cast(typing.Literal["P0", "P1", "P2", "P3"], f"P{i}" if i < 4 else "P3"),
             status="FAILURE" if i < 3 else "OK",  # P0, P1, P2 fail
             metric=Success(100.0),
             expression="x > 0",
