@@ -111,4 +111,4 @@ def test_noop_assertion_always_succeeds() -> None:
     # Verify noop always succeeds
     results = suite.collect_results()
     assert len(results) == 1
-    assert results[0].status == "OK"
+    assert results[0].status == "PASSED"

@@ -52,11 +52,11 @@ class PluginExecutionContext:
 
     def failed_assertions(self) -> int:
         """Number of failed assertions."""
-        return sum(1 for r in self.results if r.status == "FAILURE")
+        return sum(1 for r in self.results if r.status in ("FAILED", "FAILURE"))
 
     def passed_assertions(self) -> int:
         """Number of passed assertions."""
-        return sum(1 for r in self.results if r.status == "OK")
+        return sum(1 for r in self.results if r.status == "PASSED")
 
     def assertion_pass_rate(self) -> float:
         """Pass rate as percentage (0-100)."""
@@ -82,7 +82,7 @@ class PluginExecutionContext:
         """Count of failures grouped by severity."""
         from collections import Counter
 
-        failures = [r for r in self.results if r.status == "FAILURE"]
+        failures = [r for r in self.results if r.status in ("FAILED", "FAILURE")]
         return dict(Counter(f.severity for f in failures))
 
     def data_discrepancy_stats(self) -> "MetricTraceStats | None":

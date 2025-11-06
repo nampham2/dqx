@@ -176,7 +176,7 @@ def print_assertion_results(results: list[AssertionResult]) -> None:
     # Add rows
     for result in results:
         # Format status with color
-        status_style = "green bold" if result.status == "OK" else "red bold"
+        status_style = "green bold" if result.status == "PASSED" else "red bold"
         status_display = f"[{status_style}]{result.status}[/{status_style}]"
 
         # Format severity with color

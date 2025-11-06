@@ -143,7 +143,7 @@ class TestDateExclusionSkipValidation:
         evaluator.visit(node)
 
         # Verify it was evaluated
-        assert node._result == "OK"  # 100 > 0, so passes
+        assert node._result == "PASSED"  # 100 > 0, so passes
         assert isinstance(node._metric, Success)
         assert node._metric.unwrap() == 100.0
 

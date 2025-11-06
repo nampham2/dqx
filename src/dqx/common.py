@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 # Type aliases
 DatasetName = str
 ExecutionId = str
+
 # Use TYPE_CHECKING to handle forward reference
 if TYPE_CHECKING:
     TimeSeries = dict[dt.date, "Metric"]
@@ -30,7 +31,7 @@ Tags = dict[str, str]
 Parameters = dict[str, Any]
 SeverityLevel = Literal["P0", "P1", "P2", "P3"]
 RecomputeStrategy = Literal["ALWAYS", "MISSING", "NEVER"]
-AssertionStatus = Literal["OK", "FAILURE", "SKIPPED"]
+AssertionStatus = Literal["PASSED", "FAILED", "SKIPPED"]
 Validator = Callable[[Any], bool]
 RetrievalFn = Callable[["ResultKey"], Result[float, str]]
 MetricKey = tuple["MetricSpec", "ResultKey", DatasetName]  # Uniquely identifies a metric in DB
@@ -107,7 +108,7 @@ class AssertionResult:
         check: Name of the parent check
         assertion: Name of the assertion (always present, names are mandatory)
         severity: Priority level (P0, P1, P2, P3)
-        status: Validation result ("OK" or "FAILURE")
+        status: Validation result ("PASSED" or "FAILED")
         metric: The metric computation result (Success with value or Failure with errors)
         expression: Full validation expression (e.g., "average(price) > 0")
         tags: Tags from the ResultKey (e.g., {"env": "prod"})

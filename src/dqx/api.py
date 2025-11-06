@@ -694,7 +694,7 @@ class VerificationSuite:
             >>> results = suite.collect_results()  # No key needed!
             >>> for r in results:
             ...     print(f"{r.check}/{r.assertion}: {r.status}")
-            ...     if r.status == "FAILURE":
+            ...     if r.status == "FAILED":
             ...         failures = r.value.failure()
             ...         for f in failures:
             ...             print(f"  Error: {f.error_message}")
@@ -763,7 +763,7 @@ class VerificationSuite:
 
         # Check if any P0 assertion has failed
         for result in results:
-            if result.severity == "P0" and result.status == "FAILURE":
+            if result.severity == "P0" and result.status == "FAILED":
                 return True
 
         return False

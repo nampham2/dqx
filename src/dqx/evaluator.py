@@ -320,12 +320,12 @@ class Evaluator:
                     try:
                         # validator.fn returns True if assertion passes
                         passed = node.validator.fn(value)
-                        node._result = "OK" if passed else "FAILURE"
+                        node._result = "PASSED" if passed else "FAILED"
                     except Exception as e:
                         raise DQXError(f"Validator execution failed: {str(e)}") from e
                 case Failure(_):
                     # If metric computation failed, assertion fails
-                    node._result = "FAILURE"
+                    node._result = "FAILED"
 
     async def visit_async(self, node: BaseNode) -> None:
         """Asynchronously visit a node in the DQX graph.

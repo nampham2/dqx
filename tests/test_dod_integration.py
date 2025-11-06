@@ -91,7 +91,7 @@ def test_day_over_day_integration() -> None:
     # Verify the suite results (from today's suite)
     results = suite.collect_results()
     assert len(results) == 1
-    assert results[0].status == "OK"  # noop always succeeds
+    assert results[0].status == "PASSED"  # noop always succeeds
     assert results[0].assertion == "Collect revenue DoD"
 
     # Verify required metrics were registered
