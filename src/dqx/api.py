@@ -205,7 +205,7 @@ class Context:
     graph nodes that need access to the symbol table.
     """
 
-    def __init__(self, suite: str, db: "MetricDB", execution_id: str, data_av_threshold: float = 0.8) -> None:
+    def __init__(self, suite: str, db: "MetricDB", execution_id: str, data_av_threshold: float) -> None:
         """
         Initialize the context with a root graph node.
 
@@ -328,7 +328,7 @@ class VerificationSuite:
         name: str,
         log_level: int = logging.INFO,
         skip_dates: set[datetime.date] | None = None,
-        data_av_threshold: float = 0.8,
+        data_av_threshold: float = 0.9,
     ) -> None:
         """
         Initialize the verification suite.
@@ -338,7 +338,7 @@ class VerificationSuite:
             db: Database for storing and retrieving metrics
             name: Human-readable name for the suite
             skip_dates: Set of dates to exclude from calculations
-            data_av_threshold: Minimum data availability to evaluate assertions (default: 0.8)
+            data_av_threshold: Minimum data availability to evaluate assertions (default: 0.9)
 
         Raises:
             DQXError: If no checks provided or name is empty
@@ -518,7 +518,7 @@ class VerificationSuite:
         threshold will be marked as SKIPPED rather than evaluated.
 
         Returns:
-            Float between 0.0 and 1.0 (default: 0.8)
+            Float between 0.0 and 1.0 (default: 0.9)
         """
         return self._data_av_threshold
 

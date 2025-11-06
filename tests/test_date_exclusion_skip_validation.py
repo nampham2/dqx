@@ -29,7 +29,7 @@ class TestDateExclusionSkipValidation:
         """Test that custom data availability threshold is properly configured."""
         # Test default threshold
         suite1 = VerificationSuite(checks=[lambda mp, ctx: None], db=mock_db, name="Default Suite")
-        assert suite1.data_av_threshold == 0.8  # Default 80%
+        assert suite1.data_av_threshold == 0.9  # Default 90%
 
         # Test custom threshold
         suite2 = VerificationSuite(
@@ -98,7 +98,7 @@ class TestDateExclusionSkipValidation:
         # Verify it was skipped
         assert node._result == "SKIPPED"
         assert isinstance(node._metric, Failure)
-        assert node._metric.failure()[0].error_message == "Skipped due to insufficient data availability"
+        assert node._metric.failure()[0].error_message == "Insufficient data availability"
 
     def test_evaluator_skip_logic_above_threshold(self) -> None:
         """Test that Evaluator evaluates assertions when data availability is above threshold."""
@@ -208,4 +208,4 @@ class TestDateExclusionSkipValidation:
         # Verify it was skipped because one metric is below threshold
         assert node._result == "SKIPPED"
         assert isinstance(node._metric, Failure)
-        assert node._metric.failure()[0].error_message == "Skipped due to insufficient data availability"
+        assert node._metric.failure()[0].error_message == "Insufficient data availability"

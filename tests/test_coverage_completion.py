@@ -82,7 +82,7 @@ class TestApiCoverage:
 
         # Test 2: Assertion outside check context (line 177)
         db = Mock()
-        context = Context(suite="Test", db=db, execution_id="test-id")
+        context = Context(suite="Test", db=db, execution_id="test-id", data_av_threshold=0.9)
         draft2 = AssertionDraft(actual=Mock(), context=context)
         ready2 = draft2.where(name="Test assertion 2")
 
@@ -99,7 +99,7 @@ class TestApiCoverage:
     def test_check_stack_operations(self) -> None:
         """Test check stack operations - covers lines 341, 343."""
         db = Mock()
-        context = Context(suite="Test", db=db, execution_id="test-id")
+        context = Context(suite="Test", db=db, execution_id="test-id", data_av_threshold=0.9)
 
         # Test empty stack operations
         assert context._pop_check() is None  # Line 341

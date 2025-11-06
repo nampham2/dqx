@@ -20,21 +20,15 @@ if TYPE_CHECKING:
 # Type aliases
 DatasetName = str
 ExecutionId = str
-
-# Use TYPE_CHECKING to handle forward reference
-if TYPE_CHECKING:
-    TimeSeries = dict[dt.date, "Metric"]
-else:
-    # At runtime, use Any to avoid circular import
-    TimeSeries = dict[dt.date, Any]
+TimeSeries = dict[dt.date, "Metric"]
 Tags = dict[str, str]
 Parameters = dict[str, Any]
 SeverityLevel = Literal["P0", "P1", "P2", "P3"]
 RecomputeStrategy = Literal["ALWAYS", "MISSING", "NEVER"]
-AssertionStatus = Literal["PASSED", "FAILED", "SKIPPED"]
-Validator = Callable[[Any], bool]
+AssertionStatus = Literal["PASSED", "FAILED", "SKIPPED", "ERROR"]
+Validator = Callable[[float], bool]
 RetrievalFn = Callable[["ResultKey"], Result[float, str]]
-MetricKey = tuple["MetricSpec", "ResultKey", DatasetName]  # Uniquely identifies a metric in DB
+MetricKey = tuple["MetricSpec", "ResultKey", DatasetName]
 
 
 class DQXError(Exception): ...

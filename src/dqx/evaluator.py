@@ -303,7 +303,7 @@ class Evaluator:
                 node._metric = Failure(
                     [
                         EvaluationFailure(
-                            error_message="Skipped due to insufficient data availability",
+                            error_message="Insufficient data availability",
                             expression=str(node.actual),
                             symbols=[],
                         )
