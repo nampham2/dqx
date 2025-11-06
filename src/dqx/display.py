@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, Sequence
+from typing import TYPE_CHECKING, Any, Protocol, Sequence
 
 import pyarrow as pa
 import sympy as sp
@@ -252,6 +252,37 @@ def print_analysis_report(report: AnalysisReport, symbol_lookup: dict[MetricKey,
     console.print(f"\nTotal metrics: {pa_table.num_rows}")
 
 
+def _values_are_close(val1: Any, val2: Any, rel_tol: float = 1e-9, abs_tol: float = 1e-12) -> bool:
+    """Check if two values are close using epsilon comparison for numeric types.
+
+    Args:
+        val1: First value to compare
+        val2: Second value to compare
+        rel_tol: Relative tolerance for comparison
+        abs_tol: Absolute tolerance for comparison
+
+    Returns:
+        True if values are close (or equal for non-numeric types)
+    """
+    # Import math here to avoid issues with auto-formatter
+    import math
+
+    # Handle None cases
+    if val1 is None or val2 is None:
+        return val1 == val2
+
+    # Check if both values are numeric (int, float, or can be converted to float)
+    try:
+        # Try to convert to float to check if numeric
+        float_val1 = float(val1)
+        float_val2 = float(val2)
+        # Use math.isclose for numeric comparison
+        return math.isclose(float_val1, float_val2, rel_tol=rel_tol, abs_tol=abs_tol)
+    except (TypeError, ValueError):
+        # Non-numeric types, use direct equality
+        return val1 == val2
+
+
 def print_metric_trace(trace_table: pa.Table, data_av_threshold: float = 0.9) -> None:
     """Display metric trace table showing flow through the system.
 
@@ -319,14 +350,19 @@ def print_metric_trace(trace_table: pa.Table, data_av_threshold: float = 0.9) ->
         else:
             value_error_str = "-"
 
-        # Check for discrepancies and highlight
+        # Check for discrepancies and highlight using epsilon-based comparison
         has_discrepancy = False
         if not is_extended:  # Only check for non-extended metrics
-            if value_db is not None and value_analysis is not None and value_db != value_analysis:
+            # Use epsilon-based comparison for numeric values
+            if value_db is not None and value_analysis is not None and not _values_are_close(value_db, value_analysis):
                 has_discrepancy = True
-            if value_db is not None and value_final is not None and value_db != value_final:
+            if value_db is not None and value_final is not None and not _values_are_close(value_db, value_final):
                 has_discrepancy = True
-            if value_analysis is not None and value_final is not None and value_analysis != value_final:
+            if (
+                value_analysis is not None
+                and value_final is not None
+                and not _values_are_close(value_analysis, value_final)
+            ):
                 has_discrepancy = True
 
         # Apply red styling to numeric values if discrepancy
@@ -412,7 +448,8 @@ def display_metrics_by_execution_id(execution_id: str, db: "MetricDB") -> pa.Tab
     metrics = db.get_by_execution_id(execution_id)
     if not metrics:
         print(f"No metrics found for execution ID: {execution_id}")
-        return pa.table({})
+        # Return empty table with correct schema
+        return metrics_to_pyarrow_table([], execution_id)
 
     # Display in console
     print_metrics_by_execution_id(metrics, execution_id)

@@ -631,6 +631,110 @@ class TestIntegrationCombined:
         print_assertion_results(assertion_results)
 
 
+class TestFloatComparisonFix:
+    """Test epsilon-based float comparison fix."""
+
+    def test_print_metric_trace_float_precision_no_discrepancy(self) -> None:
+        """Test that very close float values don't trigger false discrepancies."""
+        # Create test data with very close float values (floating-point precision issues)
+        trace_data = {
+            "date": [dt.date(2024, 1, 1)] * 3,
+            "metric": ["sum(revenue)"] * 3,
+            "symbol": ["x_1", "x_2", "x_3"],
+            "type": ["sum"] * 3,
+            "dataset": ["orders"] * 3,
+            # These values would fail with direct != comparison but should pass with epsilon
+            "value_db": [0.1 + 0.2, 1.0 / 3.0, 7.0 / 10.0],  # 0.30000000000000004, 0.3333333333333333, 0.7
+            "value_analysis": [0.3, 0.3333333333333333, 0.7],
+            "value_final": [0.3, 1.0 / 3.0, 0.7000000000000001],
+            "error": [None] * 3,
+            "tags": ["-"] * 3,
+            "is_extended": [False] * 3,
+            "data_av_ratio": [1.0] * 3,
+        }
+
+        trace_table = pa.table(trace_data)
+
+        # Execute - should NOT show discrepancies for these close values
+        print_metric_trace(trace_table)
+
+    def test_print_metric_trace_actual_discrepancy_detected(self) -> None:
+        """Test that actual discrepancies are still detected."""
+        # Create test data with real discrepancies
+        trace_data = {
+            "date": [dt.date(2024, 1, 1)] * 2,
+            "metric": ["sum(revenue)"] * 2,
+            "symbol": ["x_1", "x_2"],
+            "type": ["sum"] * 2,
+            "dataset": ["orders"] * 2,
+            # These have real discrepancies beyond epsilon tolerance
+            "value_db": [100.0, 50.0],
+            "value_analysis": [100.1, 50.0],  # x_1 has real discrepancy
+            "value_final": [100.0, 51.0],  # x_2 has real discrepancy
+            "error": [None] * 2,
+            "tags": ["-"] * 2,
+            "is_extended": [False] * 2,
+            "data_av_ratio": [1.0] * 2,
+        }
+
+        trace_table = pa.table(trace_data)
+
+        # Execute - should show discrepancies for real differences
+        print_metric_trace(trace_table)
+
+    def test_values_are_close_with_decimal_type(self) -> None:
+        """Test epsilon comparison handles Decimal types."""
+        from decimal import Decimal
+
+        # Import the helper function directly
+        from dqx.display import _values_are_close
+
+        # Test Decimal comparison
+        assert _values_are_close(Decimal("0.1") + Decimal("0.2"), Decimal("0.3"))
+        assert _values_are_close(Decimal("1.0"), 1.0)
+        assert not _values_are_close(Decimal("1.0"), Decimal("1.1"))
+
+    def test_values_are_close_non_numeric_types(self) -> None:
+        """Test epsilon comparison with non-numeric types."""
+        from dqx.display import _values_are_close
+
+        # Non-numeric types should use direct equality
+        assert _values_are_close("abc", "abc")
+        assert not _values_are_close("abc", "def")
+        assert _values_are_close(None, None)
+        assert not _values_are_close(None, 1.0)
+        assert not _values_are_close(1.0, None)
+
+
+class TestEmptyTableSchemaFix:
+    """Test empty table schema preservation fix."""
+
+    def test_display_metrics_empty_preserves_schema(self) -> None:
+        """Test that empty result preserves the table schema."""
+        from dqx.data import metrics_to_pyarrow_table
+
+        db = InMemoryMetricDB()
+
+        # Execute with non-existent ID
+        result_table = display_metrics_by_execution_id("non-existent-id", db)
+
+        # Should return empty table with correct schema
+        assert result_table.num_rows == 0
+
+        # Verify schema is preserved - compare with what metrics_to_pyarrow_table would return
+        expected_schema = metrics_to_pyarrow_table([], "non-existent-id").schema
+        assert result_table.schema == expected_schema
+
+        # Check specific columns exist
+        assert "date" in result_table.column_names
+        assert "metric" in result_table.column_names
+        assert "type" in result_table.column_names
+        assert "dataset" in result_table.column_names
+        assert "value" in result_table.column_names
+        assert "tags" in result_table.column_names
+        # Note: execution_id is not included in the PyArrow table schema
+
+
 class TestEdgeCasesAndSpecialHandling:
     """Test edge cases and special handling in display functions."""
 
