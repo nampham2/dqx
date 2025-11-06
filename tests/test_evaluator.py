@@ -46,7 +46,7 @@ class TestEvaluatorFailureHandling:
         assert len(failures) == 1
         failure = failures[0]
         assert isinstance(failure, EvaluationFailure)
-        assert failure.error_message == "One or more metrics failed to evaluate"
+        assert failure.error_message == "Failed to evaluate symbol(s): x_1 "
         assert failure.expression == str(symbol)
         assert len(failure.symbols) == 1
 

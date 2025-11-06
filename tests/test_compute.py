@@ -584,7 +584,7 @@ class TestStddev:
         base_date: date,
         execution_id: ExecutionId,
     ) -> None:
-        """Test with missing dates in window."""
+        """Test with missing dates in window - stddev uses available values."""
         # Populate only some days
         values = {0: 10.0, -2: 30.0, -4: 50.0}  # Missing -1 and -3
         populate_time_series(db, metric_spec, base_date, values, execution_id=execution_id)
@@ -593,12 +593,14 @@ class TestStddev:
         key = ResultKey(yyyy_mm_dd=base_date, tags={})
         result = stddev(metric_spec, "test_dataset", key, execution_id, 5, cache)
 
-        # Verify using pattern matching
+        # Verify using pattern matching - stddev succeeds with available values
         match result:
+            case Success(value):
+                # Standard deviation of [50.0, 30.0, 10.0] (chronological order)
+                expected = statistics.stdev([50.0, 30.0, 10.0])
+                assert value == pytest.approx(expected)
             case Failure(error):
-                assert "There are 2 dates with missing metrics" in error
-            case Success(_):
-                pytest.fail("Expected Failure for missing dates, got Success")
+                pytest.fail(f"Expected Success, got Failure: {error}")
 
     def test_no_data(
         self,
@@ -616,8 +618,8 @@ class TestStddev:
         # Verify using pattern matching
         match result:
             case Failure(error):
-                # DB returns empty TimeSeries, so _timeseries_check reports missing dates
-                assert "There are 5 dates with missing metrics" in error
+                # DB returns empty TimeSeries, stddev reports no data
+                assert error == "No data to calculate standard deviation"
             case Success(_):
                 pytest.fail("Expected Failure for no data, got Success")
 

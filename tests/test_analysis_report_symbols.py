@@ -91,7 +91,7 @@ class TestAnalysisReportSymbols:
         provider.sum("col1", dataset="test_ds")
 
         # Create analyzer with provider
-        analyzer = Analyzer([mock_ds], provider, key, "test-123")
+        analyzer = Analyzer([mock_ds], provider, key, "test-123", 0.9)
 
         # Analyze with the metric
         metrics_by_key = {key: [spec]}

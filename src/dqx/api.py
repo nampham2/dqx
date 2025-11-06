@@ -581,7 +581,13 @@ class VerificationSuite:
         """Analyze datasources using the new analyze_all function."""
 
         # Call analyze_all and store the results
-        analyzer = Analyzer(datasources, self.provider, key, execution_id=self._execution_id)
+        analyzer = Analyzer(
+            datasources,
+            self.provider,
+            key,
+            execution_id=self._execution_id,
+            data_av_threshold=self._data_av_threshold,
+        )
         self._analysis_reports = analyzer.analyze()
 
     def run(self, datasources: list[SqlDataSource], key: ResultKey, *, enable_plugins: bool = True) -> None:

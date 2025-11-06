@@ -51,7 +51,7 @@ class TestAnalyzerCoverage:
         ds.name = "test_ds"
 
         # Create analyzer with required parameters
-        analyzer = Analyzer([ds], provider, key, "test-123")
+        analyzer = Analyzer([ds], provider, key, "test-123", 0.9)
 
         # Mock the _analyze_internal to raise the expected error
         with patch.object(analyzer, "_analyze_internal") as mock_analyze:
@@ -288,18 +288,25 @@ class TestPluginsCoverage:
             with patch("dqx.display.print_metrics_by_execution_id"):
                 # Capture console output
                 with patch.object(plugin.console, "print") as mock_print:
-                    # The plugin should raise error on symbol failure first, before data discrepancies
-                    with pytest.raises(DQXError, match="Symbols failed to evaluate"):
+                    # The plugin should raise error on data discrepancies
+                    with pytest.raises(DQXError, match="Data discrepancies detected during audit"):
                         plugin.process(context)
 
-                    # Verify it got to display the symbols line (but not beyond due to exception)
+                    # Verify it displayed all the expected output before raising
                     print_calls = mock_print.call_args_list
                     call_strings = [str(call) for call in print_calls]
 
-                    # Check that it displayed up to symbols but stopped there
+                    # Check that it displayed tags with sorted order
                     assert any("Tags:" in str(call) and "env=prod, region=us" in str(call) for call in call_strings)
+                    # Check assertions line
                     assert any("2 total" in str(call) and "1 passed" in str(call) for call in call_strings)
-                    assert any("2 total" in str(call) and "1 successful" in str(call) for call in call_strings)
+                    # Check symbols line with failures
+                    assert any(
+                        "2 total" in str(call) and "1 successful" in str(call) and "1 failed" in str(call)
+                        for call in call_strings
+                    )
+                    # Check data discrepancies warning
+                    assert any("2 discrepancies" in str(call) for call in call_strings)
 
         # Test with no tags and no discrepancies
         context2 = PluginExecutionContext(
@@ -335,31 +342,42 @@ class TestPluginsCoverage:
                 # Check clean data integrity
                 assert any("No discrepancies found" in str(call) for call in call_strings2)
 
-        # Test symbol failure should raise DQXError
+        # Test single dataset display
         context3 = PluginExecutionContext(
             suite_name="Test Suite 3",
             execution_id="test-exec-789",
-            datasources=["ds1"],
+            datasources=["ds1"],  # Single dataset
             key=ResultKey(datetime.date(2024, 1, 1), {}),
             timestamp=1234567890.0,
             duration_ms=789.01,
             results=[],
             symbols=[
                 SymbolInfo(
-                    name="x_fail",
+                    name="x_1",
                     metric="sum(revenue)",
                     dataset="ds1",
-                    value=Failure("Symbol failed"),
+                    value=Mock(is_success=Mock(return_value=True), failure=Mock(return_value=None)),  # Success
                     yyyy_mm_dd=datetime.date(2024, 1, 1),
                     tags={},
                 ),
             ],
             trace=pa.table({"col": []}),
             metrics_stats=MetricStats(total_metrics=10, expired_metrics=0),
-            cache_stats=CacheStats(hit=0, missed=0),
+            cache_stats=CacheStats(hit=5, missed=3),  # Test cache stats display
         )
 
         with patch.object(context3, "data_discrepancy_stats", return_value=None):
-            with patch.object(plugin.console, "print"):
-                with pytest.raises(DQXError, match="Symbols failed to evaluate"):
-                    plugin.process(context3)
+            with patch.object(plugin.console, "print") as mock_print3:
+                # Should not raise error
+                plugin.process(context3)
+
+                # Verify single dataset display format
+                print_calls3 = mock_print3.call_args_list
+                call_strings3 = [str(call) for call in print_calls3]
+
+                # Check single dataset format (not plural)
+                assert any("Dataset:" in str(call) and "ds1" in str(call) for call in call_strings3)
+                assert not any("Datasets:" in str(call) for call in call_strings3)
+
+                # Check cache stats display with actual values
+                assert any("hit: 5" in str(call) and "missed: 3" in str(call) for call in call_strings3)

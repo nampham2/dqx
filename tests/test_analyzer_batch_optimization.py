@@ -112,6 +112,7 @@ class TestAnalyzerBatchOptimization:
             provider=provider,
             key=ResultKey(datetime.date(2024, 1, 1), {}),
             execution_id=execution_id,
+            data_av_threshold=0.9,
         )
 
         # Run batch analysis

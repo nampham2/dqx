@@ -41,7 +41,13 @@ class TestMetadataPersistence:
         provider = MetricProvider(db, execution_id=execution_id)
         key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
 
-        analyzer = Analyzer(datasources=[ds], provider=provider, key=key, execution_id=execution_id)
+        analyzer = Analyzer(
+            datasources=[ds],
+            provider=provider,
+            key=key,
+            execution_id=execution_id,
+            data_av_threshold=0.9,
+        )
 
         # Define metrics
         metrics: dict[ResultKey, list[MetricSpec]] = {
@@ -81,7 +87,13 @@ class TestMetadataPersistence:
         provider = MetricProvider(db, execution_id="")
         key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
         # When no execution_id is provided, a UUID is generated
-        analyzer = Analyzer(datasources=[ds], provider=provider, key=key, execution_id="")
+        analyzer = Analyzer(
+            datasources=[ds],
+            provider=provider,
+            key=key,
+            execution_id="",
+            data_av_threshold=0.9,
+        )
 
         # Define metrics
         metrics: dict[ResultKey, list[MetricSpec]] = {key: [NumRows()]}
@@ -118,7 +130,13 @@ class TestMetadataPersistence:
         provider = MetricProvider(db1, execution_id=execution_id)
         key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
 
-        analyzer = Analyzer(datasources=[ds], provider=provider, key=key, execution_id=execution_id)
+        analyzer = Analyzer(
+            datasources=[ds],
+            provider=provider,
+            key=key,
+            execution_id=execution_id,
+            data_av_threshold=0.9,
+        )
 
         metrics: dict[ResultKey, list[MetricSpec]] = {key: [NumRows()]}
 

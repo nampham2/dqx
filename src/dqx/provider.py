@@ -62,13 +62,13 @@ class SymbolicMetric:
     lag: int = 0
     dataset: str | None = None
     required_metrics: list[sp.Symbol] = field(default_factory=list)
-    data_av_ratio: float | None = None  # NEW FIELD
+    data_av_ratio: float = 1.0
 
 
 def _create_lazy_retrieval_fn(provider: "MetricProvider", metric_spec: MetricSpec, symbol: sp.Symbol) -> RetrievalFn:
     """Create retrieval function with deferred dataset resolution."""
 
-    def lazy_retrieval_fn(key: ResultKey) -> Result[float, str]:
+    def lazy_simple_fn(key: ResultKey) -> Result[float, str]:
         # Look up the current dataset from the SymbolicMetric
         try:
             symbolic_metric = provider.get_symbol(symbol)
@@ -79,15 +79,13 @@ def _create_lazy_retrieval_fn(provider: "MetricProvider", metric_spec: MetricSpe
             return Failure(f"Dataset not imputed for metric {symbolic_metric.name}")
 
         # Check data availability before computing
-        if symbolic_metric.data_av_ratio is not None and symbolic_metric.data_av_ratio < provider._data_av_threshold:
-            return Failure(
-                f"Insufficient data availability ({symbolic_metric.data_av_ratio:.2f} < {provider._data_av_threshold})"
-            )
+        if symbolic_metric.data_av_ratio < provider._data_av_threshold:
+            return Failure(f"Insufficient data availability: {symbolic_metric.data_av_ratio:.2f}")
 
         # Call the compute function with the resolved dataset and execution_id
         return compute.simple_metric(metric_spec, symbolic_metric.dataset, key, provider.execution_id, provider._cache)
 
-    return lazy_retrieval_fn
+    return lazy_simple_fn
 
 
 def _create_lazy_extended_fn(
@@ -109,10 +107,8 @@ def _create_lazy_extended_fn(
             return Failure(f"Dataset not imputed for metric {symbolic_metric.name}")
 
         # Check data availability before computing
-        if symbolic_metric.data_av_ratio is not None and symbolic_metric.data_av_ratio < provider._data_av_threshold:
-            return Failure(
-                f"Insufficient data availability ({symbolic_metric.data_av_ratio:.2f} < {provider._data_av_threshold})"
-            )
+        if symbolic_metric.data_av_ratio < provider._data_av_threshold:
+            return Failure(f"Insufficient data availability: {symbolic_metric.data_av_ratio:.2f}")
 
         # Call the compute function with the resolved dataset and execution_id
         # Note: compute_fn may be a lambda that already includes additional parameters
@@ -344,15 +340,10 @@ class MetricRegistry:
                 child_ratios: list[float] = []
                 for req_symbol in sm.required_metrics:
                     req_metric = self.get(req_symbol)
-                    if req_metric.data_av_ratio is None:
-                        # This should NEVER happen because of the topological sort
-                        raise DQXError(
-                            f"InternalError: data availability ratio not calculated for {req_symbol}"
-                        )  # pragma: no cover
                     child_ratios.append(req_metric.data_av_ratio)
                 sm.data_av_ratio = sum(1.0 if r > data_av_threshold else 0.0 for r in child_ratios) / len(child_ratios)
             if sm.data_av_ratio < 1.0:
-                logger.info("Data availability ratio for %s is %f", sm.symbol, sm.data_av_ratio)
+                logger.warning(f"Low data availability ratio for {sm.symbol}: {sm.data_av_ratio:.2f}")
 
     def _find_cycle_details(self, remaining_metrics: list[SymbolicMetric]) -> str:
         """Generate helpful error message about circular dependencies."""
@@ -983,19 +974,3 @@ class MetricProvider(SymbolicMetricBase):
                     result_metrics.append(metric)
 
         return result_metrics
-
-    def get_data_av_ratio(self, spec: MetricSpec, dataset: str | None) -> float | None:
-        """Get data availability ratio for a specific metric.
-
-        Args:
-            spec: The metric specification
-            dataset: The dataset name
-
-        Returns:
-            The data availability ratio (0.0-1.0) or None if not calculated
-        """
-        # Find the symbolic metric with matching spec and dataset
-        for sm in self.registry.metrics:
-            if sm.metric_spec == spec and sm.dataset == dataset:
-                return sm.data_av_ratio
-        return None

@@ -76,9 +76,9 @@ def test_stddev_with_failing_get_metric_window() -> None:
     # Don't add any metrics to DB, so cache will return empty window
     result = stddev(metric_spec, "test_dataset", key, "exec-123", 5, cache)
 
-    # Should return Failure with missing dates message
+    # Should return Failure with no data message
     assert isinstance(result, Failure)
-    assert "There are 5 dates with missing metrics" in result.failure()
+    assert result.failure() == "No data to calculate standard deviation"
 
 
 def test_stddev_with_statistics_error() -> None:

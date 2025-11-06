@@ -98,7 +98,7 @@ def simple_metric(
             # Cache always returns Metric objects
             return Success(metric_value.value)
         case _:
-            # If not in cache, return failure
+            # If not found, return failure
             error_msg = (
                 f"Metric {metric.name} for {nominal_key.yyyy_mm_dd.isoformat()} on dataset '{dataset}' not found!"
             )
@@ -211,17 +211,16 @@ def stddev(
 
     # Validate we have all required dates
     from_date = base_key.yyyy_mm_dd - dt.timedelta(days=size - 1)
-    check_result = _timeseries_check(ts, from_date, size)
-    match check_result:
-        case Failure() as failure:
-            return failure
-        case Success():
-            pass
 
-    # Extract values in chronological order
-    values: list[float] = [ts[from_date + dt.timedelta(days=i)].value for i in range(size)]
+    # Extract values in chronological order, ignore missing values
+    values: list[float] = [
+        ts[from_date + dt.timedelta(days=i)].value for i in range(size) if from_date + dt.timedelta(days=i) in ts
+    ]
 
     # Calculate standard deviation
+    if len(values) < 1:
+        return Failure("No data to calculate standard deviation")
+
     if len(values) < 2:
         # Standard deviation of a single value is 0
         return Success(0.0)

@@ -75,6 +75,7 @@ class TestDateExclusionSkipValidation:
         mock_metric.metric_spec = sum_spec
         mock_metric.dataset = "test_data"
         mock_metric.name = "sum(value)"
+        mock_metric.data_av_ratio = 0.3  # Below threshold
         provider.get_symbol.return_value = mock_metric
 
         # Create node hierarchy
@@ -121,6 +122,7 @@ class TestDateExclusionSkipValidation:
         mock_metric.metric_spec = sum_spec
         mock_metric.dataset = "test_data"
         mock_metric.name = "sum(value)"
+        mock_metric.data_av_ratio = 0.9  # Above threshold
         provider.get_symbol.return_value = mock_metric
 
         # Create node hierarchy
@@ -176,9 +178,11 @@ class TestDateExclusionSkipValidation:
             if str(symbol) == "x_1":
                 mock_metric.metric_spec = sum_spec
                 mock_metric.name = "sum(value)"
+                mock_metric.data_av_ratio = 0.3  # Below threshold
             else:
                 mock_metric.metric_spec = num_rows_spec
                 mock_metric.name = "count()"
+                mock_metric.data_av_ratio = 0.9  # Above threshold
             mock_metric.dataset = "test_data"
             return mock_metric
 

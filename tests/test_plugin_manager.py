@@ -956,9 +956,15 @@ class TestAuditPlugin:
             cache_stats=CacheStats(hit=0, missed=0),
         )
 
-        with pytest.raises(DQXError, match=r"\[InternalError\] Symbols failed to evaluate during execution!"):
-            # Process the context
-            plugin.process(context)
+        # Process the context - should not raise any errors
+        plugin.process(context)
+
+        # Verify statistics were printed correctly
+        # Check assertions line (3 passed, 2 failed out of 5 total)
+        assert any("5 total" in p and "3 passed" in p and "2 failed" in p for p in print_calls)
+
+        # Check symbols line (2 successful, 1 failed out of 3 total)
+        assert any("3 total" in p and "2 successful" in p and "1 failed" in p for p in print_calls)
 
     def test_audit_plugin_with_data_discrepancies(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test AuditPlugin handles data discrepancies properly (covers lines 383-405)."""

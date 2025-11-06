@@ -188,12 +188,10 @@ class Evaluator:
         failed_symbols = [si for si in symbol_infos if not is_successful(si.value)]
         if failed_symbols:
             # Generate specific error message based on failure types
-            error_message = self._generate_specific_error_message(failed_symbols)
-
             return Failure(
                 [
                     EvaluationFailure(
-                        error_message=error_message,
+                        error_message=f"Failed to evaluate symbol(s): {', '.join(si.name for si in failed_symbols)} ",
                         expression=str(expr),
                         symbols=symbol_infos,
                     )
@@ -262,56 +260,6 @@ class Evaluator:
                 ]
             )
 
-    def _generate_specific_error_message(self, failed_symbols: list[SymbolInfo]) -> str:
-        """Generate a specific error message based on the types of failures.
-
-        Args:
-            failed_symbols: List of SymbolInfo objects that failed to evaluate
-
-        Returns:
-            Descriptive error message explaining why metrics failed
-        """
-        data_av_failures = []
-        missing_data_failures = []
-        other_failures = []
-
-        for symbol in failed_symbols:
-            match symbol.value:
-                case Failure(error_msg):
-                    error_str = str(error_msg)
-
-                    # Check for data availability issues
-                    if "data availability" in error_str.lower():
-                        # Extract the ratio from messages like "Insufficient data availability (0.50 < 0.8)"
-                        data_av_failures.append(f"{symbol.name} ({error_str})")
-                    # Check for missing data/metrics
-                    elif "missing" in error_str.lower():
-                        missing_data_failures.append(f"{symbol.name} ({error_str})")
-                    else:
-                        other_failures.append(f"{symbol.name} ({error_str})")
-                case Success(_):
-                    # This shouldn't happen since failed_symbols are filtered, but handle gracefully
-                    other_failures.append(f"{symbol.name} (unexpected success in failed list)")
-
-        # Build specific error message based on failure types
-        if data_av_failures and not missing_data_failures and not other_failures:
-            # Only data availability issues
-            return f"Skipped due to insufficient data availability: {', '.join(data_av_failures)}"
-        elif missing_data_failures and not data_av_failures and not other_failures:
-            # Only missing data issues
-            return f"Metrics failed due to missing data: {', '.join(missing_data_failures)}"
-        elif data_av_failures:
-            # Mixed failures but include data availability
-            all_failures = data_av_failures + missing_data_failures + other_failures
-            return f"Metrics failed (including data availability issues): {', '.join(all_failures)}"
-        else:
-            # Other types of failures
-            all_failures = missing_data_failures + other_failures
-            if len(failed_symbols) == 1:
-                return f"Metric failed to evaluate: {all_failures[0]}"
-            else:
-                return f"Multiple metrics failed to evaluate: {', '.join(all_failures)}"
-
     def _check_data_availability(self, expr: sp.Expr) -> bool:
         """Check if all metrics in the expression meet the data availability threshold.
 
@@ -331,15 +279,8 @@ class Evaluator:
                 # Get the symbolic metric
                 sm = self.metric_for_symbol(sym)
 
-                # Get data availability ratio from provider
-                data_av_ratio = self.provider.get_data_av_ratio(sm.metric_spec, sm.dataset)
-
                 # If ratio is below threshold, return False
-                if data_av_ratio is not None and data_av_ratio < self._data_av_threshold:
-                    logger.info(
-                        f"Metric {sm.name} has data availability {data_av_ratio:.2%} "
-                        f"below threshold {self._data_av_threshold:.2%}"
-                    )
+                if sm.data_av_ratio < self._data_av_threshold:
                     return False
 
         return True
