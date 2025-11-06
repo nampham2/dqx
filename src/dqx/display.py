@@ -293,7 +293,7 @@ def print_metric_trace(trace_table: pa.Table, data_av_threshold: float = 0.9) ->
     table.add_column("Value DB", style="white", justify="right")
     table.add_column("Value Analysis", style="white", justify="right")
     table.add_column("Value/Error", style="white")  # Combined column for final value and error
-    table.add_column("Data Avail", style="white", justify="right")  # New column
+    table.add_column("DAS", style="white", justify="right")  # Data Availability Score
 
     # Convert PyArrow table to dict for easier access
     data = trace_table.to_pydict()
