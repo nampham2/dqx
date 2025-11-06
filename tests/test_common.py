@@ -134,7 +134,7 @@ def test_assertion_result_dataclass() -> None:
         case Success(value):
             assert value == 1000.0
         case _:
-            assert False, "Expected Success"
+            raise AssertionError("Expected Success")
 
     # Test with Failure metric
     evaluation_failures = [EvaluationFailure(error_message="Value out of range", expression="x_1 < 0", symbols=[])]
@@ -155,7 +155,7 @@ def test_assertion_result_dataclass() -> None:
             assert len(errors) == 1
             assert errors[0].error_message == "Value out of range"
         case _:
-            assert False, "Expected Failure"
+            raise AssertionError("Expected Failure")
 
 
 def test_symbolic_validator_dataclass() -> None:

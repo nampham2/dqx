@@ -86,7 +86,7 @@ class TestPrintGraph:
         check = root.add_check("Assertions Test")
 
         # Validator with empty name
-        validator = SymbolicValidator("", lambda x: True)
+        validator = SymbolicValidator("", lambda _: True)
         check.add_assertion(actual=sp.Symbol("y") < 100, name="Test assertion", validator=validator)
 
         graph = Graph(root)
@@ -821,8 +821,7 @@ class TestEdgeCasesAndSpecialHandling:
         assert result_table.num_rows == 0
 
         # Verify the print statement was called (line 419)
-        # We just verify execution, not the exact output
-        assert "No metrics found" in captured.out or True  # Always pass but ensure line is executed
+        assert "No metrics found" in captured.out
 
     def test_print_metric_trace_no_data_av_ratio(self) -> None:
         """Test trace when data_av_ratio is None (line 346)."""

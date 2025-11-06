@@ -189,7 +189,7 @@ class TestEvaluatorGather:
         evaluator._metrics = {}
 
         # Should raise DQXError
-        with pytest.raises(DQXError, match="average.*not found in collected metrics"):
+        with pytest.raises(DQXError, match=r"average.*not found in collected metrics"):
             evaluator._gather(symbol)
 
     def test_gather_with_mixed_success_failure(self) -> None:
