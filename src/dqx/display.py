@@ -362,6 +362,9 @@ def print_metric_trace(trace_table: pa.Table, data_av_threshold: float = 0.9) ->
 
     console.print(table)
 
+    # Add explanation for DAS column
+    console.print("\n[green]DAS[/green]: Data Availability Score")
+
     # Show discrepancy summary
     from dqx.data import metric_trace_stats
 
