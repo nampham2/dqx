@@ -293,11 +293,12 @@ def test_symbols_to_pyarrow_basic() -> None:
     table = symbols_to_pyarrow_table(symbols)
 
     # Verify schema
-    expected_columns = ["date", "symbol", "metric", "dataset", "value", "error", "tags"]
+    expected_columns = ["date", "symbol", "metric", "dataset", "value", "error", "tags", "data_av_ratio"]
     assert table.schema.names == expected_columns
     assert table.schema.field("date").type == pa.date32()
     assert table.schema.field("value").type == pa.float64()
     assert table.schema.field("error").type == pa.string()
+    assert table.schema.field("data_av_ratio").type == pa.float64()
 
     # Verify data
     assert table.num_rows == 3
@@ -366,7 +367,7 @@ def test_symbols_to_pyarrow_empty_input() -> None:
     table = symbols_to_pyarrow_table([])
 
     # Should have schema but no rows
-    expected_columns = ["date", "symbol", "metric", "dataset", "value", "error", "tags"]
+    expected_columns = ["date", "symbol", "metric", "dataset", "value", "error", "tags", "data_av_ratio"]
     assert table.schema.names == expected_columns
     assert table.num_rows == 0
 

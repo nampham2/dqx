@@ -62,7 +62,7 @@ def _run_single_execution_with_trace(
 
     # Display trace
     print(f"\n=== Metric Trace After Run {run_number} ===")
-    print_metric_trace(trace, execution_id)
+    print_metric_trace(trace)
 
     # Assert trace consistency
     _assert_trace_values_consistent(trace, run_number)

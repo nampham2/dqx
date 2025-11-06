@@ -2,284 +2,31 @@
 
 from unittest.mock import Mock, patch
 
-import pytest
 import sympy as sp
-from rich.tree import Tree
 
 from dqx.common import SymbolicValidator
-from dqx.display import NodeFormatter, SimpleNodeFormatter, TreeBuilderVisitor, print_graph
-from dqx.graph.base import BaseNode
+from dqx.display import print_graph
 from dqx.graph.nodes import RootNode
 from dqx.graph.traversal import Graph
-
-
-class TestNodeFormatter:
-    """Test the NodeFormatter protocol and SimpleNodeFormatter implementation."""
-
-    def test_simple_formatter_with_label(self) -> None:
-        """Test that formatter returns label when available."""
-        # Given a node with a label attribute
-        node = Mock(spec=BaseNode)
-        node.label = "Test Label"
-        node.name = "test_name"
-        node.__class__.__name__ = "MockNode"
-
-        # When formatting the node
-        formatter = SimpleNodeFormatter()
-        result = formatter.format_node(node)
-
-        # Then it should return the label
-        assert result == "Test Label"
-
-    def test_simple_formatter_with_name_no_label(self) -> None:
-        """Test that formatter returns name when label is not available."""
-        # Given a node with only name attribute
-        node = Mock(spec=BaseNode)
-        node.label = None
-        node.name = "test_name"
-        node.__class__.__name__ = "MockNode"
-
-        # When formatting the node
-        formatter = SimpleNodeFormatter()
-        result = formatter.format_node(node)
-
-        # Then it should return the name
-        assert result == "test_name"
-
-    def test_simple_formatter_with_empty_label(self) -> None:
-        """Test that formatter returns name when label is empty."""
-        # Given a node with empty label
-        node = Mock(spec=BaseNode)
-        node.label = ""
-        node.name = "test_name"
-        node.__class__.__name__ = "MockNode"
-
-        # When formatting the node
-        formatter = SimpleNodeFormatter()
-        result = formatter.format_node(node)
-
-        # Then it should return the name
-        assert result == "test_name"
-
-    def test_simple_formatter_no_label_no_name(self) -> None:
-        """Test that formatter returns class name when no label or name."""
-        # Given a node without label or name attributes
-        node = Mock(spec=BaseNode)
-        node.__class__.__name__ = "MockNode"
-
-        # When formatting the node
-        formatter = SimpleNodeFormatter()
-        result = formatter.format_node(node)
-
-        # Then it should return the class name
-        assert result == "MockNode"
-
-    def test_simple_formatter_with_empty_name(self) -> None:
-        """Test that formatter returns class name when name is empty."""
-        # Given a node with empty name
-        node = Mock(spec=BaseNode)
-        node.label = None
-        node.name = ""
-        node.__class__.__name__ = "MockNode"
-
-        # When formatting the node
-        formatter = SimpleNodeFormatter()
-        result = formatter.format_node(node)
-
-        # Then it should return the class name
-        assert result == "MockNode"
-
-    def test_simple_formatter_with_node_name_method(self) -> None:
-        """Test that formatter uses node_name() method when available."""
-        # Given a node with node_name method
-        node = Mock(spec=BaseNode)
-        node.node_name = Mock(return_value="Node Name From Method")
-        node.label = "Test Label"
-        node.name = "test_name"
-        node.__class__.__name__ = "MockNode"
-
-        # When formatting the node
-        formatter = SimpleNodeFormatter()
-        result = formatter.format_node(node)
-
-        # Then it should use node_name() method
-        assert result == "Node Name From Method"
-        node.node_name.assert_called_once()
-
-    def test_simple_formatter_with_node_name_method_no_label(self) -> None:
-        """Test that formatter uses node_name() method when no label."""
-        # Given a node with node_name method but no label
-        node = Mock(spec=BaseNode)
-        node.node_name = Mock(return_value="Node Name From Method")
-        node.label = None
-        node.name = "test_name"
-        node.__class__.__name__ = "MockNode"
-
-        # When formatting the node
-        formatter = SimpleNodeFormatter()
-        result = formatter.format_node(node)
-
-        # Then it should use node_name() method
-        assert result == "Node Name From Method"
-        node.node_name.assert_called_once()
-
-
-class TestTreeBuilderVisitor:
-    """Test the TreeBuilderVisitor class."""
-
-    def test_visitor_creates_root_tree(self) -> None:
-        """Test that visitor creates root tree on first visit."""
-        # Given a formatter and visitor
-        formatter = SimpleNodeFormatter()
-        visitor = TreeBuilderVisitor(formatter)
-
-        # When visiting first node
-        node = Mock(spec=BaseNode)
-        node.parent = None
-        node.__class__.__name__ = "RootNode"
-        visitor.visit(node)
-
-        # Then tree should be created
-        assert visitor.tree is not None
-        assert isinstance(visitor.tree, Tree)
-        assert "RootNode" in str(visitor.tree.label)
-
-    def test_visitor_adds_child_to_parent_tree(self) -> None:
-        """Test that visitor correctly adds child nodes."""
-        # Given a visitor with a root node already visited
-        formatter = SimpleNodeFormatter()
-        visitor = TreeBuilderVisitor(formatter)
-
-        # Visit root
-        root = Mock(spec=BaseNode)
-        root.parent = None
-        root.is_root = True
-        root.__class__.__name__ = "RootNode"
-        visitor.visit(root)
-
-        # When visiting child node
-        child = Mock(spec=BaseNode)
-        child.parent = root
-        child.is_root = False
-        child.__class__.__name__ = "ChildNode"
-        visitor.visit(child)
-
-        # Then child should be in tree map
-        assert child in visitor.parent_map
-        # And root tree should have a child
-        assert visitor.tree is not None
-        assert len(visitor.tree.children) == 1
-
-    def test_visitor_error_on_unvisited_parent(self) -> None:
-        """Test that visitor raises error if parent not visited first."""
-        # Given a visitor
-        formatter = SimpleNodeFormatter()
-        visitor = TreeBuilderVisitor(formatter)
-
-        # First create a root to establish the tree
-        root = Mock(spec=BaseNode)
-        root.parent = None
-        root.is_root = True
-        root.__class__.__name__ = "RootNode"
-        visitor.visit(root)
-
-        # When visiting a node with unvisited parent
-        parent = Mock(spec=BaseNode)
-        child = Mock(spec=BaseNode)
-        child.parent = parent
-        child.is_root = False
-        child.__class__.__name__ = "ChildNode"
-
-        # Then should raise ValueError
-        with pytest.raises(ValueError) as exc_info:
-            visitor.visit(child)
-
-        assert "Parent of node" in str(exc_info.value)
-        assert "was not visited before the child" in str(exc_info.value)
-
-    @pytest.mark.asyncio
-    async def test_visitor_async_delegates_to_visit(self) -> None:
-        """Test that visit_async delegates to visit."""
-        # Given a visitor with mocked visit method
-        formatter = SimpleNodeFormatter()
-        visitor = TreeBuilderVisitor(formatter)
-        visitor.visit = Mock()  # type: ignore[method-assign]
-
-        # When calling visit_async
-        node = Mock(spec=BaseNode)
-        await visitor.visit_async(node)
-
-        # Then it should call visit
-        visitor.visit.assert_called_once_with(node)
 
 
 class TestPrintGraph:
     """Test the print_graph function."""
 
     @patch("dqx.display.Console")
-    def test_print_graph_with_default_formatter(self, mock_console_class: Mock) -> None:
-        """Test print_graph uses default formatter when none provided."""
+    def test_print_graph_basic(self, mock_console_class: Mock) -> None:
+        """Test print_graph creates and prints a tree."""
         # Given a mock console and graph
-        mock_console = Mock()
-        mock_console_class.return_value = mock_console
-
-        # Create a mock node to simulate DFS traversal
-        mock_node = Mock(spec=BaseNode)
-        mock_node.parent = None
-        mock_node.__class__.__name__ = "RootNode"
-
-        # Mock graph.dfs to simulate traversal by calling visitor
-        mock_graph = Mock(spec=Graph)
-
-        def mock_dfs(visitor: TreeBuilderVisitor) -> None:
-            visitor.visit(mock_node)
-
-        mock_graph.dfs = Mock(side_effect=mock_dfs)
-
-        # When calling print_graph
-        print_graph(mock_graph)
-
-        # Then it should create console and call dfs
-        mock_console_class.assert_called_once()
-        mock_graph.dfs.assert_called_once()
-
-        # And console.print should be called with the tree
-        mock_console.print.assert_called_once()
-
-        # And the visitor should be TreeBuilderVisitor
-        visitor_arg = mock_graph.dfs.call_args[0][0]
-        assert isinstance(visitor_arg, TreeBuilderVisitor)
-        assert isinstance(visitor_arg._formatter, SimpleNodeFormatter)
-
-    @patch("dqx.display.Console")
-    def test_print_graph_with_custom_formatter(self, mock_console_class: Mock) -> None:
-        """Test print_graph uses provided formatter."""
-        # Given a custom formatter
-        custom_formatter = Mock(spec=NodeFormatter)
-        mock_console = Mock()
-        mock_console_class.return_value = mock_console
-
-        mock_graph = Mock(spec=Graph)
-        mock_graph.dfs = Mock()
-
-        # When calling print_graph with formatter
-        print_graph(mock_graph, formatter=custom_formatter)
-
-        # Then visitor should use custom formatter
-        visitor_arg = mock_graph.dfs.call_args[0][0]
-        assert isinstance(visitor_arg, TreeBuilderVisitor)
-        assert visitor_arg._formatter is custom_formatter
-
-    @patch("dqx.display.Console")
-    def test_print_graph_prints_tree(self, mock_console_class: Mock) -> None:
-        """Test that print_graph prints the built tree."""
-        # Given a graph that will build a tree
         mock_console = Mock()
         mock_console_class.return_value = mock_console
 
         # Create a simple graph structure
         root = RootNode("test_suite")
-        root.add_check("Test Check")
+        check = root.add_check("Test Check")
+
+        # Add assertions with validators
+        positive_validator = SymbolicValidator("> 0", lambda x: x > 0)
+        check.add_assertion(actual=sp.Symbol("x") > 0, name="Positive values", validator=positive_validator)
 
         graph = Graph(root)
 
@@ -287,71 +34,125 @@ class TestPrintGraph:
         print_graph(graph)
 
         # Then console.print should be called with a Tree
+        mock_console_class.assert_called_once()
         mock_console.print.assert_called_once()
-        printed_arg = mock_console.print.call_args[0][0]
-        assert isinstance(printed_arg, Tree)
 
     @patch("dqx.display.Console")
-    def test_print_graph_no_tree_no_print(self, mock_console_class: Mock) -> None:
-        """Test that print_graph doesn't print if no tree built."""
-        # Given an empty graph
+    def test_print_graph_with_multiple_checks(self, mock_console_class: Mock) -> None:
+        """Test print_graph with multiple checks and assertions."""
+        # Given a graph with multiple checks
         mock_console = Mock()
         mock_console_class.return_value = mock_console
 
-        mock_graph = Mock(spec=Graph)
-        mock_graph.dfs = Mock()
+        root = RootNode("Quality Suite")
 
-        # When calling print_graph (visitor.tree remains None)
-        print_graph(mock_graph)
+        # First check with assertions
+        check1 = root.add_check("Data Completeness")
+        positive_validator = SymbolicValidator("> 0", lambda x: x > 0)
+        check1.add_assertion(actual=sp.Symbol("count") > 0, name="Has records", validator=positive_validator)
 
-        # Then console.print should not be called
-        mock_console.print.assert_not_called()
+        # Second check
+        check2 = root.add_check("Data Validity")
+        upper_bound_validator = SymbolicValidator("< 100", lambda x: x < 100)
+        check2.add_assertion(actual=sp.Symbol("x") < 100, name="Upper bound check", validator=upper_bound_validator)
+
+        graph = Graph(root)
+
+        # When printing
+        print_graph(graph)
+
+        # Then console.print should be called
+        mock_console.print.assert_called_once()
+
+    @patch("dqx.display.Console")
+    @patch("dqx.display.Tree")
+    def test_print_graph_tree_structure(self, mock_tree_class: Mock, mock_console_class: Mock) -> None:
+        """Test that print_graph builds correct tree structure."""
+        # Given mocks to inspect tree building
+        mock_console = Mock()
+        mock_console_class.return_value = mock_console
+
+        mock_tree = Mock()
+        mock_tree_class.return_value = mock_tree
+
+        # Mock tree.add to return new mock branches
+        mock_check_branch = Mock()
+        mock_tree.add.return_value = mock_check_branch
+
+        # Create graph
+        root = RootNode("Test Suite")
+        check = root.add_check("Test Check")
+        positive_validator = SymbolicValidator("> 0", lambda x: x > 0)
+        check.add_assertion(actual=sp.Symbol("x") > 0, name="Test assertion", validator=positive_validator)
+
+        graph = Graph(root)
+
+        # When printing
+        print_graph(graph)
+
+        # Then tree should be created with root name
+        mock_tree_class.assert_called_once()
+        tree_label = mock_tree_class.call_args[0][0]
+        assert "Test Suite" in tree_label
+
+        # And check should be added to tree
+        mock_tree.add.assert_called()
+        check_label = mock_tree.add.call_args[0][0]
+        assert "Test Check" in check_label
+
+        # And assertion should be added to check branch
+        mock_check_branch.add.assert_called()
+        assertion_label = mock_check_branch.add.call_args[0][0]
+        assert "Test assertion" in assertion_label
+
+    @patch("dqx.display.Console")
+    def test_print_graph_empty_checks(self, mock_console_class: Mock) -> None:
+        """Test print_graph with root but no checks."""
+        # Given a graph with only root
+        mock_console = Mock()
+        mock_console_class.return_value = mock_console
+
+        root = RootNode("Empty Suite")
+        graph = Graph(root)
+
+        # When printing
+        print_graph(graph)
+
+        # Then console.print should still be called
+        mock_console.print.assert_called_once()
+
+    @patch("dqx.display.Console")
+    def test_print_graph_assertion_formatting(self, mock_console_class: Mock) -> None:
+        """Test assertion label formatting in print_graph."""
+        # Given a graph with various assertion types
+        mock_console = Mock()
+        mock_console_class.return_value = mock_console
+
+        root = RootNode("Test Suite")
+        check = root.add_check("Assertions Test")
+
+        # Assertion with validator
+        validator_with_name = SymbolicValidator("is positive", lambda x: x > 0)
+        check.add_assertion(actual=sp.Symbol("x") > 0, name="With validator", validator=validator_with_name)
+
+        # Assertion with a no-op validator (instead of None)
+        noop_validator = SymbolicValidator("", lambda x: True)
+        check.add_assertion(actual=sp.Symbol("y") < 100, name="Without validator", validator=noop_validator)
+
+        graph = Graph(root)
+
+        # When printing
+        print_graph(graph)
+
+        # Then console.print should be called
+        mock_console.print.assert_called_once()
 
 
 class TestIntegration:
-    """Integration tests with real node classes."""
-
-    def test_real_graph_structure(self) -> None:
-        """Test building tree with real graph nodes."""
-        # Given a real graph structure
-        root = RootNode("Quality Suite")
-
-        check1 = root.add_check("Data Completeness")
-        root.add_check("Data Validity")
-
-        # Create assertions
-        symbol = sp.Symbol("x")
-        positive_validator = SymbolicValidator("> 0", lambda x: x > 0)
-        upper_bound_validator = SymbolicValidator("< 100", lambda x: x < 100)
-        check1.add_assertion(actual=symbol > 0, name="Positive values", validator=positive_validator)
-        check1.add_assertion(actual=symbol < 100, name="Upper bound check", validator=upper_bound_validator)
-
-        # Create visitor and traverse
-        formatter = SimpleNodeFormatter()
-        visitor = TreeBuilderVisitor(formatter)
-
-        graph = Graph(root)
-        graph.dfs(visitor)
-
-        # Verify tree structure
-        assert visitor.tree is not None
-        assert "Quality Suite" in str(visitor.tree.label)
-        assert len(visitor.tree.children) == 2
-
-        # Check first check node
-        check1_tree = visitor.tree.children[0]
-        assert "Data Completeness" in str(check1_tree.label)
-        assert len(check1_tree.children) == 2
-
-        # Check assertions
-        assert1_tree = check1_tree.children[0]
-        assert "Positive values" in str(assert1_tree.label)
-
-        assert2_tree = check1_tree.children[1]
-        assert "Upper bound check" in str(assert2_tree.label)  # No label, so class name
+    """Integration tests with real graph structure."""
 
     @patch("dqx.display.Console")
-    def test_full_print_graph_integration(self, mock_console_class: Mock) -> None:
+    def test_real_graph_printing(self, mock_console_class: Mock) -> None:
         """Test full integration of print_graph with real nodes."""
         # Given a console mock
         mock_console = Mock()
@@ -359,20 +160,52 @@ class TestIntegration:
 
         # Create a real graph
         root = RootNode("E-commerce Quality")
-        check = root.add_check("Order Validation")
+
+        # Add order validation check
+        order_check = root.add_check("Order Validation")
         orders_exist_validator = SymbolicValidator("> 0", lambda x: x > 0)
-        check.add_assertion(actual=sp.Symbol("order_count") > 0, name="Orders exist", validator=orders_exist_validator)
+        order_check.add_assertion(
+            actual=sp.Symbol("order_count") > 0, name="Orders exist", validator=orders_exist_validator
+        )
+
+        # Add revenue check
+        revenue_check = root.add_check("Revenue Check")
+        positive_revenue_validator = SymbolicValidator(">= 0", lambda x: x >= 0)
+        revenue_check.add_assertion(
+            actual=sp.Symbol("revenue") >= 0, name="Non-negative revenue", validator=positive_revenue_validator
+        )
 
         graph = Graph(root)
 
         # When printing
         print_graph(graph)
 
-        # Then verify print was called with correct tree
+        # Then verify print was called
         mock_console.print.assert_called_once()
-        tree = mock_console.print.call_args[0][0]
 
-        assert isinstance(tree, Tree)
-        assert "E-commerce Quality" in str(tree.label)
-        assert len(tree.children) == 1
-        assert "Order Validation" in str(tree.children[0].label)
+    def test_print_method_on_graph(self) -> None:
+        """Test that Graph.print_tree delegates to print_graph."""
+        # Given a graph
+        root = RootNode("Test Suite")
+        graph = Graph(root)
+
+        # Mock print_graph
+        with patch("dqx.display.print_graph") as mock_print_graph:
+            # When calling print_tree
+            graph.print_tree()
+
+            # Then print_graph should be called with the graph only
+            mock_print_graph.assert_called_once_with(graph)
+
+        # Test with custom formatter - should issue a warning
+        with patch("dqx.display.print_graph") as mock_print_graph:
+            with patch("warnings.warn") as mock_warn:
+                formatter = Mock()
+                graph.print_tree(formatter=formatter)
+
+                # Then print_graph should be called without formatter
+                mock_print_graph.assert_called_once_with(graph)
+                # And a warning should be issued
+                mock_warn.assert_called_once_with(
+                    "formatter argument is not supported by print_graph and will be ignored"
+                )

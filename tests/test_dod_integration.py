@@ -104,4 +104,4 @@ def test_day_over_day_integration() -> None:
         suite.provider.collect_symbols(suite.key),
         suite.provider.registry.symbol_lookup_table(suite.key),
     )
-    print_metric_trace(trace, suite.execution_id)
+    print_metric_trace(trace)

@@ -23,22 +23,25 @@ class TestGraphPrintTree:
         # When calling print_tree
         graph.print_tree()
 
-        # Then print_graph should be called with graph and None formatter
-        mock_print_graph.assert_called_once_with(graph, None)
+        # Then print_graph should be called with graph only
+        mock_print_graph.assert_called_once_with(graph)
 
     @patch("dqx.display.print_graph")
     def test_print_tree_with_custom_formatter(self, mock_print_graph: Mock) -> None:
-        """Test that print_tree passes custom formatter to print_graph."""
+        """Test that print_tree ignores custom formatter since print_graph doesn't support it."""
         # Given a graph and custom formatter
         root = RootNode("test_suite")
         graph = Graph(root)
         custom_formatter = Mock(spec=NodeFormatter)
 
         # When calling print_tree with formatter
-        graph.print_tree(formatter=custom_formatter)
+        with patch("warnings.warn") as mock_warn:
+            graph.print_tree(formatter=custom_formatter)
 
-        # Then print_graph should be called with graph and custom formatter
-        mock_print_graph.assert_called_once_with(graph, custom_formatter)
+        # Then print_graph should be called with graph only
+        mock_print_graph.assert_called_once_with(graph)
+        # And a warning should be issued about the ignored formatter
+        mock_warn.assert_called_once_with("formatter argument is not supported by print_graph and will be ignored")
 
     @patch("dqx.display.print_graph")
     def test_print_tree_with_complex_graph(self, mock_print_graph: Mock) -> None:
@@ -58,5 +61,5 @@ class TestGraphPrintTree:
         # When calling print_tree
         graph.print_tree()
 
-        # Then print_graph should be called with the graph
-        mock_print_graph.assert_called_once_with(graph, None)
+        # Then print_graph should be called with the graph only
+        mock_print_graph.assert_called_once_with(graph)

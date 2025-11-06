@@ -44,6 +44,7 @@ class SymbolInfo:
         value: Computation result - Success(float) or Failure(error_message)
         yyyy_mm_dd: Date when the metric was evaluated
         tags: Additional metadata from ResultKey (e.g., {"env": "prod"})
+        data_av_ratio: Data availability ratio (0.0 to 1.0)
     """
 
     name: str
@@ -52,6 +53,7 @@ class SymbolInfo:
     value: Result[float, str]
     yyyy_mm_dd: datetime.date
     tags: Tags = field(default_factory=dict)
+    data_av_ratio: float = 1.0
 
 
 @dataclass

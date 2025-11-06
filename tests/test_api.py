@@ -573,6 +573,7 @@ def test_verification_suite_metric_trace() -> None:
         "error",
         "tags",
         "is_extended",
+        "data_av_ratio",
     }
     assert set(trace.column_names) == expected_columns
 

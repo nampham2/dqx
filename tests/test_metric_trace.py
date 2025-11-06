@@ -35,6 +35,7 @@ class TestMetricTrace:
             "error",
             "tags",
             "is_extended",
+            "data_av_ratio",
         }
 
     def test_metrics_only(self) -> None:

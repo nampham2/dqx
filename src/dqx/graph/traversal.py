@@ -332,7 +332,13 @@ class Graph:
         """
         from dqx.display import print_graph
 
-        print_graph(self, formatter)
+        # Note: print_graph only accepts the graph argument, formatter is not supported
+        if formatter is not None:
+            import warnings
+
+            warnings.warn("formatter argument is not supported by print_graph and will be ignored")
+
+        print_graph(self)
 
     def impute_datasets(self, datasets: list[str], provider: "MetricProvider") -> None:
         """Propagate dataset information through the graph using visitor pattern.

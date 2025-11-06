@@ -85,6 +85,7 @@ def test_e2e_suite() -> None:
         name="ds1",
         records_per_day=30,
         seed=1050,  # Same seed as original commerce_data_c1
+        skip_dates={dt.date.fromisoformat("2025-01-13")},
     )
 
     ds2 = CommercialDataSource(
@@ -109,4 +110,4 @@ def test_e2e_suite() -> None:
 
     suite.run([ds1, ds2], key)
     print_assertion_results(suite.collect_results())
-    print_metric_trace(suite.metric_trace(db), suite.execution_id)
+    print_metric_trace(suite.metric_trace(db), suite.data_av_threshold)
