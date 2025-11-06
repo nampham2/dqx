@@ -625,7 +625,7 @@ class VerificationSuite:
         # Create datasources dict for calculate_data_av_ratios
         datasources_dict = {ds.name: ds for ds in datasources}
         logger.info("Calculating data availability ratios for datasets")
-        self._context.provider.registry.calculate_data_av_ratios(datasources_dict, key, self._data_av_threshold)
+        self._context.provider.registry.calculate_data_av_ratios(datasources_dict, key)
 
         # Collect metrics stats and cleanup expired metrics BEFORE analysis
         self._metrics_stats = self.provider._db.get_metrics_stats()

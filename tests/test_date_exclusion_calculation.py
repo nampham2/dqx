@@ -39,7 +39,7 @@ class TestDataAvailabilityCalculation:
         mock_datasource.skip_dates = {datetime.date(2024, 1, 15)}  # Current date excluded
         datasources: dict[str, SqlDataSource] = {"test_dataset": mock_datasource}
 
-        registry.calculate_data_av_ratios(datasources, context_key, 0.8)
+        registry.calculate_data_av_ratios(datasources, context_key)
 
         assert sm.data_av_ratio == 0.0
 
@@ -67,7 +67,7 @@ class TestDataAvailabilityCalculation:
         mock_datasource.skip_dates = {datetime.date(2024, 1, 10)}  # Different date excluded
         datasources: dict[str, SqlDataSource] = {"test_dataset": mock_datasource}
 
-        registry.calculate_data_av_ratios(datasources, context_key, 0.8)
+        registry.calculate_data_av_ratios(datasources, context_key)
 
         assert sm.data_av_ratio == 1.0
 
@@ -95,7 +95,7 @@ class TestDataAvailabilityCalculation:
         mock_datasource.skip_dates = {datetime.date(2024, 1, 13)}  # Effective date excluded
         datasources: dict[str, SqlDataSource] = {"test_dataset": mock_datasource}
 
-        registry.calculate_data_av_ratios(datasources, context_key, 0.8)
+        registry.calculate_data_av_ratios(datasources, context_key)
 
         assert sm.data_av_ratio == 0.0
 
@@ -145,7 +145,7 @@ class TestDataAvailabilityCalculation:
         mock_datasource.skip_dates = set()  # No dates excluded
         datasources: dict[str, SqlDataSource] = {"test_dataset": mock_datasource}
 
-        registry.calculate_data_av_ratios(datasources, context_key, 0.8)
+        registry.calculate_data_av_ratios(datasources, context_key)
 
         # All should have 1.0 ratio
         assert sm1.data_av_ratio == 1.0
@@ -206,7 +206,7 @@ class TestDataAvailabilityCalculation:
         mock_datasource.skip_dates = {datetime.date(2024, 1, 14)}  # sm2's date
         datasources: dict[str, SqlDataSource] = {"test_dataset": mock_datasource}
 
-        registry.calculate_data_av_ratios(datasources, context_key, 0.8)
+        registry.calculate_data_av_ratios(datasources, context_key)
 
         # Check ratios
         assert sm1.data_av_ratio == 1.0  # Available
@@ -264,7 +264,7 @@ class TestDataAvailabilityCalculation:
         mock_datasource.skip_dates = {datetime.date(2024, 1, 14)}
         datasources: dict[str, SqlDataSource] = {"test_dataset": mock_datasource}
 
-        registry.calculate_data_av_ratios(datasources, context_key, 0.8)
+        registry.calculate_data_av_ratios(datasources, context_key)
 
         assert sm1.data_av_ratio == 1.0
         assert sm2.data_av_ratio == 0.0
@@ -311,7 +311,7 @@ class TestDataAvailabilityCalculation:
         mock_datasource.skip_dates = set()
         datasources: dict[str, SqlDataSource] = {"test_dataset": mock_datasource}
 
-        registry.calculate_data_av_ratios(datasources, context_key, 0.8)
+        registry.calculate_data_av_ratios(datasources, context_key)
 
         # All available
         assert sm1.data_av_ratio == 1.0
@@ -324,7 +324,7 @@ class TestDataAvailabilityCalculation:
         context_key = ResultKey(datetime.date(2024, 1, 15), {})
 
         # Should not raise
-        registry.calculate_data_av_ratios({}, context_key, 0.8)
+        registry.calculate_data_av_ratios({}, context_key)
 
         assert len(registry._metrics) == 0
 
@@ -356,7 +356,7 @@ class TestDataAvailabilityCalculation:
         mock_datasource.skip_dates = skip_dates
         datasources: dict[str, SqlDataSource] = {"test_dataset": mock_datasource}
 
-        registry.calculate_data_av_ratios(datasources, context_key, 0.8)
+        registry.calculate_data_av_ratios(datasources, context_key)
 
         # All should have 0.0 ratio
         for sm in metrics:
@@ -382,7 +382,7 @@ class TestDataAvailabilityCalculation:
         context_key = ResultKey(datetime.date(2024, 1, 15), {})
         datasources: dict[str, SqlDataSource] = {}  # No datasources
 
-        registry.calculate_data_av_ratios(datasources, context_key, 0.8)
+        registry.calculate_data_av_ratios(datasources, context_key)
 
         # Should have full availability when no dataset
         assert sm.data_av_ratio == 1.0
@@ -411,7 +411,7 @@ class TestDataAvailabilityCalculation:
         mock_datasource.skip_dates = {datetime.date(2024, 1, 15)}
         datasources: dict[str, SqlDataSource] = {"other_dataset": mock_datasource}
 
-        registry.calculate_data_av_ratios(datasources, context_key, 0.8)
+        registry.calculate_data_av_ratios(datasources, context_key)
 
         # Should have full availability when dataset not found
         assert sm.data_av_ratio == 1.0

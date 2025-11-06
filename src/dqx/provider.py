@@ -313,9 +313,7 @@ class MetricRegistry:
         # Replace _metrics with sorted order
         self._metrics = result
 
-    def calculate_data_av_ratios(
-        self, datasources: dict[str, "SqlDataSource"], key: ResultKey, data_av_threshold: float
-    ) -> None:
+    def calculate_data_av_ratios(self, datasources: dict[str, "SqlDataSource"], key: ResultKey) -> None:
         """Calculate data availability ratios for all metrics.
 
         Updates the data_av_ratio field of each SymbolicMetric based on
@@ -327,7 +325,6 @@ class MetricRegistry:
         Args:
             datasources: Dictionary mapping dataset names to SqlDataSource instances
             key: ResultKey providing context date for lag calculations
-            data_av_threshold: Data availability threshold
         """
         # Import here to avoid circular dependency
 
