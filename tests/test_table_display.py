@@ -19,7 +19,7 @@ def test_print_assertion_results_basic() -> None:
             check="Price Check",
             assertion="Average price is positive",
             severity="P1",
-            status="OK",
+            status="PASSED",
             metric=Success(42.5),
             expression="average(price) > 0",
             tags={"env": "prod", "region": "us"},
@@ -30,7 +30,7 @@ def test_print_assertion_results_basic() -> None:
             check="Data Check",
             assertion="No null values",
             severity="P0",
-            status="FAILURE",
+            status="FAILED",
             metric=Failure(
                 [
                     EvaluationFailure(
@@ -101,7 +101,7 @@ def test_print_assertion_results_edge_cases() -> None:
             check="Check",
             assertion="Test assertion",
             severity="P1",
-            status="OK",
+            status="PASSED",
             metric=Success(0.0),  # Zero value
             expression=None,  # None expression
             tags={},  # Empty tags
@@ -112,7 +112,7 @@ def test_print_assertion_results_edge_cases() -> None:
             check="Check",
             assertion="Complex validation",
             severity="P0",
-            status="FAILURE",
+            status="FAILED",
             metric=Failure(
                 [
                     EvaluationFailure(
@@ -145,7 +145,7 @@ def test_print_assertion_results_all_severity_levels() -> None:
             check="Check",
             assertion="P0 assertion",
             severity="P0",
-            status="OK",
+            status="PASSED",
             metric=Success(1.0),
             expression="test",
             tags={},
@@ -156,7 +156,7 @@ def test_print_assertion_results_all_severity_levels() -> None:
             check="Check",
             assertion="P1 assertion",
             severity="P1",
-            status="OK",
+            status="PASSED",
             metric=Success(1.0),
             expression="test",
             tags={},
@@ -167,7 +167,7 @@ def test_print_assertion_results_all_severity_levels() -> None:
             check="Check",
             assertion="P2 assertion",
             severity="P2",
-            status="OK",
+            status="PASSED",
             metric=Success(1.0),
             expression="test",
             tags={},
@@ -178,7 +178,7 @@ def test_print_assertion_results_all_severity_levels() -> None:
             check="Check",
             assertion="P3 assertion",
             severity="P3",
-            status="OK",
+            status="PASSED",
             metric=Success(1.0),
             expression="test",
             tags={},
@@ -240,7 +240,7 @@ def test_print_assertion_results_complex_tags() -> None:
             check="Check",
             assertion="Complex tags assertion",
             severity="P1",
-            status="OK",
+            status="PASSED",
             metric=Success(1.0),
             expression="test",
             tags={"env": "production", "region": "us-west", "version": "1.2.3"},
@@ -280,7 +280,7 @@ def test_table_display_demo_integration() -> None:
             assertion="Average order amount is positive",
             expression="average(amount) > 0",
             severity="P1",
-            status="OK",
+            status="PASSED",
             metric=Success(125.50),
             tags={"env": "production", "region": "us-west"},
         ),
@@ -291,7 +291,7 @@ def test_table_display_demo_integration() -> None:
             assertion="No orders exceed $10,000",
             expression="max(amount) <= 10000",
             severity="P0",
-            status="FAILURE",
+            status="FAILED",
             metric=Failure(
                 [
                     EvaluationFailure(

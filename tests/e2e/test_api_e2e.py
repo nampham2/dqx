@@ -85,6 +85,7 @@ def test_e2e_suite() -> None:
         name="ds1",
         records_per_day=30,
         seed=1050,  # Same seed as original commerce_data_c1
+        skip_dates={dt.date.fromisoformat("2025-01-13")},
     )
 
     ds2 = CommercialDataSource(
@@ -93,14 +94,20 @@ def test_e2e_suite() -> None:
         name="ds2",
         records_per_day=35,
         seed=2100,  # Same seed as original commerce_data_c2
+        skip_dates={dt.date.fromisoformat("2025-01-14")},
     )
 
     key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={"env": "prod", "partner": "gha"})
     checks = [simple_checks, manual_day_over_day, rate_of_change, null_percentage, cross_dataset_check, complex_metrics]
 
     # Run for today
-    suite = VerificationSuite(checks, db, name="Simple test suite")
+    suite = VerificationSuite(
+        checks,
+        db,
+        name="Simple test suite",
+        data_av_threshold=0.8,
+    )
 
     suite.run([ds1, ds2], key)
     print_assertion_results(suite.collect_results())
-    print_metric_trace(suite.metric_trace(db), suite.execution_id)
+    print_metric_trace(suite.metric_trace(db), suite.data_av_threshold)

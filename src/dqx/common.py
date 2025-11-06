@@ -20,20 +20,15 @@ if TYPE_CHECKING:
 # Type aliases
 DatasetName = str
 ExecutionId = str
-# Use TYPE_CHECKING to handle forward reference
-if TYPE_CHECKING:
-    TimeSeries = dict[dt.date, "Metric"]
-else:
-    # At runtime, use Any to avoid circular import
-    TimeSeries = dict[dt.date, Any]
+TimeSeries = dict[dt.date, "Metric"]
 Tags = dict[str, str]
 Parameters = dict[str, Any]
 SeverityLevel = Literal["P0", "P1", "P2", "P3"]
 RecomputeStrategy = Literal["ALWAYS", "MISSING", "NEVER"]
-AssertionStatus = Literal["OK", "FAILURE"]
-Validator = Callable[[Any], bool]
+AssertionStatus = Literal["PASSED", "FAILED", "SKIPPED", "ERROR"]
+Validator = Callable[[float], bool]
 RetrievalFn = Callable[["ResultKey"], Result[float, str]]
-MetricKey = tuple["MetricSpec", "ResultKey", DatasetName]  # Uniquely identifies a metric in DB
+MetricKey = tuple["MetricSpec", "ResultKey", DatasetName]
 
 
 class DQXError(Exception): ...
@@ -107,7 +102,7 @@ class AssertionResult:
         check: Name of the parent check
         assertion: Name of the assertion (always present, names are mandatory)
         severity: Priority level (P0, P1, P2, P3)
-        status: Validation result ("OK" or "FAILURE")
+        status: Validation result ("PASSED" or "FAILED")
         metric: The metric computation result (Success with value or Failure with errors)
         expression: Full validation expression (e.g., "average(price) > 0")
         tags: Tags from the ResultKey (e.g., {"env": "prod"})
@@ -161,6 +156,11 @@ class SqlDataSource(Protocol):
     def name(self) -> str:
         """Get the name of this data source."""
         ...
+
+    @property
+    def skip_dates(self) -> set[datetime.date]:
+        """Dates to exclude from metric calculations for this dataset."""
+        return set()
 
     def cte(self, nominal_date: datetime.date) -> str:
         """

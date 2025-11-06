@@ -65,6 +65,7 @@ class CommercialDataSource:
         name: str = "commerce",
         records_per_day: int = 30,
         seed: int | None = None,
+        skip_dates: set[datetime.date] | None = None,
     ) -> None:
         """Initialize the commercial datasource with generated data.
 
@@ -75,6 +76,7 @@ class CommercialDataSource:
             records_per_day: Average number of records to generate per day
             seed: Random seed for reproducible data
         """
+        self._skip_dates: set[datetime.date] = skip_dates or set()
         self._name = name
         self._start_date = start_date
         self._end_date = end_date
@@ -93,6 +95,10 @@ class CommercialDataSource:
     def name(self) -> str:
         """Get the name of this data source."""
         return self._name
+
+    @property
+    def skip_dates(self) -> set[datetime.date]:
+        return self._skip_dates
 
     def cte(self, nominal_date: datetime.date) -> str:
         """Return CTE filtering data for specific date.

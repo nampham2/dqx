@@ -112,7 +112,7 @@ class TestCollectSymbols:
         """Test collecting symbols from a simple expression."""
         provider = Mock(spec=MetricProvider)
         key = ResultKey(yyyy_mm_dd=date(2025, 1, 13), tags={"env": "test"})
-        evaluator = Evaluator(provider, key, "Test Suite")
+        evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
         # Create symbols
         x1 = sp.Symbol("x_1")
@@ -168,7 +168,7 @@ class TestCollectSymbols:
         """Test collecting symbols when some metrics fail."""
         provider = Mock(spec=MetricProvider)
         key = ResultKey(yyyy_mm_dd=date(2025, 1, 13), tags={})
-        evaluator = Evaluator(provider, key, "Test Suite")
+        evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
         # Create symbols
         x1 = sp.Symbol("x_1")
@@ -210,7 +210,7 @@ class TestCollectSymbols:
         """Test collecting symbols from complex nested expressions."""
         provider = Mock(spec=MetricProvider)
         key = ResultKey(yyyy_mm_dd=date(2025, 1, 13), tags={"region": "us"})
-        evaluator = Evaluator(provider, key, "Complex Suite")
+        evaluator = Evaluator(provider, key, "Complex Suite", data_av_threshold=0.8)
 
         # Create symbols
         x1, x2, x3 = sp.symbols("x_1 x_2 x_3")
@@ -254,7 +254,7 @@ class TestCollectSymbols:
         """Test collecting symbols from constant expression."""
         provider = Mock(spec=MetricProvider)
         key = ResultKey(yyyy_mm_dd=date(2025, 1, 13), tags={})
-        evaluator = Evaluator(provider, key, "Test Suite")
+        evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
         # Constant expression
         expr = sp.sympify(42)
@@ -266,7 +266,7 @@ class TestCollectSymbols:
         """Test that symbol collection preserves consistent order."""
         provider = Mock(spec=MetricProvider)
         key = ResultKey(yyyy_mm_dd=date(2025, 1, 13), tags={})
-        evaluator = Evaluator(provider, key, "Test Suite")
+        evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
         # Create multiple symbols
         symbols = [sp.Symbol(f"x_{i}") for i in range(1, 6)]
@@ -302,7 +302,7 @@ class TestEvaluatorWithContext:
         """Test that _gather correctly populates all context fields."""
         provider = Mock(spec=MetricProvider)
         key = ResultKey(yyyy_mm_dd=date(2025, 1, 15), tags={"env": "staging", "version": "2.0"})
-        evaluator = Evaluator(provider, key, "Production Suite")
+        evaluator = Evaluator(provider, key, "Production Suite", data_av_threshold=0.8)
 
         # Create a symbol
         x1 = sp.Symbol("x_1")

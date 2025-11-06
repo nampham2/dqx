@@ -33,10 +33,10 @@ def test_analyzer_metrics_without_analyzers() -> None:
     # Create analyzer with proper dependencies
     datasources: list[SqlDataSource] = [ds]
     mock_db = Mock()
-    provider = MetricProvider(mock_db, execution_id="test-123")
+    provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
     key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
-    analyzer = Analyzer(datasources, provider, key, "test-123")
+    analyzer = Analyzer(datasources, provider, key, "test-123", 0.9)
 
     # Analyze with metrics that have no analyzers
     with patch.object(analyzer, "_analyze_internal") as mock_analyze:
@@ -98,8 +98,8 @@ def test_analyze_batch_with_more_than_4_dates() -> None:
     # Create analyzer
     datasources: list[SqlDataSource] = [ds]
     mock_db = Mock()
-    provider = MetricProvider(mock_db, execution_id="test-123")
-    analyzer = Analyzer(datasources, provider, keys[0], "test-123")
+    provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
+    analyzer = Analyzer(datasources, provider, keys[0], "test-123", 0.9)
 
     # Mock _analyze_internal to return proper report
     with patch.object(analyzer, "_analyze_internal") as mock_analyze:
@@ -133,8 +133,8 @@ def test_analyze_batch_with_large_date_range() -> None:
     # Create analyzer
     datasources: list[SqlDataSource] = [ds]
     mock_db = Mock()
-    provider = MetricProvider(mock_db, execution_id="test-123")
-    analyzer = Analyzer(datasources, provider, keys[0], "test-123")
+    provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
+    analyzer = Analyzer(datasources, provider, keys[0], "test-123", 0.9)
 
     # Mock _analyze_internal to return proper report
     with patch.object(analyzer, "_analyze_internal") as mock_analyze:
@@ -171,9 +171,9 @@ def test_analyze_batch_sql_ops_value_retrieval_failure() -> None:
     # Create analyzer
     datasources: list[SqlDataSource] = [ds]
     mock_db = Mock()
-    provider = MetricProvider(mock_db, execution_id="test-123")
+    provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
     key = ResultKey(yyyy_mm_dd=date(2024, 1, 1), tags={})
-    analyzer = Analyzer(datasources, provider, key, "test-123")
+    analyzer = Analyzer(datasources, provider, key, "test-123", 0.9)
 
     # Create metrics dict
     metrics: dict[ResultKey, list[MetricSpec]] = {key: [metric]}
@@ -189,7 +189,7 @@ def test_analyze_batch_sql_ops_value_retrieval_failure() -> None:
         # Cast to proper type for mypy
         metrics_for_analyze: Mapping[ResultKey, Sequence[MetricSpec]] = metrics
         with pytest.raises(DQXError) as exc_info:
-            analyzer._analyze_internal(ds, metrics_for_analyze)  # type: ignore[arg-type]
+            analyzer._analyze_internal(ds, dict(metrics_for_analyze))
 
         # Check the error message
         assert "Failed to retrieve value for analyzer" in str(exc_info.value)

@@ -433,11 +433,11 @@ class TestAnalyzer:
         # Create mock dependencies
         datasources: list[SqlDataSource] = [Mock(spec=SqlDataSource, name="test_ds")]
         mock_db = Mock()
-        provider = MetricProvider(mock_db, execution_id="test-123")
+        provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
         key = ResultKey(datetime.date(2024, 1, 1), {})
 
         # Test analyzer creation
-        analyzer = Analyzer(datasources, provider, key, "test-123")
+        analyzer = Analyzer(datasources, provider, key, "test-123", 0.9)
 
         # Create metrics for testing batch processing
         metrics = {}
@@ -471,10 +471,10 @@ class TestAnalyzerLagHandling:
         # Create mock dependencies
         datasources: list[SqlDataSource] = [Mock(spec=SqlDataSource, name="test_ds")]
         mock_db = Mock()
-        provider = MetricProvider(mock_db, execution_id="test-123")
+        provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
         key = ResultKey(datetime.date(2024, 1, 15), {})
 
-        analyzer = Analyzer(datasources, provider, key, "test-123")
+        analyzer = Analyzer(datasources, provider, key, "test-123", 0.9)
 
         # Create metrics with different lag values
         metrics = {
@@ -591,7 +591,7 @@ class TestAnalyzerExtendedMetrics:
 
         # Create real dependencies
         db = InMemoryMetricDB()
-        provider = MetricProvider(db, execution_id="test-exec")
+        provider = MetricProvider(db, execution_id="test-exec", data_av_threshold=0.8)
 
         # Create a datasource
         ds = CommercialDataSource(
@@ -625,10 +625,10 @@ class TestAnalyzerExtendedMetrics:
         dod_metric = provider.ext.day_over_day(base_metric, dataset="sales")
 
         # Create analyzer
-        analyzer = Analyzer([ds], provider, key, "test-exec")
+        analyzer = Analyzer([ds], provider, key, "test-exec", 0.9)
 
-        # Run analyze_extended_metrics
-        report = analyzer.analyze_extended_metrics()
+        # Run analyze_extended_metrics with provider's metrics
+        report = analyzer.analyze_extended_metrics(provider.metrics)
 
         # Verify the extended metric was evaluated
         assert len(report) == 1
@@ -647,7 +647,7 @@ class TestAnalyzerExtendedMetrics:
 
         # Create real dependencies
         db = InMemoryMetricDB()
-        provider = MetricProvider(db, execution_id="test-exec")
+        provider = MetricProvider(db, execution_id="test-exec", data_av_threshold=0.8)
 
         ds = CommercialDataSource(
             start_date=datetime.date(2024, 1, 1),
@@ -666,10 +666,10 @@ class TestAnalyzerExtendedMetrics:
         provider.ext.day_over_day(base_metric, dataset="sales")
 
         # Create analyzer
-        analyzer = Analyzer([ds], provider, key, "test-exec")
+        analyzer = Analyzer([ds], provider, key, "test-exec", 0.9)
 
         # Run analyze_extended_metrics - should handle failure gracefully
-        report = analyzer.analyze_extended_metrics()
+        report = analyzer.analyze_extended_metrics(provider.metrics)
 
         # Report should be empty since evaluation failed
         assert len(report) == 0
@@ -681,7 +681,7 @@ class TestAnalyzerExtendedMetrics:
 
         # Create real dependencies
         db = InMemoryMetricDB()
-        provider = MetricProvider(db, execution_id="test-exec")
+        provider = MetricProvider(db, execution_id="test-exec", data_av_threshold=0.8)
 
         ds = CommercialDataSource(
             start_date=datetime.date(2024, 1, 1),
@@ -702,10 +702,10 @@ class TestAnalyzerExtendedMetrics:
         dod2 = provider.ext.day_over_day(base2, dataset="sales")
 
         # Create analyzer
-        analyzer = Analyzer([ds], provider, key, "test-exec")
+        analyzer = Analyzer([ds], provider, key, "test-exec", 0.9)
 
         # Run analyze_extended_metrics
-        analyzer.analyze_extended_metrics()
+        analyzer.analyze_extended_metrics(provider.metrics)
 
         # Verify metrics are now in topological order
         # Simple metrics should come before extended metrics
@@ -732,7 +732,7 @@ class TestAnalyzerFullWorkflow:
 
         # Create real dependencies
         db = InMemoryMetricDB()
-        provider = MetricProvider(db, execution_id="test-exec")
+        provider = MetricProvider(db, execution_id="test-exec", data_av_threshold=0.8)
 
         # Create two datasources
         ds1 = CommercialDataSource(
@@ -769,7 +769,7 @@ class TestAnalyzerFullWorkflow:
         avg_price_lag = provider.average("price", lag=1, dataset="sales")
 
         # Create analyzer
-        analyzer = Analyzer([ds1, ds2], provider, key, "test-exec")
+        analyzer = Analyzer([ds1, ds2], provider, key, "test-exec", 0.9)
 
         # Run full analyze
         report = analyzer.analyze()
@@ -794,7 +794,7 @@ class TestAnalyzerFullWorkflow:
 
         # Create real dependencies
         db = InMemoryMetricDB()
-        provider = MetricProvider(db, execution_id="test-exec")
+        provider = MetricProvider(db, execution_id="test-exec", data_av_threshold=0.8)
 
         # Create datasources
         ds1 = CommercialDataSource(
@@ -822,7 +822,7 @@ class TestAnalyzerFullWorkflow:
         provider.sum("price", dataset="ds2")
 
         # Create analyzer
-        analyzer = Analyzer([ds1, ds2], provider, key, "test-exec")
+        analyzer = Analyzer([ds1, ds2], provider, key, "test-exec", 0.9)
 
         # Capture what gets passed to analyze_simple_metrics
         analyze_calls: list[tuple[str, list[ResultKey]]] = []
@@ -855,7 +855,7 @@ class TestAnalyzerFullWorkflow:
 
         # Create real dependencies
         db = InMemoryMetricDB()
-        provider = MetricProvider(db, execution_id="test-exec")
+        provider = MetricProvider(db, execution_id="test-exec", data_av_threshold=0.8)
 
         ds = CommercialDataSource(
             start_date=datetime.date(2024, 1, 1),
@@ -885,7 +885,7 @@ class TestAnalyzerFullWorkflow:
         db.persist = track_persist  # type: ignore[assignment]
 
         # Create analyzer
-        analyzer = Analyzer([ds], provider, key, "test-exec")
+        analyzer = Analyzer([ds], provider, key, "test-exec", 0.9)
 
         # Run analyze
         analyzer.analyze()
@@ -907,13 +907,13 @@ class TestAnalyzerEdgeCases:
         mock_ds = Mock(spec=SqlDataSource, name="test_ds")
         datasources: list[SqlDataSource] = [mock_ds]
         mock_db = Mock()
-        provider = MetricProvider(mock_db, execution_id="test-123")
+        provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
 
         # Create keys with tags
         tags = {"env": "prod", "region": "us-west"}
         key = ResultKey(datetime.date(2024, 1, 1), tags)
 
-        analyzer = Analyzer(datasources, provider, key, "test-123")
+        analyzer = Analyzer(datasources, provider, key, "test-123", 0.9)
 
         # Create metrics with tagged keys
         metrics = {
@@ -943,10 +943,10 @@ class TestAnalyzerEdgeCases:
 
         datasources: list[SqlDataSource] = [ds]
         mock_db = Mock()
-        provider = MetricProvider(mock_db, execution_id="test-123")
+        provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
         key = ResultKey(datetime.date(2024, 1, 1), {})
 
-        analyzer = Analyzer(datasources, provider, key, "test-123")
+        analyzer = Analyzer(datasources, provider, key, "test-123", 0.9)
 
         # Create a metric spec with a mocked analyzer
         sum_spec = Sum("revenue")
@@ -972,10 +972,10 @@ class TestAnalyzerEdgeCases:
         mock_ds = Mock(spec=SqlDataSource, name="test_ds")
         datasources: list[SqlDataSource] = [mock_ds]
         mock_db = Mock()
-        provider = MetricProvider(mock_db, execution_id="test-123")
+        provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
         key = ResultKey(datetime.date(2024, 1, 1), {})
 
-        analyzer = Analyzer(datasources, provider, key, "test-123")
+        analyzer = Analyzer(datasources, provider, key, "test-123", 0.9)
 
         # Check properties are set correctly
         assert analyzer.datasources == datasources
@@ -995,10 +995,10 @@ class TestAnalyzerEdgeCases:
 
         datasources: list[SqlDataSource] = [ds]
         mock_db = Mock()
-        provider = MetricProvider(mock_db, execution_id="test-123")
+        provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
         key = ResultKey(datetime.date(2024, 1, 1), {})
 
-        analyzer = Analyzer(datasources, provider, key, "test-123")
+        analyzer = Analyzer(datasources, provider, key, "test-123", 0.9)
 
         # Create metrics
         metrics: dict[ResultKey, Sequence[MetricSpec]] = {

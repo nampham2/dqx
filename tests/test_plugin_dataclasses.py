@@ -1,5 +1,6 @@
 """Tests for plugin data structures."""
 
+import typing
 from dataclasses import FrozenInstanceError
 from datetime import date
 
@@ -70,7 +71,7 @@ def test_plugin_execution_context_creation() -> None:
             check="check1",
             assertion="assert1",
             severity="P1",
-            status="OK",
+            status="PASSED",
             metric=Success(100.0),
             expression="x > 0",
             tags={},
@@ -128,7 +129,7 @@ def test_context_total_assertions() -> None:
                 check="check",
                 assertion="assert",
                 severity="P1",
-                status="OK",
+                status="PASSED",
                 metric=Success(100.0),
                 expression="x > 0",
                 tags={},
@@ -153,7 +154,7 @@ def test_context_failed_assertions() -> None:
             check="check",
             assertion=f"assert{i}",
             severity="P1",
-            status="FAILURE" if i < 3 else "OK",
+            status="FAILED" if i < 3 else "PASSED",
             metric=Success(100.0),
             expression="x > 0",
             tags={},
@@ -189,7 +190,7 @@ def test_context_assertion_pass_rate() -> None:
             check="check",
             assertion=f"assert{i}",
             severity="P1",
-            status="OK" if i < 3 else "FAILURE",
+            status="PASSED" if i < 3 else "FAILED",
             metric=Success(100.0),
             expression="x > 0",
             tags={},
@@ -271,8 +272,8 @@ def test_context_assertions_by_severity() -> None:
             suite="test",
             check="check",
             assertion=f"assert{i}",
-            severity=f"P{i % 3}" if i % 3 < 4 else "P3",  # type: ignore[arg-type]
-            status="OK",
+            severity=typing.cast(typing.Literal["P0", "P1", "P2", "P3"], f"P{i % 3}" if i % 3 < 4 else "P3"),
+            status="PASSED",
             metric=Success(100.0),
             expression="x > 0",
             tags={},
@@ -306,8 +307,8 @@ def test_context_failures_by_severity() -> None:
             suite="test",
             check="check",
             assertion=f"assert{i}",
-            severity=f"P{i}" if i < 4 else "P3",  # type: ignore[arg-type]
-            status="FAILURE" if i < 3 else "OK",  # P0, P1, P2 fail
+            severity=typing.cast(typing.Literal["P0", "P1", "P2", "P3"], f"P{i}" if i < 4 else "P3"),
+            status="FAILED" if i < 3 else "PASSED",  # P0, P1, P2 fail
             metric=Success(100.0),
             expression="x > 0",
             tags={},

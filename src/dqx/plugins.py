@@ -52,11 +52,19 @@ class PluginExecutionContext:
 
     def failed_assertions(self) -> int:
         """Number of failed assertions."""
-        return sum(1 for r in self.results if r.status == "FAILURE")
+        return sum(1 for r in self.results if r.status in ("FAILED", "FAILURE"))
 
     def passed_assertions(self) -> int:
         """Number of passed assertions."""
-        return sum(1 for r in self.results if r.status == "OK")
+        return sum(1 for r in self.results if r.status == "PASSED")
+
+    def skipped_assertions(self) -> int:
+        """Number of skipped assertions."""
+        return sum(1 for r in self.results if r.status == "SKIPPED")
+
+    def error_assertions(self) -> int:
+        """Number of error assertions."""
+        return sum(1 for r in self.results if r.status == "ERROR")
 
     def assertion_pass_rate(self) -> float:
         """Pass rate as percentage (0-100)."""
@@ -82,7 +90,7 @@ class PluginExecutionContext:
         """Count of failures grouped by severity."""
         from collections import Counter
 
-        failures = [r for r in self.results if r.status == "FAILURE"]
+        failures = [r for r in self.results if r.status in ("FAILED", "FAILURE")]
         return dict(Counter(f.severity for f in failures))
 
     def data_discrepancy_stats(self) -> "MetricTraceStats | None":
@@ -343,31 +351,58 @@ class AuditPlugin:
         total = context.total_assertions()
         passed = context.passed_assertions()
         failed = context.failed_assertions()
-        pass_rate = (passed / total * 100) if total > 0 else 0.0
+        skipped = context.skipped_assertions()
+        error = context.error_assertions()
 
         self.console.print()
         self.console.print("[cyan]Execution Summary:[/cyan]")
 
         # Assertions line
         if total > 0:
-            self.console.print(
-                f"  Assertions: {total} total, [green]{passed} passed ({pass_rate:.1f}%)[/green], [red]{failed} failed ({100 - pass_rate:.1f}%)[/red]"
-            )
+            # Build the assertions line dynamically
+            assertion_parts = [f"{total} total"]
+
+            # Always show passed
+            pass_rate = (passed / total * 100) if total > 0 else 0.0
+            assertion_parts.append(f"[green]{passed} passed ({pass_rate:.1f}%)[/green]")
+
+            # Only show failed if > 0
+            if failed > 0:
+                fail_rate = failed / total * 100
+                assertion_parts.append(f"[red]{failed} failed ({fail_rate:.1f}%)[/red]")
+
+            # Only show skipped if > 0
+            if skipped > 0:
+                skip_rate = skipped / total * 100
+                assertion_parts.append(f"[yellow]{skipped} skipped ({skip_rate:.1f}%)[/yellow]")
+
+            # Only show error if > 0
+            if error > 0:
+                error_rate = error / total * 100
+                assertion_parts.append(f"[red]{error} error ({error_rate:.1f}%)[/red]")
+
+            self.console.print(f"  Assertions: {', '.join(assertion_parts)}")
         else:
             self.console.print("  Assertions: 0 total, 0 passed (0.0%), 0 failed (0.0%)")
 
-        # Symbols line (only if symbols exist)
+        # Symbols line (show whenever symbols are present)
         if context.symbols:
             total_symbols = context.total_symbols()
             successful_symbols = total_symbols - context.failed_symbols()
             failed_symbols = context.failed_symbols()
-            success_rate = (successful_symbols / total_symbols * 100) if total_symbols > 0 else 0.0
-            self.console.print(
-                f"  Symbols: {total_symbols} total, [green]{successful_symbols} successful ({success_rate:.1f}%)[/green], [red]{failed_symbols} failed ({100 - success_rate:.1f}%)[/red]"
-            )
 
             if failed_symbols > 0:
-                raise DQXError("[InternalError] Symbols failed to evaluate during execution!")
+                # Show both successful and failed when there are failures
+                success_rate = (successful_symbols / total_symbols * 100) if total_symbols > 0 else 0.0
+                fail_rate = (failed_symbols / total_symbols * 100) if total_symbols > 0 else 0.0
+                self.console.print(
+                    f"  Symbols: {total_symbols} total, [green]{successful_symbols} successful ({success_rate:.1f}%)[/green], [red]{failed_symbols} failed ({fail_rate:.1f}%)[/red]"
+                )
+            else:
+                # Show only successful when all symbols succeeded
+                self.console.print(
+                    f"  Symbols: {total_symbols} total, [green]{total_symbols} successful (100.0%)[/green]"
+                )
 
         # Metrics cleanup line (if any metrics were cleaned up)
         self.console.print(

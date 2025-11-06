@@ -90,9 +90,6 @@ class TestPluginTypeChecking:
         assert isinstance(metadata.description, str)
         assert isinstance(metadata.capabilities, set)
 
-        # The following would fail type checking:
-        # PluginMetadata(name=123, ...)  # type: ignore[arg-type]
-
     def test_plugin_execution_context_typing(self) -> None:
         """Test PluginExecutionContext type annotations."""
         import time

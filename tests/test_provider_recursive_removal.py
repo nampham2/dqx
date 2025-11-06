@@ -17,7 +17,7 @@ class TestRecursiveSymbolRemoval:
     def provider(self) -> MetricProvider:
         """Create a MetricProvider instance for testing."""
         mock_db = Mock(spec=MetricDB)
-        return MetricProvider(mock_db, execution_id="test-exec-123")
+        return MetricProvider(mock_db, execution_id="test-exec-123", data_av_threshold=0.8)
 
     def test_remove_symbol_removes_its_dependencies(self, provider: MetricProvider) -> None:
         """Test that removing a symbol also removes its required_metrics."""

@@ -223,6 +223,6 @@ def test_plugin_receives_correct_context(test_data: pa.Table, test_db: InMemoryM
     assert captured_context.key.yyyy_mm_dd == datetime(2024, 1, 1).date()
     assert captured_context.key.tags == {"env": "test"}
     assert len(captured_context.results) == 2
-    assert all(r.status == "OK" for r in captured_context.results)
+    assert all(r.status == "PASSED" for r in captured_context.results)
     assert captured_context.metrics_stats.total_metrics >= 0
     assert isinstance(captured_context.trace, pa.Table)

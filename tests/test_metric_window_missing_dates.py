@@ -134,8 +134,8 @@ def test_day_over_day_fails_with_missing_yesterday() -> None:
             pytest.fail("Expected Failure due to missing yesterday metric")
 
 
-def test_stddev_fails_with_missing_dates_in_window() -> None:
-    """Test that stddev fails when any date in the window is missing."""
+def test_stddev_succeeds_with_missing_dates_in_window() -> None:
+    """Test that stddev succeeds even with missing dates, using only available values."""
     db = InMemoryMetricDB()
     cache = MetricCache(db)
     base_date = dt.date(2025, 2, 10)
@@ -166,13 +166,13 @@ def test_stddev_fails_with_missing_dates_in_window() -> None:
         metric=spec, size=7, dataset="test_dataset", nominal_key=key, execution_id=execution_id, cache=cache
     )
 
-    # Verify using pattern matching
+    # Verify it succeeds with available data
     match result:
+        case Success(value):
+            # stddev should be 0 since all values are 100.0
+            assert value == 0.0
         case Failure(error):
-            assert "missing metrics" in error
-            assert "3 dates" in error  # Should mention 3 missing dates
-        case Success(_):
-            pytest.fail("Expected Failure due to missing dates in window")
+            pytest.fail(f"Expected Success but got Failure: {error}")
 
 
 def test_week_over_week_succeeds_with_sparse_data() -> None:

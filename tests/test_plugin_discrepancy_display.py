@@ -4,11 +4,11 @@ from datetime import date
 
 import pyarrow as pa
 
+from dqx.cache import CacheStats
 from dqx.common import ResultKey
 from dqx.data import MetricTraceStats
 from dqx.orm.repositories import MetricStats
 from dqx.plugins import PluginExecutionContext
-from dqx.cache import CacheStats
 
 
 def create_trace_table_with_discrepancies() -> pa.Table:
@@ -206,7 +206,7 @@ class TestDataDiscrepancyStats:
             duration_ms=100.0,
             results=[],
             symbols=[],
-            trace=None,  # type: ignore[arg-type]
+            trace=None,
             metrics_stats=MetricStats(total_metrics=0, expired_metrics=0),
             cache_stats=CacheStats(hit=0, missed=0),
         )

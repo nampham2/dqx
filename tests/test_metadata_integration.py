@@ -63,14 +63,16 @@ def test_metadata_with_custom_ttl() -> None:
     # Create analyzer with execution_id
     db = InMemoryMetricDB()
     execution_id = "test-123"
-    provider = MetricProvider(db, execution_id=execution_id)
+    provider = MetricProvider(db, execution_id=execution_id, data_av_threshold=0.8)
     key = ResultKey(date.today(), {"env": "test"})
 
     # Create test data
     table = pa.table({"value": [1.0, 2.0, 3.0]})
     datasource = DuckRelationDataSource.from_arrow(table, "test_data")
 
-    analyzer = Analyzer(datasources=[datasource], provider=provider, key=key, execution_id=execution_id)
+    analyzer = Analyzer(
+        datasources=[datasource], provider=provider, key=key, execution_id=execution_id, data_av_threshold=0.9
+    )
 
     # Analyze
     metrics_by_date = {key: [Average("value")]}

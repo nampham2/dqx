@@ -177,7 +177,7 @@ def symbols_to_pyarrow_table(symbols: list[SymbolInfo]) -> pa.Table:
     Transform a list of SymbolInfo objects to a PyArrow table.
 
     The table schema splits the value/error information into separate columns:
-    date, symbol, metric, dataset, value, error, tags.
+    date, symbol, metric, dataset, value, error, tags, data_av_ratio.
 
     Args:
         symbols: List of SymbolInfo objects from collect_symbols()
@@ -201,6 +201,7 @@ def symbols_to_pyarrow_table(symbols: list[SymbolInfo]) -> pa.Table:
     values: list[float | None] = []
     errors: list[str | None] = []
     tags: list[str] = []
+    data_av_ratios: list[float] = []
 
     for symbol in symbols:
         dates.append(symbol.yyyy_mm_dd)
@@ -224,6 +225,9 @@ def symbols_to_pyarrow_table(symbols: list[SymbolInfo]) -> pa.Table:
             tag_str = "-"
         tags.append(tag_str)
 
+        # Add data availability ratio
+        data_av_ratios.append(symbol.data_av_ratio)
+
     # Create PyArrow table with proper types for nullable columns
     # We must explicitly set types to avoid 'null' type when all values are None
     return pa.table(
@@ -235,8 +239,9 @@ def symbols_to_pyarrow_table(symbols: list[SymbolInfo]) -> pa.Table:
             pa.array(values, type=pa.float64()),
             pa.array(errors, type=pa.string()),  # Explicit string type even if all None
             pa.array(tags, type=pa.string()),
+            pa.array(data_av_ratios, type=pa.float64()),
         ],
-        names=["date", "symbol", "metric", "dataset", "value", "error", "tags"],
+        names=["date", "symbol", "metric", "dataset", "value", "error", "tags", "data_av_ratio"],
     )
 
 
@@ -315,6 +320,7 @@ def metric_trace(
                 "error": pa.array([], type=pa.string()),
                 "tags": pa.array([], type=pa.string()),
                 "is_extended": pa.array([], type=pa.bool_()),
+                "data_av_ratio": pa.array([], type=pa.float64()),
             }
         )
 
@@ -412,6 +418,7 @@ def metric_trace(
                 "error": final_join["error"],
                 "tags": tags_col,
                 "is_extended": pa.array(is_extended_values, type=pa.bool_()),
+                "data_av_ratio": final_join["data_av_ratio"],
             }
         )
     elif symbols_table.num_rows > 0:
@@ -435,6 +442,7 @@ def metric_trace(
                 "error": symbols_table["error"],
                 "tags": symbols_table["tags"],
                 "is_extended": pa.array(is_extended_values, type=pa.bool_()),
+                "data_av_ratio": symbols_table["data_av_ratio"],
             }
         )
     else:
@@ -462,6 +470,7 @@ def metric_trace(
                 "error": result["error"],
                 "tags": result["tags"],
                 "is_extended": pa.array(is_extended_values, type=pa.bool_()),
+                "data_av_ratio": pa.array([1.0] * result.num_rows, type=pa.float64()),  # Default when no symbols
             }
         )
 

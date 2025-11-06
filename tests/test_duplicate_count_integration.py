@@ -22,7 +22,7 @@ class TestDuplicateCountIntegration:
 
         db = InMemoryMetricDB()
         execution_id = str(uuid.uuid4())
-        provider = MetricProvider(db, execution_id)
+        provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
         # 2. Create a duplicate_count symbol
         columns = ["user_id", "session_id"]
@@ -88,10 +88,16 @@ class TestDuplicateCountIntegration:
         # Create analyzer with required arguments
         db = InMemoryMetricDB()
         execution_id = ExecutionId("test-exec")
-        provider = MetricProvider(db, execution_id)
+        provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
         key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
-        analyzer = Analyzer(datasources=[data_source], provider=provider, key=key, execution_id=execution_id)
+        analyzer = Analyzer(
+            datasources=[data_source],
+            provider=provider,
+            key=key,
+            execution_id=execution_id,
+            data_av_threshold=0.9,
+        )
 
         # Create DuplicateCount spec
         dc_spec = specs.DuplicateCount(["product_id", "user_id"])

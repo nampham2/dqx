@@ -129,7 +129,7 @@ class TestAssertionResultCollection:
         assert r1.check == "data validation"
         assert r1.assertion == "Has 5 rows"
         assert r1.severity == "P0"
-        assert r1.status == "OK"
+        assert r1.status == "PASSED"
         assert isinstance(r1.metric, Success)
         assert r1.metric.unwrap() == 5.0
         assert r1.expression is not None  # Expression should be the symbolic expression like "x_1"
@@ -139,7 +139,7 @@ class TestAssertionResultCollection:
         r2 = results[1]
         assert r2.assertion == "Average value is 30"
         assert r2.severity == "P1"
-        assert r2.status == "OK"
+        assert r2.status == "PASSED"
         assert r2.metric.unwrap() == 30.0
 
         # Check third assertion (minimum - should fail)
@@ -150,7 +150,7 @@ class TestAssertionResultCollection:
         # With the new validation logic:
         # - The metric computation succeeds (we get 10.0)
         # - But the validation fails (10.0 is not > 20.0)
-        assert r3.status == "FAILURE"  # Validation failed
+        assert r3.status == "FAILED"  # Validation failed
         assert isinstance(r3.metric, Success)  # But metric computation succeeded
         assert r3.metric.unwrap() == 10.0  # The minimum value
 
@@ -270,7 +270,7 @@ class TestAssertionResultCollection:
         # With the new validation logic:
         # - The metric computation succeeds (we get 1 row)
         # - But the validation fails (1 is not > 10)
-        assert result.status == "FAILURE"  # Validation failed
+        assert result.status == "FAILED"  # Validation failed
         assert isinstance(result.metric, Success)  # But metric computation succeeded
         assert result.metric.unwrap() == 1.0  # We have 1 row
 
@@ -289,7 +289,7 @@ def test_assertion_result_dataclass() -> None:
         check="Test Check",
         assertion="Test Assertion",
         severity="P1",
-        status="OK",
+        status="PASSED",
         metric=Success(42.0),
         expression="x > 0",
         tags={"env": "prod"},
@@ -301,7 +301,7 @@ def test_assertion_result_dataclass() -> None:
     assert result.check == "Test Check"
     assert result.assertion == "Test Assertion"
     assert result.severity == "P1"
-    assert result.status == "OK"
+    assert result.status == "PASSED"
     assert result.metric.unwrap() == 42.0
     assert result.expression == "x > 0"
     assert result.tags == {"env": "prod"}
@@ -313,7 +313,7 @@ def test_assertion_result_dataclass() -> None:
         check="Test Check",
         assertion="Failed Assertion",
         severity="P0",
-        status="FAILURE",
+        status="FAILED",
         metric=Failure(
             [EvaluationFailure(error_message="Value 5 is not greater than 10", expression="x > 10", symbols=[])]
         ),
@@ -321,7 +321,7 @@ def test_assertion_result_dataclass() -> None:
         tags={},
     )
 
-    assert failure_result.status == "FAILURE"
+    assert failure_result.status == "FAILED"
     assert isinstance(failure_result.metric, Failure)
 
     # Verify we can extract failures from Result

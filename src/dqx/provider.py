@@ -22,6 +22,7 @@ from dqx.specs import MetricSpec
 
 if TYPE_CHECKING:
     from dqx.cache import MetricCache
+    from dqx.common import SqlDataSource
     from dqx.graph.traversal import Graph
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ class SymbolInfo:
         value: Computation result - Success(float) or Failure(error_message)
         yyyy_mm_dd: Date when the metric was evaluated
         tags: Additional metadata from ResultKey (e.g., {"env": "prod"})
+        data_av_ratio: Data availability ratio (0.0 to 1.0)
     """
 
     name: str
@@ -51,6 +53,7 @@ class SymbolInfo:
     value: Result[float, str]
     yyyy_mm_dd: datetime.date
     tags: Tags = field(default_factory=dict)
+    data_av_ratio: float = 1.0
 
 
 @dataclass
@@ -62,12 +65,13 @@ class SymbolicMetric:
     lag: int = 0
     dataset: str | None = None
     required_metrics: list[sp.Symbol] = field(default_factory=list)
+    data_av_ratio: float = 1.0
 
 
 def _create_lazy_retrieval_fn(provider: "MetricProvider", metric_spec: MetricSpec, symbol: sp.Symbol) -> RetrievalFn:
     """Create retrieval function with deferred dataset resolution."""
 
-    def lazy_retrieval_fn(key: ResultKey) -> Result[float, str]:
+    def lazy_simple_fn(key: ResultKey) -> Result[float, str]:
         # Look up the current dataset from the SymbolicMetric
         try:
             symbolic_metric = provider.get_symbol(symbol)
@@ -77,10 +81,14 @@ def _create_lazy_retrieval_fn(provider: "MetricProvider", metric_spec: MetricSpe
         if symbolic_metric.dataset is None:
             return Failure(f"Dataset not imputed for metric {symbolic_metric.name}")
 
+        # Check data availability before computing
+        if symbolic_metric.data_av_ratio < provider._data_av_threshold:
+            return Failure(f"Insufficient data availability: {symbolic_metric.data_av_ratio:.2f}")
+
         # Call the compute function with the resolved dataset and execution_id
         return compute.simple_metric(metric_spec, symbolic_metric.dataset, key, provider.execution_id, provider._cache)
 
-    return lazy_retrieval_fn
+    return lazy_simple_fn
 
 
 def _create_lazy_extended_fn(
@@ -100,6 +108,10 @@ def _create_lazy_extended_fn(
 
         if symbolic_metric.dataset is None:
             return Failure(f"Dataset not imputed for metric {symbolic_metric.name}")
+
+        # Check data availability before computing
+        if symbolic_metric.data_av_ratio < provider._data_av_threshold:
+            return Failure(f"Insufficient data availability: {symbolic_metric.data_av_ratio:.2f}")
 
         # Call the compute function with the resolved dataset and execution_id
         # Note: compute_fn may be a lambda that already includes additional parameters
@@ -237,6 +249,7 @@ class MetricRegistry:
                 value=value,
                 yyyy_mm_dd=effective_key.yyyy_mm_dd,  # Use effective date!
                 tags=effective_key.tags,
+                data_av_ratio=symbolic_metric.data_av_ratio,  # Propagate data availability ratio!
             )
             symbols.append(symbol_info)
 
@@ -300,6 +313,47 @@ class MetricRegistry:
 
         # Replace _metrics with sorted order
         self._metrics = result
+
+    def calculate_data_av_ratios(self, datasources: dict[str, "SqlDataSource"], key: ResultKey) -> None:
+        """Calculate data availability ratios for all metrics.
+
+        Updates the data_av_ratio field of each SymbolicMetric based on
+        whether its effective dates are in the dataset's skip_dates.
+
+        For simple metrics: 0.0 if date is excluded, 1.0 otherwise
+        For extended metrics: average of child metric ratios
+
+        Args:
+            datasources: Dictionary mapping dataset names to SqlDataSource instances
+            key: ResultKey providing context date for lag calculations
+        """
+        # Import here to avoid circular dependency
+
+        # Ensure metrics are sorted by dependencies
+        self.topological_sort()
+
+        # Calculate ratios in dependency order
+        for sm in self._metrics:
+            if not sm.required_metrics:
+                # Simple metric - check if its effective date is excluded
+                effective_date = key.yyyy_mm_dd - timedelta(days=sm.lag)
+
+                # Get skip_dates from the datasource for this metric's dataset
+                if sm.dataset and sm.dataset in datasources:
+                    skip_dates = datasources[sm.dataset].skip_dates
+                    sm.data_av_ratio = 0.0 if effective_date in skip_dates else 1.0
+                else:
+                    # No dataset or datasource found - assume full availability
+                    sm.data_av_ratio = 1.0
+            else:
+                # Extended metric - average child ratios
+                child_ratios: list[float] = []
+                for req_symbol in sm.required_metrics:
+                    req_metric = self.get(req_symbol)
+                    child_ratios.append(req_metric.data_av_ratio)
+                sm.data_av_ratio = sum(child_ratios) / len(child_ratios)
+            if sm.data_av_ratio < 1.0:
+                logger.warning(f"Low data availability ratio for {sm.symbol}: {sm.data_av_ratio:.2f}")
 
     def _find_cycle_details(self, remaining_metrics: list[SymbolicMetric]) -> str:
         """Generate helpful error message about circular dependencies."""
@@ -650,10 +704,11 @@ class ExtendedMetricProvider(RegistryMixin):
 
 
 class MetricProvider(SymbolicMetricBase):
-    def __init__(self, db: MetricDB, execution_id: ExecutionId) -> None:
+    def __init__(self, db: MetricDB, execution_id: ExecutionId, data_av_threshold: float) -> None:
         super().__init__()
         self._db = db
         self._execution_id = execution_id
+        self._data_av_threshold = data_av_threshold
 
         # Create cache in provider
         from dqx.cache import MetricCache

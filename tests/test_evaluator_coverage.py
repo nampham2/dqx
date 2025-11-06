@@ -16,7 +16,7 @@ def test_evaluator_sympify_non_basic_expression() -> None:
     """Test that non-sympy Basic expressions are converted using sympify in _gather."""
     provider = Mock(spec=MetricProvider)
     key = ResultKey(yyyy_mm_dd=date.today(), tags={})
-    evaluator = Evaluator(provider, key, "Test Suite")
+    evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
     # Create a symbol
     x = sp.Symbol("x")
@@ -57,7 +57,7 @@ def test_evaluator_symbol_not_in_metrics() -> None:
     """Test error when symbol is not found in collected metrics."""
     provider = Mock(spec=MetricProvider)
     key = ResultKey(yyyy_mm_dd=date.today(), tags={})
-    evaluator = Evaluator(provider, key, "Test Suite")
+    evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
     # Create a symbol that won't be in metrics
     missing_symbol = sp.Symbol("missing")
@@ -81,7 +81,7 @@ def test_evaluator_infinity_result() -> None:
     """Test that infinity results are converted to EvaluationFailure."""
     provider = Mock(spec=MetricProvider)
     key = ResultKey(yyyy_mm_dd=date.today(), tags={})
-    evaluator = Evaluator(provider, key, "Test Suite")
+    evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
     # Create a symbol
     x = sp.Symbol("x")
@@ -113,7 +113,7 @@ def test_evaluator_unexpected_exception() -> None:
     """Test that unexpected exceptions during evaluation are caught."""
     provider = Mock(spec=MetricProvider)
     key = ResultKey(yyyy_mm_dd=date.today(), tags={})
-    evaluator = Evaluator(provider, key, "Test Suite")
+    evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
     # Create a symbol
     x = sp.Symbol("x")
@@ -148,7 +148,7 @@ def test_evaluator_complex_infinity_zoo() -> None:
     """Test that complex infinity (zoo) is handled correctly."""
     provider = Mock(spec=MetricProvider)
     key = ResultKey(yyyy_mm_dd=date.today(), tags={})
-    evaluator = Evaluator(provider, key, "Test Suite")
+    evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
     # Create a symbol
     x = sp.Symbol("x")
@@ -185,7 +185,7 @@ def test_evaluator_complex_number_result() -> None:
     """Test that complex number results are handled correctly."""
     provider = Mock(spec=MetricProvider)
     key = ResultKey(yyyy_mm_dd=date.today(), tags={})
-    evaluator = Evaluator(provider, key, "Test Suite")
+    evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
     # Create a symbol
     x = sp.Symbol("x")
@@ -219,7 +219,7 @@ def test_evaluator_expression_with_constants() -> None:
     """Test evaluation of expression mixing symbols and constants."""
     provider = Mock(spec=MetricProvider)
     key = ResultKey(yyyy_mm_dd=date.today(), tags={})
-    evaluator = Evaluator(provider, key, "Test Suite")
+    evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
     # Create a symbol
     x = sp.Symbol("x")
@@ -250,7 +250,7 @@ def test_evaluator_collect_symbols() -> None:
     """Test the collect_symbols method."""
     provider = Mock(spec=MetricProvider)
     key = ResultKey(yyyy_mm_dd=date(2024, 1, 15), tags={"env": "prod"})
-    evaluator = Evaluator(provider, key, "Test Suite")
+    evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
     # Create symbols
     x = sp.Symbol("x")

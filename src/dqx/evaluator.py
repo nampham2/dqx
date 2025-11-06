@@ -1,3 +1,4 @@
+import logging
 import math
 from typing import Tuple
 
@@ -9,6 +10,8 @@ from dqx.common import DQXError, EvaluationFailure, ResultKey
 from dqx.graph.base import BaseNode
 from dqx.graph.nodes import AssertionNode
 from dqx.provider import MetricProvider, SymbolicMetric, SymbolInfo
+
+logger = logging.getLogger(__name__)
 
 
 class Evaluator:
@@ -30,17 +33,19 @@ class Evaluator:
         _metrics: Dictionary mapping symbols to their computed Result values
     """
 
-    def __init__(self, provider: MetricProvider, key: ResultKey, suite_name: str):
+    def __init__(self, provider: MetricProvider, key: ResultKey, suite_name: str, data_av_threshold: float):
         """Initialize the Evaluator with a metric provider and result key.
 
         Args:
             provider: MetricProvider instance containing symbolic metric definitions
             key: ResultKey specifying the context for metric evaluation (e.g., date, tags)
             suite_name: Name of the verification suite for context tracking
+            data_av_threshold: Minimum data availability ratio to evaluate assertions
         """
         self.provider = provider
         self._key = key
         self._suite_name = suite_name
+        self._data_av_threshold = data_av_threshold
         self._metrics: dict[sp.Basic, Result[float, str]] | None = None
 
     @property
@@ -182,10 +187,11 @@ class Evaluator:
         # Check if any symbols failed to evaluate
         failed_symbols = [si for si in symbol_infos if not is_successful(si.value)]
         if failed_symbols:
+            # Generate specific error message based on failure types
             return Failure(
                 [
                     EvaluationFailure(
-                        error_message="One or more metrics failed to evaluate",
+                        error_message=f"Failed to evaluate symbol(s): {', '.join(si.name for si in failed_symbols)} ",
                         expression=str(expr),
                         symbols=symbol_infos,
                     )
@@ -254,15 +260,57 @@ class Evaluator:
                 ]
             )
 
+    def _check_data_availability(self, expr: sp.Expr) -> bool:
+        """Check if all metrics in the expression meet the data availability threshold.
+
+        Args:
+            expr: Symbolic expression containing metrics to check
+
+        Returns:
+            True if all metrics meet the threshold, False otherwise
+        """
+        # Convert to sympy expression if needed
+        if not isinstance(expr, sp.Basic):
+            expr = sp.sympify(expr)
+
+        # Check each symbol in the expression
+        for sym in expr.free_symbols:
+            if sym in self.metrics:
+                # Get the symbolic metric
+                sm = self.metric_for_symbol(sym)
+
+                # If ratio is below threshold, return False
+                if sm.data_av_ratio < self._data_av_threshold:
+                    return False
+
+        return True
+
     def visit(self, node: BaseNode) -> None:
         """Visit a node in the DQX graph and evaluate assertions.
 
         For AssertionNodes:
-        1. Evaluates the metric expression
-        2. Applies the validator function if metric succeeds
-        3. Stores both metric result and validation status
+        1. Checks data availability for all metrics in the expression
+        2. Skips evaluation if any metric is below the threshold
+        3. Evaluates the metric expression if data is available
+        4. Applies the validator function if metric succeeds
+        5. Stores both metric result and validation status
         """
         if isinstance(node, AssertionNode):
+            # Check data availability first
+            if not self._check_data_availability(node.actual):
+                # Skip this assertion due to insufficient data
+                node._result = "SKIPPED"
+                node._metric = Failure(
+                    [
+                        EvaluationFailure(
+                            error_message="Insufficient data availability",
+                            expression=str(node.actual),
+                            symbols=[],
+                        )
+                    ]
+                )
+                return
+
             # Evaluate the metric
             node._metric = self.evaluate(node.actual)
 
@@ -272,12 +320,12 @@ class Evaluator:
                     try:
                         # validator.fn returns True if assertion passes
                         passed = node.validator.fn(value)
-                        node._result = "OK" if passed else "FAILURE"
+                        node._result = "PASSED" if passed else "FAILED"
                     except Exception as e:
                         raise DQXError(f"Validator execution failed: {str(e)}") from e
                 case Failure(_):
                     # If metric computation failed, assertion fails
-                    node._result = "FAILURE"
+                    node._result = "FAILED"
 
     async def visit_async(self, node: BaseNode) -> None:
         """Asynchronously visit a node in the DQX graph.

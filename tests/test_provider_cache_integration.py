@@ -7,7 +7,7 @@ from returns.maybe import Some
 from returns.result import Success
 
 from dqx.cache import MetricCache
-from dqx.common import ExecutionId, Metadata, ResultKey
+from dqx.common import Metadata, ResultKey
 from dqx.models import Metric
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
@@ -30,7 +30,7 @@ def cache(db: InMemoryMetricDB) -> MetricCache:
 @pytest.fixture
 def provider(db: InMemoryMetricDB) -> MetricProvider:
     """Create provider with its own internal cache."""
-    return MetricProvider(db=db, execution_id=ExecutionId("test-exec"))
+    return MetricProvider(db=db, execution_id="test-exec", data_av_threshold=0.8)
 
 
 @pytest.fixture

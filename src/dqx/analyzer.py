@@ -208,11 +208,13 @@ class Analyzer:
         provider: MetricProvider,
         key: ResultKey,
         execution_id: ExecutionId,
+        data_av_threshold: float,
     ) -> None:
         self.datasources = datasources
         self.provider = provider
         self.key = key
         self.execution_id = execution_id
+        self.data_av_threshold = data_av_threshold
 
     @property
     def metrics(self) -> list[SymbolicMetric]:
@@ -361,14 +363,13 @@ class Analyzer:
         logger.info(f"Analysis complete: {len(final_report)} metrics computed")
         return final_report
 
-    def analyze_extended_metrics(self) -> AnalysisReport:
-        # First sort the metrics topologically for analysis
-        self.provider.registry.topological_sort()
+    def analyze_extended_metrics(self, metrics: list[SymbolicMetric]) -> AnalysisReport:
+        # The metrics has been sorted topologically
 
         report: AnalysisReport = AnalysisReport()
         metadata = Metadata(execution_id=self.execution_id)
 
-        for sym_metric in self.metrics:
+        for sym_metric in metrics:
             if sym_metric.metric_spec.is_extended:
                 # Calculate effective key with lag
                 effective_key = self.key.lag(sym_metric.lag)
@@ -413,12 +414,15 @@ class Analyzer:
         return report
 
     def analyze(self) -> AnalysisReport:
+        # Filter metrics by data availability, preserving the topological order
+        metrics = [m for m in self.metrics if m.data_av_ratio >= self.data_av_threshold]
+
         # Store analysis reports by datasource name
         report: AnalysisReport = AnalysisReport()
 
         # Group metrics by dataset
         metrics_by_dataset: dict[str, list[SymbolicMetric]] = defaultdict(list)
-        for sym_metric in self.metrics:
+        for sym_metric in metrics:
             assert sym_metric.dataset is not None, f"Metric {sym_metric.name} has no dataset"
             metrics_by_dataset[sym_metric.dataset].append(sym_metric)
 
@@ -450,7 +454,7 @@ class Analyzer:
 
         # Phase 2: Evaluate extended metrics AFTER all simple metrics are persisted
         logger.info("Evaluating extended metrics...")
-        extended_report = self.analyze_extended_metrics()
+        extended_report = self.analyze_extended_metrics(metrics)
         report.update(extended_report)
 
         return report

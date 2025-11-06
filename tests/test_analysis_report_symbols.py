@@ -85,13 +85,13 @@ class TestAnalysisReportSymbols:
 
         # Create provider and register a metric
         mock_db = Mock()
-        provider = MetricProvider(mock_db, execution_id="test-123")
+        provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
 
         # Register a metric - this will create a symbol
         provider.sum("col1", dataset="test_ds")
 
         # Create analyzer with provider
-        analyzer = Analyzer([mock_ds], provider, key, "test-123")
+        analyzer = Analyzer([mock_ds], provider, key, "test-123", 0.9)
 
         # Analyze with the metric
         metrics_by_key = {key: [spec]}

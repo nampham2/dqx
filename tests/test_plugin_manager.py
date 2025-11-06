@@ -599,7 +599,7 @@ class TestAuditPlugin:
                 check="check1",
                 assertion="assertion1",
                 severity="P0",
-                status="OK",
+                status="PASSED",
                 metric=Success(1.0),
                 expression="x > 0",
                 tags={},
@@ -610,7 +610,7 @@ class TestAuditPlugin:
                 check="check1",
                 assertion="assertion2",
                 severity="P1",
-                status="FAILURE",
+                status="FAILED",
                 metric=Failure([EvaluationFailure("Assertion failed", "x < 100", [])]),
                 expression="x < 100",
                 tags={},
@@ -813,7 +813,7 @@ class TestAuditPlugin:
                     check="check1",
                     assertion="a1",
                     severity="P0",
-                    status="OK",
+                    status="PASSED",
                     metric=Success(1.0),
                     expression="x > 0",
                     tags={},
@@ -860,7 +860,7 @@ class TestAuditPlugin:
                 check="check1",
                 assertion="a1",
                 severity="P0",
-                status="OK",
+                status="PASSED",
                 metric=Success(1.0),
                 expression="x > 0",
                 tags={},
@@ -871,7 +871,7 @@ class TestAuditPlugin:
                 check="check1",
                 assertion="a2",
                 severity="P0",
-                status="OK",
+                status="PASSED",
                 metric=Success(2.0),
                 expression="x > 1",
                 tags={},
@@ -883,7 +883,7 @@ class TestAuditPlugin:
                 check="check2",
                 assertion="a3",
                 severity="P0",
-                status="FAILURE",
+                status="FAILED",
                 metric=Failure([EvaluationFailure("Failed", "x < 0", [])]),
                 expression="x < 0",
                 tags={},
@@ -895,7 +895,7 @@ class TestAuditPlugin:
                 check="check3",
                 assertion="a4",
                 severity="P1",
-                status="OK",
+                status="PASSED",
                 metric=Success(3.0),
                 expression="y > 0",
                 tags={},
@@ -907,7 +907,7 @@ class TestAuditPlugin:
                 check="check4",
                 assertion="a5",
                 severity="P2",
-                status="FAILURE",
+                status="FAILED",
                 metric=Failure([EvaluationFailure("Failed", "z < 0", [])]),
                 expression="z < 0",
                 tags={},
@@ -956,9 +956,15 @@ class TestAuditPlugin:
             cache_stats=CacheStats(hit=0, missed=0),
         )
 
-        with pytest.raises(DQXError, match=r"\[InternalError\] Symbols failed to evaluate during execution!"):
-            # Process the context
-            plugin.process(context)
+        # Process the context - should not raise any errors
+        plugin.process(context)
+
+        # Verify statistics were printed correctly
+        # Check assertions line (3 passed, 2 failed out of 5 total)
+        assert any("5 total" in p and "3 passed" in p and "2 failed" in p for p in print_calls)
+
+        # Check symbols line (2 successful, 1 failed out of 3 total)
+        assert any("3 total" in p and "2 successful" in p and "1 failed" in p for p in print_calls)
 
     def test_audit_plugin_with_data_discrepancies(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test AuditPlugin handles data discrepancies properly (covers lines 383-405)."""
@@ -1040,7 +1046,7 @@ class TestAuditPlugin:
                 check="check1",
                 assertion="a1",
                 severity="P0",
-                status="OK",
+                status="PASSED",
                 metric=Success(1.0),
                 expression="x > 0",
                 tags={},

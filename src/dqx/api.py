@@ -204,7 +204,7 @@ class Context:
     graph nodes that need access to the symbol table.
     """
 
-    def __init__(self, suite: str, db: "MetricDB", execution_id: str) -> None:
+    def __init__(self, suite: str, db: "MetricDB", execution_id: str, data_av_threshold: float) -> None:
         """
         Initialize the context with a root graph node.
 
@@ -212,10 +212,11 @@ class Context:
             suite: Name of the verification suite
             db: Database for storing and retrieving metrics
             execution_id: Unique identifier for this execution
+            data_av_threshold: Minimum data availability threshold for metrics
         """
         self._graph = Graph(RootNode(name=suite))
         # MetricProvider now creates its own cache internally
-        self._provider = MetricProvider(db, execution_id=execution_id)
+        self._provider = MetricProvider(db, execution_id=execution_id, data_av_threshold=data_av_threshold)
         self._local = threading.local()
 
         # Track the start time of the suite execution
@@ -325,6 +326,7 @@ class VerificationSuite:
         db: "MetricDB",
         name: str,
         log_level: int = logging.INFO,
+        data_av_threshold: float = 0.9,
     ) -> None:
         """
         Initialize the verification suite.
@@ -333,6 +335,7 @@ class VerificationSuite:
             checks: Sequence of check functions to execute
             db: Database for storing and retrieving metrics
             name: Human-readable name for the suite
+            data_av_threshold: Minimum data availability to evaluate assertions (default: 0.9)
 
         Raises:
             DQXError: If no checks provided or name is empty
@@ -351,8 +354,13 @@ class VerificationSuite:
         # Generate unique execution ID
         self._execution_id = str(uuid.uuid4())
 
-        # Create a context with execution_id
-        self._context = Context(suite=self._name, db=db, execution_id=self._execution_id)
+        # Store data availability threshold
+        self._data_av_threshold = data_av_threshold
+
+        # Create a context with execution_id and data availability threshold
+        self._context = Context(
+            suite=self._name, db=db, execution_id=self._execution_id, data_av_threshold=self._data_av_threshold
+        )
 
         # State tracking for result collection
         self._is_evaluated = False  # Track if assertions have been evaluated
@@ -488,6 +496,19 @@ class VerificationSuite:
         return self._key
 
     @property
+    def data_av_threshold(self) -> float:
+        """
+        Minimum data availability threshold for assertion evaluation.
+
+        Assertions depending on metrics with availability below this
+        threshold will be marked as SKIPPED rather than evaluated.
+
+        Returns:
+            Float between 0.0 and 1.0 (default: 0.9)
+        """
+        return self._data_av_threshold
+
+    @property
     def is_evaluated(self) -> bool:
         """
         Check if the suite has been evaluated.
@@ -546,7 +567,13 @@ class VerificationSuite:
         """Analyze datasources using the new analyze_all function."""
 
         # Call analyze_all and store the results
-        analyzer = Analyzer(datasources, self.provider, key, execution_id=self._execution_id)
+        analyzer = Analyzer(
+            datasources,
+            self.provider,
+            key,
+            execution_id=self._execution_id,
+            data_av_threshold=self._data_av_threshold,
+        )
         self._analysis_reports = analyzer.analyze()
 
     def run(self, datasources: list[SqlDataSource], key: ResultKey, *, enable_plugins: bool = True) -> None:
@@ -594,6 +621,12 @@ class VerificationSuite:
         # Apply symbol deduplication BEFORE analysis
         self._context.provider.symbol_deduplication(self._context._graph, key)
 
+        # Calculate data availability ratios for date exclusion
+        # Create datasources dict for calculate_data_av_ratios
+        datasources_dict = {ds.name: ds for ds in datasources}
+        logger.info("Calculating data availability ratios for datasets")
+        self._context.provider.registry.calculate_data_av_ratios(datasources_dict, key)
+
         # Collect metrics stats and cleanup expired metrics BEFORE analysis
         self._metrics_stats = self.provider._db.get_metrics_stats()
         logger.info(
@@ -612,7 +645,7 @@ class VerificationSuite:
 
         # 3. Evaluate assertions
         # Use graph in the context to avoid the check if the suite has been evaluated
-        evaluator = Evaluator(self.provider, key, self._name)
+        evaluator = Evaluator(self.provider, key, self._name, self._data_av_threshold)
         self._context._graph.bfs(evaluator)
 
         # Mark suite as evaluated only after successful completion
@@ -648,7 +681,7 @@ class VerificationSuite:
             >>> results = suite.collect_results()  # No key needed!
             >>> for r in results:
             ...     print(f"{r.check}/{r.assertion}: {r.status}")
-            ...     if r.status == "FAILURE":
+            ...     if r.status == "FAILED":
             ...         failures = r.value.failure()
             ...         for f in failures:
             ...             print(f"  Error: {f.error_message}")
@@ -717,7 +750,7 @@ class VerificationSuite:
 
         # Check if any P0 assertion has failed
         for result in results:
-            if result.severity == "P0" and result.status == "FAILURE":
+            if result.severity == "P0" and result.status == "FAILED":
                 return True
 
         return False

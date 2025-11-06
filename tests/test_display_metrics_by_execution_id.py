@@ -51,7 +51,7 @@ def test_print_metrics_by_execution_id_basic() -> None:
     output_str = output.getvalue()
 
     # Only verify the most stable elements - avoid checking truncated values
-    assert "Metrics for Execution: test-exec-123" in output_str
+    assert "Metrics for execution: test-exec-123" in output_str
     assert "2024-01-26" in output_str
     assert "average(price)" in output_str
     assert "minimum(price)" in output_str
@@ -158,7 +158,7 @@ def test_print_metrics_by_execution_id_empty_list() -> None:
     output_str = output.getvalue()
 
     # Should still show title
-    assert "Metrics for Execution: empty-exec" in output_str
+    assert "Metrics for execution: empty-exec" in output_str
     # Should show table headers
     assert "Date" in output_str
-    assert "Metric Name" in output_str
+    assert "Metric" in output_str
