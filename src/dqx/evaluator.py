@@ -33,14 +33,14 @@ class Evaluator:
         _metrics: Dictionary mapping symbols to their computed Result values
     """
 
-    def __init__(self, provider: MetricProvider, key: ResultKey, suite_name: str, data_av_threshold: float = 0.8):
+    def __init__(self, provider: MetricProvider, key: ResultKey, suite_name: str, data_av_threshold: float):
         """Initialize the Evaluator with a metric provider and result key.
 
         Args:
             provider: MetricProvider instance containing symbolic metric definitions
             key: ResultKey specifying the context for metric evaluation (e.g., date, tags)
             suite_name: Name of the verification suite for context tracking
-            data_av_threshold: Minimum data availability ratio to evaluate assertions (default: 0.8)
+            data_av_threshold: Minimum data availability ratio to evaluate assertions
         """
         self.provider = provider
         self._key = key

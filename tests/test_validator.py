@@ -118,7 +118,7 @@ def test_suite_validator_clean_suite() -> None:
     # Create a provider for validation
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     report = validator.validate(graph, provider)
     assert not report.has_errors()
@@ -138,7 +138,7 @@ def test_suite_validator_duplicate_check_names() -> None:
     # Create a provider for validation
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     report = validator.validate(graph, provider)
     assert report.has_errors()
@@ -163,7 +163,7 @@ def test_suite_validator_empty_checks() -> None:
     # Create a provider for validation
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     report = validator.validate(graph, provider)
     assert report.has_warnings()
@@ -187,7 +187,7 @@ def test_suite_validator_duplicate_assertion_names() -> None:
     # Create a provider for validation
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     report = validator.validate(graph, provider)
     assert report.has_errors()
@@ -204,7 +204,7 @@ def test_suite_validator_performance() -> None:
     # Create a provider for validation
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     # Create a large suite
     for i in range(100):
@@ -246,7 +246,7 @@ def test_unused_symbol_validator_detects_unused() -> None:
     # Create provider and define symbols
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     # Define metrics but don't use them all
     x1 = provider.average("revenue")  # This will be unused  # noqa: F841
@@ -277,7 +277,7 @@ def test_unused_symbol_validator_no_warnings_when_all_used() -> None:
 
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     # Define symbols and use ALL of them
     x1 = provider.average("revenue")
@@ -305,7 +305,7 @@ def test_unused_symbol_validator_complex_expressions() -> None:
 
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     # Define multiple symbols
     x1 = provider.average("revenue")
@@ -344,7 +344,7 @@ def test_unused_symbol_validator_no_symbols_defined() -> None:
 
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     # Create assertions using only literals
     validator_fn = SymbolicValidator("= 42", lambda x: x == 42)
@@ -365,7 +365,7 @@ def test_unused_symbol_validator_empty_suite() -> None:
 
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     graph = Graph(root)
     validator = SuiteValidator()
@@ -383,7 +383,7 @@ def test_unused_symbol_validator_multiple_unused() -> None:
 
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     # Define 5 symbols
     x1 = provider.average("metric1")  # noqa: F841
@@ -419,7 +419,7 @@ def test_unused_symbol_validator_symbol_reused() -> None:
 
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     # Define symbols
     x1 = provider.average("revenue")
@@ -454,7 +454,7 @@ def test_suite_validator_with_unused_symbols() -> None:
     # Create provider and define unused symbols
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     x1 = provider.average("unused_metric")  # Unused  # noqa: F841
     x2 = provider.sum("used_metric")  # Will be used
@@ -489,7 +489,7 @@ def test_unused_symbol_validator_reset() -> None:
 
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     # Define unused symbol
     x1 = provider.average("metric1")  # noqa: F841

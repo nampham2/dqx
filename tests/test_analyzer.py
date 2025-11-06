@@ -433,7 +433,7 @@ class TestAnalyzer:
         # Create mock dependencies
         datasources: list[SqlDataSource] = [Mock(spec=SqlDataSource, name="test_ds")]
         mock_db = Mock()
-        provider = MetricProvider(mock_db, execution_id="test-123")
+        provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
         key = ResultKey(datetime.date(2024, 1, 1), {})
 
         # Test analyzer creation
@@ -471,7 +471,7 @@ class TestAnalyzerLagHandling:
         # Create mock dependencies
         datasources: list[SqlDataSource] = [Mock(spec=SqlDataSource, name="test_ds")]
         mock_db = Mock()
-        provider = MetricProvider(mock_db, execution_id="test-123")
+        provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
         key = ResultKey(datetime.date(2024, 1, 15), {})
 
         analyzer = Analyzer(datasources, provider, key, "test-123", 0.9)
@@ -591,7 +591,7 @@ class TestAnalyzerExtendedMetrics:
 
         # Create real dependencies
         db = InMemoryMetricDB()
-        provider = MetricProvider(db, execution_id="test-exec")
+        provider = MetricProvider(db, execution_id="test-exec", data_av_threshold=0.8)
 
         # Create a datasource
         ds = CommercialDataSource(
@@ -647,7 +647,7 @@ class TestAnalyzerExtendedMetrics:
 
         # Create real dependencies
         db = InMemoryMetricDB()
-        provider = MetricProvider(db, execution_id="test-exec")
+        provider = MetricProvider(db, execution_id="test-exec", data_av_threshold=0.8)
 
         ds = CommercialDataSource(
             start_date=datetime.date(2024, 1, 1),
@@ -681,7 +681,7 @@ class TestAnalyzerExtendedMetrics:
 
         # Create real dependencies
         db = InMemoryMetricDB()
-        provider = MetricProvider(db, execution_id="test-exec")
+        provider = MetricProvider(db, execution_id="test-exec", data_av_threshold=0.8)
 
         ds = CommercialDataSource(
             start_date=datetime.date(2024, 1, 1),
@@ -732,7 +732,7 @@ class TestAnalyzerFullWorkflow:
 
         # Create real dependencies
         db = InMemoryMetricDB()
-        provider = MetricProvider(db, execution_id="test-exec")
+        provider = MetricProvider(db, execution_id="test-exec", data_av_threshold=0.8)
 
         # Create two datasources
         ds1 = CommercialDataSource(
@@ -794,7 +794,7 @@ class TestAnalyzerFullWorkflow:
 
         # Create real dependencies
         db = InMemoryMetricDB()
-        provider = MetricProvider(db, execution_id="test-exec")
+        provider = MetricProvider(db, execution_id="test-exec", data_av_threshold=0.8)
 
         # Create datasources
         ds1 = CommercialDataSource(
@@ -855,7 +855,7 @@ class TestAnalyzerFullWorkflow:
 
         # Create real dependencies
         db = InMemoryMetricDB()
-        provider = MetricProvider(db, execution_id="test-exec")
+        provider = MetricProvider(db, execution_id="test-exec", data_av_threshold=0.8)
 
         ds = CommercialDataSource(
             start_date=datetime.date(2024, 1, 1),
@@ -907,7 +907,7 @@ class TestAnalyzerEdgeCases:
         mock_ds = Mock(spec=SqlDataSource, name="test_ds")
         datasources: list[SqlDataSource] = [mock_ds]
         mock_db = Mock()
-        provider = MetricProvider(mock_db, execution_id="test-123")
+        provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
 
         # Create keys with tags
         tags = {"env": "prod", "region": "us-west"}
@@ -943,7 +943,7 @@ class TestAnalyzerEdgeCases:
 
         datasources: list[SqlDataSource] = [ds]
         mock_db = Mock()
-        provider = MetricProvider(mock_db, execution_id="test-123")
+        provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
         key = ResultKey(datetime.date(2024, 1, 1), {})
 
         analyzer = Analyzer(datasources, provider, key, "test-123", 0.9)
@@ -972,7 +972,7 @@ class TestAnalyzerEdgeCases:
         mock_ds = Mock(spec=SqlDataSource, name="test_ds")
         datasources: list[SqlDataSource] = [mock_ds]
         mock_db = Mock()
-        provider = MetricProvider(mock_db, execution_id="test-123")
+        provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
         key = ResultKey(datetime.date(2024, 1, 1), {})
 
         analyzer = Analyzer(datasources, provider, key, "test-123", 0.9)
@@ -995,7 +995,7 @@ class TestAnalyzerEdgeCases:
 
         datasources: list[SqlDataSource] = [ds]
         mock_db = Mock()
-        provider = MetricProvider(mock_db, execution_id="test-123")
+        provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
         key = ResultKey(datetime.date(2024, 1, 1), {})
 
         analyzer = Analyzer(datasources, provider, key, "test-123", 0.9)

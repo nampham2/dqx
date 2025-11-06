@@ -415,7 +415,7 @@ class Analyzer:
 
     def analyze(self) -> AnalysisReport:
         # Filter metrics by data availability, preserving the topological order
-        metrics = [m for m in self.metrics if m.data_av_ratio is not None and m.data_av_ratio > self.data_av_threshold]
+        metrics = [m for m in self.metrics if m.data_av_ratio >= self.data_av_threshold]
 
         # Store analysis reports by datasource name
         report: AnalysisReport = AnalysisReport()

@@ -91,7 +91,7 @@ class TestAnalyzerBatchOptimization:
         # Use InMemoryMetricDB for testing
         metric_db = InMemoryMetricDB()
         execution_id = ExecutionId("test-exec")
-        provider = MetricProvider(metric_db, execution_id)
+        provider = MetricProvider(metric_db, execution_id, data_av_threshold=0.8)
 
         # Define metrics for multiple dates
         metrics_by_key: dict[ResultKey, list[MetricSpec]] = {}

@@ -18,7 +18,7 @@ class TestEvaluatorFailureHandling:
         """Test that metric failures are converted to EvaluationFailure."""
         provider = Mock(spec=MetricProvider)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
-        evaluator = Evaluator(provider, key, "Test Suite")
+        evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
         # Create a symbol that will fail
         symbol = sp.Symbol("x_1")
@@ -61,7 +61,7 @@ class TestEvaluatorFailureHandling:
         """Test that NaN results are converted to EvaluationFailure."""
         provider = Mock(spec=MetricProvider)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
-        evaluator = Evaluator(provider, key, "Test Suite")
+        evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
         # Create symbols that will divide to NaN
         x1 = sp.Symbol("x_1")
@@ -112,7 +112,7 @@ class TestEvaluatorFailureHandling:
         """Test error when symbol is not found in provider."""
         provider = Mock(spec=MetricProvider)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
-        evaluator = Evaluator(provider, key, "Test Suite")
+        evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
         # Create a symbol that doesn't exist in provider
         unknown_symbol = sp.Symbol("x_unknown")
@@ -131,7 +131,7 @@ class TestEvaluatorFailureHandling:
         """Test complex expression like (a + b) / (c - d)."""
         provider = Mock(spec=MetricProvider)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
-        evaluator = Evaluator(provider, key, "Test Suite")
+        evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
         # Create symbols
         a, b, c, d = sp.symbols("a b c d")
@@ -177,7 +177,7 @@ class TestEvaluatorFailureHandling:
         """Test expression with no free symbols."""
         provider = Mock(spec=MetricProvider)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
-        evaluator = Evaluator(provider, key, "Test Suite")
+        evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
         # Evaluate a constant expression
         result = evaluator.evaluate(sp.sympify(42))
@@ -189,7 +189,7 @@ class TestEvaluatorFailureHandling:
         """Test NaN from constant expression like 0/0."""
         provider = Mock(spec=MetricProvider)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
-        evaluator = Evaluator(provider, key, "Test Suite")
+        evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
         # Evaluate 0/0 which should result in NaN
         result = evaluator.evaluate(sp.sympify("0/0"))

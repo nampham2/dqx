@@ -200,12 +200,12 @@ class TestMetricProvider:
     @pytest.fixture
     def provider(self, db: InMemoryMetricDB) -> MetricProvider:
         """Create a MetricProvider instance."""
-        return MetricProvider(db, execution_id="test-exec-123")
+        return MetricProvider(db, execution_id="test-exec-123", data_av_threshold=0.8)
 
     def test_init(self, db: InMemoryMetricDB) -> None:
         """Test MetricProvider initialization."""
         execution_id = "test-exec-123"
-        provider = MetricProvider(db, execution_id)
+        provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
         assert provider._db == db
         assert provider._execution_id == execution_id
         assert provider._registry._metrics == []
@@ -462,7 +462,7 @@ class TestExtendedMetricProvider:
     @pytest.fixture
     def provider(self, db: InMemoryMetricDB) -> MetricProvider:
         """Create a MetricProvider instance."""
-        return MetricProvider(db, execution_id="test-exec-123")
+        return MetricProvider(db, execution_id="test-exec-123", data_av_threshold=0.8)
 
     @pytest.fixture
     def ext_provider(self, provider: MetricProvider) -> ExtendedMetricProvider:
@@ -582,7 +582,7 @@ class TestLazyEvaluation:
     def provider(self) -> MetricProvider:
         """Create a provider with in-memory database."""
         db = InMemoryMetricDB()
-        return MetricProvider(db, "test-exec-123")
+        return MetricProvider(db, "test-exec-123", data_av_threshold=0.8)
 
     def test_lazy_retrieval_function(self, provider: MetricProvider) -> None:
         """Test that metrics use lazy retrieval functions."""
@@ -637,7 +637,7 @@ class TestSymbolDeduplication:
     def provider(self) -> MetricProvider:
         """Create a provider with in-memory database."""
         db = InMemoryMetricDB()
-        return MetricProvider(db, "test-exec-123")
+        return MetricProvider(db, "test-exec-123", data_av_threshold=0.8)
 
     def test_build_deduplication_map(self, provider: MetricProvider) -> None:
         """Test building deduplication map for duplicate symbols."""
@@ -766,7 +766,7 @@ class TestLazyRetrievalFunctions:
         from dqx.provider import _create_lazy_retrieval_fn
 
         db = InMemoryMetricDB()
-        provider = MetricProvider(db, "test-exec")
+        provider = MetricProvider(db, "test-exec", data_av_threshold=0.8)
         metric_spec = specs.Average("price")
         symbol = sp.Symbol("x_1")
 
@@ -803,7 +803,7 @@ class TestLazyRetrievalFunctions:
         from dqx.provider import _create_lazy_extended_fn
 
         db = InMemoryMetricDB()
-        provider = MetricProvider(db, "test-exec")
+        provider = MetricProvider(db, "test-exec", data_av_threshold=0.8)
 
         # Create a mock compute function
         def mock_compute_fn(db: Any, spec: Any, dataset: Any, key: Any, exec_id: Any) -> Result[float, str]:
@@ -1045,7 +1045,7 @@ class TestSymbolicMetricBaseAdvanced:
         """Test the full symbol deduplication workflow."""
         from unittest.mock import Mock
 
-        provider = MetricProvider(InMemoryMetricDB(), "test-exec")
+        provider = MetricProvider(InMemoryMetricDB(), "test-exec", data_av_threshold=0.8)
 
         # Create duplicate symbols
         symbol1 = provider.average("price", lag=0, dataset="sales")
@@ -1070,7 +1070,7 @@ class TestSymbolicMetricBaseAdvanced:
 
     def test_remove_symbol_recursive(self) -> None:
         """Test recursive symbol removal."""
-        provider = MetricProvider(InMemoryMetricDB(), "test-exec")
+        provider = MetricProvider(InMemoryMetricDB(), "test-exec", data_av_threshold=0.8)
 
         # Create a chain of dependencies
         base1 = provider.average("price", dataset="sales")
@@ -1096,7 +1096,7 @@ class TestSymbolicMetricBaseAdvanced:
 
     def test_remove_symbol_with_dependencies(self) -> None:
         """Test that removing a base symbol doesn't automatically remove dependent symbols."""
-        provider = MetricProvider(InMemoryMetricDB(), "test-exec")
+        provider = MetricProvider(InMemoryMetricDB(), "test-exec", data_av_threshold=0.8)
 
         # Create base metric
         base = provider.average("price", dataset="sales")
@@ -1121,14 +1121,14 @@ class TestExtendedMetricProviderProperties:
     def test_provider_property(self) -> None:
         """Test provider property access."""
         db = InMemoryMetricDB()
-        provider = MetricProvider(db, "test-exec")
+        provider = MetricProvider(db, "test-exec", data_av_threshold=0.8)
         ext = provider.ext
 
         assert ext.provider == provider
 
     def test_extended_metric_with_base_metric_without_dataset(self) -> None:
         """Test creating extended metrics when base metric has no dataset."""
-        provider = MetricProvider(InMemoryMetricDB(), "test-exec")
+        provider = MetricProvider(InMemoryMetricDB(), "test-exec", data_av_threshold=0.8)
 
         # Create base metric without dataset
         base = provider.average("price", dataset=None)

@@ -19,13 +19,13 @@ class TestEvaluatorComplexNumberHandling:
         """Test that square root of negative value returns complex number failure."""
         # Setup provider with a negative metric
         execution_id = str(uuid.uuid4())
-        provider = MetricProvider(db=Mock(), execution_id=execution_id)
+        provider = MetricProvider(db=Mock(), execution_id=execution_id, data_av_threshold=0.8)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
         negative_metric = provider.sum("returns", dataset="financials")
         provider.index[negative_metric].fn = lambda k: Success(-100.0)
 
-        evaluator = Evaluator(provider, key, "Test Suite")
+        evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
         # sqrt(-100) = 10i
         expr = sp.sqrt(negative_metric)
@@ -39,13 +39,13 @@ class TestEvaluatorComplexNumberHandling:
     def test_log_negative_returns_complex_failure(self) -> None:
         """Test that log of negative value returns complex number failure."""
         execution_id = str(uuid.uuid4())
-        provider = MetricProvider(db=Mock(), execution_id=execution_id)
+        provider = MetricProvider(db=Mock(), execution_id=execution_id, data_av_threshold=0.8)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
         negative_balance = provider.sum("balance", dataset="accounts")
         provider.index[negative_balance].fn = lambda k: Success(-50.0)
 
-        evaluator = Evaluator(provider, key, "Test Suite")
+        evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
         # log(-50) produces complex result
         expr = sp.log(negative_balance)
@@ -61,13 +61,13 @@ class TestEvaluatorComplexNumberHandling:
     def test_negative_power_fractional_returns_complex_failure(self) -> None:
         """Test that negative number to fractional power returns complex failure."""
         execution_id = str(uuid.uuid4())
-        provider = MetricProvider(db=Mock(), execution_id=execution_id)
+        provider = MetricProvider(db=Mock(), execution_id=execution_id, data_av_threshold=0.8)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
         negative_value = provider.sum("value", dataset="metrics")
         provider.index[negative_value].fn = lambda k: Success(-8.0)
 
-        evaluator = Evaluator(provider, key, "Test Suite")
+        evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
         # (-8)^(1/3) has complex solutions
         expr = negative_value ** (1 / 3)
@@ -81,13 +81,13 @@ class TestEvaluatorComplexNumberHandling:
     def test_positive_sqrt_returns_success(self) -> None:
         """Test that square root of positive value succeeds."""
         execution_id = str(uuid.uuid4())
-        provider = MetricProvider(db=Mock(), execution_id=execution_id)
+        provider = MetricProvider(db=Mock(), execution_id=execution_id, data_av_threshold=0.8)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
         positive_metric = provider.sum("revenue", dataset="sales")
         provider.index[positive_metric].fn = lambda k: Success(100.0)
 
-        evaluator = Evaluator(provider, key, "Test Suite")
+        evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
         # sqrt(100) = 10
         expr = sp.sqrt(positive_metric)
@@ -99,13 +99,13 @@ class TestEvaluatorComplexNumberHandling:
     def test_complex_expression_with_imaginary_unit(self) -> None:
         """Test expression that explicitly includes imaginary unit."""
         execution_id = str(uuid.uuid4())
-        provider = MetricProvider(db=Mock(), execution_id=execution_id)
+        provider = MetricProvider(db=Mock(), execution_id=execution_id, data_av_threshold=0.8)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
         real_metric = provider.sum("real_part", dataset="complex_data")
         provider.index[real_metric].fn = lambda k: Success(5.0)
 
-        evaluator = Evaluator(provider, key, "Test Suite")
+        evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
         # 5 + 3i
         expr = real_metric + 3 * sp.I
@@ -119,7 +119,7 @@ class TestEvaluatorComplexNumberHandling:
     def test_complex_arithmetic_operations(self) -> None:
         """Test that complex arithmetic operations are caught."""
         execution_id = str(uuid.uuid4())
-        provider = MetricProvider(db=Mock(), execution_id=execution_id)
+        provider = MetricProvider(db=Mock(), execution_id=execution_id, data_av_threshold=0.8)
         key = ResultKey(yyyy_mm_dd=date.today(), tags={})
 
         metric_a = provider.sum("a", dataset="test")
@@ -127,7 +127,7 @@ class TestEvaluatorComplexNumberHandling:
         provider.index[metric_a].fn = lambda k: Success(-1.0)
         provider.index[metric_b].fn = lambda k: Success(2.0)
 
-        evaluator = Evaluator(provider, key, "Test Suite")
+        evaluator = Evaluator(provider, key, "Test Suite", data_av_threshold=0.8)
 
         # sqrt(-1) * 2 = 2i
         expr = sp.sqrt(metric_a) * metric_b

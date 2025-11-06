@@ -272,7 +272,7 @@ def test_count_values_symbol_info() -> None:
     """Test that CountValues symbols have correct metadata."""
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     # Create symbol
     symbol = provider.count_values("status", ["active", "pending"])

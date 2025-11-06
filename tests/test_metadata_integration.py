@@ -63,7 +63,7 @@ def test_metadata_with_custom_ttl() -> None:
     # Create analyzer with execution_id
     db = InMemoryMetricDB()
     execution_id = "test-123"
-    provider = MetricProvider(db, execution_id=execution_id)
+    provider = MetricProvider(db, execution_id=execution_id, data_av_threshold=0.8)
     key = ResultKey(date.today(), {"env": "test"})
 
     # Create test data

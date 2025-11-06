@@ -351,7 +351,7 @@ class MetricRegistry:
                 for req_symbol in sm.required_metrics:
                     req_metric = self.get(req_symbol)
                     child_ratios.append(req_metric.data_av_ratio)
-                sm.data_av_ratio = sum(1.0 if r > data_av_threshold else 0.0 for r in child_ratios) / len(child_ratios)
+                sm.data_av_ratio = sum(child_ratios) / len(child_ratios)
             if sm.data_av_ratio < 1.0:
                 logger.warning(f"Low data availability ratio for {sm.symbol}: {sm.data_av_ratio:.2f}")
 
@@ -704,7 +704,7 @@ class ExtendedMetricProvider(RegistryMixin):
 
 
 class MetricProvider(SymbolicMetricBase):
-    def __init__(self, db: MetricDB, execution_id: ExecutionId, data_av_threshold: float = 0.8) -> None:
+    def __init__(self, db: MetricDB, execution_id: ExecutionId, data_av_threshold: float) -> None:
         super().__init__()
         self._db = db
         self._execution_id = execution_id

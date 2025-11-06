@@ -15,7 +15,7 @@ def test_print_symbols_convenience_method() -> None:
     # Setup
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
     key = ResultKey(yyyy_mm_dd=dt.date(2024, 1, 1), tags={"env": "test"})
 
     # Create some test metrics
@@ -57,7 +57,7 @@ def test_print_symbols_integration() -> None:
     # Setup
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
     key = ResultKey(yyyy_mm_dd=dt.date(2024, 1, 1), tags={})
 
     # Create metrics

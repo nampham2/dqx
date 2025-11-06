@@ -16,7 +16,7 @@ def test_stddev_of_dod_creates_dependencies() -> None:
     """Test that stddev(dod(average(tax))) creates all necessary dependencies."""
     # Setup
     db = InMemoryMetricDB()
-    provider = MetricProvider(db, "test-exec-123")
+    provider = MetricProvider(db, "test-exec-123", data_av_threshold=0.8)
 
     # Create the complex metric
     avg_tax = provider.average("tax")
@@ -96,7 +96,7 @@ def test_stddev_of_dod_creates_dependencies() -> None:
 def test_nested_extended_metrics_combinations() -> None:
     """Test various combinations of nested extended metrics."""
     db = InMemoryMetricDB()
-    provider = MetricProvider(db, "test-exec-124")
+    provider = MetricProvider(db, "test-exec-124", data_av_threshold=0.8)
 
     # Test 1: WoW of DoD
     avg = provider.average("revenue")
@@ -126,7 +126,7 @@ def test_nested_extended_metrics_combinations() -> None:
 def test_extended_metric_dependency_creation_bug() -> None:
     """Test that shows the bug where extended metrics can't create extended dependencies."""
     db = InMemoryMetricDB()
-    provider = MetricProvider(db, "test-exec-125")
+    provider = MetricProvider(db, "test-exec-125", data_av_threshold=0.8)
 
     # Create the complex metric chain
     avg = provider.average("tax")

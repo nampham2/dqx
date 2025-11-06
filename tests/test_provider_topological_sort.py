@@ -5,7 +5,7 @@ import sympy as sp
 from returns.result import Success
 
 from dqx import specs
-from dqx.common import DQXError, ExecutionId
+from dqx.common import DQXError
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider, SymbolicMetric
 
@@ -17,7 +17,7 @@ class TestMetricRegistryTopologicalSort:
     def provider(self) -> MetricProvider:
         """Create a MetricProvider with in-memory database."""
         db = InMemoryMetricDB()
-        return MetricProvider(db, ExecutionId("test-exec-123"))
+        return MetricProvider(db, execution_id="test-exec-123", data_av_threshold=0.8)
 
     def test_topological_sort_empty_registry(self, provider: MetricProvider) -> None:
         """Empty registry should remain empty after sort."""

@@ -44,7 +44,7 @@ class TestAnalyzerCoverage:
         """Test analyzer value retrieval failure - covers line 374."""
         # Create required components for Analyzer
         mock_db = Mock()
-        provider = MetricProvider(mock_db, execution_id="test-123")
+        provider = MetricProvider(mock_db, execution_id="test-123", data_av_threshold=0.8)
         key = ResultKey(datetime.date(2024, 1, 1), {})
 
         ds = Mock()

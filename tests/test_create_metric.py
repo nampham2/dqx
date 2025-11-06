@@ -12,7 +12,7 @@ from dqx.provider import MetricProvider
 def test_create_metric_simple_metrics() -> None:
     """Test create_metric with simple metrics."""
     db = InMemoryMetricDB()
-    provider = MetricProvider(db, "test-exec")
+    provider = MetricProvider(db, "test-exec", data_av_threshold=0.8)
 
     # Test various simple metrics
     avg = provider.create_metric(specs.Average("price"), lag=0, dataset="products")
@@ -33,7 +33,7 @@ def test_create_metric_simple_metrics() -> None:
 def test_create_metric_extended_day_over_day() -> None:
     """Test create_metric with DayOverDay extended metrics."""
     db = InMemoryMetricDB()
-    provider = MetricProvider(db, "test-exec")
+    provider = MetricProvider(db, "test-exec", data_av_threshold=0.8)
 
     # Create a DayOverDay metric
     dod_spec = specs.DayOverDay.from_base_spec(specs.Average("price"))
@@ -53,7 +53,7 @@ def test_create_metric_extended_day_over_day() -> None:
 def test_create_metric_extended_week_over_week() -> None:
     """Test create_metric with WeekOverWeek extended metrics."""
     db = InMemoryMetricDB()
-    provider = MetricProvider(db, "test-exec")
+    provider = MetricProvider(db, "test-exec", data_av_threshold=0.8)
 
     # Create a WeekOverWeek metric
     wow_spec = specs.WeekOverWeek.from_base_spec(specs.Maximum("temperature"))
@@ -73,7 +73,7 @@ def test_create_metric_extended_week_over_week() -> None:
 def test_create_metric_extended_stddev() -> None:
     """Test create_metric with Stddev extended metrics."""
     db = InMemoryMetricDB()
-    provider = MetricProvider(db, "test-exec")
+    provider = MetricProvider(db, "test-exec", data_av_threshold=0.8)
 
     # Create a Stddev metric
     stddev_spec = specs.Stddev.from_base_spec(specs.Sum("sales"), offset=0, n=5)
@@ -94,7 +94,7 @@ def test_create_metric_extended_stddev() -> None:
 def test_create_metric_nested_extended_metrics() -> None:
     """Test create_metric with nested extended metrics like DayOverDay(DayOverDay(...))."""
     db = InMemoryMetricDB()
-    provider = MetricProvider(db, "test-exec")
+    provider = MetricProvider(db, "test-exec", data_av_threshold=0.8)
 
     # Create nested DoD(DoD(Average))
     base_spec = specs.Average("price")
@@ -118,7 +118,7 @@ def test_create_metric_nested_extended_metrics() -> None:
 def test_create_metric_stddev_of_extended_metric() -> None:
     """Test the specific case of Stddev(DayOverDay(...)) that was the original bug."""
     db = InMemoryMetricDB()
-    provider = MetricProvider(db, "test-exec")
+    provider = MetricProvider(db, "test-exec", data_av_threshold=0.8)
 
     # Create Stddev(DoD(Average))
     avg_spec = specs.Average("tax")
@@ -142,7 +142,7 @@ def test_create_metric_stddev_of_extended_metric() -> None:
 def test_create_metric_invalid_type() -> None:
     """Test create_metric with an invalid metric type."""
     db = InMemoryMetricDB()
-    provider = MetricProvider(db, "test-exec")
+    provider = MetricProvider(db, "test-exec", data_av_threshold=0.8)
 
     # Create a mock invalid spec
     class InvalidSpec:

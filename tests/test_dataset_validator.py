@@ -14,7 +14,7 @@ def test_dataset_validator_detects_mismatch() -> None:
     # Arrange: Create a real provider
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     # Create a graph with dataset mismatch
     root = RootNode("test_suite")
@@ -47,7 +47,7 @@ def test_dataset_validator_allows_valid_configuration() -> None:
     # Arrange: Create a real provider
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     # Create a graph with matching datasets
     root = RootNode("test_suite")
@@ -73,7 +73,7 @@ def test_dataset_validator_skips_when_no_datasets_specified() -> None:
     """Test that validator skips validation when check has no datasets."""
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     root = RootNode("test_suite")
     # Check has no datasets specified
@@ -95,7 +95,7 @@ def test_dataset_validator_errors_on_ambiguous_none_dataset() -> None:
     """Test that validator errors when symbol has no dataset but check has multiple."""
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     root = RootNode("test_suite")
     # Check has multiple datasets
@@ -122,7 +122,7 @@ def test_dataset_validator_allows_none_dataset_with_single_check_dataset() -> No
     """Test that validator allows None dataset when check has single dataset."""
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     root = RootNode("test_suite")
     # Check has single dataset
@@ -145,7 +145,7 @@ def test_dataset_validator_handles_multiple_symbols() -> None:
     """Test validator with multiple symbols in one assertion."""
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     root = RootNode("test_suite")
     check = root.add_check("price_check", datasets=["production"])
@@ -173,7 +173,7 @@ def test_dataset_validator_detects_parent_child_mismatch() -> None:
     """Test that DatasetValidator detects mismatches between parent and child symbols."""
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     root = RootNode("test_suite")
     check = root.add_check("revenue_check", datasets=["staging"])
@@ -216,7 +216,7 @@ def test_dataset_validator_allows_consistent_parent_child_datasets() -> None:
     """Test that DatasetValidator allows parent and child with same datasets."""
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     root = RootNode("test_suite")
     check = root.add_check("revenue_check", datasets=["production"])
@@ -245,7 +245,7 @@ def test_dataset_validator_allows_child_without_dataset() -> None:
     """Test that DatasetValidator allows child symbols without datasets (will be imputed)."""
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     root = RootNode("test_suite")
     check = root.add_check("revenue_check", datasets=["production"])
@@ -274,7 +274,7 @@ def test_dataset_validator_checks_multiple_children() -> None:
     """Test that DatasetValidator checks all children of a symbol."""
     db = InMemoryMetricDB()
     execution_id = str(uuid.uuid4())
-    provider = MetricProvider(db, execution_id)
+    provider = MetricProvider(db, execution_id, data_av_threshold=0.8)
 
     root = RootNode("test_suite")
     check = root.add_check("revenue_check", datasets=["production"])
