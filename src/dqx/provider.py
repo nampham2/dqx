@@ -249,6 +249,7 @@ class MetricRegistry:
                 value=value,
                 yyyy_mm_dd=effective_key.yyyy_mm_dd,  # Use effective date!
                 tags=effective_key.tags,
+                data_av_ratio=symbolic_metric.data_av_ratio,  # Propagate data availability ratio!
             )
             symbols.append(symbol_info)
 
