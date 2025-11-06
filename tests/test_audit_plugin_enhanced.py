@@ -239,7 +239,7 @@ class TestEnhancedAuditPlugin:
         assert "error" not in output.lower()
 
     def test_audit_plugin_no_symbols_when_all_successful(self) -> None:
-        """Test that symbols line is not shown when all symbols are successful."""
+        """Test that symbols line IS shown when all symbols are successful."""
         plugin = AuditPlugin()
 
         # Create context with successful symbols
@@ -267,8 +267,13 @@ class TestEnhancedAuditPlugin:
             plugin.process(context)
             output = mock_stdout.getvalue()
 
-        # Verify symbols line is NOT shown
-        assert "Symbols:" not in output
+        # Strip ANSI color codes for easier testing
+        import re
+
+        clean_output = re.sub(r"\x1b\[[0-9;]*m", "", output)
+
+        # Verify symbols line IS shown with all successful
+        assert "Symbols: 2 total, 2 successful (100.0%)" in clean_output
 
     def test_audit_plugin_shows_symbols_when_failed(self) -> None:
         """Test that symbols line is shown when there are failed symbols."""
@@ -420,10 +425,14 @@ class TestEnhancedAuditPlugin:
 
         clean_output = re.sub(r"\x1b\[[0-9;]*m", "", output)
 
-        # Verify all statuses are shown
+        # Verify all statuses are shown (normalize whitespace to handle potential line wrapping)
+        import re
+
+        # Replace any whitespace (including newlines) with a single space
+        normalized_output = re.sub(r"\s+", " ", clean_output)
         assert (
             "Assertions: 7 total, 3 passed (42.9%), 2 failed (28.6%), 1 skipped (14.3%), 1 error (14.3%)"
-            in clean_output
+            in normalized_output
         )
         # Verify other elements (use clean_output for consistent testing)
         assert "Tags: env=test" in clean_output

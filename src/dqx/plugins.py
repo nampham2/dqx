@@ -385,16 +385,24 @@ class AuditPlugin:
         else:
             self.console.print("  Assertions: 0 total, 0 passed (0.0%), 0 failed (0.0%)")
 
-        # Symbols line (only if there are failed symbols)
-        if context.symbols and context.failed_symbols() > 0:
+        # Symbols line (show whenever symbols are present)
+        if context.symbols:
             total_symbols = context.total_symbols()
             successful_symbols = total_symbols - context.failed_symbols()
             failed_symbols = context.failed_symbols()
-            success_rate = (successful_symbols / total_symbols * 100) if total_symbols > 0 else 0.0
-            fail_rate = (failed_symbols / total_symbols * 100) if total_symbols > 0 else 0.0
-            self.console.print(
-                f"  Symbols: {total_symbols} total, [green]{successful_symbols} successful ({success_rate:.1f}%)[/green], [red]{failed_symbols} failed ({fail_rate:.1f}%)[/red]"
-            )
+
+            if failed_symbols > 0:
+                # Show both successful and failed when there are failures
+                success_rate = (successful_symbols / total_symbols * 100) if total_symbols > 0 else 0.0
+                fail_rate = (failed_symbols / total_symbols * 100) if total_symbols > 0 else 0.0
+                self.console.print(
+                    f"  Symbols: {total_symbols} total, [green]{successful_symbols} successful ({success_rate:.1f}%)[/green], [red]{failed_symbols} failed ({fail_rate:.1f}%)[/red]"
+                )
+            else:
+                # Show only successful when all symbols succeeded
+                self.console.print(
+                    f"  Symbols: {total_symbols} total, [green]{total_symbols} successful (100.0%)[/green]"
+                )
 
         # Metrics cleanup line (if any metrics were cleaned up)
         self.console.print(
