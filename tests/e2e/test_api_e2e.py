@@ -99,7 +99,13 @@ def test_e2e_suite() -> None:
     checks = [simple_checks, manual_day_over_day, rate_of_change, null_percentage, cross_dataset_check, complex_metrics]
 
     # Run for today
-    suite = VerificationSuite(checks, db, name="Simple test suite", skip_dates={dt.date.fromisoformat("2025-01-14")})
+    suite = VerificationSuite(
+        checks,
+        db,
+        name="Simple test suite",
+        skip_dates={dt.date.fromisoformat("2025-01-12")},
+        data_av_threshold=0.8,
+    )
 
     suite.run([ds1, ds2], key)
     print_assertion_results(suite.collect_results())
