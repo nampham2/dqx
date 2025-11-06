@@ -30,7 +30,7 @@ class TestDataAvailabilityCalculation:
         context_key = ResultKey(datetime.date(2024, 1, 15), {})
         skip_dates = {datetime.date(2024, 1, 15)}  # Current date excluded
 
-        registry.calculate_data_av_ratios(skip_dates, context_key)
+        registry.calculate_data_av_ratios(skip_dates, context_key, 0.8)
 
         assert sm.data_av_ratio == 0.0
 
@@ -53,7 +53,7 @@ class TestDataAvailabilityCalculation:
         context_key = ResultKey(datetime.date(2024, 1, 15), {})
         skip_dates = {datetime.date(2024, 1, 10)}  # Different date excluded
 
-        registry.calculate_data_av_ratios(skip_dates, context_key)
+        registry.calculate_data_av_ratios(skip_dates, context_key, 0.8)
 
         assert sm.data_av_ratio == 1.0
 
@@ -76,7 +76,7 @@ class TestDataAvailabilityCalculation:
         context_key = ResultKey(datetime.date(2024, 1, 15), {})
         skip_dates = {datetime.date(2024, 1, 13)}  # Effective date excluded
 
-        registry.calculate_data_av_ratios(skip_dates, context_key)
+        registry.calculate_data_av_ratios(skip_dates, context_key, 0.8)
 
         assert sm.data_av_ratio == 0.0
 
@@ -111,7 +111,7 @@ class TestDataAvailabilityCalculation:
         context_key = ResultKey(datetime.date(2024, 1, 15), {})
         skip_dates: set[date] = set()
 
-        registry.calculate_data_av_ratios(skip_dates, context_key)
+        registry.calculate_data_av_ratios(skip_dates, context_key, 0.8)
 
         # All should have 1.0 ratio
         assert sm1.data_av_ratio == 1.0
@@ -164,7 +164,7 @@ class TestDataAvailabilityCalculation:
         context_key = ResultKey(datetime.date(2024, 1, 15), {})
         skip_dates = {datetime.date(2024, 1, 14)}  # sm2's date
 
-        registry.calculate_data_av_ratios(skip_dates, context_key)
+        registry.calculate_data_av_ratios(skip_dates, context_key, 0.8)
 
         # Check ratios
         assert sm1.data_av_ratio == 1.0  # Available
@@ -215,7 +215,7 @@ class TestDataAvailabilityCalculation:
         context_key = ResultKey(datetime.date(2024, 1, 15), {})
         skip_dates = {datetime.date(2024, 1, 14)}
 
-        registry.calculate_data_av_ratios(skip_dates, context_key)
+        registry.calculate_data_av_ratios(skip_dates, context_key, 0.8)
 
         assert sm1.data_av_ratio == 1.0
         assert sm2.data_av_ratio == 0.0
@@ -247,7 +247,7 @@ class TestDataAvailabilityCalculation:
 
         # Calculate should still work due to topological sort
         context_key = ResultKey(datetime.date(2024, 1, 15), {})
-        registry.calculate_data_av_ratios(set(), context_key)
+        registry.calculate_data_av_ratios(set(), context_key, 0.8)
 
         # All available
         assert sm1.data_av_ratio == 1.0
@@ -260,7 +260,7 @@ class TestDataAvailabilityCalculation:
         context_key = ResultKey(datetime.date(2024, 1, 15), {})
 
         # Should not raise
-        registry.calculate_data_av_ratios(set(), context_key)
+        registry.calculate_data_av_ratios(set(), context_key, 0.8)
 
         assert len(registry._metrics) == 0
 
@@ -286,7 +286,7 @@ class TestDataAvailabilityCalculation:
         context_key = ResultKey(datetime.date(2024, 1, 15), {})
         skip_dates = {context_key.yyyy_mm_dd - datetime.timedelta(days=i) for i in range(10)}
 
-        registry.calculate_data_av_ratios(skip_dates, context_key)
+        registry.calculate_data_av_ratios(skip_dates, context_key, 0.8)
 
         # All should have 0.0 ratio
         for sm in metrics:

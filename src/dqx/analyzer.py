@@ -362,8 +362,7 @@ class Analyzer:
         return final_report
 
     def analyze_extended_metrics(self) -> AnalysisReport:
-        # First sort the metrics topologically for analysis
-        self.provider.registry.topological_sort()
+        # The metrics has been sorted topologically
 
         report: AnalysisReport = AnalysisReport()
         metadata = Metadata(execution_id=self.execution_id)

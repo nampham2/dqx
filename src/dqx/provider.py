@@ -78,6 +78,12 @@ def _create_lazy_retrieval_fn(provider: "MetricProvider", metric_spec: MetricSpe
         if symbolic_metric.dataset is None:
             return Failure(f"Dataset not imputed for metric {symbolic_metric.name}")
 
+        # Check data availability before computing
+        if symbolic_metric.data_av_ratio is not None and symbolic_metric.data_av_ratio < provider._data_av_threshold:
+            return Failure(
+                f"Insufficient data availability ({symbolic_metric.data_av_ratio:.2f} < {provider._data_av_threshold})"
+            )
+
         # Call the compute function with the resolved dataset and execution_id
         return compute.simple_metric(metric_spec, symbolic_metric.dataset, key, provider.execution_id, provider._cache)
 
@@ -101,6 +107,12 @@ def _create_lazy_extended_fn(
 
         if symbolic_metric.dataset is None:
             return Failure(f"Dataset not imputed for metric {symbolic_metric.name}")
+
+        # Check data availability before computing
+        if symbolic_metric.data_av_ratio is not None and symbolic_metric.data_av_ratio < provider._data_av_threshold:
+            return Failure(
+                f"Insufficient data availability ({symbolic_metric.data_av_ratio:.2f} < {provider._data_av_threshold})"
+            )
 
         # Call the compute function with the resolved dataset and execution_id
         # Note: compute_fn may be a lambda that already includes additional parameters
@@ -302,7 +314,9 @@ class MetricRegistry:
         # Replace _metrics with sorted order
         self._metrics = result
 
-    def calculate_data_av_ratios(self, skip_dates: set[datetime.date], context_key: ResultKey) -> None:
+    def calculate_data_av_ratios(
+        self, skip_dates: set[datetime.date], key: ResultKey, data_av_threshold: float
+    ) -> None:
         """Calculate data availability ratios for all metrics.
 
         Updates the data_av_ratio field of each SymbolicMetric based on
@@ -314,6 +328,7 @@ class MetricRegistry:
         Args:
             skip_dates: Set of dates to exclude from calculations
             context_key: ResultKey providing context date for lag calculations
+            data_av_threshold: Data availability threshold
         """
         # Ensure metrics are sorted by dependencies
         self.topological_sort()
@@ -322,21 +337,20 @@ class MetricRegistry:
         for sm in self._metrics:
             if not sm.required_metrics:
                 # Simple metric - check if its effective date is excluded
-                effective_date = context_key.yyyy_mm_dd - timedelta(days=sm.lag)
+                effective_date = key.yyyy_mm_dd - timedelta(days=sm.lag)
                 sm.data_av_ratio = 0.0 if effective_date in skip_dates else 1.0
             else:
                 # Extended metric - average child ratios
-                child_ratios = []
+                child_ratios: list[float] = []
                 for req_symbol in sm.required_metrics:
                     req_metric = self.get(req_symbol)
-                    if req_metric.data_av_ratio is not None:
-                        child_ratios.append(req_metric.data_av_ratio)
-
-                if child_ratios:
-                    sm.data_av_ratio = sum(child_ratios) / len(child_ratios)
-                else:
-                    # No child ratios available, default to 1.0
-                    sm.data_av_ratio = 1.0
+                    if req_metric.data_av_ratio is None:
+                        # This should NEVER happen because of the topological sort
+                        raise DQXError(
+                            f"InternalError: data availability ratio not calculated for {req_symbol}"
+                        )  # pragma: no cover
+                    child_ratios.append(req_metric.data_av_ratio)
+                sm.data_av_ratio = sum(1.0 if r > data_av_threshold else 0.0 for r in child_ratios) / len(child_ratios)
             if sm.data_av_ratio < 1.0:
                 logger.info("Data availability ratio for %s is %f", sm.symbol, sm.data_av_ratio)
 
@@ -689,10 +703,11 @@ class ExtendedMetricProvider(RegistryMixin):
 
 
 class MetricProvider(SymbolicMetricBase):
-    def __init__(self, db: MetricDB, execution_id: ExecutionId) -> None:
+    def __init__(self, db: MetricDB, execution_id: ExecutionId, data_av_threshold: float = 0.8) -> None:
         super().__init__()
         self._db = db
         self._execution_id = execution_id
+        self._data_av_threshold = data_av_threshold
 
         # Create cache in provider
         from dqx.cache import MetricCache

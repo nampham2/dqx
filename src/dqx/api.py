@@ -205,7 +205,7 @@ class Context:
     graph nodes that need access to the symbol table.
     """
 
-    def __init__(self, suite: str, db: "MetricDB", execution_id: str) -> None:
+    def __init__(self, suite: str, db: "MetricDB", execution_id: str, data_av_threshold: float = 0.8) -> None:
         """
         Initialize the context with a root graph node.
 
@@ -213,10 +213,11 @@ class Context:
             suite: Name of the verification suite
             db: Database for storing and retrieving metrics
             execution_id: Unique identifier for this execution
+            data_av_threshold: Minimum data availability threshold for metrics
         """
         self._graph = Graph(RootNode(name=suite))
         # MetricProvider now creates its own cache internally
-        self._provider = MetricProvider(db, execution_id=execution_id)
+        self._provider = MetricProvider(db, execution_id=execution_id, data_av_threshold=data_av_threshold)
         self._local = threading.local()
 
         # Track the start time of the suite execution
@@ -356,8 +357,14 @@ class VerificationSuite:
         # Generate unique execution ID
         self._execution_id = str(uuid.uuid4())
 
-        # Create a context with execution_id
-        self._context = Context(suite=self._name, db=db, execution_id=self._execution_id)
+        # Store skip dates and data availability threshold
+        self._skip_dates: set[datetime.date] = skip_dates or set()
+        self._data_av_threshold = data_av_threshold
+
+        # Create a context with execution_id and data availability threshold
+        self._context = Context(
+            suite=self._name, db=db, execution_id=self._execution_id, data_av_threshold=self._data_av_threshold
+        )
 
         # State tracking for result collection
         self._is_evaluated = False  # Track if assertions have been evaluated
@@ -377,10 +384,6 @@ class VerificationSuite:
 
         # Cache for metrics stats
         self._metrics_stats: "MetricStats | None" = None
-
-        # Store skip dates for date exclusion
-        self._skip_dates: set[datetime.date] = skip_dates or set()
-        self._data_av_threshold = data_av_threshold
 
     @property
     def execution_id(self) -> str:
@@ -629,7 +632,7 @@ class VerificationSuite:
         # Calculate data availability ratios for date exclusion
         if self._skip_dates:
             logger.info(f"Calculating data availability ratios with {len(self._skip_dates)} excluded dates")
-            self._context.provider.registry.calculate_data_av_ratios(self._skip_dates, key)
+            self._context.provider.registry.calculate_data_av_ratios(self._skip_dates, key, self._data_av_threshold)
 
         # Collect metrics stats and cleanup expired metrics BEFORE analysis
         self._metrics_stats = self.provider._db.get_metrics_stats()

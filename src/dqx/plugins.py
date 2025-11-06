@@ -366,9 +366,6 @@ class AuditPlugin:
                 f"  Symbols: {total_symbols} total, [green]{successful_symbols} successful ({success_rate:.1f}%)[/green], [red]{failed_symbols} failed ({100 - success_rate:.1f}%)[/red]"
             )
 
-            if failed_symbols > 0:
-                raise DQXError("[InternalError] Symbols failed to evaluate during execution!")
-
         # Metrics cleanup line (if any metrics were cleaned up)
         self.console.print(
             f"  Metrics Cleanup: [green]{context.metrics_stats.expired_metrics} expired metrics removed[/green]"
