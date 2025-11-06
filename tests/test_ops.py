@@ -478,19 +478,25 @@ def test_op_value_assignment_and_clearing() -> None:
 
 def test_op_match_args() -> None:
     """Test that ops with columns have proper __match_args__ for pattern matching."""
-    # These ops should have match_args for their column parameter
-    assert ops.Average.__match_args__ == ("column",)
-    assert ops.Minimum.__match_args__ == ("column",)
-    assert ops.Maximum.__match_args__ == ("column",)
-    assert ops.Sum.__match_args__ == ("column",)
-    assert ops.Variance.__match_args__ == ("column",)
-    assert ops.First.__match_args__ == ("column",)
-    assert ops.NullCount.__match_args__ == ("column",)
-    assert ops.NegativeCount.__match_args__ == ("column",)
-    assert ops.UniqueCount.__match_args__ == ("column",)
+    # These ops should have match_args for their column and parameters
+    assert ops.Average.__match_args__ == ("column", "parameters")
+    assert ops.Minimum.__match_args__ == ("column", "parameters")
+    assert ops.Maximum.__match_args__ == ("column", "parameters")
+    assert ops.Sum.__match_args__ == ("column", "parameters")
+    assert ops.Variance.__match_args__ == ("column", "parameters")
+    assert ops.First.__match_args__ == ("column", "parameters")
+    assert ops.NullCount.__match_args__ == ("column", "parameters")
+    assert ops.NegativeCount.__match_args__ == ("column", "parameters")
+    assert ops.UniqueCount.__match_args__ == ("column", "parameters")
 
-    # DuplicateCount has columns (plural)
-    assert ops.DuplicateCount.__match_args__ == ("columns",)
+    # DuplicateCount has columns (plural) and parameters
+    assert ops.DuplicateCount.__match_args__ == ("columns", "parameters")
 
-    # CountValues has column and values
-    assert ops.CountValues.__match_args__ == ("column", "values")
+    # CountValues has column, values, and parameters
+    assert ops.CountValues.__match_args__ == ("column", "values", "parameters")
+
+    # NumRows has only parameters
+    assert ops.NumRows.__match_args__ == ("parameters",)
+
+    # CustomSQL has sql_expression and parameters
+    assert ops.CustomSQL.__match_args__ == ("sql_expression", "parameters")

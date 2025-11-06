@@ -141,6 +141,10 @@ class TestBigQueryDialect:
             def sql_col(self) -> str:
                 return "unsup_col"
 
+            @property
+            def parameters(self) -> dict[str, Any]:
+                return {}
+
             def value(self) -> float:
                 return 0.0
 

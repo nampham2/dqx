@@ -133,6 +133,10 @@ class MockSqlOp(SqlOp[float]):
     def sql_col(self) -> str:
         return self._sql_col
 
+    @property
+    def parameters(self) -> dict[str, Any]:
+        return {}
+
     def assign(self, value: float) -> None:
         self._value = value
 
@@ -188,6 +192,7 @@ class TestAnalyzeSqlOps:
             mock_dialect = Mock()
             mock_dialect.translate_sql_op.side_effect = lambda op: f"SQL for {op._name}"
             mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
+            mock_dialect.build_batch_cte_query_with_source.return_value = "BATCH SQL"
             mock_get_dialect.return_value = mock_dialect
 
             # Mock query result with array format
@@ -239,6 +244,7 @@ class TestAnalyzeSqlOps:
         with patch("dqx.analyzer.get_dialect") as mock_get_dialect:
             mock_dialect = Mock()
             mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
+            mock_dialect.build_batch_cte_query_with_source.return_value = "BATCH SQL WITH SOURCE"
             mock_get_dialect.return_value = mock_dialect
 
             # Mock query results in DIFFERENT order than ops_by_key iteration
@@ -276,6 +282,7 @@ class TestAnalyzeSqlOps:
         with patch("dqx.analyzer.get_dialect") as mock_get_dialect:
             mock_dialect = Mock()
             mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
+            mock_dialect.build_batch_cte_query_with_source.return_value = "BATCH SQL WITH SOURCE"
             mock_get_dialect.return_value = mock_dialect
 
             # Mock query result missing date2
@@ -304,6 +311,7 @@ class TestAnalyzeSqlOps:
         with patch("dqx.analyzer.get_dialect") as mock_get_dialect:
             mock_dialect = Mock()
             mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
+            mock_dialect.build_batch_cte_query_with_source.return_value = "BATCH SQL WITH SOURCE"
             mock_get_dialect.return_value = mock_dialect
 
             # Mock query result with unexpected date
@@ -343,6 +351,7 @@ class TestAnalyzeSqlOps:
         with patch("dqx.analyzer.get_dialect") as mock_get_dialect:
             mock_dialect = Mock()
             mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
+            mock_dialect.build_batch_cte_query_with_source.return_value = "BATCH SQL WITH SOURCE"
             mock_get_dialect.return_value = mock_dialect
 
             # Results in reverse order
@@ -400,6 +409,7 @@ class TestAnalyzeBatchSqlOps:
         with patch("dqx.analyzer.get_dialect") as mock_get_dialect:
             mock_dialect = Mock()
             mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
+            mock_dialect.build_batch_cte_query_with_source.return_value = "BATCH SQL WITH SOURCE"
             mock_get_dialect.return_value = mock_dialect
 
             analyze_sql_ops(ds, ops_by_key)
@@ -419,6 +429,7 @@ class TestAnalyzeBatchSqlOps:
         with patch("dqx.analyzer.get_dialect") as mock_get_dialect:
             mock_dialect = Mock()
             mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
+            mock_dialect.build_batch_cte_query_with_source.return_value = "BATCH SQL WITH SOURCE"
             mock_get_dialect.return_value = mock_dialect
 
             with pytest.raises(DQXError, match="Null value encountered"):

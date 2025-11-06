@@ -145,8 +145,11 @@ def analyze_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> None:
 
     cte_data = [BatchCTEData(key=key, cte_sql=ds.cte(key.yyyy_mm_dd), ops=ops) for key, ops in ops_by_key.items()]
 
-    # Generate and execute SQL
-    sql = dialect_instance.build_batch_cte_query(cte_data)
+    # Generate and execute SQL with data source for parameter-aware optimization
+    if hasattr(dialect_instance, "build_batch_cte_query_with_source"):
+        sql = dialect_instance.build_batch_cte_query_with_source(cte_data, ds)
+    else:
+        sql = dialect_instance.build_batch_cte_query(cte_data)
 
     # Format SQL for readability
     sql = sqlparse.format(

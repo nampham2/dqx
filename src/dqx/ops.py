@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Generic, Protocol, TypeVar, runtime_checkable
 
-from dqx.common import DQXError
+from dqx.common import DQXError, Parameters
 from dqx.utils import random_prefix
 
 T = TypeVar("T", bound=float)
@@ -30,10 +30,18 @@ class SqlOp(Op[T], Protocol):
     @property
     def sql_col(self) -> str: ...
 
+    @property
+    def parameters(self) -> Parameters: ...
+
 
 class OpValueMixin(Generic[T]):
-    def __init__(self) -> None:
+    def __init__(self, parameters: Parameters | None = None) -> None:
         self._value: T | None = None
+        self._parameters = parameters or {}
+
+    @property
+    def parameters(self) -> Parameters:
+        return self._parameters
 
     def value(self) -> T:
         if self._value is None:
@@ -48,8 +56,15 @@ class OpValueMixin(Generic[T]):
 
 
 class NumRows(OpValueMixin[float], SqlOp[float]):
-    def __init__(self) -> None:
-        OpValueMixin.__init__(self)
+    __match_args__ = ("parameters",)  # Add for pattern matching
+
+    def __init__(self, parameters: Parameters | None = None) -> None:
+        """Initialize NumRows operation.
+
+        Args:
+            parameters: Optional parameters for CTE customization
+        """
+        OpValueMixin.__init__(self, parameters)
         self._prefix = random_prefix()
 
     @property
@@ -80,10 +95,16 @@ class NumRows(OpValueMixin[float], SqlOp[float]):
 
 
 class Average(OpValueMixin[float], SqlOp[float]):
-    __match_args__ = ("column",)
+    __match_args__ = ("column", "parameters")
 
-    def __init__(self, column: str) -> None:
-        OpValueMixin.__init__(self)
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
+        """Initialize Average operation.
+
+        Args:
+            column: Column name to calculate average
+            parameters: Optional parameters for CTE customization
+        """
+        OpValueMixin.__init__(self, parameters)
         self.column = column
         self._prefix = random_prefix()
 
@@ -114,11 +135,81 @@ class Average(OpValueMixin[float], SqlOp[float]):
         return self.__repr__()
 
 
-class Minimum(OpValueMixin[float], SqlOp[float]):
-    __match_args__ = ("column",)
+class CustomSQL(OpValueMixin[float], SqlOp[float]):
+    """Custom SQL operation for user-defined SQL expressions.
 
-    def __init__(self, column: str) -> None:
-        OpValueMixin.__init__(self)
+    Allows defining custom SQL expressions as operations. The SQL expression
+    is used as-is by the dialect, and any parameters are passed to the CTE
+    level for filtering/grouping, just like all other operations.
+
+    Example:
+        # Simple usage
+        CustomSQL("COUNT(DISTINCT user_id)")
+
+        # With CTE parameters (not substituted in SQL)
+        CustomSQL("PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount)",
+                  parameters={"region": "US"})
+    """
+
+    __match_args__ = ("sql_expression", "parameters")
+
+    def __init__(self, sql_expression: str, parameters: Parameters | None = None) -> None:
+        """Initialize CustomSQL operation.
+
+        Args:
+            sql_expression: SQL expression to be executed as-is
+            parameters: Optional parameters for CTE customization
+        """
+        OpValueMixin.__init__(self, parameters)
+        self.sql_expression = sql_expression
+        self._prefix = random_prefix()
+
+        # Generate a short identifier from the SQL expression
+        # Use hash for uniqueness, limited to 8 chars
+        import hashlib
+
+        sql_hash = hashlib.md5(sql_expression.encode()).hexdigest()[:8]
+        self._sql_hash = sql_hash
+
+    @property
+    def name(self) -> str:
+        # Use sql_col for the name to ensure uniqueness
+        return f"custom_sql_{self._sql_hash}"
+
+    @property
+    def prefix(self) -> str:
+        return self._prefix
+
+    @property
+    def sql_col(self) -> str:
+        return f"{self.prefix}_{self.name}"
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, CustomSQL):
+            return NotImplemented
+        return self.sql_expression == other.sql_expression and self.parameters == other.parameters
+
+    def __hash__(self) -> int:
+        return hash((self.sql_expression, tuple(sorted(self.parameters.items()))))
+
+    def __repr__(self) -> str:
+        return f"CustomSQL({self.sql_expression!r})"
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+
+class Minimum(OpValueMixin[float], SqlOp[float]):
+    __match_args__ = ("column", "parameters")
+
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
+        """Initialize Minimum operation.
+
+        Args:
+            column: Column name to find minimum value
+            parameters: Optional parameters for CTE customization
+        """
+        OpValueMixin.__init__(self, parameters)
         self.column = column
         self._prefix = random_prefix()
 
@@ -150,10 +241,16 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
 
 
 class Maximum(OpValueMixin[float], SqlOp[float]):
-    __match_args__ = ("column",)
+    __match_args__ = ("column", "parameters")
 
-    def __init__(self, column: str) -> None:
-        OpValueMixin.__init__(self)
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
+        """Initialize Maximum operation.
+
+        Args:
+            column: Column name to find maximum value
+            parameters: Optional parameters for CTE customization
+        """
+        OpValueMixin.__init__(self, parameters)
         self.column = column
         self._prefix = random_prefix()
 
@@ -185,10 +282,16 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
 
 
 class Sum(OpValueMixin[float], SqlOp[float]):
-    __match_args__ = ("column",)
+    __match_args__ = ("column", "parameters")
 
-    def __init__(self, column: str) -> None:
-        OpValueMixin.__init__(self)
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
+        """Initialize Sum operation.
+
+        Args:
+            column: Column name to calculate sum
+            parameters: Optional parameters for CTE customization
+        """
+        OpValueMixin.__init__(self, parameters)
         self.column = column
         self._prefix = random_prefix()
 
@@ -220,10 +323,16 @@ class Sum(OpValueMixin[float], SqlOp[float]):
 
 
 class Variance(OpValueMixin[float], SqlOp[float]):
-    __match_args__ = ("column",)
+    __match_args__ = ("column", "parameters")
 
-    def __init__(self, column: str) -> None:
-        OpValueMixin.__init__(self)
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
+        """Initialize Variance operation.
+
+        Args:
+            column: Column name to calculate variance
+            parameters: Optional parameters for CTE customization
+        """
+        OpValueMixin.__init__(self, parameters)
         self.column = column
         self._prefix = random_prefix()
 
@@ -255,10 +364,16 @@ class Variance(OpValueMixin[float], SqlOp[float]):
 
 
 class First(OpValueMixin[float], SqlOp[float]):
-    __match_args__ = ("column",)
+    __match_args__ = ("column", "parameters")
 
-    def __init__(self, column: str) -> None:
-        OpValueMixin.__init__(self)
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
+        """Initialize First operation.
+
+        Args:
+            column: Column name to get first value
+            parameters: Optional parameters for CTE customization
+        """
+        OpValueMixin.__init__(self, parameters)
         self.column = column
         self._prefix = random_prefix()
 
@@ -290,10 +405,16 @@ class First(OpValueMixin[float], SqlOp[float]):
 
 
 class NullCount(OpValueMixin[float], SqlOp[float]):
-    __match_args__ = ("column",)
+    __match_args__ = ("column", "parameters")
 
-    def __init__(self, column: str) -> None:
-        OpValueMixin.__init__(self)
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
+        """Initialize NullCount operation.
+
+        Args:
+            column: Column name to count null values
+            parameters: Optional parameters for CTE customization
+        """
+        OpValueMixin.__init__(self, parameters)
         self.column = column
         self._prefix = random_prefix()
 
@@ -325,10 +446,16 @@ class NullCount(OpValueMixin[float], SqlOp[float]):
 
 
 class NegativeCount(OpValueMixin[float], SqlOp[float]):
-    __match_args__ = ("column",)
+    __match_args__ = ("column", "parameters")
 
-    def __init__(self, column: str) -> None:
-        OpValueMixin.__init__(self)
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
+        """Initialize NegativeCount operation.
+
+        Args:
+            column: Column name to count negative values
+            parameters: Optional parameters for CTE customization
+        """
+        OpValueMixin.__init__(self, parameters)
         self.column = column
         self._prefix = random_prefix()
 
@@ -360,10 +487,16 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
 
 
 class UniqueCount(OpValueMixin[float], SqlOp[float]):
-    __match_args__ = ("column",)
+    __match_args__ = ("column", "parameters")
 
-    def __init__(self, column: str) -> None:
-        OpValueMixin.__init__(self)
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
+        """Initialize UniqueCount operation.
+
+        Args:
+            column: Column name to count unique values
+            parameters: Optional parameters for CTE customization
+        """
+        OpValueMixin.__init__(self, parameters)
         self.column = column
         self._prefix = random_prefix()
 
@@ -395,10 +528,16 @@ class UniqueCount(OpValueMixin[float], SqlOp[float]):
 
 
 class DuplicateCount(OpValueMixin[float], SqlOp[float]):
-    __match_args__ = ("columns",)
+    __match_args__ = ("columns", "parameters")
 
-    def __init__(self, columns: list[str]) -> None:
-        OpValueMixin.__init__(self)
+    def __init__(self, columns: list[str], parameters: Parameters | None = None) -> None:
+        """Initialize DuplicateCount operation.
+
+        Args:
+            columns: List of columns to check for duplicates
+            parameters: Optional parameters for CTE customization
+        """
+        OpValueMixin.__init__(self, parameters)
         if not columns:
             raise ValueError("DuplicateCount requires at least one column")
         # Sort columns to ensure consistent behavior regardless of input order
@@ -441,10 +580,22 @@ class CountValues(OpValueMixin[float], SqlOp[float]):
     String values will be properly escaped in SQL generation to prevent injection.
     """
 
-    __match_args__ = ("column", "values")
+    __match_args__ = ("column", "values", "parameters")
 
-    def __init__(self, column: str, values: int | str | bool | list[int] | list[str]) -> None:
-        OpValueMixin.__init__(self)
+    def __init__(
+        self,
+        column: str,
+        values: int | str | bool | list[int] | list[str],
+        parameters: Parameters | None = None,
+    ) -> None:
+        """Initialize CountValues operation.
+
+        Args:
+            column: Column name to count values in
+            values: Values to count (int, str, bool, or list)
+            parameters: Optional parameters for CTE customization
+        """
+        OpValueMixin.__init__(self, parameters)
 
         # Normalize to list for internal consistency
         # Declare _values with the broadest type first
@@ -512,3 +663,23 @@ class CountValues(OpValueMixin[float], SqlOp[float]):
 
     def __str__(self) -> str:
         return self.__repr__()
+
+
+__all__ = [
+    "Op",
+    "SqlOp",
+    "OpValueMixin",
+    "NumRows",
+    "Average",
+    "CustomSQL",
+    "Minimum",
+    "Maximum",
+    "Sum",
+    "Variance",
+    "First",
+    "NullCount",
+    "NegativeCount",
+    "UniqueCount",
+    "DuplicateCount",
+    "CountValues",
+]

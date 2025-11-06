@@ -81,6 +81,7 @@ This allows the same DQX code to work across different databases.
 
 from __future__ import annotations
 
+import datetime
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Protocol, Type, runtime_checkable
@@ -89,6 +90,7 @@ from dqx import ops
 from dqx.common import DQXError, ResultKey
 
 if TYPE_CHECKING:
+    from dqx.common import SqlDataSource
     from dqx.ops import SqlOp
 
 
@@ -126,13 +128,14 @@ def build_cte_query(cte_sql: str, select_expressions: list[str]) -> str:
 
 
 def _build_cte_parts(
-    dialect: "Dialect", cte_data: list["BatchCTEData"]
+    dialect: "Dialect", cte_data: list["BatchCTEData"], data_source: "SqlDataSource | None" = None
 ) -> tuple[list[str], list[tuple[str, list[ops.SqlOp]]]]:
     """Build CTE parts for batch query - shared between dialects.
 
     Args:
         dialect: The dialect instance to use for SQL translation
         cte_data: List of BatchCTEData objects
+        data_source: Optional data source for parameter-aware CTE generation
 
     Returns:
         Tuple of (cte_parts, metrics_info)
@@ -151,27 +154,50 @@ def _build_cte_parts(
         # Format date for CTE names (yyyy_mm_dd)
         # Include index to ensure unique names even for same date with different tags
         date_suffix = data.key.yyyy_mm_dd.strftime("%Y_%m_%d")
-        source_cte = f"source_{date_suffix}_{i}"
-        metrics_cte = f"metrics_{date_suffix}_{i}"
 
-        # Add source CTE
-        cte_parts.append(f"{source_cte} AS ({data.cte_sql})")
+        # Group operations by parameters for this date
+        if hasattr(dialect, "_group_operations_by_parameters"):
+            ops_by_params = dialect._group_operations_by_parameters(data.ops)
+        else:
+            # Fallback for dialects without parameter grouping
+            ops_by_params = {(): list(data.ops)} if data.ops else {}
 
-        # Build metrics CTE with all expressions if ops exist
-        if data.ops:
-            # Translate ops to expressions
-            expressions = [dialect.translate_sql_op(op) for op in data.ops]
-            metrics_select = ", ".join(expressions)
-            cte_parts.append(f"{metrics_cte} AS (SELECT {metrics_select} FROM {source_cte})")
+        # Create CTE for each parameter group
+        for j, (params_key, grouped_ops) in enumerate(ops_by_params.items()):
+            # Source CTE with parameters
+            source_cte = f"source_{date_suffix}_{i}_{j}"
 
-            # Store metrics info for later use
-            metrics_info.append((metrics_cte, list(data.ops)))
+            # Convert params_key back to dict
+            params_dict = dict(params_key) if params_key else {}
+
+            # Generate parameter-aware CTE SQL if data source provided
+            if data_source and params_dict:
+                # Pass parameters to data source for optimized CTE generation
+                parameterized_cte_sql = data_source.cte(data.key.yyyy_mm_dd, params_dict)
+            else:
+                # Fall back to provided CTE SQL
+                parameterized_cte_sql = data.cte_sql
+
+            cte_parts.append(f"{source_cte} AS ({parameterized_cte_sql})")
+
+            # Metrics CTE for this parameter group
+            if grouped_ops:
+                metrics_cte = f"metrics_{date_suffix}_{i}_{j}"
+                expressions = [dialect.translate_sql_op(op) for op in grouped_ops]
+                metrics_select = ", ".join(expressions)
+                cte_parts.append(f"{metrics_cte} AS (SELECT {metrics_select} FROM {source_cte})")
+
+                # Store metrics info
+                metrics_info.append((metrics_cte, list(grouped_ops)))
 
     return cte_parts, metrics_info
 
 
 def _build_batch_query_with_values(
-    dialect: "Dialect", cte_data: list["BatchCTEData"], value_formatter: Callable[[list[ops.SqlOp]], str]
+    dialect: "Dialect",
+    cte_data: list["BatchCTEData"],
+    value_formatter: Callable[[list[ops.SqlOp]], str],
+    data_source: "SqlDataSource | None" = None,
 ) -> str:
     """Build batch query with custom value formatting.
 
@@ -179,6 +205,7 @@ def _build_batch_query_with_values(
         dialect: The dialect instance to use for SQL translation
         cte_data: List of BatchCTEData objects
         value_formatter: Function that formats ops into a value expression (MAP, STRUCT, etc.)
+        data_source: Optional data source for parameter-aware CTE generation
 
     Returns:
         Complete SQL query with CTEs and formatted values
@@ -186,17 +213,42 @@ def _build_batch_query_with_values(
     Raises:
         ValueError: If no CTE data provided or no metrics to compute
     """
-    cte_parts, metrics_info = _build_cte_parts(dialect, cte_data)
+    cte_parts, metrics_info = _build_cte_parts(dialect, cte_data, data_source)
 
     # Simple validation inline
     if not metrics_info:
         raise ValueError("No metrics to compute")
 
-    value_selects = []
-    for data, (metrics_cte, data_ops) in zip(cte_data, metrics_info):
-        date_str = data.key.yyyy_mm_dd.isoformat()
+    # Build value selects from metrics_info
+    # Map from date to list of selects for that date
+    date_to_selects: dict[str, list[str]] = {}
+
+    # Build date mapping from original cte_data
+    date_map = {i: data.key.yyyy_mm_dd for i, data in enumerate(cte_data)}
+
+    for metrics_cte, data_ops in metrics_info:
+        # Extract date from metrics CTE name (format: metrics_YYYY_MM_DD_i_j)
+        parts = metrics_cte.split("_")
+        if len(parts) >= 5:  # metrics_YYYY_MM_DD_i_j
+            year, month, day = parts[1], parts[2], parts[3]
+            date_str = f"{year}-{month}-{day}"
+        else:
+            # Fallback: get from original data
+            # Extract index from CTE name
+            idx = int(parts[-2]) if len(parts) >= 2 else 0
+            date_str = date_map.get(idx, datetime.date.today()).isoformat()
+
         values_expr = value_formatter(data_ops)
-        value_selects.append(f"SELECT '{date_str}' as date, {values_expr} as values FROM {metrics_cte}")
+        select_stmt = f"SELECT '{date_str}' as date, {values_expr} as values FROM {metrics_cte}"
+
+        if date_str not in date_to_selects:
+            date_to_selects[date_str] = []
+        date_to_selects[date_str].append(select_stmt)
+
+    # Flatten all selects
+    value_selects = []
+    for date_str in sorted(date_to_selects.keys()):
+        value_selects.extend(date_to_selects[date_str])
 
     cte_clause = "WITH\n  " + ",\n  ".join(cte_parts)
     union_clause = "\n".join(f"{'UNION ALL' if i > 0 else ''}\n{select}" for i, select in enumerate(value_selects))
@@ -332,6 +384,30 @@ class DuckDBDialect:
 
     name = "duckdb"
 
+    def _group_operations_by_parameters(self, ops_list: Sequence[SqlOp]) -> dict[tuple, list[SqlOp]]:
+        """Group operations by their parameters for efficient CTE generation.
+
+        Operations with identical parameters can share the same source CTE,
+        reducing query complexity and improving performance.
+
+        Args:
+            ops_list: List of SQL operations to group
+
+        Returns:
+            Dictionary mapping parameter tuples to operation lists
+        """
+        groups: dict[tuple, list[SqlOp]] = {}
+
+        for op in ops_list:
+            # Create hashable key from parameters
+            params_key = tuple(sorted(op.parameters.items()))
+
+            if params_key not in groups:
+                groups[params_key] = []
+            groups[params_key].append(op)
+
+        return groups
+
     def translate_sql_op(self, op: ops.SqlOp) -> str:
         """Translate SqlOp to DuckDB SQL syntax."""
 
@@ -402,6 +478,10 @@ class DuckDBDialect:
             case ops.UniqueCount(column=col):
                 return f"CAST(COUNT(DISTINCT {col}) AS DOUBLE) AS '{op.sql_col}'"
 
+            case ops.CustomSQL():
+                # Use the SQL expression directly - no substitution
+                return f"CAST(({op.sql_expression}) AS DOUBLE) AS '{op.sql_col}'"
+
             case _:
                 raise ValueError(f"Unsupported SqlOp type: {type(op).__name__}")
 
@@ -454,6 +534,29 @@ class DuckDBDialect:
 
         return _build_batch_query_with_values(self, cte_data, format_array_values)
 
+    def build_batch_cte_query_with_source(self, cte_data: list["BatchCTEData"], data_source: "SqlDataSource") -> str:
+        """Build batch CTE query with parameter-aware optimization.
+
+        This method passes the data source to enable parameter-based CTE generation,
+        allowing different CTEs for different parameter values.
+
+        Args:
+            cte_data: List of BatchCTEData objects
+            data_source: The data source for parameter-aware CTE generation
+
+        Returns:
+            Complete SQL query with parameter-optimized CTEs
+        """
+
+        def format_array_values(ops: list[ops.SqlOp]) -> str:
+            """Format ops as DuckDB array of key-value pairs."""
+            array_entries = []
+            for op in ops:
+                array_entries.append(f"{{'key': '{op.sql_col}', 'value': \"{op.sql_col}\"}}")
+            return "[" + ", ".join(array_entries) + "]"
+
+        return _build_batch_query_with_values(self, cte_data, format_array_values, data_source)
+
 
 @auto_register
 class BigQueryDialect:
@@ -464,6 +567,30 @@ class BigQueryDialect:
     """
 
     name = "bigquery"
+
+    def _group_operations_by_parameters(self, ops_list: Sequence[SqlOp]) -> dict[tuple, list[SqlOp]]:
+        """Group operations by their parameters for efficient CTE generation.
+
+        Operations with identical parameters can share the same source CTE,
+        reducing query complexity and improving performance.
+
+        Args:
+            ops_list: List of SQL operations to group
+
+        Returns:
+            Dictionary mapping parameter tuples to operation lists
+        """
+        groups: dict[tuple, list[SqlOp]] = {}
+
+        for op in ops_list:
+            # Create hashable key from parameters
+            params_key = tuple(sorted(op.parameters.items()))
+
+            if params_key not in groups:
+                groups[params_key] = []
+            groups[params_key].append(op)
+
+        return groups
 
     def translate_sql_op(self, op: ops.SqlOp) -> str:
         """Translate SqlOp to BigQuery SQL syntax."""
@@ -534,6 +661,10 @@ class BigQueryDialect:
             case ops.UniqueCount(column=col):
                 return f"CAST(COUNT(DISTINCT {col}) AS FLOAT64) AS `{op.sql_col}`"
 
+            case ops.CustomSQL():
+                # Use the SQL expression directly - no substitution
+                return f"CAST(({op.sql_expression}) AS FLOAT64) AS `{op.sql_col}`"
+
             case _:
                 raise ValueError(f"Unsupported SqlOp type: {type(op).__name__}")
 
@@ -583,3 +714,26 @@ class BigQueryDialect:
             return "[" + ", ".join(array_entries) + "]"
 
         return _build_batch_query_with_values(self, cte_data, format_array_values)
+
+    def build_batch_cte_query_with_source(self, cte_data: list["BatchCTEData"], data_source: "SqlDataSource") -> str:
+        """Build batch CTE query with parameter-aware optimization.
+
+        This method passes the data source to enable parameter-based CTE generation,
+        allowing different CTEs for different parameter values.
+
+        Args:
+            cte_data: List of BatchCTEData objects
+            data_source: The data source for parameter-aware CTE generation
+
+        Returns:
+            Complete SQL query with parameter-optimized CTEs
+        """
+
+        def format_array_values(ops: list[ops.SqlOp]) -> str:
+            """Format ops as BigQuery array of key-value STRUCTs."""
+            array_entries = []
+            for op in ops:
+                array_entries.append(f"STRUCT('{op.sql_col}' AS key, `{op.sql_col}` AS value)")
+            return "[" + ", ".join(array_entries) + "]"
+
+        return _build_batch_query_with_values(self, cte_data, format_array_values, data_source)

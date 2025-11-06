@@ -182,6 +182,7 @@ def test_analyze_batch_sql_ops_value_retrieval_failure() -> None:
     with patch("dqx.analyzer.get_dialect") as mock_get_dialect:
         mock_dialect = Mock()
         mock_dialect.build_batch_cte_query.return_value = "BATCH SQL"
+        mock_dialect.build_batch_cte_query_with_source.return_value = "BATCH SQL WITH SOURCE"
         mock_get_dialect.return_value = mock_dialect
 
         # Call _analyze_internal which will check for value retrieval

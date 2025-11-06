@@ -15,7 +15,7 @@ from typing import Self
 import duckdb
 import pyarrow as pa
 
-from dqx.common import SqlDataSource
+from dqx.common import Parameters, SqlDataSource
 from dqx.utils import random_prefix
 
 
@@ -76,11 +76,12 @@ class DuckRelationDataSource(SqlDataSource):
     def _setup_duckdb(self) -> None:
         duckdb.execute("SET enable_progress_bar = false")
 
-    def cte(self, nominal_date: datetime.date) -> str:
+    def cte(self, nominal_date: datetime.date, parameters: Parameters | None = None) -> str:
         """Get the CTE for this data source.
 
         Args:
             nominal_date: The date for filtering (currently ignored)
+            parameters: Optional parameters for filtering (currently ignored)
 
         Returns:
             The CTE SQL string
