@@ -93,6 +93,7 @@ def test_e2e_suite() -> None:
         name="ds2",
         records_per_day=35,
         seed=2100,  # Same seed as original commerce_data_c2
+        skip_dates={dt.date.fromisoformat("2025-01-14")},
     )
 
     key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={"env": "prod", "partner": "gha"})
@@ -103,7 +104,6 @@ def test_e2e_suite() -> None:
         checks,
         db,
         name="Simple test suite",
-        skip_dates={dt.date.fromisoformat("2025-01-12")},
         data_av_threshold=0.8,
     )
 

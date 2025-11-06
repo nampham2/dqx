@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 import functools
 import logging
 import threading
@@ -327,7 +326,6 @@ class VerificationSuite:
         db: "MetricDB",
         name: str,
         log_level: int = logging.INFO,
-        skip_dates: set[datetime.date] | None = None,
         data_av_threshold: float = 0.9,
     ) -> None:
         """
@@ -337,7 +335,6 @@ class VerificationSuite:
             checks: Sequence of check functions to execute
             db: Database for storing and retrieving metrics
             name: Human-readable name for the suite
-            skip_dates: Set of dates to exclude from calculations
             data_av_threshold: Minimum data availability to evaluate assertions (default: 0.9)
 
         Raises:
@@ -357,8 +354,7 @@ class VerificationSuite:
         # Generate unique execution ID
         self._execution_id = str(uuid.uuid4())
 
-        # Store skip dates and data availability threshold
-        self._skip_dates: set[datetime.date] = skip_dates or set()
+        # Store data availability threshold
         self._data_av_threshold = data_av_threshold
 
         # Create a context with execution_id and data availability threshold
@@ -500,16 +496,6 @@ class VerificationSuite:
         return self._key
 
     @property
-    def skip_dates(self) -> set[datetime.date]:
-        """
-        Set of dates excluded from metric calculations.
-
-        Returns:
-            Set of date objects to skip
-        """
-        return self._skip_dates
-
-    @property
     def data_av_threshold(self) -> float:
         """
         Minimum data availability threshold for assertion evaluation.
@@ -636,9 +622,10 @@ class VerificationSuite:
         self._context.provider.symbol_deduplication(self._context._graph, key)
 
         # Calculate data availability ratios for date exclusion
-        if self._skip_dates:
-            logger.info(f"Calculating data availability ratios with {len(self._skip_dates)} excluded dates")
-            self._context.provider.registry.calculate_data_av_ratios(self._skip_dates, key, self._data_av_threshold)
+        # Create datasources dict for calculate_data_av_ratios
+        datasources_dict = {ds.name: ds for ds in datasources}
+        logger.info("Calculating data availability ratios for datasets")
+        self._context.provider.registry.calculate_data_av_ratios(datasources_dict, key, self._data_av_threshold)
 
         # Collect metrics stats and cleanup expired metrics BEFORE analysis
         self._metrics_stats = self.provider._db.get_metrics_stats()

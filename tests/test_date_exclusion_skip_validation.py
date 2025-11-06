@@ -43,15 +43,15 @@ class TestDateExclusionSkipValidation:
         )
         assert suite3.data_av_threshold == 0.0
 
-    def test_skip_dates_property(self, mock_db: MagicMock) -> None:
-        """Test that skip_dates property returns the correct set."""
-        skip_dates = {date(2024, 1, 1), date(2024, 1, 2)}
-        suite = VerificationSuite(checks=[lambda mp, ctx: None], db=mock_db, name="Test Suite", skip_dates=skip_dates)
-        assert suite.skip_dates == skip_dates
+    def test_data_av_threshold_property(self, mock_db: MagicMock) -> None:
+        """Test that data_av_threshold property is properly stored."""
+        # Test with custom threshold
+        suite = VerificationSuite(checks=[lambda mp, ctx: None], db=mock_db, name="Test Suite", data_av_threshold=0.75)
+        assert suite.data_av_threshold == 0.75
 
-        # Test empty skip dates
+        # Test default threshold
         suite2 = VerificationSuite(checks=[lambda mp, ctx: None], db=mock_db, name="Test Suite 2")
-        assert suite2.skip_dates == set()
+        assert suite2.data_av_threshold == 0.9  # Default value
 
     def test_evaluator_skip_logic_below_threshold(self) -> None:
         """Test that Evaluator skips assertions when data availability is below threshold."""

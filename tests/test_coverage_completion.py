@@ -163,6 +163,7 @@ class TestApiCoverage:
                 # Create mock datasources
                 ds = Mock()
                 ds.name = "test_ds"
+                ds.skip_dates = set()  # Add skip_dates attribute
 
                 # Run the suite
                 suite.run([ds], ResultKey(datetime.date.today(), {}), enable_plugins=False)

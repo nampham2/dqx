@@ -157,6 +157,11 @@ class SqlDataSource(Protocol):
         """Get the name of this data source."""
         ...
 
+    @property
+    def skip_dates(self) -> set[datetime.date]:
+        """Dates to exclude from metric calculations for this dataset."""
+        return set()
+
     def cte(self, nominal_date: datetime.date) -> str:
         """
         Get the Common Table Expression (CTE) for this data source.

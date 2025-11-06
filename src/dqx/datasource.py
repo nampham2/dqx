@@ -45,7 +45,9 @@ class DuckRelationDataSource(SqlDataSource):
 
     dialect: str = "duckdb"
 
-    def __init__(self, relation: duckdb.DuckDBPyRelation, name: str) -> None:
+    def __init__(
+        self, relation: duckdb.DuckDBPyRelation, name: str, skip_dates: set[datetime.date] | None = None
+    ) -> None:
         """Initialize the DuckDB relation data source.
 
         Creates a wrapper around a DuckDB relation with a randomly generated
@@ -56,6 +58,7 @@ class DuckRelationDataSource(SqlDataSource):
             relation: A DuckDB relation object to wrap. This can be the result
                      of any DuckDB query or transformation.
             name: The name of this dataset (e.g., "orders", "users")
+            skip_dates: Optional set of dates to exclude from calculations
 
         Example:
             >>> conn = duckdb.connect()
@@ -65,6 +68,7 @@ class DuckRelationDataSource(SqlDataSource):
         self._name = name
         self._relation = relation
         self._table_name = random_prefix(k=6)
+        self._skip_dates = skip_dates or set()
 
         # Initialize DuckDB settings
         self._setup_duckdb()
@@ -99,8 +103,15 @@ class DuckRelationDataSource(SqlDataSource):
         """Get the name of this data source (read-only)."""
         return self._name
 
+    @property
+    def skip_dates(self) -> set[datetime.date]:
+        """Get the skip_dates for this data source (read-only)."""
+        return self._skip_dates
+
     @classmethod
-    def from_arrow(cls, table: pa.RecordBatch | pa.Table, name: str) -> Self:
+    def from_arrow(
+        cls, table: pa.RecordBatch | pa.Table, name: str, skip_dates: set[datetime.date] | None = None
+    ) -> Self:
         """Create a DuckRelationDataSource from PyArrow data structures.
 
         This factory method provides a convenient way to create a DuckDB data source
@@ -117,6 +128,7 @@ class DuckRelationDataSource(SqlDataSource):
                    Both types are supported and will be converted to a DuckDB
                    relation automatically.
             name: The name of this dataset (e.g., "orders", "users")
+            skip_dates: Optional set of dates to exclude from calculations
 
         Returns:
             A new DuckRelationDataSource instance wrapping the Arrow data.
@@ -132,12 +144,14 @@ class DuckRelationDataSource(SqlDataSource):
             ... })
             >>> ds = DuckRelationDataSource.from_arrow(arrow_table, "sales_data")
             >>>
-            >>> # From a RecordBatch
+            >>> # From a RecordBatch with skip_dates
             >>> batch = pa.record_batch([
             ...     pa.array([1, 2, 3]),
             ...     pa.array(['a', 'b', 'c'])
             ... ], names=['id', 'category'])
-            >>> ds = DuckRelationDataSource.from_arrow(batch, "category_data")
+            >>> import datetime
+            >>> skip_dates = {datetime.date(2024, 1, 1)}
+            >>> ds = DuckRelationDataSource.from_arrow(batch, "category_data", skip_dates)
             >>>
             >>> # Use with analyzer
             >>> analyzer = Analyzer()
@@ -145,4 +159,4 @@ class DuckRelationDataSource(SqlDataSource):
             >>> report = analyzer.analyze_single(ds, metrics, key)
         """
         relation: duckdb.DuckDBPyRelation = duckdb.arrow(table)
-        return cls(relation, name)
+        return cls(relation, name, skip_dates)

@@ -22,6 +22,7 @@ from dqx.specs import MetricSpec
 
 if TYPE_CHECKING:
     from dqx.cache import MetricCache
+    from dqx.common import SqlDataSource
     from dqx.graph.traversal import Graph
 
 logger = logging.getLogger(__name__)
@@ -311,21 +312,23 @@ class MetricRegistry:
         self._metrics = result
 
     def calculate_data_av_ratios(
-        self, skip_dates: set[datetime.date], key: ResultKey, data_av_threshold: float
+        self, datasources: dict[str, "SqlDataSource"], key: ResultKey, data_av_threshold: float
     ) -> None:
         """Calculate data availability ratios for all metrics.
 
         Updates the data_av_ratio field of each SymbolicMetric based on
-        whether its effective dates are in the skip_dates set.
+        whether its effective dates are in the dataset's skip_dates.
 
         For simple metrics: 0.0 if date is excluded, 1.0 otherwise
         For extended metrics: average of child metric ratios
 
         Args:
-            skip_dates: Set of dates to exclude from calculations
-            context_key: ResultKey providing context date for lag calculations
+            datasources: Dictionary mapping dataset names to SqlDataSource instances
+            key: ResultKey providing context date for lag calculations
             data_av_threshold: Data availability threshold
         """
+        # Import here to avoid circular dependency
+
         # Ensure metrics are sorted by dependencies
         self.topological_sort()
 
@@ -334,7 +337,14 @@ class MetricRegistry:
             if not sm.required_metrics:
                 # Simple metric - check if its effective date is excluded
                 effective_date = key.yyyy_mm_dd - timedelta(days=sm.lag)
-                sm.data_av_ratio = 0.0 if effective_date in skip_dates else 1.0
+
+                # Get skip_dates from the datasource for this metric's dataset
+                if sm.dataset and sm.dataset in datasources:
+                    skip_dates = datasources[sm.dataset].skip_dates
+                    sm.data_av_ratio = 0.0 if effective_date in skip_dates else 1.0
+                else:
+                    # No dataset or datasource found - assume full availability
+                    sm.data_av_ratio = 1.0
             else:
                 # Extended metric - average child ratios
                 child_ratios: list[float] = []
