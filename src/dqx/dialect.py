@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Callable, Protocol, Type, runtime_checkable
 
 from dqx import ops
 from dqx.common import DQXError, ResultKey
+from dqx.utils import freeze_for_hashing
 
 if TYPE_CHECKING:
     from dqx.common import SqlDataSource
@@ -35,8 +36,9 @@ class BatchCTEData:
         groups: dict[tuple, list[SqlOp]] = {}
 
         for op in self.ops:
-            # Create hashable key from parameters
-            params_key = tuple(sorted(op.parameters.items()))
+            # Create hashable key from parameters using freeze_for_hashing
+            # This handles complex parameter values like lists, dicts, sets
+            params_key = tuple(sorted((k, freeze_for_hashing(v)) for k, v in op.parameters.items()))
 
             if params_key not in groups:
                 groups[params_key] = []
