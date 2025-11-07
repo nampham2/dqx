@@ -181,7 +181,7 @@ class TestAnalyzerBatchOptimization:
         ]
 
         # Generate MAP query
-        sql = dialect.build_batch_cte_query(cte_data)
+        sql = dialect.build_cte_query(cte_data)
 
         # Execute and verify result size
         result = conn.execute(sql).fetchall()
@@ -246,7 +246,7 @@ def test_performance_comparison() -> None:
         )
 
     # Generate MAP query
-    map_sql = dialect.build_batch_cte_query(cte_data)
+    map_sql = dialect.build_cte_query(cte_data)
 
     # Time MAP query execution
     start_time = time.time()

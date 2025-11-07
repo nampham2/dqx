@@ -49,21 +49,6 @@ class TestBigQueryDialect:
         sql = dialect.translate_sql_op(op)
         assert sql == f"CAST(MAX(score) AS FLOAT64) AS `{op.sql_col}`"
 
-    def test_build_cte_query(self) -> None:
-        """Test CTE query building."""
-        dialect = BigQueryDialect()
-        cte_sql = "SELECT * FROM `project.dataset.table`"
-        expressions = ["CAST(COUNT(*) AS FLOAT64) AS `total_rows`", "CAST(AVG(price) AS FLOAT64) AS `avg_price`"]
-
-        query = dialect.build_cte_query(cte_sql, expressions)
-
-        expected = (
-            "WITH source AS (SELECT * FROM `project.dataset.table`) "
-            "SELECT CAST(COUNT(*) AS FLOAT64) AS `total_rows`, "
-            "CAST(AVG(price) AS FLOAT64) AS `avg_price` FROM source"
-        )
-        assert query == expected
-
     def test_translate_variance(self) -> None:
         """Test Variance translation to BigQuery SQL."""
         from dqx.ops import Variance
@@ -164,7 +149,7 @@ class TestBigQueryDialect:
 
         dialect = BigQueryDialect()
         with pytest.raises(ValueError, match="No CTE data provided"):
-            dialect.build_batch_cte_query([])
+            dialect.build_cte_query([])
 
     def test_build_batch_cte_query_single_date(self) -> None:
         """Test batch CTE query with single date."""
@@ -179,7 +164,7 @@ class TestBigQueryDialect:
         ops: list[Any] = [NumRows(), Average("revenue")]
         cte_data = [BatchCTEData(key=key, cte_sql="SELECT * FROM sales", ops=ops)]
 
-        query = dialect.build_batch_cte_query(cte_data)
+        query = dialect.build_cte_query(cte_data)
 
         # Should contain:
         # - WITH clause with source and metrics CTEs
@@ -214,7 +199,7 @@ class TestBigQueryDialect:
         ops2: list[Any] = [Minimum("price"), Maximum("price")]
         cte_data2 = BatchCTEData(key=key2, cte_sql="SELECT * FROM sales WHERE date='2024-01-02'", ops=ops2)
 
-        query = dialect.build_batch_cte_query([cte_data1, cte_data2])
+        query = dialect.build_cte_query([cte_data1, cte_data2])
 
         # Should contain both dates
         assert "'2024-01-01' as date" in query
@@ -240,7 +225,7 @@ class TestBigQueryDialect:
         cte_data = [BatchCTEData(key=key, cte_sql="SELECT * FROM sales", ops=[])]
 
         with pytest.raises(ValueError, match="No metrics to compute"):
-            dialect.build_batch_cte_query(cte_data)
+            dialect.build_cte_query(cte_data)
 
     def test_register_bigquery_dialect(self) -> None:
         """Test BigQuery dialect registration."""
