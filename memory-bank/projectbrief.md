@@ -1,10 +1,10 @@
 # DQX Project Brief
 
 ## Project Name
-DQX - Data Quality eXcellence
+DQX - Data Quality eXcellence (dqlib)
 
 ## Version
-0.3.0
+0.5.9
 
 ## Core Purpose
 DQX is a data quality validation framework that enables developers to write quality checks as mathematical expressions in Python, validate data efficiently using SQL backends, and get instant feedback on data integrity issues.
@@ -20,6 +20,8 @@ DQX is a data quality validation framework that enables developers to write qual
 6. **Cross-Dataset Validation**: Combine metrics from multiple data sources in single expressions
 7. **Severity Levels**: P0-P3 severity classification for prioritizing issues
 8. **Result Persistence**: Store metrics and results in configurable databases
+9. **Date Exclusion**: Support for excluding specific dates from calculations (skip_dates)
+10. **Custom SQL Operations**: Execute user-defined SQL expressions as metrics
 
 ### Non-Functional Requirements
 1. **Performance**: Single-pass SQL execution for multiple metrics
@@ -33,10 +35,11 @@ DQX is a data quality validation framework that enables developers to write qual
 ### In Scope
 - Data quality validation for structured data (tables, dataframes)
 - SQL-based computation on DuckDB, BigQuery, PyArrow
-- Metric computation (sum, average, count, cardinality, etc.)
+- Metric computation (sum, average, count, cardinality, custom SQL, etc.)
 - Assertion validation (equals, greater than, between, etc.)
 - Result collection and persistence
 - Graph-based dependency resolution
+- Date exclusion for data availability handling
 
 ### Out of Scope (Removed)
 - Batch processing support (removed to simplify architecture)
@@ -63,10 +66,12 @@ DQX is a data quality validation framework that enables developers to write qual
 3. **Symbolic Expressions**: Mathematical formulas for business rules
 4. **Graph Architecture**: Dependency resolution for optimal execution
 5. **Protocol-Based Extensions**: Clean interfaces for customization
+6. **3D Methodology**: Design-Driven Development - Think before you build, build with intention, ship with confidence
 
 ## Constraints
-- Python 3.11+ required
+- Python 3.11+ required (up to 3.12)
 - Must maintain backward compatibility within major versions
 - All changes must maintain 100% test coverage
-- Must follow project coding standards (PEP 8, type hints)
+- Must follow project coding standards (PEP 8, type hints, modern syntax)
 - Development managed via uv package manager
+- Distributed as `dqlib` package on PyPI
