@@ -106,6 +106,7 @@ def test_e2e_suite() -> None:
         db,
         name="Simple test suite",
         data_av_threshold=0.8,
+        log_level="DEBUG",
     )
 
     suite.run([ds1, ds2], key)

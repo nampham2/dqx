@@ -325,7 +325,7 @@ class VerificationSuite:
         checks: Sequence[CheckProducer | DecoratedCheck],
         db: "MetricDB",
         name: str,
-        log_level: int = logging.INFO,
+        log_level: int | str = logging.INFO,
         data_av_threshold: float = 0.9,
     ) -> None:
         """

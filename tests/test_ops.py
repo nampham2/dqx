@@ -500,3 +500,163 @@ def test_op_match_args() -> None:
 
     # CustomSQL has sql_expression and parameters
     assert ops.CustomSQL.__match_args__ == ("sql_expression", "parameters")
+
+
+def test_ops_hash_includes_parameters() -> None:
+    """Test that hash function includes parameters for all operations."""
+    # Test NumRows
+    op1 = ops.NumRows()
+    op2 = ops.NumRows(parameters={"region": "US"})
+    op3 = ops.NumRows(parameters={"region": "EU"})
+    op4 = ops.NumRows(parameters={"region": "US"})
+
+    assert hash(op1) != hash(op2)  # Different parameters
+    assert hash(op2) != hash(op3)  # Different parameter values
+    assert hash(op2) == hash(op4)  # Same parameters
+
+    # Test Average
+    avg1 = ops.Average("price")
+    avg2 = ops.Average("price", parameters={"category": "electronics"})
+    avg3 = ops.Average("price", parameters={"category": "books"})
+    avg4 = ops.Average("price", parameters={"category": "electronics"})
+
+    assert hash(avg1) != hash(avg2)  # Different parameters
+    assert hash(avg2) != hash(avg3)  # Different parameter values
+    assert hash(avg2) == hash(avg4)  # Same parameters
+
+    # Test CustomSQL
+    sql1 = ops.CustomSQL("COUNT(*)")
+    sql2 = ops.CustomSQL("COUNT(*)", parameters={"status": "active"})
+    sql3 = ops.CustomSQL("COUNT(*)", parameters={"status": "inactive"})
+    sql4 = ops.CustomSQL("COUNT(*)", parameters={"status": "active"})
+
+    assert hash(sql1) != hash(sql2)  # Different parameters
+    assert hash(sql2) != hash(sql3)  # Different parameter values
+    assert hash(sql2) == hash(sql4)  # Same parameters
+
+    # Test Minimum
+    min1 = ops.Minimum("score")
+    min2 = ops.Minimum("score", parameters={"year": 2023})
+    min3 = ops.Minimum("score", parameters={"year": 2024})
+    min4 = ops.Minimum("score", parameters={"year": 2023})
+
+    assert hash(min1) != hash(min2)  # Different parameters
+    assert hash(min2) != hash(min3)  # Different parameter values
+    assert hash(min2) == hash(min4)  # Same parameters
+
+    # Test Maximum
+    max1 = ops.Maximum("score")
+    max2 = ops.Maximum("score", parameters={"level": "beginner"})
+    max3 = ops.Maximum("score", parameters={"level": "advanced"})
+    max4 = ops.Maximum("score", parameters={"level": "beginner"})
+
+    assert hash(max1) != hash(max2)  # Different parameters
+    assert hash(max2) != hash(max3)  # Different parameter values
+    assert hash(max2) == hash(max4)  # Same parameters
+
+    # Test Sum
+    sum1 = ops.Sum("amount")
+    sum2 = ops.Sum("amount", parameters={"currency": "USD"})
+    sum3 = ops.Sum("amount", parameters={"currency": "EUR"})
+    sum4 = ops.Sum("amount", parameters={"currency": "USD"})
+
+    assert hash(sum1) != hash(sum2)  # Different parameters
+    assert hash(sum2) != hash(sum3)  # Different parameter values
+    assert hash(sum2) == hash(sum4)  # Same parameters
+
+    # Test Variance
+    var1 = ops.Variance("values")
+    var2 = ops.Variance("values", parameters={"experiment": "A"})
+    var3 = ops.Variance("values", parameters={"experiment": "B"})
+    var4 = ops.Variance("values", parameters={"experiment": "A"})
+
+    assert hash(var1) != hash(var2)  # Different parameters
+    assert hash(var2) != hash(var3)  # Different parameter values
+    assert hash(var2) == hash(var4)  # Same parameters
+
+    # Test First
+    first1 = ops.First("timestamp")
+    first2 = ops.First("timestamp", parameters={"source": "web"})
+    first3 = ops.First("timestamp", parameters={"source": "mobile"})
+    first4 = ops.First("timestamp", parameters={"source": "web"})
+
+    assert hash(first1) != hash(first2)  # Different parameters
+    assert hash(first2) != hash(first3)  # Different parameter values
+    assert hash(first2) == hash(first4)  # Same parameters
+
+    # Test NullCount
+    null1 = ops.NullCount("email")
+    null2 = ops.NullCount("email", parameters={"user_type": "free"})
+    null3 = ops.NullCount("email", parameters={"user_type": "premium"})
+    null4 = ops.NullCount("email", parameters={"user_type": "free"})
+
+    assert hash(null1) != hash(null2)  # Different parameters
+    assert hash(null2) != hash(null3)  # Different parameter values
+    assert hash(null2) == hash(null4)  # Same parameters
+
+    # Test NegativeCount
+    neg1 = ops.NegativeCount("balance")
+    neg2 = ops.NegativeCount("balance", parameters={"account_type": "checking"})
+    neg3 = ops.NegativeCount("balance", parameters={"account_type": "savings"})
+    neg4 = ops.NegativeCount("balance", parameters={"account_type": "checking"})
+
+    assert hash(neg1) != hash(neg2)  # Different parameters
+    assert hash(neg2) != hash(neg3)  # Different parameter values
+    assert hash(neg2) == hash(neg4)  # Same parameters
+
+    # Test UniqueCount
+    unique1 = ops.UniqueCount("product_id")
+    unique2 = ops.UniqueCount("product_id", parameters={"store": "online"})
+    unique3 = ops.UniqueCount("product_id", parameters={"store": "retail"})
+    unique4 = ops.UniqueCount("product_id", parameters={"store": "online"})
+
+    assert hash(unique1) != hash(unique2)  # Different parameters
+    assert hash(unique2) != hash(unique3)  # Different parameter values
+    assert hash(unique2) == hash(unique4)  # Same parameters
+
+    # Test DuplicateCount
+    dup1 = ops.DuplicateCount(["email"])
+    dup2 = ops.DuplicateCount(["email"], parameters={"domain": "gmail.com"})
+    dup3 = ops.DuplicateCount(["email"], parameters={"domain": "yahoo.com"})
+    dup4 = ops.DuplicateCount(["email"], parameters={"domain": "gmail.com"})
+
+    assert hash(dup1) != hash(dup2)  # Different parameters
+    assert hash(dup2) != hash(dup3)  # Different parameter values
+    assert hash(dup2) == hash(dup4)  # Same parameters
+
+    # Test CountValues
+    count1 = ops.CountValues("status", "active")
+    count2 = ops.CountValues("status", "active", parameters={"priority": "high"})
+    count3 = ops.CountValues("status", "active", parameters={"priority": "low"})
+    count4 = ops.CountValues("status", "active", parameters={"priority": "high"})
+
+    assert hash(count1) != hash(count2)  # Different parameters
+    assert hash(count2) != hash(count3)  # Different parameter values
+    assert hash(count2) == hash(count4)  # Same parameters
+
+    # Test with multiple parameters
+    multi1 = ops.Average("price", parameters={"category": "electronics", "year": 2023})
+    multi2 = ops.Average("price", parameters={"year": 2023, "category": "electronics"})
+    multi3 = ops.Average("price", parameters={"category": "electronics", "year": 2024})
+
+    # Order shouldn't matter due to sorted()
+    assert hash(multi1) == hash(multi2)
+    assert hash(multi1) != hash(multi3)  # Different parameter values
+
+    # Test that operations can be used in sets/dicts correctly
+    op_set = {
+        ops.NumRows(),
+        ops.NumRows(parameters={"region": "US"}),
+        ops.NumRows(parameters={"region": "EU"}),
+        ops.NumRows(parameters={"region": "US"}),  # Duplicate
+    }
+    assert len(op_set) == 3  # Only 3 unique operations
+
+    # Test in dictionary
+    op_dict = {
+        ops.Average("price"): "no params",
+        ops.Average("price", parameters={"cat": "A"}): "param A",
+        ops.Average("price", parameters={"cat": "B"}): "param B",
+    }
+    assert len(op_dict) == 3
+    assert op_dict[ops.Average("price", parameters={"cat": "A"})] == "param A"

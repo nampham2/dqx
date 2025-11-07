@@ -85,7 +85,7 @@ class NumRows(OpValueMixin[float], SqlOp[float]):
         return True
 
     def __hash__(self) -> int:
-        return hash(self.name)
+        return hash((self.name, tuple(sorted(self.parameters.items()))))
 
     def __repr__(self) -> str:
         return self.name
@@ -126,7 +126,7 @@ class Average(OpValueMixin[float], SqlOp[float]):
         return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self.column))
+        return hash((self.name, self.column, tuple(sorted(self.parameters.items()))))
 
     def __repr__(self) -> str:
         return self.name
@@ -231,7 +231,7 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
         return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self.column))
+        return hash((self.name, self.column, tuple(sorted(self.parameters.items()))))
 
     def __repr__(self) -> str:
         return self.name
@@ -272,7 +272,7 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
         return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self.column))
+        return hash((self.name, self.column, tuple(sorted(self.parameters.items()))))
 
     def __repr__(self) -> str:
         return self.name
@@ -313,7 +313,7 @@ class Sum(OpValueMixin[float], SqlOp[float]):
         return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self.column))
+        return hash((self.name, self.column, tuple(sorted(self.parameters.items()))))
 
     def __repr__(self) -> str:
         return self.name
@@ -354,7 +354,7 @@ class Variance(OpValueMixin[float], SqlOp[float]):
         return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self.column))
+        return hash((self.name, self.column, tuple(sorted(self.parameters.items()))))
 
     def __repr__(self) -> str:
         return self.name
@@ -395,7 +395,7 @@ class First(OpValueMixin[float], SqlOp[float]):
         return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self.column))
+        return hash((self.name, self.column, tuple(sorted(self.parameters.items()))))
 
     def __repr__(self) -> str:
         return self.name
@@ -436,7 +436,7 @@ class NullCount(OpValueMixin[float], SqlOp[float]):
         return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self.column))
+        return hash((self.name, self.column, tuple(sorted(self.parameters.items()))))
 
     def __repr__(self) -> str:
         return self.name
@@ -477,7 +477,7 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
         return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self.column))
+        return hash((self.name, self.column, tuple(sorted(self.parameters.items()))))
 
     def __repr__(self) -> str:
         return self.name
@@ -518,7 +518,7 @@ class UniqueCount(OpValueMixin[float], SqlOp[float]):
         return self.column == other.column
 
     def __hash__(self) -> int:
-        return hash((self.name, self.column))
+        return hash((self.name, self.column, tuple(sorted(self.parameters.items()))))
 
     def __repr__(self) -> str:
         return self.name
@@ -562,7 +562,7 @@ class DuplicateCount(OpValueMixin[float], SqlOp[float]):
         return self.columns == other.columns
 
     def __hash__(self) -> int:
-        return hash((self.name, tuple(self.columns)))
+        return hash((self.name, tuple(self.columns), tuple(sorted(self.parameters.items()))))
 
     def __repr__(self) -> str:
         return self.name
@@ -656,7 +656,7 @@ class CountValues(OpValueMixin[float], SqlOp[float]):
     def __hash__(self) -> int:
         # Convert lists to tuples for hashing
         hashable_values = self.values if not isinstance(self.values, list) else tuple(self.values)
-        return hash((self.name, self.column, hashable_values))
+        return hash((self.name, self.column, hashable_values, tuple(sorted(self.parameters.items()))))
 
     def __repr__(self) -> str:
         return self.name
