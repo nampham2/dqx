@@ -82,7 +82,7 @@ class Metric(Base):
 
     def to_model(self) -> models.Metric:
         _type = typing.cast(MetricType, self.metric_type)
-        spec = specs.registry[_type](**self.parameters)
+        spec = self._reconstruct_spec(_type, self.parameters)
         state: State = spec.deserialize(self.state)
         key = ResultKey(yyyy_mm_dd=self.yyyy_mm_dd, tags=self.tags)
 
@@ -92,7 +92,35 @@ class Metric(Base):
 
     def to_spec(self) -> specs.MetricSpec:
         _type = typing.cast(MetricType, self.metric_type)
-        return specs.registry[_type](**self.parameters)
+        return self._reconstruct_spec(_type, self.parameters)
+
+    def _reconstruct_spec(self, metric_type: MetricType, parameters: Parameters) -> specs.MetricSpec:
+        """Reconstruct a spec from stored parameters, handling constructor vs additional parameters."""
+        import inspect
+
+        spec_class = specs.registry[metric_type]
+
+        # Extended metrics (DayOverDay, WeekOverWeek, Stddev) have specific constructor signatures
+        # and don't accept a 'parameters' argument
+        if metric_type in ["DayOverDay", "WeekOverWeek", "Stddev"]:
+            # For extended metrics, pass all parameters as constructor args
+            return typing.cast(typing.Any, spec_class)(**parameters)
+        else:
+            # For simple metrics, split into constructor params and additional params
+            sig = inspect.signature(spec_class.__init__)
+
+            constructor_params = {}
+            additional_params = {}
+
+            for key, value in parameters.items():
+                if key in sig.parameters and key != "parameters":
+                    constructor_params[key] = value
+                else:
+                    additional_params[key] = value
+
+            # Create spec with constructor params and additional params
+            # Cast to Any to avoid mypy issues with protocol constructors
+            return typing.cast(typing.Any, spec_class)(**constructor_params, parameters=additional_params)
 
 
 class MetricDB:

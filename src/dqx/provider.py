@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import timedelta
 from threading import Lock
-from typing import TYPE_CHECKING, Callable, overload
+from typing import TYPE_CHECKING, Any, Callable, overload
 
 import sympy as sp
 from returns.maybe import Some
@@ -839,56 +839,97 @@ class MetricProvider(SymbolicMetricBase):
 
         return sym
 
-    def num_rows(self, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+    def num_rows(self, lag: int = 0, dataset: str | None = None, parameters: dict[str, Any] | None = None) -> sp.Symbol:
         """Create metric counting number of rows."""
-        return self.metric(specs.NumRows(), lag, dataset)
+        return self.metric(specs.NumRows(parameters=parameters), lag, dataset)
 
-    def first(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+    def first(
+        self, column: str, lag: int = 0, dataset: str | None = None, parameters: dict[str, Any] | None = None
+    ) -> sp.Symbol:
         """Create metric returning first value in column."""
-        return self.metric(specs.First(column), lag, dataset)
+        return self.metric(specs.First(column, parameters=parameters), lag, dataset)
 
-    def average(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+    def average(
+        self, column: str, lag: int = 0, dataset: str | None = None, parameters: dict[str, Any] | None = None
+    ) -> sp.Symbol:
         """Create metric calculating average of column."""
-        return self.metric(specs.Average(column), lag, dataset)
+        return self.metric(specs.Average(column, parameters=parameters), lag, dataset)
 
-    def minimum(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+    def minimum(
+        self, column: str, lag: int = 0, dataset: str | None = None, parameters: dict[str, Any] | None = None
+    ) -> sp.Symbol:
         """Create metric finding minimum value in column."""
-        return self.metric(specs.Minimum(column), lag, dataset)
+        return self.metric(specs.Minimum(column, parameters=parameters), lag, dataset)
 
-    def maximum(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+    def maximum(
+        self, column: str, lag: int = 0, dataset: str | None = None, parameters: dict[str, Any] | None = None
+    ) -> sp.Symbol:
         """Create metric finding maximum value in column."""
-        return self.metric(specs.Maximum(column), lag, dataset)
+        return self.metric(specs.Maximum(column, parameters=parameters), lag, dataset)
 
-    def sum(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+    def sum(
+        self, column: str, lag: int = 0, dataset: str | None = None, parameters: dict[str, Any] | None = None
+    ) -> sp.Symbol:
         """Create metric summing values in column."""
-        return self.metric(specs.Sum(column), lag, dataset)
+        return self.metric(specs.Sum(column, parameters=parameters), lag, dataset)
 
-    def null_count(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+    def null_count(
+        self, column: str, lag: int = 0, dataset: str | None = None, parameters: dict[str, Any] | None = None
+    ) -> sp.Symbol:
         """Create metric counting null values in column."""
-        return self.metric(specs.NullCount(column), lag, dataset)
+        return self.metric(specs.NullCount(column, parameters=parameters), lag, dataset)
 
-    def variance(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+    def variance(
+        self, column: str, lag: int = 0, dataset: str | None = None, parameters: dict[str, Any] | None = None
+    ) -> sp.Symbol:
         """Create metric calculating variance of column."""
-        return self.metric(specs.Variance(column), lag, dataset)
+        return self.metric(specs.Variance(column, parameters=parameters), lag, dataset)
 
-    def duplicate_count(self, columns: list[str], lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+    def duplicate_count(
+        self, columns: list[str], lag: int = 0, dataset: str | None = None, parameters: dict[str, Any] | None = None
+    ) -> sp.Symbol:
         """Create metric counting duplicate rows by columns."""
-        return self.metric(specs.DuplicateCount(columns), lag, dataset)
+        return self.metric(specs.DuplicateCount(columns, parameters=parameters), lag, dataset)
 
     @overload
-    def count_values(self, column: str, values: bool, lag: int = 0, dataset: str | None = ...) -> sp.Symbol: ...
+    def count_values(
+        self,
+        column: str,
+        values: bool,
+        lag: int = 0,
+        dataset: str | None = ...,
+        parameters: dict[str, Any] | None = ...,
+    ) -> sp.Symbol: ...
 
     @overload
-    def count_values(self, column: str, values: int, lag: int = 0, dataset: str | None = ...) -> sp.Symbol: ...
+    def count_values(
+        self, column: str, values: int, lag: int = 0, dataset: str | None = ..., parameters: dict[str, Any] | None = ...
+    ) -> sp.Symbol: ...
 
     @overload
-    def count_values(self, column: str, values: str, lag: int = 0, dataset: str | None = ...) -> sp.Symbol: ...
+    def count_values(
+        self, column: str, values: str, lag: int = 0, dataset: str | None = ..., parameters: dict[str, Any] | None = ...
+    ) -> sp.Symbol: ...
 
     @overload
-    def count_values(self, column: str, values: list[int], lag: int = 0, dataset: str | None = ...) -> sp.Symbol: ...
+    def count_values(
+        self,
+        column: str,
+        values: list[int],
+        lag: int = 0,
+        dataset: str | None = ...,
+        parameters: dict[str, Any] | None = ...,
+    ) -> sp.Symbol: ...
 
     @overload
-    def count_values(self, column: str, values: list[str], lag: int = 0, dataset: str | None = ...) -> sp.Symbol: ...
+    def count_values(
+        self,
+        column: str,
+        values: list[str],
+        lag: int = 0,
+        dataset: str | None = ...,
+        parameters: dict[str, Any] | None = ...,
+    ) -> sp.Symbol: ...
 
     def count_values(
         self,
@@ -896,6 +937,7 @@ class MetricProvider(SymbolicMetricBase):
         values: int | str | bool | list[int] | list[str],
         lag: int = 0,
         dataset: str | None = None,
+        parameters: dict[str, Any] | None = None,
     ) -> sp.Symbol:
         """Count occurrences of specific values in column.
 
@@ -904,13 +946,16 @@ class MetricProvider(SymbolicMetricBase):
             values: Value(s) to count - single value or list
             lag: Lag offset in days
             dataset: Optional dataset name
+            parameters: Additional parameters to pass to the metric
 
         Returns:
             Symbol representing the count
         """
-        return self.metric(specs.CountValues(column, values), lag, dataset)
+        return self.metric(specs.CountValues(column, values, parameters=parameters), lag, dataset)
 
-    def unique_count(self, column: str, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
+    def unique_count(
+        self, column: str, lag: int = 0, dataset: str | None = None, parameters: dict[str, Any] | None = None
+    ) -> sp.Symbol:
         """Count distinct non-null values in column.
 
         Note: Cannot be merged across partitions.
@@ -919,11 +964,28 @@ class MetricProvider(SymbolicMetricBase):
             column: Column name to count unique values in
             lag: Lag offset in days
             dataset: Optional dataset name
+            parameters: Additional parameters to pass to the metric
 
         Returns:
             Symbol representing the unique count
         """
-        return self.metric(specs.UniqueCount(column), lag, dataset)
+        return self.metric(specs.UniqueCount(column, parameters=parameters), lag, dataset)
+
+    def custom_sql(
+        self, sql_expression: str, lag: int = 0, dataset: str | None = None, parameters: dict[str, Any] | None = None
+    ) -> sp.Symbol:
+        """Create metric using custom SQL expression.
+
+        Args:
+            sql_expression: SQL expression to evaluate
+            lag: Lag offset in days
+            dataset: Optional dataset name
+            parameters: Additional parameters to pass to the metric
+
+        Returns:
+            Symbol representing the custom SQL metric
+        """
+        return self.metric(specs.CustomSQL(sql_expression, parameters=parameters), lag, dataset)
 
     def get_metric(
         self, metric_spec: MetricSpec, result_key: ResultKey, dataset: str, execution_id: ExecutionId

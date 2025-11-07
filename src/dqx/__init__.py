@@ -18,7 +18,7 @@ DEFAULT_LOGGER_NAME = "dqx"
 
 def setup_logger(
     name: str = DEFAULT_LOGGER_NAME,
-    level: int = logging.INFO,
+    level: int | str = logging.INFO,
     force_reconfigure: bool = False,
 ) -> None:
     # Get or create logger

@@ -5,45 +5,20 @@ concrete dialect implementations.
 """
 
 from datetime import date
+from unittest.mock import Mock
 
 import pytest
 
 from dqx import ops
-from dqx.common import DQXError, ResultKey
+from dqx.common import DQXError, ResultKey, SqlDataSource
 from dqx.dialect import (
     BatchCTEData,
     BigQueryDialect,
     DuckDBDialect,
     auto_register,
-    build_cte_query,
     get_dialect,
     register_dialect,
 )
-
-
-def test_build_cte_query() -> None:
-    """Test the standalone CTE query builder."""
-    cte_sql = "SELECT * FROM sales WHERE date = '2024-01-01'"
-    expressions = [
-        "COUNT(*) AS total_count",
-        "AVG(amount) AS avg_amount",
-        "SUM(quantity) AS total_quantity",
-    ]
-
-    query = build_cte_query(cte_sql, expressions)
-
-    expected = (
-        "WITH source AS (SELECT * FROM sales WHERE date = '2024-01-01') "
-        "SELECT COUNT(*) AS total_count, AVG(amount) AS avg_amount, "
-        "SUM(quantity) AS total_quantity FROM source"
-    )
-    assert query == expected
-
-
-def test_build_cte_query_empty_expressions() -> None:
-    """Test CTE query builder with empty expressions."""
-    with pytest.raises(ValueError, match="No SELECT expressions provided"):
-        build_cte_query("SELECT * FROM table", [])
 
 
 def test_duckdb_dialect_translate_sql_op() -> None:
@@ -206,10 +181,7 @@ def test_register_dialect(isolated_dialect_registry: dict[str, type]) -> None:
         def translate_sql_op(self, op: ops.SqlOp) -> str:
             return f"TEST SQL FOR {op.name}"
 
-        def build_cte_query(self, cte_sql: str, select_expressions: list[str]) -> str:
-            return build_cte_query(cte_sql, select_expressions)
-
-        def build_batch_cte_query(self, cte_data: list["BatchCTEData"]) -> str:
+        def build_cte_query(self, cte_data: list["BatchCTEData"], data_source: "SqlDataSource") -> str:
             # Simple implementation for testing
             return "TEST BATCH CTE QUERY"
 
@@ -240,10 +212,7 @@ def test_auto_register_decorator(isolated_dialect_registry: dict[str, type]) -> 
         def translate_sql_op(self, op: ops.SqlOp) -> str:
             return "AUTO TEST SQL"
 
-        def build_cte_query(self, cte_sql: str, select_expressions: list[str]) -> str:
-            return build_cte_query(cte_sql, select_expressions)
-
-        def build_batch_cte_query(self, cte_data: list["BatchCTEData"]) -> str:
+        def build_cte_query(self, cte_data: list["BatchCTEData"], data_source: "SqlDataSource") -> str:
             # Simple implementation for testing
             return "AUTO TEST BATCH CTE QUERY"
 
@@ -274,7 +243,8 @@ def test_batch_cte_query_duckdb() -> None:
         ),
     ]
 
-    query = dialect.build_batch_cte_query(cte_data)
+    mock_ds = Mock(spec=SqlDataSource)
+    query = dialect.build_cte_query(cte_data, mock_ds)
 
     # Check structure
     assert "WITH" in query
@@ -302,7 +272,8 @@ def test_batch_cte_query_bigquery() -> None:
         )
     ]
 
-    query = dialect.build_batch_cte_query(cte_data)
+    mock_ds = Mock(spec=SqlDataSource)
+    query = dialect.build_cte_query(cte_data, mock_ds)
 
     # Check structure
     assert "WITH" in query
@@ -320,7 +291,8 @@ def test_batch_cte_query_empty() -> None:
     dialect = DuckDBDialect()
 
     with pytest.raises(ValueError, match="No CTE data provided"):
-        dialect.build_batch_cte_query([])
+        mock_ds = Mock(spec=SqlDataSource)
+        dialect.build_cte_query([], mock_ds)
 
 
 def test_batch_cte_query_no_ops() -> None:
@@ -337,20 +309,42 @@ def test_batch_cte_query_no_ops() -> None:
     ]
 
     with pytest.raises(ValueError, match="No metrics to compute"):
-        dialect.build_batch_cte_query(cte_data)
+        mock_ds = Mock(spec=SqlDataSource)
+        dialect.build_cte_query(cte_data, mock_ds)
 
 
-def test_dialect_build_cte_query_method() -> None:
-    """Test that dialect's build_cte_query delegates correctly."""
-    dialect = DuckDBDialect()
-    cte_sql = "SELECT * FROM users"
-    expressions = ["COUNT(*) AS count", "AVG(age) AS avg_age"]
+def test_unique_count_translation() -> None:
+    """Test UniqueCount translation for both dialects."""
+    # Test DuckDB
+    duckdb_dialect = DuckDBDialect()
+    op = ops.UniqueCount("user_id")
+    sql_duckdb = duckdb_dialect.translate_sql_op(op)
+    assert sql_duckdb == f"CAST(COUNT(DISTINCT user_id) AS DOUBLE) AS '{op.sql_col}'"
 
-    result = dialect.build_cte_query(cte_sql, expressions)
+    # Test BigQuery
+    bigquery_dialect = BigQueryDialect()
+    sql_bigquery = bigquery_dialect.translate_sql_op(op)
+    assert sql_bigquery == f"CAST(COUNT(DISTINCT user_id) AS FLOAT64) AS `{op.sql_col}`"
 
-    # Should match the standalone function
-    expected = build_cte_query(cte_sql, expressions)
-    assert result == expected
+
+def test_custom_sql_translation() -> None:
+    """Test CustomSQL translation for both dialects."""
+    # Test DuckDB
+    duckdb_dialect = DuckDBDialect()
+    op = ops.CustomSQL("SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END)")
+    sql_duckdb = duckdb_dialect.translate_sql_op(op)
+    assert sql_duckdb == f"CAST((SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END)) AS DOUBLE) AS '{op.sql_col}'"
+
+    # Test BigQuery
+    bigquery_dialect = BigQueryDialect()
+    sql_bigquery = bigquery_dialect.translate_sql_op(op)
+    assert sql_bigquery == f"CAST((SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END)) AS FLOAT64) AS `{op.sql_col}`"
+
+    # Test with parameters (should not affect SQL expression)
+    op_with_params = ops.CustomSQL("COUNT(*)", parameters={"region": "US"})
+    sql_params = duckdb_dialect.translate_sql_op(op_with_params)
+    assert "COUNT(*)" in sql_params
+    assert op_with_params.parameters == {"region": "US"}
 
 
 def test_all_ops_covered() -> None:
@@ -375,6 +369,8 @@ def test_all_ops_covered() -> None:
         ops.CountValues("col", False),
         ops.CountValues("col", [1, 2, 3]),
         ops.CountValues("col", ["a", "b", "c"]),
+        ops.UniqueCount("col"),
+        ops.CustomSQL("COUNT(*)"),
     ]
 
     # All should translate without error

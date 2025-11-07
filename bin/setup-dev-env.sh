@@ -67,20 +67,6 @@ if [ -d ".vscode" ]; then
   echo "   Extension ID: charliermarsh.ruff"
 fi
 
-# Check for .clinerules directory
-if [ ! -d ".clinerules" ]; then
-  echo "📋 .clinerules directory not found. Copying from .clinerules.example..."
-  if [ -d ".clinerules.example" ]; then
-    cp -r .clinerules.example .clinerules
-    echo "✓ .clinerules directory created from examples"
-  else
-    echo "❌ Error: .clinerules.example directory not found!"
-    exit 1
-  fi
-else
-  echo "✓ .clinerules directory exists"
-fi
-
 # Run hooks on all files to verify setup
 echo ""
 echo "Verifying setup by running hooks on all files..."

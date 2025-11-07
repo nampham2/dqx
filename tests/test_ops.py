@@ -377,6 +377,82 @@ def test_unique_count() -> None:
     assert repr(op) == "unique_count(product_id)"
 
 
+def test_custom_sql() -> None:
+    """Test CustomSQL operation basic functionality."""
+    # Test basic usage
+    op = ops.CustomSQL("COUNT(DISTINCT user_id)")
+    assert "custom_sql(" in op.name
+    assert op.sql_expression == "COUNT(DISTINCT user_id)"
+    assert op.prefix is not None
+    assert op.sql_col.startswith(f"{op.prefix}_custom_sql(")
+
+    # Test that hash is in the name (8 chars)
+    assert len(op._sql_hash) == 8
+    assert op.name == f"custom_sql({op._sql_hash})"
+
+    # Test value assignment
+    with pytest.raises(DQXError, match="CustomSQL op has not been collected yet!"):
+        op.value()
+
+    op.assign(100.0)
+    assert op.value() == pytest.approx(100.0)
+
+    # Test clear
+    op.clear()
+    with pytest.raises(DQXError):
+        op.value()
+
+    # Test with parameters
+    op_with_params = ops.CustomSQL("PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount)", parameters={"region": "US"})
+    assert op_with_params.parameters == {"region": "US"}
+
+    # Test equality - same SQL expression
+    op2 = ops.CustomSQL("COUNT(DISTINCT user_id)")
+    assert op == op2
+    assert hash(op) == hash(op2)
+
+    # Test equality - different SQL expression
+    op3 = ops.CustomSQL("SUM(amount)")
+    assert op != op3
+    assert hash(op) != hash(op3)
+
+    # Test equality - same SQL but different parameters
+    op4 = ops.CustomSQL("COUNT(DISTINCT user_id)", parameters={"status": "active"})
+    assert op != op4
+    assert hash(op) != hash(op4)
+
+    # Test string representation
+    assert repr(op) == "CustomSQL('COUNT(DISTINCT user_id)')"
+    assert str(op) == "CustomSQL('COUNT(DISTINCT user_id)')"
+
+    # Test complex SQL expressions
+    complex_sql = """
+    AVG(CASE
+        WHEN status = 'active' THEN value
+        ELSE NULL
+    END)
+    """
+    op_complex = ops.CustomSQL(complex_sql)
+    assert op_complex.sql_expression == complex_sql
+
+    # Test that different SQL expressions get different hashes
+    sql_expressions = [
+        "COUNT(*)",
+        "COUNT(DISTINCT id)",
+        "SUM(amount)",
+        "AVG(price)",
+        "PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY value)",
+    ]
+
+    hashes = set()
+    for sql in sql_expressions:
+        op_test = ops.CustomSQL(sql)
+        hashes.add(op_test._sql_hash)
+
+    # All should have unique hashes
+    assert len(hashes) == len(sql_expressions)
+
+
 def test_op_protocol() -> None:
     """Test that all ops implement the Op protocol."""
     assert isinstance(ops.NumRows(), ops.Op)
@@ -391,6 +467,7 @@ def test_op_protocol() -> None:
     assert isinstance(ops.DuplicateCount(["col"]), ops.Op)
     assert isinstance(ops.CountValues("col", 1), ops.Op)
     assert isinstance(ops.UniqueCount("col"), ops.Op)
+    assert isinstance(ops.CustomSQL("COUNT(*)"), ops.Op)
 
 
 def test_sql_op_protocol() -> None:
@@ -407,6 +484,7 @@ def test_sql_op_protocol() -> None:
     assert isinstance(ops.DuplicateCount(["col"]), ops.SqlOp)
     assert isinstance(ops.CountValues("col", "test"), ops.SqlOp)
     assert isinstance(ops.UniqueCount("col"), ops.SqlOp)
+    assert isinstance(ops.CustomSQL("COUNT(*)"), ops.SqlOp)
 
 
 def test_sql_op_properties() -> None:
@@ -424,6 +502,7 @@ def test_sql_op_properties() -> None:
         ops.DuplicateCount(["col"]),
         ops.CountValues("col", "test"),
         ops.UniqueCount("col"),
+        ops.CustomSQL("COUNT(*)"),
     ]
 
     for op in sql_ops:
@@ -437,8 +516,8 @@ def test_sql_op_properties() -> None:
 
         # Check that sql_col follows expected pattern
         assert op.prefix in op.sql_col
-        # CountValues uses a hash in sql_col for uniqueness
-        if not isinstance(op, ops.CountValues):
+        # CountValues and CustomSQL use a hash in sql_col for uniqueness
+        if not isinstance(op, (ops.CountValues, ops.CustomSQL)):
             assert op.name in op.sql_col
 
 
@@ -457,6 +536,7 @@ def test_op_value_assignment_and_clearing() -> None:
         ops.DuplicateCount(["col"]),
         ops.CountValues("col", 1),
         ops.UniqueCount("col"),
+        ops.CustomSQL("SELECT COUNT(*)"),
     ]
 
     for op in ops_to_test:
@@ -478,19 +558,185 @@ def test_op_value_assignment_and_clearing() -> None:
 
 def test_op_match_args() -> None:
     """Test that ops with columns have proper __match_args__ for pattern matching."""
-    # These ops should have match_args for their column parameter
-    assert ops.Average.__match_args__ == ("column",)
-    assert ops.Minimum.__match_args__ == ("column",)
-    assert ops.Maximum.__match_args__ == ("column",)
-    assert ops.Sum.__match_args__ == ("column",)
-    assert ops.Variance.__match_args__ == ("column",)
-    assert ops.First.__match_args__ == ("column",)
-    assert ops.NullCount.__match_args__ == ("column",)
-    assert ops.NegativeCount.__match_args__ == ("column",)
-    assert ops.UniqueCount.__match_args__ == ("column",)
+    # These ops should have match_args for their column and parameters
+    assert ops.Average.__match_args__ == ("column", "parameters")
+    assert ops.Minimum.__match_args__ == ("column", "parameters")
+    assert ops.Maximum.__match_args__ == ("column", "parameters")
+    assert ops.Sum.__match_args__ == ("column", "parameters")
+    assert ops.Variance.__match_args__ == ("column", "parameters")
+    assert ops.First.__match_args__ == ("column", "parameters")
+    assert ops.NullCount.__match_args__ == ("column", "parameters")
+    assert ops.NegativeCount.__match_args__ == ("column", "parameters")
+    assert ops.UniqueCount.__match_args__ == ("column", "parameters")
 
-    # DuplicateCount has columns (plural)
-    assert ops.DuplicateCount.__match_args__ == ("columns",)
+    # DuplicateCount has columns (plural) and parameters
+    assert ops.DuplicateCount.__match_args__ == ("columns", "parameters")
 
-    # CountValues has column and values
-    assert ops.CountValues.__match_args__ == ("column", "values")
+    # CountValues has column, values, and parameters
+    assert ops.CountValues.__match_args__ == ("column", "values", "parameters")
+
+    # NumRows has only parameters
+    assert ops.NumRows.__match_args__ == ("parameters",)
+
+    # CustomSQL has sql_expression and parameters
+    assert ops.CustomSQL.__match_args__ == ("sql_expression", "parameters")
+
+
+def test_ops_hash_includes_parameters() -> None:
+    """Test that hash function includes parameters for all operations."""
+    # Test NumRows
+    op1 = ops.NumRows()
+    op2 = ops.NumRows(parameters={"region": "US"})
+    op3 = ops.NumRows(parameters={"region": "EU"})
+    op4 = ops.NumRows(parameters={"region": "US"})
+
+    assert hash(op1) != hash(op2)  # Different parameters
+    assert hash(op2) != hash(op3)  # Different parameter values
+    assert hash(op2) == hash(op4)  # Same parameters
+
+    # Test Average
+    avg1 = ops.Average("price")
+    avg2 = ops.Average("price", parameters={"category": "electronics"})
+    avg3 = ops.Average("price", parameters={"category": "books"})
+    avg4 = ops.Average("price", parameters={"category": "electronics"})
+
+    assert hash(avg1) != hash(avg2)  # Different parameters
+    assert hash(avg2) != hash(avg3)  # Different parameter values
+    assert hash(avg2) == hash(avg4)  # Same parameters
+
+    # Test CustomSQL
+    sql1 = ops.CustomSQL("COUNT(*)")
+    sql2 = ops.CustomSQL("COUNT(*)", parameters={"status": "active"})
+    sql3 = ops.CustomSQL("COUNT(*)", parameters={"status": "inactive"})
+    sql4 = ops.CustomSQL("COUNT(*)", parameters={"status": "active"})
+
+    assert hash(sql1) != hash(sql2)  # Different parameters
+    assert hash(sql2) != hash(sql3)  # Different parameter values
+    assert hash(sql2) == hash(sql4)  # Same parameters
+
+    # Test Minimum
+    min1 = ops.Minimum("score")
+    min2 = ops.Minimum("score", parameters={"year": 2023})
+    min3 = ops.Minimum("score", parameters={"year": 2024})
+    min4 = ops.Minimum("score", parameters={"year": 2023})
+
+    assert hash(min1) != hash(min2)  # Different parameters
+    assert hash(min2) != hash(min3)  # Different parameter values
+    assert hash(min2) == hash(min4)  # Same parameters
+
+    # Test Maximum
+    max1 = ops.Maximum("score")
+    max2 = ops.Maximum("score", parameters={"level": "beginner"})
+    max3 = ops.Maximum("score", parameters={"level": "advanced"})
+    max4 = ops.Maximum("score", parameters={"level": "beginner"})
+
+    assert hash(max1) != hash(max2)  # Different parameters
+    assert hash(max2) != hash(max3)  # Different parameter values
+    assert hash(max2) == hash(max4)  # Same parameters
+
+    # Test Sum
+    sum1 = ops.Sum("amount")
+    sum2 = ops.Sum("amount", parameters={"currency": "USD"})
+    sum3 = ops.Sum("amount", parameters={"currency": "EUR"})
+    sum4 = ops.Sum("amount", parameters={"currency": "USD"})
+
+    assert hash(sum1) != hash(sum2)  # Different parameters
+    assert hash(sum2) != hash(sum3)  # Different parameter values
+    assert hash(sum2) == hash(sum4)  # Same parameters
+
+    # Test Variance
+    var1 = ops.Variance("values")
+    var2 = ops.Variance("values", parameters={"experiment": "A"})
+    var3 = ops.Variance("values", parameters={"experiment": "B"})
+    var4 = ops.Variance("values", parameters={"experiment": "A"})
+
+    assert hash(var1) != hash(var2)  # Different parameters
+    assert hash(var2) != hash(var3)  # Different parameter values
+    assert hash(var2) == hash(var4)  # Same parameters
+
+    # Test First
+    first1 = ops.First("timestamp")
+    first2 = ops.First("timestamp", parameters={"source": "web"})
+    first3 = ops.First("timestamp", parameters={"source": "mobile"})
+    first4 = ops.First("timestamp", parameters={"source": "web"})
+
+    assert hash(first1) != hash(first2)  # Different parameters
+    assert hash(first2) != hash(first3)  # Different parameter values
+    assert hash(first2) == hash(first4)  # Same parameters
+
+    # Test NullCount
+    null1 = ops.NullCount("email")
+    null2 = ops.NullCount("email", parameters={"user_type": "free"})
+    null3 = ops.NullCount("email", parameters={"user_type": "premium"})
+    null4 = ops.NullCount("email", parameters={"user_type": "free"})
+
+    assert hash(null1) != hash(null2)  # Different parameters
+    assert hash(null2) != hash(null3)  # Different parameter values
+    assert hash(null2) == hash(null4)  # Same parameters
+
+    # Test NegativeCount
+    neg1 = ops.NegativeCount("balance")
+    neg2 = ops.NegativeCount("balance", parameters={"account_type": "checking"})
+    neg3 = ops.NegativeCount("balance", parameters={"account_type": "savings"})
+    neg4 = ops.NegativeCount("balance", parameters={"account_type": "checking"})
+
+    assert hash(neg1) != hash(neg2)  # Different parameters
+    assert hash(neg2) != hash(neg3)  # Different parameter values
+    assert hash(neg2) == hash(neg4)  # Same parameters
+
+    # Test UniqueCount
+    unique1 = ops.UniqueCount("product_id")
+    unique2 = ops.UniqueCount("product_id", parameters={"store": "online"})
+    unique3 = ops.UniqueCount("product_id", parameters={"store": "retail"})
+    unique4 = ops.UniqueCount("product_id", parameters={"store": "online"})
+
+    assert hash(unique1) != hash(unique2)  # Different parameters
+    assert hash(unique2) != hash(unique3)  # Different parameter values
+    assert hash(unique2) == hash(unique4)  # Same parameters
+
+    # Test DuplicateCount
+    dup1 = ops.DuplicateCount(["email"])
+    dup2 = ops.DuplicateCount(["email"], parameters={"domain": "gmail.com"})
+    dup3 = ops.DuplicateCount(["email"], parameters={"domain": "yahoo.com"})
+    dup4 = ops.DuplicateCount(["email"], parameters={"domain": "gmail.com"})
+
+    assert hash(dup1) != hash(dup2)  # Different parameters
+    assert hash(dup2) != hash(dup3)  # Different parameter values
+    assert hash(dup2) == hash(dup4)  # Same parameters
+
+    # Test CountValues
+    count1 = ops.CountValues("status", "active")
+    count2 = ops.CountValues("status", "active", parameters={"priority": "high"})
+    count3 = ops.CountValues("status", "active", parameters={"priority": "low"})
+    count4 = ops.CountValues("status", "active", parameters={"priority": "high"})
+
+    assert hash(count1) != hash(count2)  # Different parameters
+    assert hash(count2) != hash(count3)  # Different parameter values
+    assert hash(count2) == hash(count4)  # Same parameters
+
+    # Test with multiple parameters
+    multi1 = ops.Average("price", parameters={"category": "electronics", "year": 2023})
+    multi2 = ops.Average("price", parameters={"year": 2023, "category": "electronics"})
+    multi3 = ops.Average("price", parameters={"category": "electronics", "year": 2024})
+
+    # Order shouldn't matter due to sorted()
+    assert hash(multi1) == hash(multi2)
+    assert hash(multi1) != hash(multi3)  # Different parameter values
+
+    # Test that operations can be used in sets/dicts correctly
+    op_set = {
+        ops.NumRows(),
+        ops.NumRows(parameters={"region": "US"}),
+        ops.NumRows(parameters={"region": "EU"}),
+        ops.NumRows(parameters={"region": "US"}),  # Duplicate
+    }
+    assert len(op_set) == 3  # Only 3 unique operations
+
+    # Test in dictionary
+    op_dict = {
+        ops.Average("price"): "no params",
+        ops.Average("price", parameters={"cat": "A"}): "param A",
+        ops.Average("price", parameters={"cat": "B"}): "param B",
+    }
+    assert len(op_dict) == 3
+    assert op_dict[ops.Average("price", parameters={"cat": "A"})] == "param A"

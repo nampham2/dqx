@@ -7,6 +7,8 @@ import pyarrow as pa
 import pytest
 from faker import Faker
 
+from dqx.common import Parameters
+
 
 @pytest.fixture(scope="session")
 def commerce_data_c1() -> pa.Table:
@@ -100,11 +102,12 @@ class CommercialDataSource:
     def skip_dates(self) -> set[datetime.date]:
         return self._skip_dates
 
-    def cte(self, nominal_date: datetime.date) -> str:
+    def cte(self, nominal_date: datetime.date, parameters: Parameters | None = None) -> str:
         """Return CTE filtering data for specific date.
 
         Args:
             nominal_date: The date to filter data for
+            parameters: Optional parameters for filtering the CTE
 
         Returns:
             SQL CTE string that selects only records for the nominal_date
@@ -114,10 +117,23 @@ class CommercialDataSource:
             return f"SELECT * FROM {self._table_name} WHERE 1=0"
 
         date_str = nominal_date.strftime("%Y-%m-%d")
+        where_clause = f"order_date = DATE '{date_str}'"
+
+        # Add parameter-based filtering if provided
+        if parameters:
+            if "min_quantity" in parameters:
+                where_clause += f" AND quantity >= {parameters['min_quantity']}"
+            if "min_price" in parameters:
+                where_clause += f" AND price >= {parameters['min_price']}"
+            if "delivered" in parameters:
+                where_clause += f" AND delivered = {parameters['delivered']}"
+            if "item_contains" in parameters:
+                where_clause += f" AND item LIKE '%{parameters['item_contains']}%'"
+
         return f"""
         SELECT *
         FROM {self._table_name}
-        WHERE order_date = DATE '{date_str}'
+        WHERE {where_clause}
         """
 
     def query(self, query: str) -> duckdb.DuckDBPyRelation:

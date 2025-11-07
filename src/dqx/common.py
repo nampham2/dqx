@@ -162,7 +162,7 @@ class SqlDataSource(Protocol):
         """Dates to exclude from metric calculations for this dataset."""
         return set()
 
-    def cte(self, nominal_date: datetime.date) -> str:
+    def cte(self, nominal_date: datetime.date, parameters: Parameters | None = None) -> str:
         """
         Get the Common Table Expression (CTE) for this data source.
 
@@ -170,6 +170,8 @@ class SqlDataSource(Protocol):
             nominal_date: The date for which the CTE should filter data.
                          Implementations may ignore this parameter if date
                          filtering is not needed.
+            parameters: Optional parameters for filtering or transforming the CTE.
+                       Implementations can use these for custom SQL operations.
 
         Returns:
             The CTE SQL string
