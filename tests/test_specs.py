@@ -953,16 +953,14 @@ class TestStddev:
 
 
 class TestBuildRegistry:
-    """Test the _build_registry function"""
+    """Test the registry built by decorators"""
 
-    def test_build_registry_returns_dict(self) -> None:
-        """Test that _build_registry returns a dictionary."""
-        result = specs._build_registry()
-        assert isinstance(result, dict)
+    def test_registry_is_dict(self) -> None:
+        """Test that registry is a dictionary."""
+        assert isinstance(specs.registry, dict)
 
-    def test_build_registry_finds_all_metric_classes(self) -> None:
-        """Test that _build_registry finds all expected metric spec classes."""
-        result = specs._build_registry()
+    def test_registry_contains_all_expected_classes(self) -> None:
+        """Test that registry contains all expected metric spec classes."""
         expected_types = {
             "NumRows",
             "First",
@@ -981,50 +979,54 @@ class TestBuildRegistry:
             "WeekOverWeek",
             "Stddev",
         }
-        assert set(result.keys()) == expected_types
+        assert set(specs.registry.keys()) == expected_types
 
-    def test_build_registry_maps_correct_classes(self) -> None:
-        """Test that _build_registry maps metric types to correct classes."""
-        result = specs._build_registry()
-        assert result["NumRows"] == specs.NumRows
-        assert result["First"] == specs.First
-        assert result["Average"] == specs.Average
-        assert result["Minimum"] == specs.Minimum
-        assert result["Maximum"] == specs.Maximum
-        assert result["Sum"] == specs.Sum
-        assert result["NegativeCount"] == specs.NegativeCount
-        assert result["NullCount"] == specs.NullCount
-        assert result["Variance"] == specs.Variance
+    def test_registry_maps_correct_classes(self) -> None:
+        """Test that registry maps metric types to correct classes."""
+        assert specs.registry["NumRows"] == specs.NumRows
+        assert specs.registry["First"] == specs.First
+        assert specs.registry["Average"] == specs.Average
+        assert specs.registry["Minimum"] == specs.Minimum
+        assert specs.registry["Maximum"] == specs.Maximum
+        assert specs.registry["Sum"] == specs.Sum
+        assert specs.registry["NegativeCount"] == specs.NegativeCount
+        assert specs.registry["NullCount"] == specs.NullCount
+        assert specs.registry["Variance"] == specs.Variance
 
-    def test_build_registry_excludes_protocol(self) -> None:
-        """Test that _build_registry excludes the MetricSpec protocol."""
-        result = specs._build_registry()
+    def test_registry_excludes_protocol(self) -> None:
+        """Test that registry excludes the MetricSpec protocol."""
         # Verify the protocol class is not in the registry values
-        assert specs.MetricSpec not in result.values()
+        assert specs.MetricSpec not in specs.registry.values()
 
-    def test_build_registry_excludes_non_classes(self) -> None:
-        """Test that _build_registry excludes non-class objects."""
-        result = specs._build_registry()
+    def test_registry_contains_only_classes(self) -> None:
+        """Test that registry only contains actual classes."""
         # Should only contain actual classes, not functions, modules, etc.
-        for name, obj in result.items():
+        for name, obj in specs.registry.items():
             assert inspect.isclass(obj)
             assert hasattr(obj, "metric_type")
 
-    def test_build_registry_classes_have_metric_type(self) -> None:
+    def test_registry_classes_have_metric_type(self) -> None:
         """Test that all classes in registry have metric_type attribute."""
-        result = specs._build_registry()
-        for metric_type, spec_class in result.items():
+        for metric_type, spec_class in specs.registry.items():
             assert hasattr(spec_class, "metric_type")
             assert spec_class.metric_type == metric_type
 
-    def test_build_registry_consistent_with_actual_registry(self) -> None:
-        """Test that _build_registry produces the same result as the actual registry."""
-        built_registry = specs._build_registry()
-        actual_registry = specs.registry
+    def test_auto_register_decorator_prevents_duplicates(self) -> None:
+        """Test that auto_register decorator prevents duplicate registration."""
+        # Trying to register a class with an existing metric_type should raise ValueError
+        with patch("dqx.specs.register_spec") as mock_register:
+            mock_register.side_effect = ValueError("Spec 'NumRows' is already registered")
 
-        assert set(built_registry.keys()) == set(actual_registry.keys())
-        for metric_type in built_registry:
-            assert built_registry[metric_type] == actual_registry[metric_type]
+            try:
+
+                @specs.auto_register
+                class TestMetric(specs.MetricSpec):
+                    metric_type: specs.MetricType = "NumRows"
+
+                # Should not get here
+                assert False, "Expected ValueError for duplicate metric type registration"
+            except ValueError as e:
+                assert "already registered" in str(e)
 
 
 class TestRegistry:
@@ -1063,9 +1065,14 @@ class TestRegistry:
         assert specs.registry["Variance"] == specs.Variance
 
     def test_registry_is_built_automatically(self) -> None:
-        """Test that the registry is built automatically and matches _build_registry output."""
-        manually_built = specs._build_registry()
-        assert specs.registry == manually_built
+        """Test that the registry is built automatically by decorators."""
+        # All expected classes should be in the registry
+        assert len(specs.registry) == 16  # Total number of metric types
+
+        # Each class should have been registered with its metric_type
+        for metric_type, spec_class in specs.registry.items():
+            assert hasattr(spec_class, "metric_type")
+            assert spec_class.metric_type == metric_type
 
 
 class TestDuplicateCount:

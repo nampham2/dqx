@@ -26,6 +26,24 @@ MetricType = Literal[
 ]
 
 
+# Initialize empty registry
+registry: dict[MetricType, Type["MetricSpec"]] = {}
+
+
+def register_spec(metric_type: MetricType, spec_class: Type["MetricSpec"]) -> None:
+    """Register a spec in the global registry."""
+    if metric_type in registry:
+        raise ValueError(f"Spec '{metric_type}' is already registered")
+    registry[metric_type] = spec_class
+
+
+def auto_register(cls: Type["MetricSpec"]) -> Type["MetricSpec"]:
+    """Decorator to automatically register a spec class."""
+    metric_type = cls.metric_type
+    register_spec(metric_type, cls)
+    return cls
+
+
 @runtime_checkable
 class MetricSpec(Protocol):
     """Base protocol for all metrics."""
@@ -68,6 +86,7 @@ class ExtendedMetricSpec(MetricSpec, Protocol):
     is_extended: Literal[True]
 
 
+@auto_register
 class NumRows(SimpleMetricSpec):
     metric_type: MetricType = "NumRows"
     is_extended: Literal[False] = False
@@ -112,6 +131,7 @@ class NumRows(SimpleMetricSpec):
         return self.name
 
 
+@auto_register
 class First(SimpleMetricSpec):
     metric_type: MetricType = "First"
     is_extended: Literal[False] = False
@@ -156,6 +176,7 @@ class First(SimpleMetricSpec):
         return self.name
 
 
+@auto_register
 class Average(SimpleMetricSpec):
     metric_type: MetricType = "Average"
     is_extended: Literal[False] = False
@@ -204,6 +225,7 @@ class Average(SimpleMetricSpec):
         return self.name
 
 
+@auto_register
 class Variance(SimpleMetricSpec):
     metric_type: MetricType = "Variance"
     is_extended: Literal[False] = False
@@ -253,6 +275,7 @@ class Variance(SimpleMetricSpec):
         return self.name
 
 
+@auto_register
 class Minimum(SimpleMetricSpec):
     metric_type: MetricType = "Minimum"
     is_extended: Literal[False] = False
@@ -297,6 +320,7 @@ class Minimum(SimpleMetricSpec):
         return self.name
 
 
+@auto_register
 class Maximum(SimpleMetricSpec):
     metric_type: MetricType = "Maximum"
     is_extended: Literal[False] = False
@@ -341,6 +365,7 @@ class Maximum(SimpleMetricSpec):
         return self.name
 
 
+@auto_register
 class Sum(SimpleMetricSpec):
     metric_type: MetricType = "Sum"
     is_extended: Literal[False] = False
@@ -385,6 +410,7 @@ class Sum(SimpleMetricSpec):
         return self.name
 
 
+@auto_register
 class NullCount(SimpleMetricSpec):
     metric_type: MetricType = "NullCount"
     is_extended: Literal[False] = False
@@ -429,6 +455,7 @@ class NullCount(SimpleMetricSpec):
         return self.name
 
 
+@auto_register
 class NegativeCount(SimpleMetricSpec):
     metric_type: MetricType = "NegativeCount"
     is_extended: Literal[False] = False
@@ -473,6 +500,7 @@ class NegativeCount(SimpleMetricSpec):
         return self.name
 
 
+@auto_register
 class DuplicateCount(SimpleMetricSpec):
     metric_type: MetricType = "DuplicateCount"
     is_extended: Literal[False] = False
@@ -523,6 +551,7 @@ class DuplicateCount(SimpleMetricSpec):
         return self.name
 
 
+@auto_register
 class CountValues(SimpleMetricSpec):
     metric_type: MetricType = "CountValues"
     is_extended: Literal[False] = False
@@ -578,6 +607,7 @@ class CountValues(SimpleMetricSpec):
         return self.name
 
 
+@auto_register
 class UniqueCount(SimpleMetricSpec):
     metric_type: MetricType = "UniqueCount"
     is_extended: Literal[False] = False
@@ -622,6 +652,7 @@ class UniqueCount(SimpleMetricSpec):
         return self.name
 
 
+@auto_register
 class CustomSQL(SimpleMetricSpec):
     metric_type: MetricType = "CustomSQL"
     is_extended: Literal[False] = False
@@ -670,6 +701,7 @@ class CustomSQL(SimpleMetricSpec):
         return self.name
 
 
+@auto_register
 class DayOverDay(ExtendedMetricSpec):
     metric_type: MetricType = "DayOverDay"
     is_extended: Literal[True] = True
@@ -749,6 +781,7 @@ class DayOverDay(ExtendedMetricSpec):
         return self.name
 
 
+@auto_register
 class WeekOverWeek(ExtendedMetricSpec):
     metric_type: MetricType = "WeekOverWeek"
     is_extended: Literal[True] = True
@@ -828,6 +861,7 @@ class WeekOverWeek(ExtendedMetricSpec):
         return self.name
 
 
+@auto_register
 class Stddev(ExtendedMetricSpec):
     metric_type: MetricType = "Stddev"
     is_extended: Literal[True] = True
@@ -914,36 +948,3 @@ class Stddev(ExtendedMetricSpec):
 
     def __str__(self) -> str:
         return self.name
-
-
-def _build_registry() -> dict[MetricType, Type[MetricSpec]]:
-    """Automatically build the registry using reflection.
-
-    This function discovers all MetricSpec implementations in the current module
-    and creates a registry mapping from MetricType to the corresponding class.
-
-    Returns:
-        Dictionary mapping metric type names to their implementation classes.
-    """
-    registry_dict: dict[MetricType, Type[MetricSpec]] = {}
-
-    # Get all classes defined in this module
-    current_module = inspect.currentframe().f_globals  # type: ignore
-
-    for name, obj in current_module.items():
-        # Check if it's a class and has the required attributes
-        if (
-            inspect.isclass(obj)
-            and hasattr(obj, "metric_type")
-            and isinstance(obj, type)
-            and obj is not MetricSpec  # Exclude the protocol itself
-        ):
-            metric_type = getattr(obj, "metric_type")
-            if metric_type:
-                registry_dict[metric_type] = obj  # type: ignore
-
-    return registry_dict
-
-
-# Automatically create the registry using reflection
-registry: dict[MetricType, Type[MetricSpec]] = _build_registry()
