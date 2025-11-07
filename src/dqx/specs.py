@@ -44,6 +44,47 @@ def auto_register(cls: Type["MetricSpec"]) -> Type["MetricSpec"]:
     return cls
 
 
+def _reconstruct_base_spec(base_metric_type: str, base_parameters: dict[str, Any]) -> "MetricSpec":
+    """Reconstruct a MetricSpec from base_metric_type and base_parameters.
+
+    This helper extracts the common logic for reconstructing base specs used by
+    extended metrics (DayOverDay, WeekOverWeek, Stddev).
+
+    Args:
+        base_metric_type: The type of the base metric
+        base_parameters: Parameters for the base metric
+
+    Returns:
+        A reconstructed MetricSpec instance
+
+    Raises:
+        KeyError: If base_metric_type is not in registry
+    """
+    metric_type = typing.cast(MetricType, base_metric_type)
+    spec_class = registry[metric_type]
+
+    # Extended metrics (DayOverDay, WeekOverWeek, Stddev) have specific constructor signatures
+    # and don't accept a 'parameters' argument
+    if metric_type in ["DayOverDay", "WeekOverWeek", "Stddev"]:
+        # For extended metrics, pass all parameters as constructor args
+        return typing.cast(Any, spec_class)(**base_parameters)
+    else:
+        # For simple metrics, split into constructor params and additional params
+        sig = inspect.signature(spec_class.__init__)
+        constructor_params = {}
+        additional_params = {}
+
+        for key, value in base_parameters.items():
+            if key in sig.parameters and key != "parameters":
+                constructor_params[key] = value
+            else:
+                additional_params[key] = value
+
+        # Create spec with constructor params and additional params
+        # Cast to Any to avoid mypy issues with protocol constructors
+        return typing.cast(Any, spec_class)(**constructor_params, parameters=additional_params)
+
+
 @runtime_checkable
 class MetricSpec(Protocol):
     """Base protocol for all metrics."""
@@ -712,29 +753,7 @@ class DayOverDay(ExtendedMetricSpec):
         self._analyzers = ()
 
         # Reconstruct and store the base spec for internal operations
-        metric_type = typing.cast(MetricType, self._base_metric_type)
-        spec_class = registry[metric_type]
-
-        # Extended metrics (DayOverDay, WeekOverWeek, Stddev) have specific constructor signatures
-        # and don't accept a 'parameters' argument
-        if metric_type in ["DayOverDay", "WeekOverWeek", "Stddev"]:
-            # For extended metrics, pass all parameters as constructor args
-            self._base_spec = typing.cast(Any, spec_class)(**self._base_parameters)
-        else:
-            # For simple metrics, split into constructor params and additional params
-            sig = inspect.signature(spec_class.__init__)
-            constructor_params = {}
-            additional_params = {}
-
-            for key, value in self._base_parameters.items():
-                if key in sig.parameters and key != "parameters":
-                    constructor_params[key] = value
-                else:
-                    additional_params[key] = value
-
-            # Create spec with constructor params and additional params
-            # Cast to Any to avoid mypy issues with protocol constructors
-            self._base_spec = typing.cast(Any, spec_class)(**constructor_params, parameters=additional_params)
+        self._base_spec = _reconstruct_base_spec(self._base_metric_type, self._base_parameters)
 
     @classmethod
     def from_base_spec(cls, base_spec: MetricSpec) -> Self:
@@ -792,29 +811,7 @@ class WeekOverWeek(ExtendedMetricSpec):
         self._analyzers = ()
 
         # Reconstruct and store the base spec for internal operations
-        metric_type = typing.cast(MetricType, self._base_metric_type)
-        spec_class = registry[metric_type]
-
-        # Extended metrics (DayOverDay, WeekOverWeek, Stddev) have specific constructor signatures
-        # and don't accept a 'parameters' argument
-        if metric_type in ["DayOverDay", "WeekOverWeek", "Stddev"]:
-            # For extended metrics, pass all parameters as constructor args
-            self._base_spec = typing.cast(Any, spec_class)(**self._base_parameters)
-        else:
-            # For simple metrics, split into constructor params and additional params
-            sig = inspect.signature(spec_class.__init__)
-            constructor_params = {}
-            additional_params = {}
-
-            for key, value in self._base_parameters.items():
-                if key in sig.parameters and key != "parameters":
-                    constructor_params[key] = value
-                else:
-                    additional_params[key] = value
-
-            # Create spec with constructor params and additional params
-            # Cast to Any to avoid mypy issues with protocol constructors
-            self._base_spec = typing.cast(Any, spec_class)(**constructor_params, parameters=additional_params)
+        self._base_spec = _reconstruct_base_spec(self._base_metric_type, self._base_parameters)
 
     @classmethod
     def from_base_spec(cls, base_spec: MetricSpec) -> Self:
@@ -874,29 +871,7 @@ class Stddev(ExtendedMetricSpec):
         self._analyzers = ()
 
         # Reconstruct and store the base spec for internal operations
-        metric_type = typing.cast(MetricType, self._base_metric_type)
-        spec_class = registry[metric_type]
-
-        # Extended metrics (DayOverDay, WeekOverWeek, Stddev) have specific constructor signatures
-        # and don't accept a 'parameters' argument
-        if metric_type in ["DayOverDay", "WeekOverWeek", "Stddev"]:
-            # For extended metrics, pass all parameters as constructor args
-            self._base_spec = typing.cast(Any, spec_class)(**self._base_parameters)
-        else:
-            # For simple metrics, split into constructor params and additional params
-            sig = inspect.signature(spec_class.__init__)
-            constructor_params = {}
-            additional_params = {}
-
-            for key, value in self._base_parameters.items():
-                if key in sig.parameters and key != "parameters":
-                    constructor_params[key] = value
-                else:
-                    additional_params[key] = value
-
-            # Create spec with constructor params and additional params
-            # Cast to Any to avoid mypy issues with protocol constructors
-            self._base_spec = typing.cast(Any, spec_class)(**constructor_params, parameters=additional_params)
+        self._base_spec = _reconstruct_base_spec(self._base_metric_type, self._base_parameters)
 
     @classmethod
     def from_base_spec(cls, base_spec: MetricSpec, offset: int, n: int) -> Self:

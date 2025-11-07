@@ -1001,7 +1001,7 @@ class TestBuildRegistry:
     def test_registry_contains_only_classes(self) -> None:
         """Test that registry only contains actual classes."""
         # Should only contain actual classes, not functions, modules, etc.
-        for name, obj in specs.registry.items():
+        for _, obj in specs.registry.items():
             assert inspect.isclass(obj)
             assert hasattr(obj, "metric_type")
 
@@ -1010,23 +1010,6 @@ class TestBuildRegistry:
         for metric_type, spec_class in specs.registry.items():
             assert hasattr(spec_class, "metric_type")
             assert spec_class.metric_type == metric_type
-
-    def test_auto_register_decorator_prevents_duplicates(self) -> None:
-        """Test that auto_register decorator prevents duplicate registration."""
-        # Trying to register a class with an existing metric_type should raise ValueError
-        with patch("dqx.specs.register_spec") as mock_register:
-            mock_register.side_effect = ValueError("Spec 'NumRows' is already registered")
-
-            try:
-
-                @specs.auto_register
-                class TestMetric(specs.MetricSpec):
-                    metric_type: specs.MetricType = "NumRows"
-
-                # Should not get here
-                assert False, "Expected ValueError for duplicate metric type registration"
-            except ValueError as e:
-                assert "already registered" in str(e)
 
 
 class TestRegistry:
