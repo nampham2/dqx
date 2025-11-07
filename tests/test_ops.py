@@ -377,6 +377,82 @@ def test_unique_count() -> None:
     assert repr(op) == "unique_count(product_id)"
 
 
+def test_custom_sql() -> None:
+    """Test CustomSQL operation basic functionality."""
+    # Test basic usage
+    op = ops.CustomSQL("COUNT(DISTINCT user_id)")
+    assert "custom_sql(" in op.name
+    assert op.sql_expression == "COUNT(DISTINCT user_id)"
+    assert op.prefix is not None
+    assert op.sql_col.startswith(f"{op.prefix}_custom_sql(")
+
+    # Test that hash is in the name (8 chars)
+    assert len(op._sql_hash) == 8
+    assert op.name == f"custom_sql({op._sql_hash})"
+
+    # Test value assignment
+    with pytest.raises(DQXError, match="CustomSQL op has not been collected yet!"):
+        op.value()
+
+    op.assign(100.0)
+    assert op.value() == pytest.approx(100.0)
+
+    # Test clear
+    op.clear()
+    with pytest.raises(DQXError):
+        op.value()
+
+    # Test with parameters
+    op_with_params = ops.CustomSQL("PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount)", parameters={"region": "US"})
+    assert op_with_params.parameters == {"region": "US"}
+
+    # Test equality - same SQL expression
+    op2 = ops.CustomSQL("COUNT(DISTINCT user_id)")
+    assert op == op2
+    assert hash(op) == hash(op2)
+
+    # Test equality - different SQL expression
+    op3 = ops.CustomSQL("SUM(amount)")
+    assert op != op3
+    assert hash(op) != hash(op3)
+
+    # Test equality - same SQL but different parameters
+    op4 = ops.CustomSQL("COUNT(DISTINCT user_id)", parameters={"status": "active"})
+    assert op != op4
+    assert hash(op) != hash(op4)
+
+    # Test string representation
+    assert repr(op) == "CustomSQL('COUNT(DISTINCT user_id)')"
+    assert str(op) == "CustomSQL('COUNT(DISTINCT user_id)')"
+
+    # Test complex SQL expressions
+    complex_sql = """
+    AVG(CASE
+        WHEN status = 'active' THEN value
+        ELSE NULL
+    END)
+    """
+    op_complex = ops.CustomSQL(complex_sql)
+    assert op_complex.sql_expression == complex_sql
+
+    # Test that different SQL expressions get different hashes
+    sql_expressions = [
+        "COUNT(*)",
+        "COUNT(DISTINCT id)",
+        "SUM(amount)",
+        "AVG(price)",
+        "PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY value)",
+    ]
+
+    hashes = set()
+    for sql in sql_expressions:
+        op_test = ops.CustomSQL(sql)
+        hashes.add(op_test._sql_hash)
+
+    # All should have unique hashes
+    assert len(hashes) == len(sql_expressions)
+
+
 def test_op_protocol() -> None:
     """Test that all ops implement the Op protocol."""
     assert isinstance(ops.NumRows(), ops.Op)
@@ -391,6 +467,7 @@ def test_op_protocol() -> None:
     assert isinstance(ops.DuplicateCount(["col"]), ops.Op)
     assert isinstance(ops.CountValues("col", 1), ops.Op)
     assert isinstance(ops.UniqueCount("col"), ops.Op)
+    assert isinstance(ops.CustomSQL("COUNT(*)"), ops.Op)
 
 
 def test_sql_op_protocol() -> None:
@@ -407,6 +484,7 @@ def test_sql_op_protocol() -> None:
     assert isinstance(ops.DuplicateCount(["col"]), ops.SqlOp)
     assert isinstance(ops.CountValues("col", "test"), ops.SqlOp)
     assert isinstance(ops.UniqueCount("col"), ops.SqlOp)
+    assert isinstance(ops.CustomSQL("COUNT(*)"), ops.SqlOp)
 
 
 def test_sql_op_properties() -> None:
@@ -424,6 +502,7 @@ def test_sql_op_properties() -> None:
         ops.DuplicateCount(["col"]),
         ops.CountValues("col", "test"),
         ops.UniqueCount("col"),
+        ops.CustomSQL("COUNT(*)"),
     ]
 
     for op in sql_ops:
@@ -437,8 +516,8 @@ def test_sql_op_properties() -> None:
 
         # Check that sql_col follows expected pattern
         assert op.prefix in op.sql_col
-        # CountValues uses a hash in sql_col for uniqueness
-        if not isinstance(op, ops.CountValues):
+        # CountValues and CustomSQL use a hash in sql_col for uniqueness
+        if not isinstance(op, (ops.CountValues, ops.CustomSQL)):
             assert op.name in op.sql_col
 
 
@@ -457,6 +536,7 @@ def test_op_value_assignment_and_clearing() -> None:
         ops.DuplicateCount(["col"]),
         ops.CountValues("col", 1),
         ops.UniqueCount("col"),
+        ops.CustomSQL("SELECT COUNT(*)"),
     ]
 
     for op in ops_to_test:

@@ -313,6 +313,40 @@ def test_batch_cte_query_no_ops() -> None:
         dialect.build_cte_query(cte_data, mock_ds)
 
 
+def test_unique_count_translation() -> None:
+    """Test UniqueCount translation for both dialects."""
+    # Test DuckDB
+    duckdb_dialect = DuckDBDialect()
+    op = ops.UniqueCount("user_id")
+    sql_duckdb = duckdb_dialect.translate_sql_op(op)
+    assert sql_duckdb == f"CAST(COUNT(DISTINCT user_id) AS DOUBLE) AS '{op.sql_col}'"
+
+    # Test BigQuery
+    bigquery_dialect = BigQueryDialect()
+    sql_bigquery = bigquery_dialect.translate_sql_op(op)
+    assert sql_bigquery == f"CAST(COUNT(DISTINCT user_id) AS FLOAT64) AS `{op.sql_col}`"
+
+
+def test_custom_sql_translation() -> None:
+    """Test CustomSQL translation for both dialects."""
+    # Test DuckDB
+    duckdb_dialect = DuckDBDialect()
+    op = ops.CustomSQL("SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END)")
+    sql_duckdb = duckdb_dialect.translate_sql_op(op)
+    assert sql_duckdb == f"CAST((SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END)) AS DOUBLE) AS '{op.sql_col}'"
+
+    # Test BigQuery
+    bigquery_dialect = BigQueryDialect()
+    sql_bigquery = bigquery_dialect.translate_sql_op(op)
+    assert sql_bigquery == f"CAST((SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END)) AS FLOAT64) AS `{op.sql_col}`"
+
+    # Test with parameters (should not affect SQL expression)
+    op_with_params = ops.CustomSQL("COUNT(*)", parameters={"region": "US"})
+    sql_params = duckdb_dialect.translate_sql_op(op_with_params)
+    assert "COUNT(*)" in sql_params
+    assert op_with_params.parameters == {"region": "US"}
+
+
 def test_all_ops_covered() -> None:
     """Ensure all SqlOp types are handled by dialects."""
     dialect = DuckDBDialect()
@@ -335,6 +369,8 @@ def test_all_ops_covered() -> None:
         ops.CountValues("col", False),
         ops.CountValues("col", [1, 2, 3]),
         ops.CountValues("col", ["a", "b", "c"]),
+        ops.UniqueCount("col"),
+        ops.CustomSQL("COUNT(*)"),
     ]
 
     # All should translate without error

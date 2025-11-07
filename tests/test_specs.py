@@ -1,4 +1,5 @@
 import inspect
+from typing import Any
 from unittest.mock import Mock, patch
 
 from dqx import ops, specs, states
@@ -1149,6 +1150,562 @@ class TestDuplicateCount:
         assert str(dup_count) == "duplicate_count(session_id,user_id)"
 
 
+class TestCustomSQL:
+    """Test CustomSQL metric spec"""
+
+    def test_metric_type(self) -> None:
+        sql = specs.CustomSQL("COUNT(*)")
+        assert sql.metric_type == "CustomSQL"
+
+    def test_name(self) -> None:
+        sql = specs.CustomSQL("COUNT(*)")
+        # Name uses hash-based format
+        assert sql.name.startswith("custom_sql(")
+        assert sql.name.endswith(")")
+        # Hash should be 8 characters
+        hash_part = sql.name[11:-1]  # Extract hash between parentheses
+        assert len(hash_part) == 8
+
+    def test_name_deterministic(self) -> None:
+        # Same SQL should produce same hash
+        sql1 = specs.CustomSQL("COUNT(*)")
+        sql2 = specs.CustomSQL("COUNT(*)")
+        assert sql1.name == sql2.name
+
+        # Different SQL should produce different hash
+        sql3 = specs.CustomSQL("SUM(amount)")
+        assert sql1.name != sql3.name
+
+    def test_parameters(self) -> None:
+        sql = specs.CustomSQL("COUNT(*)")
+        assert sql.parameters == {"sql_expression": "COUNT(*)"}
+
+        # With additional parameters
+        sql2 = specs.CustomSQL("COUNT(*)", parameters={"region": "US"})
+        assert sql2.parameters == {"sql_expression": "COUNT(*)", "region": "US"}
+
+    def test_analyzers(self) -> None:
+        sql = specs.CustomSQL("COUNT(*)")
+        assert len(sql.analyzers) == 1
+        assert isinstance(sql.analyzers[0], ops.CustomSQL)
+
+    @patch("dqx.ops.CustomSQL")
+    def test_state(self, mock_ops_customsql: Mock) -> None:
+        mock_analyzer = Mock()
+        mock_analyzer.value.return_value = 42.0
+        mock_ops_customsql.return_value = mock_analyzer
+
+        sql = specs.CustomSQL("COUNT(*)")
+        state = sql.state()
+
+        assert isinstance(state, states.SimpleAdditiveState)
+        assert state.value == 42.0
+
+    def test_deserialize(self) -> None:
+        with patch.object(states.SimpleAdditiveState, "deserialize") as mock_deserialize:
+            mock_state = Mock()
+            mock_deserialize.return_value = mock_state
+
+            result = specs.CustomSQL.deserialize(b"test_bytes")
+
+            mock_deserialize.assert_called_once_with(b"test_bytes")
+            assert result == mock_state
+
+    def test_hash(self) -> None:
+        sql1 = specs.CustomSQL("COUNT(*)")
+        sql2 = specs.CustomSQL("COUNT(*)")
+        sql3 = specs.CustomSQL("SUM(amount)")
+        sql4 = specs.CustomSQL("COUNT(*)", parameters={"region": "US"})
+
+        assert hash(sql1) == hash(sql2)
+        assert hash(sql1) != hash(sql3)  # Different expression
+        assert hash(sql1) != hash(sql4)  # Different parameters
+
+    def test_equality(self) -> None:
+        sql1 = specs.CustomSQL("COUNT(*)")
+        sql2 = specs.CustomSQL("COUNT(*)")
+        sql3 = specs.CustomSQL("SUM(amount)")
+        sql4 = specs.CustomSQL("COUNT(*)", parameters={"region": "US"})
+
+        assert sql1 == sql2
+        assert sql1 != sql3
+        assert sql1 != sql4
+
+    def test_inequality_different_type(self) -> None:
+        sql = specs.CustomSQL("COUNT(*)")
+        assert sql != specs.NumRows()
+        assert sql != "not_a_customsql"
+
+    def test_str(self) -> None:
+        sql = specs.CustomSQL("COUNT(*)")
+        assert str(sql) == sql.name
+
+    def test_complex_expressions(self) -> None:
+        complex_sql = """
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY amount)
+        """
+        sql = specs.CustomSQL(complex_sql)
+        assert sql._sql_expression == complex_sql
+        assert "sql_expression" in sql.parameters
+        assert sql.parameters["sql_expression"] == complex_sql
+
+    def test_clone(self) -> None:
+        sql = specs.CustomSQL("COUNT(*)", parameters={"region": "US"})
+        cloned = sql.clone()
+
+        # Should be equal but different instances
+        assert sql == cloned
+        assert sql is not cloned
+        assert sql.parameters == cloned.parameters
+        assert sql.parameters is not cloned.parameters  # Deep copy
+
+
+class TestCountValues:
+    """Test CountValues metric spec"""
+
+    def test_metric_type(self) -> None:
+        cv = specs.CountValues("status", 1)
+        assert cv.metric_type == "CountValues"
+
+    def test_name_single_value(self) -> None:
+        # Integer
+        cv1 = specs.CountValues("status", 1)
+        assert cv1.name == "count_values(status,1)"
+
+        # String
+        cv2 = specs.CountValues("status", "active")
+        assert cv2.name == "count_values(status,active)"
+
+        # Boolean
+        cv3 = specs.CountValues("is_valid", True)
+        assert cv3.name == "count_values(is_valid,True)"
+
+        cv4 = specs.CountValues("is_valid", False)
+        assert cv4.name == "count_values(is_valid,False)"
+
+    def test_name_multiple_values(self) -> None:
+        # List of integers
+        cv1 = specs.CountValues("type", [1, 2, 3])
+        assert cv1.name == "count_values(type,[1,2,3])"
+
+        # List of strings
+        cv2 = specs.CountValues("status", ["pending", "active"])
+        assert cv2.name == "count_values(status,[pending,active])"
+
+    def test_parameters(self) -> None:
+        cv = specs.CountValues("status", "active")
+        assert cv.parameters == {"column": "status", "values": "active"}
+
+        # With additional parameters
+        cv2 = specs.CountValues("status", "active", parameters={"region": "US"})
+        assert cv2.parameters == {"column": "status", "values": "active", "region": "US"}
+
+    def test_analyzers(self) -> None:
+        cv = specs.CountValues("status", 1)
+        assert len(cv.analyzers) == 1
+        assert isinstance(cv.analyzers[0], ops.CountValues)
+        # Check analyzer has same values
+        analyzer = cv.analyzers[0]
+        assert analyzer.column == "status"
+        assert analyzer.values == 1
+
+    @patch("dqx.ops.CountValues")
+    def test_state(self, mock_ops_countvalues: Mock) -> None:
+        mock_analyzer = Mock()
+        mock_analyzer.value.return_value = 10.0
+        mock_ops_countvalues.return_value = mock_analyzer
+
+        cv = specs.CountValues("status", 1)
+        state = cv.state()
+
+        assert isinstance(state, states.SimpleAdditiveState)
+        assert state.value == 10.0
+
+    def test_deserialize(self) -> None:
+        with patch.object(states.SimpleAdditiveState, "deserialize") as mock_deserialize:
+            mock_state = Mock()
+            mock_deserialize.return_value = mock_state
+
+            result = specs.CountValues.deserialize(b"test_bytes")
+
+            mock_deserialize.assert_called_once_with(b"test_bytes")
+            assert result == mock_state
+
+    def test_hash(self) -> None:
+        cv1 = specs.CountValues("status", 1)
+        cv2 = specs.CountValues("status", 1)
+        cv3 = specs.CountValues("status", 2)
+        cv4 = specs.CountValues("type", 1)
+        cv5 = specs.CountValues("status", True)
+        cv6 = specs.CountValues("status", [1, 2])
+
+        assert hash(cv1) == hash(cv2)
+        assert hash(cv1) != hash(cv3)  # Different value
+        assert hash(cv1) != hash(cv4)  # Different column
+        assert hash(cv1) != hash(cv5)  # 1 vs True
+        assert hash(cv1) != hash(cv6)  # Single vs list
+
+    def test_equality(self) -> None:
+        cv1 = specs.CountValues("status", 1)
+        cv2 = specs.CountValues("status", 1)
+        cv3 = specs.CountValues("status", 2)
+        cv4 = specs.CountValues("status", True)  # Different type
+
+        assert cv1 == cv2
+        assert cv1 != cv3
+        assert cv1 != cv4  # 1 != True for CountValues
+
+    def test_inequality_different_type(self) -> None:
+        cv = specs.CountValues("status", 1)
+        assert cv != specs.NumRows()
+        assert cv != "not_a_countvalues"
+
+    def test_str(self) -> None:
+        cv = specs.CountValues("status", 1)
+        assert str(cv) == "count_values(status,1)"
+
+    def test_clone(self) -> None:
+        # Single value
+        cv1 = specs.CountValues("status", 1, parameters={"region": "US"})
+        cloned1 = cv1.clone()
+        assert cv1 == cloned1
+        assert cv1 is not cloned1
+        assert cv1.parameters == cloned1.parameters
+        assert cv1.parameters is not cloned1.parameters
+
+        # List value - should be deep copied
+        cv2 = specs.CountValues("status", [1, 2, 3])
+        cloned2 = cv2.clone()
+        assert cv2 == cloned2
+        assert cv2._values is not cloned2._values  # List should be copied
+
+    def test_all_value_types(self) -> None:
+        # Test all supported value types
+        test_cases: list[tuple[str, int | str | bool | list[int] | list[str], str]] = [
+            ("status", 1, "count_values(status,1)"),
+            ("status", "active", "count_values(status,active)"),
+            ("is_valid", True, "count_values(is_valid,True)"),
+            ("is_valid", False, "count_values(is_valid,False)"),
+            ("type", [1, 2], "count_values(type,[1,2])"),
+            ("status", ["a", "b"], "count_values(status,[a,b])"),
+        ]
+
+        for col, val, expected_name in test_cases:
+            cv = specs.CountValues(col, val)
+            assert cv.name == expected_name
+            assert cv.parameters["column"] == col
+            assert cv.parameters["values"] == val
+
+
+class TestUniqueCount:
+    """Test UniqueCount metric spec"""
+
+    def test_metric_type(self) -> None:
+        uc = specs.UniqueCount("product_id")
+        assert uc.metric_type == "UniqueCount"
+
+    def test_name(self) -> None:
+        uc = specs.UniqueCount("product_id")
+        assert uc.name == "unique_count(product_id)"
+
+    def test_parameters(self) -> None:
+        uc = specs.UniqueCount("product_id")
+        assert uc.parameters == {"column": "product_id"}
+
+        # With additional parameters
+        uc2 = specs.UniqueCount("product_id", parameters={"category": "electronics"})
+        assert uc2.parameters == {"column": "product_id", "category": "electronics"}
+
+    def test_analyzers(self) -> None:
+        uc = specs.UniqueCount("product_id")
+        assert len(uc.analyzers) == 1
+        assert isinstance(uc.analyzers[0], ops.UniqueCount)
+
+    @patch("dqx.ops.UniqueCount")
+    def test_state(self, mock_ops_uniquecount: Mock) -> None:
+        mock_analyzer = Mock()
+        mock_analyzer.value.return_value = 100.0
+        mock_ops_uniquecount.return_value = mock_analyzer
+
+        uc = specs.UniqueCount("product_id")
+        state = uc.state()
+
+        assert isinstance(state, states.NonMergeable)
+        assert state.value == 100.0
+        assert state.metric_type == "UniqueCount"
+
+    def test_deserialize(self) -> None:
+        with patch.object(states.NonMergeable, "deserialize") as mock_deserialize:
+            mock_state = Mock()
+            mock_deserialize.return_value = mock_state
+
+            result = specs.UniqueCount.deserialize(b"test_bytes")
+
+            mock_deserialize.assert_called_once_with(b"test_bytes")
+            assert result == mock_state
+
+    def test_hash(self) -> None:
+        uc1 = specs.UniqueCount("product_id")
+        uc2 = specs.UniqueCount("product_id")
+        uc3 = specs.UniqueCount("user_id")
+        uc4 = specs.UniqueCount("product_id", parameters={"category": "electronics"})
+
+        assert hash(uc1) == hash(uc2)
+        assert hash(uc1) != hash(uc3)  # Different column
+        assert hash(uc1) != hash(uc4)  # Different parameters
+
+    def test_equality(self) -> None:
+        uc1 = specs.UniqueCount("product_id")
+        uc2 = specs.UniqueCount("product_id")
+        uc3 = specs.UniqueCount("user_id")
+
+        assert uc1 == uc2
+        assert uc1 != uc3
+
+    def test_inequality_different_type(self) -> None:
+        uc = specs.UniqueCount("product_id")
+        assert uc != specs.NumRows()
+        assert uc != "not_a_uniquecount"
+
+    def test_str(self) -> None:
+        uc = specs.UniqueCount("product_id")
+        assert str(uc) == "unique_count(product_id)"
+
+    def test_clone(self) -> None:
+        uc = specs.UniqueCount("product_id", parameters={"category": "electronics"})
+        cloned = uc.clone()
+
+        assert uc == cloned
+        assert uc is not cloned
+        assert uc.parameters == cloned.parameters
+        assert uc.parameters is not cloned.parameters
+
+
+class TestReconstructBaseSpec:
+    """Test the _reconstruct_base_spec helper function"""
+
+    def test_reconstruct_simple_metrics(self) -> None:
+        # NumRows (no column parameter)
+        spec = specs._reconstruct_base_spec("NumRows", {})
+        assert isinstance(spec, specs.NumRows)
+        assert spec.metric_type == "NumRows"
+
+        # Average (with column)
+        spec = specs._reconstruct_base_spec("Average", {"column": "price"})
+        assert isinstance(spec, specs.Average)
+        assert spec.parameters["column"] == "price"
+
+    def test_reconstruct_with_additional_parameters(self) -> None:
+        # Simple metric with additional parameters
+        spec = specs._reconstruct_base_spec("Sum", {"column": "amount", "region": "US", "year": 2024})
+        assert isinstance(spec, specs.Sum)
+        assert spec.parameters == {"column": "amount", "region": "US", "year": 2024}
+
+    def test_reconstruct_all_simple_metrics(self) -> None:
+        test_cases: list[tuple[str, dict[str, Any]]] = [
+            ("NumRows", {}),
+            ("First", {"column": "ts"}),
+            ("Average", {"column": "price"}),
+            ("Variance", {"column": "score"}),
+            ("Minimum", {"column": "temp"}),
+            ("Maximum", {"column": "temp"}),
+            ("Sum", {"column": "amount"}),
+            ("NullCount", {"column": "email"}),
+            ("NegativeCount", {"column": "balance"}),
+            ("DuplicateCount", {"columns": ["id"]}),
+            ("CountValues", {"column": "status", "values": 1}),
+            ("UniqueCount", {"column": "user_id"}),
+            ("CustomSQL", {"sql_expression": "COUNT(*)"}),
+        ]
+
+        for metric_type, params in test_cases:
+            spec = specs._reconstruct_base_spec(metric_type, params)
+            assert spec.metric_type == metric_type
+
+    def test_reconstruct_extended_metrics(self) -> None:
+        # Extended metrics should pass through parameters directly
+        dod_params = {"base_metric_type": "Average", "base_parameters": {"column": "price"}}
+        spec = specs._reconstruct_base_spec("DayOverDay", dod_params)
+        assert isinstance(spec, specs.DayOverDay)
+
+        wow_params = {"base_metric_type": "Sum", "base_parameters": {"column": "revenue"}}
+        spec = specs._reconstruct_base_spec("WeekOverWeek", wow_params)
+        assert isinstance(spec, specs.WeekOverWeek)
+
+        stddev_params = {"base_metric_type": "Average", "base_parameters": {"column": "price"}, "offset": 1, "n": 7}
+        spec = specs._reconstruct_base_spec("Stddev", stddev_params)
+        assert isinstance(spec, specs.Stddev)
+
+    def test_reconstruct_invalid_metric_type(self) -> None:
+        import pytest
+
+        with pytest.raises(KeyError):
+            specs._reconstruct_base_spec("InvalidMetric", {})
+
+
+class TestCloneMethods:
+    """Test clone methods for all SimpleMetricSpec implementations"""
+
+    def test_numrows_clone(self) -> None:
+        nr = specs.NumRows(parameters={"region": "US"})
+        cloned = nr.clone()
+
+        assert nr == cloned
+        assert nr is not cloned
+        assert nr.parameters == cloned.parameters
+        assert nr.parameters is not cloned.parameters
+        assert nr._analyzers is not cloned._analyzers
+
+    def test_clone_all_simple_specs(self) -> None:
+        test_specs = [
+            specs.NumRows(parameters={"region": "US"}),
+            specs.First("col", parameters={"year": 2024}),
+            specs.Average("col", parameters={"category": "A"}),
+            specs.Variance("col", parameters={"type": "B"}),
+            specs.Minimum("col", parameters={"status": "active"}),
+            specs.Maximum("col", parameters={"env": "prod"}),
+            specs.Sum("col", parameters={"currency": "USD"}),
+            specs.NullCount("col", parameters={"source": "api"}),
+            specs.NegativeCount("col", parameters={"account": "123"}),
+            specs.DuplicateCount(["col1", "col2"], parameters={"table": "users"}),
+            specs.CountValues("col", [1, 2], parameters={"mode": "strict"}),
+            specs.UniqueCount("col", parameters={"sample": "full"}),
+            specs.CustomSQL("COUNT(*)", parameters={"db": "main"}),
+        ]
+
+        for spec in test_specs:
+            cloned = spec.clone()
+
+            # Basic checks
+            assert spec == cloned
+            assert spec is not cloned
+            assert spec.parameters == cloned.parameters
+            assert spec.parameters is not cloned.parameters
+
+            # Check analyzers are new instances
+            # We know these are concrete instances with _analyzers
+            assert hasattr(spec, "_analyzers") and hasattr(cloned, "_analyzers")
+            if hasattr(spec, "_analyzers") and hasattr(cloned, "_analyzers"):
+                assert spec._analyzers is not cloned._analyzers
+                assert len(spec._analyzers) == len(cloned._analyzers)
+                for orig_analyzer, cloned_analyzer in zip(spec._analyzers, cloned._analyzers):
+                    assert orig_analyzer is not cloned_analyzer
+
+    def test_extended_specs_no_clone(self) -> None:
+        # Extended specs don't have clone method
+        dod = specs.DayOverDay("Average", {"column": "price"})
+        assert not hasattr(dod, "clone")
+
+        wow = specs.WeekOverWeek("Sum", {"column": "revenue"})
+        assert not hasattr(wow, "clone")
+
+        stddev = specs.Stddev("Average", {"column": "price"}, 1, 7)
+        assert not hasattr(stddev, "clone")
+
+
+class TestProtocolsRuntime:
+    """Test protocol runtime checks"""
+
+    def test_simple_metric_spec_protocol(self) -> None:
+        # All simple specs should implement SimpleMetricSpec
+        simple_specs = [
+            specs.NumRows(),
+            specs.First("col"),
+            specs.Average("col"),
+            specs.Variance("col"),
+            specs.Minimum("col"),
+            specs.Maximum("col"),
+            specs.Sum("col"),
+            specs.NullCount("col"),
+            specs.NegativeCount("col"),
+            specs.DuplicateCount(["col"]),
+            specs.CountValues("col", 1),
+            specs.UniqueCount("col"),
+            specs.CustomSQL("COUNT(*)"),
+        ]
+
+        for spec in simple_specs:
+            assert isinstance(spec, specs.SimpleMetricSpec)
+            assert spec.is_extended is False
+
+    def test_extended_metric_spec_protocol(self) -> None:
+        # All extended specs should implement ExtendedMetricSpec
+        extended_specs = [
+            specs.DayOverDay("Average", {"column": "price"}),
+            specs.WeekOverWeek("Sum", {"column": "revenue"}),
+            specs.Stddev("Average", {"column": "price"}, 1, 7),
+        ]
+
+        for spec in extended_specs:
+            assert isinstance(spec, specs.ExtendedMetricSpec)
+            assert spec.is_extended is True
+
+    def test_all_specs_implement_metric_spec(self) -> None:
+        # Get all spec classes from registry
+        for spec_class in specs.registry.values():
+            # Use the concrete class references to create instances
+            instance: specs.MetricSpec
+            if spec_class == specs.NumRows:
+                instance = specs.NumRows()
+            elif spec_class == specs.DayOverDay:
+                instance = specs.DayOverDay("Average", {"column": "test"})
+            elif spec_class == specs.WeekOverWeek:
+                instance = specs.WeekOverWeek("Average", {"column": "test"})
+            elif spec_class == specs.Stddev:
+                instance = specs.Stddev("Average", {"column": "test"}, 1, 7)
+            elif spec_class == specs.DuplicateCount:
+                instance = specs.DuplicateCount(["col"])
+            elif spec_class == specs.CountValues:
+                instance = specs.CountValues("col", 1)
+            elif spec_class == specs.CustomSQL:
+                instance = specs.CustomSQL("COUNT(*)")
+            elif spec_class == specs.First:
+                instance = specs.First("test_col")
+            elif spec_class == specs.Average:
+                instance = specs.Average("test_col")
+            elif spec_class == specs.Variance:
+                instance = specs.Variance("test_col")
+            elif spec_class == specs.Minimum:
+                instance = specs.Minimum("test_col")
+            elif spec_class == specs.Maximum:
+                instance = specs.Maximum("test_col")
+            elif spec_class == specs.Sum:
+                instance = specs.Sum("test_col")
+            elif spec_class == specs.NullCount:
+                instance = specs.NullCount("test_col")
+            elif spec_class == specs.NegativeCount:
+                instance = specs.NegativeCount("test_col")
+            elif spec_class == specs.UniqueCount:
+                instance = specs.UniqueCount("test_col")
+            else:
+                # This should never happen but helps with type checking
+                continue
+
+            assert isinstance(instance, specs.MetricSpec)
+
+
+class TestParameterHandling:
+    """Test additional parameter handling in specs"""
+
+    def test_parameters_beyond_constructor(self) -> None:
+        # Test that additional parameters beyond constructor args are preserved
+        avg = specs.Average("price", parameters={"region": "US", "year": 2024, "category": "electronics"})
+        assert avg.parameters == {"column": "price", "region": "US", "year": 2024, "category": "electronics"}
+
+        # Verify analyzer gets all parameters
+        analyzer = avg._analyzers[1]  # Average analyzer
+        assert analyzer.parameters == {"region": "US", "year": 2024, "category": "electronics"}
+
+    def test_hash_with_flat_parameters(self) -> None:
+        # Test hashing with flat parameter values (no nested dicts)
+        spec1 = specs.Sum("amount", parameters={"status": "active", "region": "US"})
+        spec2 = specs.Sum("amount", parameters={"status": "active", "region": "US"})
+        spec3 = specs.Sum("amount", parameters={"status": "active", "region": "EU"})
+
+        assert hash(spec1) == hash(spec2)
+        assert hash(spec1) != hash(spec3)
+
+
 class TestMetricTypes:
     """Test the MetricType literal"""
 
@@ -1164,6 +1721,9 @@ class TestMetricTypes:
             (specs.NullCount("col"), "NullCount"),
             (specs.NegativeCount("col"), "NegativeCount"),
             (specs.DuplicateCount(["col"]), "DuplicateCount"),
+            (specs.CountValues("col", 1), "CountValues"),
+            (specs.UniqueCount("col"), "UniqueCount"),
+            (specs.CustomSQL("COUNT(*)"), "CustomSQL"),
         ]
 
         for instance, expected_type in spec_instances:
