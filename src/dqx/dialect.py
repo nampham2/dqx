@@ -27,8 +27,7 @@ class BatchCTEData:
         Operations with identical parameters can share the same source CTE,
         reducing query complexity and improving performance.
 
-        Args:
-            ops_list: List of SQL operations to group
+        Uses self.ops: list of SQL operations on the instance.
 
         Returns:
             Dictionary mapping parameter tuples to operation lists
@@ -408,29 +407,6 @@ class DuckDBDialect:
 
         return _build_query_with_values(self, cte_data, format_array_values)
 
-    def build_cte_query_with_source(self, cte_data: list["BatchCTEData"], data_source: "SqlDataSource") -> str:
-        """Build batch CTE query with parameter-aware optimization.
-
-        This method passes the data source to enable parameter-based CTE generation,
-        allowing different CTEs for different parameter values.
-
-        Args:
-            cte_data: List of BatchCTEData objects
-            data_source: The data source for parameter-aware CTE generation
-
-        Returns:
-            Complete SQL query with parameter-optimized CTEs
-        """
-
-        def format_array_values(ops: list[ops.SqlOp]) -> str:
-            """Format ops as DuckDB array of key-value pairs."""
-            array_entries = []
-            for op in ops:
-                array_entries.append(f"{{'key': '{op.sql_col}', 'value': \"{op.sql_col}\"}}")
-            return "[" + ", ".join(array_entries) + "]"
-
-        return _build_query_with_values(self, cte_data, format_array_values, data_source)
-
 
 @auto_register
 class BigQueryDialect:
@@ -560,26 +536,3 @@ class BigQueryDialect:
             return "[" + ", ".join(array_entries) + "]"
 
         return _build_query_with_values(self, cte_data, format_array_values)
-
-    def build_cte_query_with_source(self, cte_data: list["BatchCTEData"], data_source: "SqlDataSource") -> str:
-        """Build CTE query with parameter-aware optimization.
-
-        This method passes the data source to enable parameter-based CTE generation,
-        allowing different CTEs for different parameter values.
-
-        Args:
-            cte_data: List of BatchCTEData objects
-            data_source: The data source for parameter-aware CTE generation
-
-        Returns:
-            Complete SQL query with parameter-optimized CTEs
-        """
-
-        def format_array_values(ops: list[ops.SqlOp]) -> str:
-            """Format ops as BigQuery array of key-value STRUCTs."""
-            array_entries = []
-            for op in ops:
-                array_entries.append(f"STRUCT('{op.sql_col}' AS key, `{op.sql_col}` AS value)")
-            return "[" + ", ".join(array_entries) + "]"
-
-        return _build_query_with_values(self, cte_data, format_array_values, data_source)

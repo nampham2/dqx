@@ -306,10 +306,10 @@ class TestAnalyzer:
         report = analyzer.analyze_simple_metrics(ds, metrics_by_key)
 
         # Verify report
-        assert len(report) == 9  # 3 metrics × 3 dates
+        assert len(report) == 9  # 3 metrics x 3 dates
 
         # Check all metrics have values
-        for metric_key, metric in report.items():
+        for metric in report.values():
             assert metric.value is not None
             assert metric.dataset == "sales_data"
             assert metric.metadata is not None
