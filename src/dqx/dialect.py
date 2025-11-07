@@ -86,8 +86,8 @@ def _build_cte_parts(
             # Source CTE with parameters
             source_cte = f"source_{date_suffix}_{i}_{j}"
 
-            # Convert params_key back to dict
-            params_dict = dict(params_key) if params_key else {}
+            # Reuse the original parameter mapping so types stay intact
+            params_dict = dict(grouped_ops[0].parameters) if grouped_ops else {}
 
             # Generate parameter-aware CTE SQL if data source provided
             if data_source and params_dict:
