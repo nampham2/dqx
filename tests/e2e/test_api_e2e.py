@@ -17,11 +17,20 @@ def simple_checks(mp: MetricProvider, ctx: Context) -> None:
     ctx.assert_that(mp.average("price")).where(name="Average price check").is_geq(10.0)
     ctx.assert_that(mp.ext.day_over_day(mp.average("tax"))).where(name="Tax day-over-day check").is_geq(0.5)
     ctx.assert_that(mp.duplicate_count(["name"], dataset="ds1")).where(name="No duplicates on name").is_eq(0)
-    ctx.assert_that(mp.minimum("quantity", dataset="ds1")).where(name="Quantity minimum is between 1 and 5").is_between(
-        1, 5.0
-    )
+    ctx.assert_that(
+        mp.minimum(
+            "quantity",
+            dataset="ds1",
+            parameters={"min_quantity": 10},
+        )
+    ).where(name="Quantity minimum is between 1 and 5").is_between(1, 5.0)
     ctx.assert_that(mp.count_values("name", "np", dataset="ds1")).where(name="NP never buys here").is_eq(0)
     ctx.assert_that(mp.unique_count("name")).where(name="At least 5 unique customers").is_geq(5)
+
+
+@check(name="Custom checks", datasets=["ds1"])
+def custom_checks(mp: MetricProvider, ctx: Context) -> None:
+    ctx.assert_that(mp.custom_sql("count(*)", parameters={"min_quantity": 20})).where(name="Count orders").is_gt(100)
 
 
 @check(name="complex metrics", datasets=["ds1"])
@@ -98,7 +107,15 @@ def test_e2e_suite() -> None:
     )
 
     key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={"env": "prod", "partner": "gha"})
-    checks = [simple_checks, manual_day_over_day, rate_of_change, null_percentage, cross_dataset_check, complex_metrics]
+    checks = [
+        simple_checks,
+        custom_checks,
+        manual_day_over_day,
+        rate_of_change,
+        null_percentage,
+        cross_dataset_check,
+        complex_metrics,
+    ]
 
     # Run for today
     suite = VerificationSuite(

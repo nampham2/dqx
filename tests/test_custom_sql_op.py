@@ -10,7 +10,8 @@ def test_custom_sql_basic() -> None:
     op = CustomSQL("CAST(COUNT(*) AS DOUBLE)")
 
     # Name uses hash-based identifier
-    assert op.name.startswith("custom_sql_")
+    assert op.name.startswith("custom_sql(")
+    assert op.name.endswith(")")
     assert op.sql_expression == "CAST(COUNT(*) AS DOUBLE)"
     assert op.parameters == {}
 
@@ -26,7 +27,8 @@ def test_custom_sql_with_parameters() -> None:
 
     op = CustomSQL(template, params)
 
-    assert op.name.startswith("custom_sql_")
+    assert op.name.startswith("custom_sql(")
+    assert op.name.endswith(")")
     assert op.sql_expression == template
     assert op.parameters == params
 
@@ -111,7 +113,8 @@ def test_custom_sql_complex_expression() -> None:
 
     op = CustomSQL(sql_expr, params)
 
-    assert op.name.startswith("custom_sql_")
+    assert op.name.startswith("custom_sql(")
+    assert op.name.endswith(")")
     assert op.sql_expression == sql_expr
     assert op.parameters == params
 
@@ -128,5 +131,6 @@ def test_custom_sql_various_expressions() -> None:
     for sql_expr in test_cases:
         op = CustomSQL(sql_expr)
         assert op.sql_expression == sql_expr
-        assert op.name.startswith("custom_sql_")
-        assert len(op.name) == len("custom_sql_") + 8  # 8 char hash
+        assert op.name.startswith("custom_sql(")
+        assert op.name.endswith(")")
+        assert len(op.name) == len("custom_sql()") + 8  # 8 char hash inside parens

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from typing import Any, Generic, Protocol, TypeVar, runtime_checkable
 
 from dqx.common import DQXError, Parameters
@@ -166,15 +167,14 @@ class CustomSQL(OpValueMixin[float], SqlOp[float]):
 
         # Generate a short identifier from the SQL expression
         # Use hash for uniqueness, limited to 8 chars
-        import hashlib
 
         sql_hash = hashlib.md5(sql_expression.encode()).hexdigest()[:8]
         self._sql_hash = sql_hash
 
     @property
     def name(self) -> str:
-        # Use sql_col for the name to ensure uniqueness
-        return f"custom_sql_{self._sql_hash}"
+        # Use hash-based naming with parentheses format
+        return f"custom_sql({self._sql_hash})"
 
     @property
     def prefix(self) -> str:

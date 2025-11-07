@@ -19,6 +19,7 @@ MetricType = Literal[
     "DuplicateCount",
     "CountValues",
     "UniqueCount",
+    "CustomSQL",
     "DayOverDay",
     "WeekOverWeek",
     "Stddev",
@@ -71,8 +72,9 @@ class NumRows(SimpleMetricSpec):
     metric_type: MetricType = "NumRows"
     is_extended: Literal[False] = False
 
-    def __init__(self) -> None:
-        self._analyzers = (ops.NumRows(),)
+    def __init__(self, parameters: Parameters | None = None) -> None:
+        self._parameters = parameters or {}
+        self._analyzers = (ops.NumRows(parameters=self._parameters),)
 
     @property
     def name(self) -> str:
@@ -80,7 +82,7 @@ class NumRows(SimpleMetricSpec):
 
     @property
     def parameters(self) -> Parameters:
-        return {}
+        return self._parameters
 
     @property
     def analyzers(self) -> Sequence[ops.Op]:
@@ -96,10 +98,10 @@ class NumRows(SimpleMetricSpec):
 
     def clone(self) -> Self:
         """Create a new instance with the same parameters but new analyzer prefixes."""
-        return self.__class__()
+        return self.__class__(parameters=self._parameters.copy())
 
     def __hash__(self) -> int:
-        return hash((self.name, tuple(self.parameters.items())))
+        return hash((self.name, tuple(sorted(self.parameters.items()))))
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, NumRows):
@@ -114,9 +116,10 @@ class First(SimpleMetricSpec):
     metric_type: MetricType = "First"
     is_extended: Literal[False] = False
 
-    def __init__(self, column: str) -> None:
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
         self._column = column
-        self._analyzers = (ops.First(self._column),)
+        self._parameters = parameters or {}
+        self._analyzers = (ops.First(self._column, parameters=self._parameters),)
 
     @property
     def name(self) -> str:
@@ -124,7 +127,7 @@ class First(SimpleMetricSpec):
 
     @property
     def parameters(self) -> Parameters:
-        return {"column": self._column}
+        return {"column": self._column, **self._parameters}
 
     @property
     def analyzers(self) -> Sequence[ops.Op]:
@@ -139,10 +142,10 @@ class First(SimpleMetricSpec):
 
     def clone(self) -> Self:
         """Create a new instance with the same parameters but new analyzer prefixes."""
-        return self.__class__(self._column)
+        return self.__class__(self._column, parameters=self._parameters.copy())
 
     def __hash__(self) -> int:
-        return hash((self.name, tuple(self.parameters.items())))
+        return hash((self.name, tuple(sorted(self.parameters.items()))))
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, First):
@@ -157,9 +160,13 @@ class Average(SimpleMetricSpec):
     metric_type: MetricType = "Average"
     is_extended: Literal[False] = False
 
-    def __init__(self, column: str) -> None:
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
         self._column = column
-        self._analyzers = (ops.NumRows(), ops.Average(self._column))
+        self._parameters = parameters or {}
+        self._analyzers = (
+            ops.NumRows(parameters=self._parameters),
+            ops.Average(self._column, parameters=self._parameters),
+        )
 
     @property
     def name(self) -> str:
@@ -167,7 +174,7 @@ class Average(SimpleMetricSpec):
 
     @property
     def parameters(self) -> Parameters:
-        return {"column": self._column}
+        return {"column": self._column, **self._parameters}
 
     @property
     def analyzers(self) -> Sequence[ops.Op]:
@@ -183,10 +190,10 @@ class Average(SimpleMetricSpec):
 
     def clone(self) -> Self:
         """Create a new instance with the same parameters but new analyzer prefixes."""
-        return self.__class__(self._column)
+        return self.__class__(self._column, parameters=self._parameters.copy())
 
     def __hash__(self) -> int:
-        return hash((self.name, tuple(self.parameters.items())))
+        return hash((self.name, tuple(sorted(self.parameters.items()))))
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Average):
@@ -201,9 +208,14 @@ class Variance(SimpleMetricSpec):
     metric_type: MetricType = "Variance"
     is_extended: Literal[False] = False
 
-    def __init__(self, column: str) -> None:
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
         self._column = column
-        self._analyzers = (ops.NumRows(), ops.Average(self._column), ops.Variance(self._column))
+        self._parameters = parameters or {}
+        self._analyzers = (
+            ops.NumRows(parameters=self._parameters),
+            ops.Average(self._column, parameters=self._parameters),
+            ops.Variance(self._column, parameters=self._parameters),
+        )
 
     @property
     def name(self) -> str:
@@ -211,7 +223,7 @@ class Variance(SimpleMetricSpec):
 
     @property
     def parameters(self) -> Parameters:
-        return {"column": self._column}
+        return {"column": self._column, **self._parameters}
 
     @property
     def analyzers(self) -> Sequence[ops.Op]:
@@ -227,10 +239,10 @@ class Variance(SimpleMetricSpec):
 
     def clone(self) -> Self:
         """Create a new instance with the same parameters but new analyzer prefixes."""
-        return self.__class__(self._column)
+        return self.__class__(self._column, parameters=self._parameters.copy())
 
     def __hash__(self) -> int:
-        return hash((self.name, tuple(self.parameters.items())))
+        return hash((self.name, tuple(sorted(self.parameters.items()))))
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Variance):
@@ -245,9 +257,10 @@ class Minimum(SimpleMetricSpec):
     metric_type: MetricType = "Minimum"
     is_extended: Literal[False] = False
 
-    def __init__(self, column: str) -> None:
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
         self._column = column
-        self._analyzers = (ops.Minimum(self._column),)
+        self._parameters = parameters or {}
+        self._analyzers = (ops.Minimum(self._column, parameters=self._parameters),)
 
     @property
     def name(self) -> str:
@@ -255,7 +268,7 @@ class Minimum(SimpleMetricSpec):
 
     @property
     def parameters(self) -> Parameters:
-        return {"column": self._column}
+        return {"column": self._column, **self._parameters}
 
     @property
     def analyzers(self) -> Sequence[ops.Op]:
@@ -270,10 +283,10 @@ class Minimum(SimpleMetricSpec):
 
     def clone(self) -> Self:
         """Create a new instance with the same parameters but new analyzer prefixes."""
-        return self.__class__(self._column)
+        return self.__class__(self._column, parameters=self._parameters.copy())
 
     def __hash__(self) -> int:
-        return hash((self.name, tuple(self.parameters.items())))
+        return hash((self.name, tuple(sorted(self.parameters.items()))))
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Minimum):
@@ -288,9 +301,10 @@ class Maximum(SimpleMetricSpec):
     metric_type: MetricType = "Maximum"
     is_extended: Literal[False] = False
 
-    def __init__(self, column: str) -> None:
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
         self._column = column
-        self._analyzers = (ops.Maximum(self._column),)
+        self._parameters = parameters or {}
+        self._analyzers = (ops.Maximum(self._column, parameters=self._parameters),)
 
     @property
     def name(self) -> str:
@@ -298,7 +312,7 @@ class Maximum(SimpleMetricSpec):
 
     @property
     def parameters(self) -> Parameters:
-        return {"column": self._column}
+        return {"column": self._column, **self._parameters}
 
     @property
     def analyzers(self) -> Sequence[ops.Op]:
@@ -313,10 +327,10 @@ class Maximum(SimpleMetricSpec):
 
     def clone(self) -> Self:
         """Create a new instance with the same parameters but new analyzer prefixes."""
-        return self.__class__(self._column)
+        return self.__class__(self._column, parameters=self._parameters.copy())
 
     def __hash__(self) -> int:
-        return hash((self.name, tuple(self.parameters.items())))
+        return hash((self.name, tuple(sorted(self.parameters.items()))))
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Maximum):
@@ -331,9 +345,10 @@ class Sum(SimpleMetricSpec):
     metric_type: MetricType = "Sum"
     is_extended: Literal[False] = False
 
-    def __init__(self, column: str) -> None:
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
         self._column = column
-        self._analyzers = (ops.Sum(self._column),)
+        self._parameters = parameters or {}
+        self._analyzers = (ops.Sum(self._column, parameters=self._parameters),)
 
     @property
     def name(self) -> str:
@@ -341,7 +356,7 @@ class Sum(SimpleMetricSpec):
 
     @property
     def parameters(self) -> Parameters:
-        return {"column": self._column}
+        return {"column": self._column, **self._parameters}
 
     @property
     def analyzers(self) -> Sequence[ops.Op]:
@@ -356,10 +371,10 @@ class Sum(SimpleMetricSpec):
 
     def clone(self) -> Self:
         """Create a new instance with the same parameters but new analyzer prefixes."""
-        return self.__class__(self._column)
+        return self.__class__(self._column, parameters=self._parameters.copy())
 
     def __hash__(self) -> int:
-        return hash((self.name, tuple(self.parameters.items())))
+        return hash((self.name, tuple(sorted(self.parameters.items()))))
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Sum):
@@ -374,9 +389,10 @@ class NullCount(SimpleMetricSpec):
     metric_type: MetricType = "NullCount"
     is_extended: Literal[False] = False
 
-    def __init__(self, column: str) -> None:
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
         self._column = column
-        self._analyzers = (ops.NullCount(self._column),)
+        self._parameters = parameters or {}
+        self._analyzers = (ops.NullCount(self._column, parameters=self._parameters),)
 
     @property
     def name(self) -> str:
@@ -384,7 +400,7 @@ class NullCount(SimpleMetricSpec):
 
     @property
     def parameters(self) -> Parameters:
-        return {"column": self._column}
+        return {"column": self._column, **self._parameters}
 
     @property
     def analyzers(self) -> Sequence[ops.Op]:
@@ -399,10 +415,10 @@ class NullCount(SimpleMetricSpec):
 
     def clone(self) -> Self:
         """Create a new instance with the same parameters but new analyzer prefixes."""
-        return self.__class__(self._column)
+        return self.__class__(self._column, parameters=self._parameters.copy())
 
     def __hash__(self) -> int:
-        return hash((self.name, tuple(self.parameters.items())))
+        return hash((self.name, tuple(sorted(self.parameters.items()))))
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, NullCount):
@@ -417,9 +433,10 @@ class NegativeCount(SimpleMetricSpec):
     metric_type: MetricType = "NegativeCount"
     is_extended: Literal[False] = False
 
-    def __init__(self, column: str) -> None:
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
         self._column = column
-        self._analyzers = (ops.NegativeCount(self._column),)
+        self._parameters = parameters or {}
+        self._analyzers = (ops.NegativeCount(self._column, parameters=self._parameters),)
 
     @property
     def name(self) -> str:
@@ -427,7 +444,7 @@ class NegativeCount(SimpleMetricSpec):
 
     @property
     def parameters(self) -> Parameters:
-        return {"column": self._column}
+        return {"column": self._column, **self._parameters}
 
     @property
     def analyzers(self) -> Sequence[ops.Op]:
@@ -442,10 +459,10 @@ class NegativeCount(SimpleMetricSpec):
 
     def clone(self) -> Self:
         """Create a new instance with the same parameters but new analyzer prefixes."""
-        return self.__class__(self._column)
+        return self.__class__(self._column, parameters=self._parameters.copy())
 
     def __hash__(self) -> int:
-        return hash((self.name, tuple(self.parameters.items())))
+        return hash((self.name, tuple(sorted(self.parameters.items()))))
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, NegativeCount):
@@ -460,12 +477,13 @@ class DuplicateCount(SimpleMetricSpec):
     metric_type: MetricType = "DuplicateCount"
     is_extended: Literal[False] = False
 
-    def __init__(self, columns: list[str]) -> None:
+    def __init__(self, columns: list[str], parameters: Parameters | None = None) -> None:
         if not columns:
             raise ValueError("At least one column must be specified")
         # Sort columns for consistent behavior
         self._columns = sorted(columns)
-        self._analyzers = (ops.DuplicateCount(self._columns),)
+        self._parameters = parameters or {}
+        self._analyzers = (ops.DuplicateCount(self._columns, parameters=self._parameters),)
 
     @property
     def name(self) -> str:
@@ -474,7 +492,7 @@ class DuplicateCount(SimpleMetricSpec):
 
     @property
     def parameters(self) -> Parameters:
-        return {"columns": self._columns}
+        return {"columns": self._columns, **self._parameters}
 
     @property
     def analyzers(self) -> Sequence[ops.Op]:
@@ -490,11 +508,11 @@ class DuplicateCount(SimpleMetricSpec):
     def clone(self) -> Self:
         """Create a new instance with the same parameters but new analyzer prefixes."""
         # Pass a copy of the columns list to avoid shared references
-        return self.__class__(self._columns.copy())
+        return self.__class__(self._columns.copy(), parameters=self._parameters.copy())
 
     def __hash__(self) -> int:
         # Convert the columns list to a tuple for hashing
-        return hash((self.name, tuple(self._columns)))
+        return hash((self.name, tuple(self._columns), tuple(sorted(self._parameters.items()))))
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, DuplicateCount):
@@ -509,10 +527,13 @@ class CountValues(SimpleMetricSpec):
     metric_type: MetricType = "CountValues"
     is_extended: Literal[False] = False
 
-    def __init__(self, column: str, values: int | str | bool | list[int] | list[str]) -> None:
+    def __init__(
+        self, column: str, values: int | str | bool | list[int] | list[str], parameters: Parameters | None = None
+    ) -> None:
         self._column = column
         self._values = values
-        self._analyzers = (ops.CountValues(self._column, self._values),)
+        self._parameters = parameters or {}
+        self._analyzers = (ops.CountValues(self._column, self._values, parameters=self._parameters),)
 
     @property
     def name(self) -> str:
@@ -522,7 +543,7 @@ class CountValues(SimpleMetricSpec):
 
     @property
     def parameters(self) -> Parameters:
-        return {"column": self._column, "values": self._values}
+        return {"column": self._column, "values": self._values, **self._parameters}
 
     @property
     def analyzers(self) -> Sequence[ops.Op]:
@@ -539,14 +560,14 @@ class CountValues(SimpleMetricSpec):
         """Create a new instance with the same parameters but new analyzer prefixes."""
         # If values is a list, create a copy to avoid shared references
         if isinstance(self._values, list):
-            return self.__class__(self._column, self._values.copy())
+            return self.__class__(self._column, self._values.copy(), parameters=self._parameters.copy())
         else:
-            return self.__class__(self._column, self._values)
+            return self.__class__(self._column, self._values, parameters=self._parameters.copy())
 
     def __hash__(self) -> int:
         # Convert lists to tuples for hashing
         hashable_values = self._values if not isinstance(self._values, list) else tuple(self._values)
-        return hash((self.name, self._column, hashable_values))
+        return hash((self.name, self._column, hashable_values, tuple(sorted(self._parameters.items()))))
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, CountValues):
@@ -561,9 +582,10 @@ class UniqueCount(SimpleMetricSpec):
     metric_type: MetricType = "UniqueCount"
     is_extended: Literal[False] = False
 
-    def __init__(self, column: str) -> None:
+    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
         self._column = column
-        self._analyzers = (ops.UniqueCount(self._column),)
+        self._parameters = parameters or {}
+        self._analyzers = (ops.UniqueCount(self._column, parameters=self._parameters),)
 
     @property
     def name(self) -> str:
@@ -571,7 +593,7 @@ class UniqueCount(SimpleMetricSpec):
 
     @property
     def parameters(self) -> Parameters:
-        return {"column": self._column}
+        return {"column": self._column, **self._parameters}
 
     @property
     def analyzers(self) -> Sequence[ops.Op]:
@@ -586,15 +608,63 @@ class UniqueCount(SimpleMetricSpec):
 
     def clone(self) -> Self:
         """Create a new instance with the same parameters but new analyzer prefixes."""
-        return self.__class__(self._column)
+        return self.__class__(self._column, parameters=self._parameters.copy())
 
     def __hash__(self) -> int:
-        return hash((self.name, tuple(self.parameters.items())))
+        return hash((self.name, tuple(sorted(self.parameters.items()))))
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, UniqueCount):
             return False
         return self.name == other.name and self.parameters == other.parameters
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class CustomSQL(SimpleMetricSpec):
+    metric_type: MetricType = "CustomSQL"
+    is_extended: Literal[False] = False
+
+    def __init__(self, sql_expression: str, parameters: Parameters | None = None) -> None:
+        self._sql_expression = sql_expression
+        self._parameters = parameters or {}
+        self._analyzers = (ops.CustomSQL(self._sql_expression, parameters=self._parameters),)
+
+    @property
+    def name(self) -> str:
+        # Use hash-based naming with parentheses format
+        import hashlib
+
+        sql_hash = hashlib.md5(self._sql_expression.encode()).hexdigest()[:8]
+        return f"custom_sql({sql_hash})"
+
+    @property
+    def parameters(self) -> Parameters:
+        return {"sql_expression": self._sql_expression, **self._parameters}
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return self._analyzers
+
+    def state(self) -> states.SimpleAdditiveState:
+        return states.SimpleAdditiveState(value=self._analyzers[0].value())
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.SimpleAdditiveState.deserialize(state)
+
+    def clone(self) -> Self:
+        """Create a new instance with the same parameters but new analyzer prefixes."""
+        return self.__class__(self._sql_expression, parameters=self._parameters.copy())
+
+    def __hash__(self) -> int:
+        return hash((self.name, self._sql_expression, tuple(sorted(self._parameters.items()))))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, CustomSQL):
+            return False
+        return self._sql_expression == other._sql_expression and self.parameters == other.parameters
 
     def __str__(self) -> str:
         return self.name
@@ -611,7 +681,28 @@ class DayOverDay(ExtendedMetricSpec):
 
         # Reconstruct and store the base spec for internal operations
         metric_type = typing.cast(MetricType, self._base_metric_type)
-        self._base_spec = registry[metric_type](**self._base_parameters)
+        spec_class = registry[metric_type]
+
+        # Extended metrics (DayOverDay, WeekOverWeek, Stddev) have specific constructor signatures
+        # and don't accept a 'parameters' argument
+        if metric_type in ["DayOverDay", "WeekOverWeek", "Stddev"]:
+            # For extended metrics, pass all parameters as constructor args
+            self._base_spec = typing.cast(Any, spec_class)(**self._base_parameters)
+        else:
+            # For simple metrics, split into constructor params and additional params
+            sig = inspect.signature(spec_class.__init__)
+            constructor_params = {}
+            additional_params = {}
+
+            for key, value in self._base_parameters.items():
+                if key in sig.parameters and key != "parameters":
+                    constructor_params[key] = value
+                else:
+                    additional_params[key] = value
+
+            # Create spec with constructor params and additional params
+            # Cast to Any to avoid mypy issues with protocol constructors
+            self._base_spec = typing.cast(Any, spec_class)(**constructor_params, parameters=additional_params)
 
     @classmethod
     def from_base_spec(cls, base_spec: MetricSpec) -> Self:
@@ -669,7 +760,28 @@ class WeekOverWeek(ExtendedMetricSpec):
 
         # Reconstruct and store the base spec for internal operations
         metric_type = typing.cast(MetricType, self._base_metric_type)
-        self._base_spec = registry[metric_type](**self._base_parameters)
+        spec_class = registry[metric_type]
+
+        # Extended metrics (DayOverDay, WeekOverWeek, Stddev) have specific constructor signatures
+        # and don't accept a 'parameters' argument
+        if metric_type in ["DayOverDay", "WeekOverWeek", "Stddev"]:
+            # For extended metrics, pass all parameters as constructor args
+            self._base_spec = typing.cast(Any, spec_class)(**self._base_parameters)
+        else:
+            # For simple metrics, split into constructor params and additional params
+            sig = inspect.signature(spec_class.__init__)
+            constructor_params = {}
+            additional_params = {}
+
+            for key, value in self._base_parameters.items():
+                if key in sig.parameters and key != "parameters":
+                    constructor_params[key] = value
+                else:
+                    additional_params[key] = value
+
+            # Create spec with constructor params and additional params
+            # Cast to Any to avoid mypy issues with protocol constructors
+            self._base_spec = typing.cast(Any, spec_class)(**constructor_params, parameters=additional_params)
 
     @classmethod
     def from_base_spec(cls, base_spec: MetricSpec) -> Self:
@@ -729,7 +841,28 @@ class Stddev(ExtendedMetricSpec):
 
         # Reconstruct and store the base spec for internal operations
         metric_type = typing.cast(MetricType, self._base_metric_type)
-        self._base_spec = registry[metric_type](**self._base_parameters)
+        spec_class = registry[metric_type]
+
+        # Extended metrics (DayOverDay, WeekOverWeek, Stddev) have specific constructor signatures
+        # and don't accept a 'parameters' argument
+        if metric_type in ["DayOverDay", "WeekOverWeek", "Stddev"]:
+            # For extended metrics, pass all parameters as constructor args
+            self._base_spec = typing.cast(Any, spec_class)(**self._base_parameters)
+        else:
+            # For simple metrics, split into constructor params and additional params
+            sig = inspect.signature(spec_class.__init__)
+            constructor_params = {}
+            additional_params = {}
+
+            for key, value in self._base_parameters.items():
+                if key in sig.parameters and key != "parameters":
+                    constructor_params[key] = value
+                else:
+                    additional_params[key] = value
+
+            # Create spec with constructor params and additional params
+            # Cast to Any to avoid mypy issues with protocol constructors
+            self._base_spec = typing.cast(Any, spec_class)(**constructor_params, parameters=additional_params)
 
     @classmethod
     def from_base_spec(cls, base_spec: MetricSpec, offset: int, n: int) -> Self:
