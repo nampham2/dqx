@@ -200,7 +200,7 @@ class Dialect(Protocol):
         """
         ...
 
-    def build_cte_query(self, cte_data: list["BatchCTEData"]) -> str:
+    def build_cte_query(self, cte_data: list["BatchCTEData"], data_source: "SqlDataSource") -> str:
         """Build a batch CTE query for multiple dates.
 
         Args:
@@ -208,6 +208,7 @@ class Dialect(Protocol):
                 - key: ResultKey with the date
                 - cte_sql: CTE SQL for this date
                 - ops: List of SqlOp objects to translate
+            data_source: The data source for parameter-aware CTE generation
 
         Returns:
             Complete SQL query with CTEs and UNION ALL
@@ -366,7 +367,7 @@ class DuckDBDialect:
             case _:
                 raise ValueError(f"Unsupported SqlOp type: {type(op).__name__}")
 
-    def build_cte_query(self, cte_data: list["BatchCTEData"]) -> str:
+    def build_cte_query(self, cte_data: list["BatchCTEData"], data_source: "SqlDataSource") -> str:
         """Build batch CTE query using array format for DuckDB.
 
         This method uses an array of key-value pairs to return metrics,
@@ -377,6 +378,7 @@ class DuckDBDialect:
                 - key: ResultKey with the date
                 - cte_sql: CTE SQL for this date
                 - ops: List of SqlOp objects to translate
+            data_source: The data source for parameter-aware CTE generation
 
         Returns:
             Complete SQL query with CTEs and array-based results
@@ -405,7 +407,7 @@ class DuckDBDialect:
                 array_entries.append(f"{{'key': '{op.sql_col}', 'value': \"{op.sql_col}\"}}")
             return "[" + ", ".join(array_entries) + "]"
 
-        return _build_query_with_values(self, cte_data, format_array_values)
+        return _build_query_with_values(self, cte_data, format_array_values, data_source)
 
 
 @auto_register
@@ -494,7 +496,7 @@ class BigQueryDialect:
             case _:
                 raise ValueError(f"Unsupported SqlOp type: {type(op).__name__}")
 
-    def build_cte_query(self, cte_data: list["BatchCTEData"]) -> str:
+    def build_cte_query(self, cte_data: list["BatchCTEData"], data_source: "SqlDataSource") -> str:
         """Build batch CTE query using array format for BigQuery.
 
         This method generates a query that returns results as:
@@ -506,6 +508,7 @@ class BigQueryDialect:
 
         Args:
             cte_data: List of BatchCTEData objects
+            data_source: The data source for parameter-aware CTE generation
 
         Returns:
             Complete SQL query with CTEs and array-based results
@@ -535,4 +538,4 @@ class BigQueryDialect:
                 array_entries.append(f"STRUCT('{op.sql_col}' AS key, `{op.sql_col}` AS value)")
             return "[" + ", ".join(array_entries) + "]"
 
-        return _build_query_with_values(self, cte_data, format_array_values)
+        return _build_query_with_values(self, cte_data, format_array_values, data_source)

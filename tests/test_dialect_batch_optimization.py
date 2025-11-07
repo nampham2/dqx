@@ -5,9 +5,10 @@ ensuring it works correctly with the DuckDB and BigQuery dialects.
 """
 
 from datetime import date
+from unittest.mock import Mock
 
 from dqx import ops
-from dqx.common import ResultKey
+from dqx.common import ResultKey, SqlDataSource
 from dqx.dialect import BatchCTEData, BigQueryDialect, DuckDBDialect
 
 
@@ -42,7 +43,8 @@ def test_batch_optimization_with_count_values_duckdb() -> None:
         ),
     ]
 
-    query = dialect.build_cte_query(cte_data)
+    mock_ds = Mock(spec=SqlDataSource)
+    query = dialect.build_cte_query(cte_data, mock_ds)
 
     # Verify query structure
     assert "WITH" in query
@@ -86,7 +88,8 @@ def test_batch_optimization_with_count_values_bigquery() -> None:
         )
     ]
 
-    query = dialect.build_cte_query(cte_data)
+    mock_ds = Mock(spec=SqlDataSource)
+    query = dialect.build_cte_query(cte_data, mock_ds)
 
     # Verify BigQuery specific syntax
     assert "COUNTIF(type = 'purchase')" in query
@@ -120,7 +123,8 @@ def test_batch_optimization_special_characters() -> None:
         )
     ]
 
-    query = dialect.build_cte_query(cte_data)
+    mock_ds = Mock(spec=SqlDataSource)
+    query = dialect.build_cte_query(cte_data, mock_ds)
 
     # Check proper escaping
     assert "COUNT_IF(user = 'O''Brien')" in query
@@ -168,7 +172,8 @@ def test_batch_optimization_mixed_ops() -> None:
             )
         )
 
-    query = dialect.build_cte_query(cte_data)
+    mock_ds = Mock(spec=SqlDataSource)
+    query = dialect.build_cte_query(cte_data, mock_ds)
 
     # Check all dates are present
     for d in dates:
@@ -202,7 +207,8 @@ def test_batch_optimization_empty_string_values() -> None:
         )
     ]
 
-    query = dialect.build_cte_query(cte_data)
+    mock_ds = Mock(spec=SqlDataSource)
+    query = dialect.build_cte_query(cte_data, mock_ds)
 
     # Empty strings should be properly quoted
     assert "COUNTIF(field1 = '')" in query
@@ -229,7 +235,8 @@ def test_batch_optimization_large_value_lists() -> None:
         )
     ]
 
-    query = dialect.build_cte_query(cte_data)
+    mock_ds = Mock(spec=SqlDataSource)
+    query = dialect.build_cte_query(cte_data, mock_ds)
 
     # Check the IN clause is properly formed
     status_list = ", ".join(str(code) for code in status_codes)
@@ -264,7 +271,8 @@ def test_batch_optimization_consistent_ordering() -> None:
         )
     ]
 
-    query = dialect.build_cte_query(cte_data)
+    mock_ds = Mock(spec=SqlDataSource)
+    query = dialect.build_cte_query(cte_data, mock_ds)
 
     # Verify all ops are present in the VALUES array
     for op in ops_list:

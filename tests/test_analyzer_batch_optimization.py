@@ -2,12 +2,13 @@
 
 import datetime
 from collections.abc import Sequence
+from unittest.mock import Mock
 
 import duckdb
 
 from dqx import ops
 from dqx.analyzer import Analyzer, analyze_sql_ops
-from dqx.common import ResultKey
+from dqx.common import ResultKey, SqlDataSource
 from dqx.dialect import BatchCTEData, DuckDBDialect
 from tests.fixtures.data_fixtures import CommercialDataSource
 
@@ -181,7 +182,8 @@ class TestAnalyzerBatchOptimization:
         ]
 
         # Generate MAP query
-        sql = dialect.build_cte_query(cte_data)
+        mock_ds = Mock(spec=SqlDataSource)
+        sql = dialect.build_cte_query(cte_data, mock_ds)
 
         # Execute and verify result size
         result = conn.execute(sql).fetchall()
@@ -246,7 +248,8 @@ def test_performance_comparison() -> None:
         )
 
     # Generate MAP query
-    map_sql = dialect.build_cte_query(cte_data)
+    mock_ds = Mock(spec=SqlDataSource)
+    map_sql = dialect.build_cte_query(cte_data, mock_ds)
 
     # Time MAP query execution
     start_time = time.time()

@@ -2,10 +2,11 @@
 
 import datetime
 from typing import Type
+from unittest.mock import Mock
 
 import pytest
 
-from dqx.common import ResultKey
+from dqx.common import ResultKey, SqlDataSource
 from dqx.dialect import BatchCTEData, BigQueryDialect, DuckDBDialect
 from dqx.ops import Average, CustomSQL, Sum
 
@@ -31,7 +32,9 @@ def test_batch_query_groups_by_parameters(dialect_class: Type[DuckDBDialect] | T
         )
     ]
 
-    sql = dialect.build_cte_query(cte_data)
+    # Create mock data source
+    mock_ds = Mock(spec=SqlDataSource)
+    sql = dialect.build_cte_query(cte_data, mock_ds)
 
     # Should have multiple source CTEs for different parameter groups
     assert "source_2024_01_01_0_0" in sql  # First parameter group
@@ -68,7 +71,9 @@ def test_parameter_aware_batch_sql_generation() -> None:
         ),
     ]
 
-    sql = dialect.build_cte_query(cte_data)
+    # Create mock data source
+    mock_ds = Mock(spec=SqlDataSource)
+    sql = dialect.build_cte_query(cte_data, mock_ds)
 
     # Verify structure
     assert sql.startswith("WITH")

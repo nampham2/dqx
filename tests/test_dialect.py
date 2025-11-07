@@ -5,11 +5,12 @@ concrete dialect implementations.
 """
 
 from datetime import date
+from unittest.mock import Mock
 
 import pytest
 
 from dqx import ops
-from dqx.common import DQXError, ResultKey
+from dqx.common import DQXError, ResultKey, SqlDataSource
 from dqx.dialect import (
     BatchCTEData,
     BigQueryDialect,
@@ -180,7 +181,7 @@ def test_register_dialect(isolated_dialect_registry: dict[str, type]) -> None:
         def translate_sql_op(self, op: ops.SqlOp) -> str:
             return f"TEST SQL FOR {op.name}"
 
-        def build_batch_cte_query(self, cte_data: list["BatchCTEData"]) -> str:
+        def build_cte_query(self, cte_data: list["BatchCTEData"], data_source: "SqlDataSource") -> str:
             # Simple implementation for testing
             return "TEST BATCH CTE QUERY"
 
@@ -211,7 +212,7 @@ def test_auto_register_decorator(isolated_dialect_registry: dict[str, type]) -> 
         def translate_sql_op(self, op: ops.SqlOp) -> str:
             return "AUTO TEST SQL"
 
-        def build_batch_cte_query(self, cte_data: list["BatchCTEData"]) -> str:
+        def build_cte_query(self, cte_data: list["BatchCTEData"], data_source: "SqlDataSource") -> str:
             # Simple implementation for testing
             return "AUTO TEST BATCH CTE QUERY"
 
@@ -242,7 +243,8 @@ def test_batch_cte_query_duckdb() -> None:
         ),
     ]
 
-    query = dialect.build_cte_query(cte_data)
+    mock_ds = Mock(spec=SqlDataSource)
+    query = dialect.build_cte_query(cte_data, mock_ds)
 
     # Check structure
     assert "WITH" in query
@@ -270,7 +272,8 @@ def test_batch_cte_query_bigquery() -> None:
         )
     ]
 
-    query = dialect.build_cte_query(cte_data)
+    mock_ds = Mock(spec=SqlDataSource)
+    query = dialect.build_cte_query(cte_data, mock_ds)
 
     # Check structure
     assert "WITH" in query
@@ -288,7 +291,8 @@ def test_batch_cte_query_empty() -> None:
     dialect = DuckDBDialect()
 
     with pytest.raises(ValueError, match="No CTE data provided"):
-        dialect.build_cte_query([])
+        mock_ds = Mock(spec=SqlDataSource)
+        dialect.build_cte_query([], mock_ds)
 
 
 def test_batch_cte_query_no_ops() -> None:
@@ -305,7 +309,8 @@ def test_batch_cte_query_no_ops() -> None:
     ]
 
     with pytest.raises(ValueError, match="No metrics to compute"):
-        dialect.build_cte_query(cte_data)
+        mock_ds = Mock(spec=SqlDataSource)
+        dialect.build_cte_query(cte_data, mock_ds)
 
 
 def test_all_ops_covered() -> None:

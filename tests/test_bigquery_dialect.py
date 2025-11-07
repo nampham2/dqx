@@ -1,7 +1,9 @@
 """Test BigQuery dialect implementation."""
 
 from typing import Any
+from unittest.mock import Mock
 
+from dqx.common import SqlDataSource
 from dqx.dialect import BigQueryDialect
 from dqx.ops import Average, Maximum, Minimum, NumRows, Sum
 
@@ -149,7 +151,8 @@ class TestBigQueryDialect:
 
         dialect = BigQueryDialect()
         with pytest.raises(ValueError, match="No CTE data provided"):
-            dialect.build_cte_query([])
+            mock_ds = Mock(spec=SqlDataSource)
+            dialect.build_cte_query([], mock_ds)
 
     def test_build_batch_cte_query_single_date(self) -> None:
         """Test batch CTE query with single date."""
@@ -164,7 +167,8 @@ class TestBigQueryDialect:
         ops: list[Any] = [NumRows(), Average("revenue")]
         cte_data = [BatchCTEData(key=key, cte_sql="SELECT * FROM sales", ops=ops)]
 
-        query = dialect.build_cte_query(cte_data)
+        mock_ds = Mock(spec=SqlDataSource)
+        query = dialect.build_cte_query(cte_data, mock_ds)
 
         # Should contain:
         # - WITH clause with source and metrics CTEs
@@ -199,7 +203,8 @@ class TestBigQueryDialect:
         ops2: list[Any] = [Minimum("price"), Maximum("price")]
         cte_data2 = BatchCTEData(key=key2, cte_sql="SELECT * FROM sales WHERE date='2024-01-02'", ops=ops2)
 
-        query = dialect.build_cte_query([cte_data1, cte_data2])
+        mock_ds = Mock(spec=SqlDataSource)
+        query = dialect.build_cte_query([cte_data1, cte_data2], mock_ds)
 
         # Should contain both dates
         assert "'2024-01-01' as date" in query
@@ -225,7 +230,8 @@ class TestBigQueryDialect:
         cte_data = [BatchCTEData(key=key, cte_sql="SELECT * FROM sales", ops=[])]
 
         with pytest.raises(ValueError, match="No metrics to compute"):
-            dialect.build_cte_query(cte_data)
+            mock_ds = Mock(spec=SqlDataSource)
+            dialect.build_cte_query(cte_data, mock_ds)
 
     def test_register_bigquery_dialect(self) -> None:
         """Test BigQuery dialect registration."""
