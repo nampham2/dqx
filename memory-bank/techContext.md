@@ -3,453 +3,541 @@
 ## Technology Stack
 
 ### Core Dependencies
-- **Python 3.11+**: Required for modern type hints and performance
-- **SymPy (1.14.0+)**: Symbolic mathematics for expressions
-- **DuckDB (1.3.2+)**: In-memory SQL engine for analytics
-- **PyArrow (21.0.0+)**: Efficient columnar data processing
-- **SQLAlchemy (2.0.43+)**: Database abstraction for metric storage
-- **Rich (14.1.0+)**: Terminal formatting for result display (moved from dev to core)
-- **Returns (0.26.0+)**: Functional error handling (Result type)
-- **sqlparse (0.5.0+)**: SQL formatting and beautification
+- **Python**: 3.11+ (up to 3.12)
+- **DuckDB**: 1.3.2+ - Primary SQL engine
+- **PyArrow**: 21.0.0+ - Arrow data format support
+- **SQLAlchemy**: 2.0.43+ - SQL abstraction
+- **Returns**: 0.26.0+ - Functional error handling
+- **SymPy**: 1.14.0+ - Symbolic mathematics
+- **Rich**: 14.1.0+ - Terminal UI
+- **Msgpack**: 1.1.1+ - Binary serialization
+- **SQLParse**: 0.5.0+ - SQL parsing
 
-### Supporting Libraries
-- **numpy (2.3.2+)**: Numerical operations
-- **datasketches (5.2.0+)**: Approximate algorithms (cardinality)
-- **msgpack (1.1.1+)**: Efficient binary serialization
-
-### Development Dependencies
-- **uv**: Modern Python package manager (replacement for pip/poetry)
-- **pytest (8.4.1+)**: Testing framework
-- **mypy (1.17.1+)**: Static type checking
-- **ruff (0.12.10+)**: Fast Python linter and formatter
-- **pre-commit (4.3.0+)**: Git hook framework
-- **pytest-cov (6.2.1+)**: Test coverage reporting
-- **faker (37.5.3+)**: Test data generation
-- **yamllint**: YAML file validation (new)
-- **shfmt**: Shell script formatting (new)
-- **shellcheck**: Shell script validation (new)
+### Development Tools
+- **uv**: Package manager (replaces pip/poetry)
+- **pytest**: Testing framework with 100% coverage target
+- **mypy**: Static type checking with strict mode
+- **ruff**: Fast Python linter and formatter
+- **pre-commit**: Git hooks for code quality
+- **commitizen**: Conventional commit enforcement
+- **mkdocs**: Documentation generation
 
 ## Development Setup
 
 ### Initial Setup
 ```bash
 # Clone repository
-git clone <repository-url>
+git clone git@github.com:nampham2/dqx.git
 cd dqx
 
-# Run setup script (installs uv and dependencies)
+# Run setup script
 ./bin/setup-dev-env.sh
+
+# This script will:
+# 1. Install uv package manager
+# 2. Create virtual environment
+# 3. Install all dependencies
+# 4. Set up pre-commit hooks
 ```
 
-### Virtual Environment Management
-- Managed by `uv` automatically
-- Python version from `.python-version` file (3.11)
-- All commands run through `uv run <command>`
-
-### Common Commands
+### Daily Workflow
 ```bash
+# Always work in virtual environment
+source .venv/bin/activate  # or let uv handle it
+
 # Run tests
-uv run pytest tests/ -v
+uv run pytest
 
-# Run specific test file
-uv run pytest tests/test_api.py -v
+# Run specific test
+uv run pytest tests/test_cache.py::test_cache_hit
 
-# Check coverage
+# Run with coverage
 uv run pytest --cov=dqx --cov-report=html
-
-# Run pre-commit checks
-./bin/run-hooks.sh
 
 # Type checking
 uv run mypy src/
 
 # Linting
-uv run ruff check src/
+uv run ruff check src/ tests/
 
 # Format code
-uv run ruff check --fix src/
+uv run ruff format src/ tests/
 ```
 
-## Project Structure
+## Testing Workflow
 
-### Source Layout
-```
-src/dqx/
-├── __init__.py          # Package initialization
-├── api.py               # User-facing API
-├── analyzer.py          # SQL analysis engine
-├── common.py            # Shared types and protocols
-├── compute.py           # Computation utilities
-├── datasource.py        # Data source implementations
-├── dialect.py           # SQL dialect implementations
-├── display.py           # Result visualization
-├── evaluator.py         # Assertion evaluation
-├── functions.py         # Mathematical functions
-├── models.py            # Data models
-├── ops.py               # Metric operations
-├── plugins.py           # Plugin system
-├── provider.py          # Metric provider
-├── specs.py             # Metric specifications
-├── states.py            # State management
-├── timer.py             # Performance timing
-├── utils.py             # Utility functions
-├── validator.py         # Suite validation
-├── graph/              # Graph implementation
-├── orm/                # Database persistence
-└── plugins/            # Built-in plugins
-```
+### Test-Driven Development (TDD) Process
 
-### Test Structure
-```
-tests/
-├── test_*.py           # Unit tests (matching src/)
-├── e2e/                # End-to-end tests
-├── fixtures/           # Test data
-└── conftest.py         # Pytest configuration
-```
+**MANDATORY for every feature/bugfix**:
 
-## Configuration Files
-
-### pyproject.toml
-- Project metadata and dependencies
-- Tool configurations (ruff, mypy, pytest)
-- Build system configuration
-- Version management
-
-### .pre-commit-config.yaml
-- Automated code quality checks
-- Runs on every commit
-- Includes: ruff, mypy, trailing whitespace, yamllint, shfmt, shellcheck
-- Ensures consistent code quality
-
-### .python-version
-- Specifies Python 3.11 for the project
-- Used by uv for environment creation
-
-## SQL Dialects
-
-### DuckDB (Default)
-- In-memory analytical database
-- Supports window functions, CTEs
-- Fast columnar processing
-- No external dependencies
-
-### BigQuery
-- Google Cloud data warehouse
-- Requires additional setup
-- Supports massive scale
-
-### PyArrow Integration
-- Works through DuckDB
-- Efficient for local data files
-- Parquet file support
-
-### Future Dialects
-- PostgreSQL (planned for v0.4.0)
-- Snowflake (under consideration)
-- MySQL/MariaDB (evaluation phase)
-
-## Database Persistence
-
-### Supported Backends
-- **SQLite**: Local development
-- **PostgreSQL**: Production deployments
-- **In-Memory**: Testing and demos
-
-### Schema
-- Metrics table: Stores computed values
-- Results table: Stores assertion outcomes
-- Automatic migration on startup
-
-## Type System
-
-### Type Hints Everywhere
+1. **Write Failing Test**:
 ```python
-def average(
-    self, column: str, dataset: str | None = None, key: ResultKeyProvider | None = None
-) -> sp.Expr:
-    pass
+def test_new_feature() -> None:
+    """Test that new feature works correctly."""
+    # Arrange
+    provider = MetricProvider(db, ExecutionId())
+
+    # Act
+    result = provider.new_operation()
+
+    # Assert
+    match result:
+        case Success(value):
+            assert value == expected
+        case Failure(error):
+            pytest.fail(f"Operation failed: {error}")
 ```
 
-### Protocols for Extensions
+2. **Run Test to Confirm Failure**:
+```bash
+uv run pytest tests/test_new_feature.py -v
+# Should see RED - test fails as expected
+```
+
+3. **Write Minimal Implementation**:
 ```python
-class MetricSpec(Protocol):
-    def to_sql(self, table_alias: str, dialect: Dialect) -> str: ...
-
-
-class PostProcessor(Protocol):
-    @staticmethod
-    def metadata() -> PluginMetadata: ...
-
-    def process(self, context: PluginExecutionContext) -> None: ...
+def new_operation(self) -> Result[float, str]:
+    """Implement just enough to pass test."""
+    return Success(expected_value)
 ```
 
-### Result Types
-```python
-from returns.result import Result, Success, Failure
-
-Result[float, str]  # Success has float, Failure has error string
+4. **Run Test to Confirm Success**:
+```bash
+uv run pytest tests/test_new_feature.py -v
+# Should see GREEN - test passes
 ```
 
-## Testing Philosophy
-
-### Core Principle
-**Test code quality equals source code quality**. Tests should be concise, modern, and maintainable with full type annotations.
-
-### Test-Driven Development
-1. Write failing test first
-2. Implement minimal code to pass
-3. Refactor while keeping tests green
-4. Maintain or exceed current coverage levels
-
-### Test Categories
-- **Unit tests**: Individual components
-- **Integration tests**: Component interactions
-- **E2E tests**: Full workflow validation
-- **Demo tests**: Example usage patterns
-- **Plugin tests**: Plugin functionality
+5. **Refactor While Keeping Tests Green**:
+```bash
+# Make improvements
+# Run tests after each change
+uv run pytest
+# All tests must remain GREEN
+```
 
 ### Testing Best Practices
 
-#### 1. Real Objects Over Mocks
-- **Use real objects whenever possible** - mocks hide bugs
-- Prefer in-memory databases over database mocks
-- Use real instances of classes, not mock objects
-- Only mock external services that can't be controlled
-
-#### 2. Type Safety Required
-- **All test code MUST have type annotations**
-- No `Any` types unless absolutely necessary
-- Full type hints for fixtures, parameters, and returns
-- Type check tests with mypy
-
-#### 3. Returns Library Testing
-- **Always use pattern matching** for Result/Maybe types
-- Never use `isinstance(result, Success/Failure)`
-- Never use `hasattr` to check for methods
-- Pattern matching is the ONLY correct approach
-
+**Real Objects Over Mocks**:
 ```python
-# Testing Result types
-match result:
-    case Success(value):
-        assert value == expected
-    case Failure(error):
-        pytest.fail(f"Expected Success: {error}")
+# ✅ GOOD - Real objects
+db = MetricDB(":memory:")
+cache = MetricCache(db)
 
-# Testing Maybe types
-match maybe_value:
-    case Some(value):
-        assert value.name == "test"
-    case Nothing():
-        pytest.fail("Expected Some, got Nothing")
+# ❌ BAD - Mocks
+mock_db = Mock()
+mock_cache = Mock()
 ```
 
-#### 4. Minimal Tests, Maximal Coverage
-- Write fewest tests that provide most coverage
-- Use parametrized tests for similar scenarios
-- Focus on critical paths and edge cases
-- No need for 100% coverage unless requested
+**Pattern Matching for Results**:
+```python
+# ✅ GOOD - Pattern matching
+match result:
+    case Success(value):
+        assert value == 42
+    case Failure(error):
+        pytest.fail(f"Unexpected failure: {error}")
 
-#### 5. Functional Testing Style
-- Chain operations functionally where appropriate
-- Use Result/Maybe composition features
-- Test pipelines end-to-end
-- Verify functional transformations
-
-### Testing Standards
-- Clear, descriptive test names
-- Isolated tests with no dependencies
-- Test error paths as thoroughly as success paths
-- Use fixtures for common setup
-- Group related tests in classes
-- Maintain test performance (fast feedback)
-
-## Performance Considerations
-
-### Query Optimization
-- Single-pass SQL generation
-- CTE-based query structure
-- Push computation to database
-- Minimize data transfer
-- SQL formatting for readability
-
-### Memory Management
-- No data materialization in Python
-- Streaming results processing
-- Constant memory usage
-- Lazy symbol evaluation
-
-### Plugin Performance
-- 60-second hard timeout
-- Time tracking for each plugin
-- Isolated execution environment
-
-## Security Considerations
-
-### SQL Injection Prevention
-- Parameterized queries only
-- Column name validation
-- No dynamic SQL construction
-
-### Data Access
-- Read-only data source access
-- Separate metric storage credentials
-- No data modification capabilities
-
-### Plugin Security
-- Time-limited execution
-- Error isolation
-- No access to sensitive internals
+# ❌ BAD - isinstance
+assert isinstance(result, Success)
+assert result.unwrap() == 42
+```
 
 ## Git Workflow
 
-### Conventional Commits Required
-All commits and PR titles **MUST** follow conventional commit format:
+### Branch Creation
+```bash
+# Feature branch
+git checkout -b feature/custom-sql-operation
 
+# Bugfix branch
+git checkout -b bugfix/cache-thread-safety
+
+# WIP branch (when exploring)
+git checkout -b wip/investigating-performance
 ```
-<type>[optional scope]: <description>
-
-[optional body]
-
-[optional footer(s)]
-```
-
-**Types**: feat, fix, docs, style, refactor, perf, test, build, ci, chore
 
 ### Commit Process
-1. **Read context first**: `git --no-pager diff`, check README.md, code, tests
-2. **Prepare message**: <10 lines, focus on high-level goal
-3. **Get permission**: Show message before committing
-4. **Never auto-push**: Only push when explicitly asked
-
-**For complex commits**:
 ```bash
-# Create message file
-echo "type(scope): description
+# 1. Check changes
+git --no-pager status
+git --no-pager diff
 
-Body..." > .tmp/commit-msg.txt
+# 2. Stage specific files
+git add src/dqx/ops.py tests/test_ops.py
+
+# 3. Commit with conventional format
+git commit -m "feat(ops): add CustomSQL operation"
+
+# 4. For complex commits
+cat > .tmp/commit-msg.txt << EOF
+feat(ops): add CustomSQL operation with universal parameter support
+
+- Allows user-defined SQL expressions as metrics
+- Parameters passed to CTE level for filtering/grouping
+- Hash-based naming for unique identification
+- Comprehensive test coverage
+EOF
 
 git commit --file .tmp/commit-msg.txt
 rm .tmp/commit-msg.txt
 ```
 
-### Pull Request Process
-1. **Check clean branch**: `git --no-pager status`
-2. **Read all changes**: `git --no-pager diff main...HEAD`
-3. **Push branch**: `git push -u origin <branch>`
-4. **Create PR**: Title in conventional format, body <10 lines
+### Pre-commit Hooks
 
-**For complex PRs**:
+**Never skip hooks**. If they fail:
+
 ```bash
-# Create PR body
-cat > .tmp/pr-body.md << EOF
-High-level summary...
-EOF
+# Run all hooks manually
+uv run pre-commit run --all-files
 
-gh pr create --title "type(scope): description" \
-             --body-file .tmp/pr-body.md
-rm .tmp/pr-body.md
+# Common fixes:
+# - Ruff formatting
+uv run ruff format src/ tests/
+
+# - Type errors
+# Fix type annotations in code
+
+# - Import sorting
+# Ruff handles this automatically
+
+# Try commit again
+git commit
 ```
 
-### Branch Naming
-- feature/description
-- bugfix/issue-description
-- release/version
-- hotfix/urgent-fix
+## Documentation Workflow
 
-### Git Commands
-- **Always use --no-pager**: `git --no-pager log`
-- **Never use `git add -A`** without checking status
-- **Commit frequently**: Small, focused commits
-- **Never skip pre-commit hooks**: Fix and retry
+### Code Documentation
+- All public APIs must have docstrings
+- Use Google-style docstrings
+- Include type information in docstrings
+- Provide usage examples for complex APIs
 
-## Deployment Patterns
+Example:
+```python
+def analyze_single(
+    self,
+    datasource: SqlDataSource,
+    metrics: Sequence[MetricSpec],
+    key: ResultKey,
+) -> AnalysisReport:
+    """Analyze a single datasource for specified metrics.
 
-### Library Usage
+    This method executes SQL queries to compute the requested metrics
+    for a specific date and datasource combination.
+
+    Args:
+        datasource: Data source implementing SqlDataSource protocol
+        metrics: List of metrics to compute
+        key: Result key containing suite, date, and tags
+
+    Returns:
+        AnalysisReport containing computed metric values
+
+    Example:
+        >>> ds = DuckRelationDataSource(relation, "sales")
+        >>> metrics = [MetricSpec.sum("revenue")]
+        >>> key = ResultKey("daily", date(2024, 1, 1))
+        >>> report = analyzer.analyze_single(ds, metrics, key)
+    """
+```
+
+### Memory Bank Updates
+- Update when discovering patterns
+- Document after major changes
+- Include learnings and insights
+- Keep current with codebase
+
+### Documentation Standards
+- **README.md**: High-level project overview and examples
+- **Memory Bank**: Detailed patterns and context
+- **Code Comments**: Explain WHY, not WHAT
+- **Commit Messages**: Clear conventional format
+- **PR Descriptions**: High-level goals
+
+## Build and Release
+
+### Package Building
 ```bash
-pip install dqx
+# Build package
+uv build
+
+# Output in dist/
+# - dqlib-0.5.9.tar.gz
+# - dqlib-0.5.9-py3-none-any.whl
 ```
 
-### Docker Container
-```dockerfile
-FROM python:3.11-slim
-RUN pip install dqx
-# Add your checks
+### Version Management
+- Semantic versioning (MAJOR.MINOR.PATCH)
+- Version in pyproject.toml
+- Use commitizen for version bumps
+- Tag releases with git
+
+### Release Process
+```bash
+# 1. Update version
+# Edit pyproject.toml
+
+# 2. Commit version bump
+git commit -m "chore(release): bump version to 0.6.0"
+
+# 3. Tag release
+git tag -a v0.6.0 -m "Release version 0.6.0"
+
+# 4. Push with tags
+git push origin main --tags
+
+# 5. Build and publish (if applicable)
+uv build
+# Upload to PyPI
 ```
 
-### CI/CD Integration
-- Run checks in pipeline
-- Fail build on quality issues
-- Track metrics over time
-- Plugin-based reporting
+## Environment Configuration
+
+### Development Environment Variables
+```bash
+# Optional - for specific database testing
+export DQX_TEST_DB="postgresql://user:pass@localhost/testdb"
+
+# Enable debug logging
+export DQX_DEBUG=1
+
+# Set metric expiration (hours)
+export DQX_METRIC_EXPIRATION=72
+```
+
+### VS Code Configuration
+```json
+{
+  "python.linting.enabled": false,
+  "python.formatting.provider": "none",
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": true
+    }
+  },
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false
+}
+```
+
+## Database Configuration
+
+### Supported Databases
+1. **DuckDB** (primary)
+   - In-memory or file-based
+   - Best performance for analytics
+   - Native Arrow integration
+
+2. **BigQuery** (supported)
+   - Requires credentials
+   - Different SQL dialect
+   - Batch optimization available
+
+### Connection Patterns
+```python
+# DuckDB in-memory
+conn = duckdb.connect(":memory:")
+
+# DuckDB persistent
+conn = duckdb.connect("metrics.db")
+
+# BigQuery
+# Requires environment setup and credentials
+```
+
+## Performance Considerations
+
+### SQL Generation
+- Single query per dataset/date
+- CTE-based for readability
+- Batch multiple metrics together
+- Minimize data scanning
+
+### Caching Strategy
+- In-memory cache for hot data
+- Database fallback for cold data
+- Thread-safe with minimal locks
+- Performance statistics tracking
+
+### Memory Management
+- Lazy evaluation patterns
+- Stream large results
+- Clear caches when needed
+- Monitor memory usage
+
+## Security Guidelines
+
+### Code Security
+- No hardcoded credentials
+- Use environment variables
+- Validate all inputs
+- SQL injection prevention via parameterization
+
+### Dependency Security
+- Regular dependency updates
+- Security scanning in CI
+- No unnecessary dependencies
+- Audit third-party code
 
 ## Debugging Tips
 
-### Enable Logging
+### Common Issues
+
+1. **Pattern Matching Errors**:
 ```python
+# Check all cases handled
+match result:
+    case Success(v): ...
+    case Failure(e): ...
+    case _: pytest.fail("Unexpected case")
+```
+
+2. **Cache Consistency**:
+```python
+# Force cache refresh
+cache.clear()
+# Or check cache stats
+print(f"Hit ratio: {cache.stats.hit_ratio()}")
+```
+
+3. **SQL Generation**:
+```python
+# Enable SQL logging
 import logging
-
-logging.basicConfig(level=logging.DEBUG)
+logging.getLogger("dqx.dialect").setLevel(logging.DEBUG)
 ```
 
-### Inspect Graph
+### Debugging Tools
+- Rich inspect: `from rich import inspect; inspect(obj)`
+- SQL query logging
+- Cache statistics
+- Execution timing with Timer
+
+## Integration Patterns
+
+### As a Library
 ```python
-suite.graph.display()  # Visual representation
+from dqx import VerificationSuite, MetricProvider
+from dqx.datasource import DuckRelationDataSource
+
+# Create suite
+suite = VerificationSuite("daily_checks")
+
+# Add checks
+with suite.check("Revenue validation") as check:
+    revenue = ctx.metric_provider().sum("revenue")
+    check.assert_that(revenue).is_positive()
+
+# Execute
+results = suite.run(datasources, dates)
 ```
 
-### Check SQL Generation
-```python
-analyzer._build_query(metrics)  # See generated SQL
+### With Existing Systems
+- Export results as JSON
+- Store metrics in database
+- Plugin system for custom processing
+- Webhook notifications (via plugins)
+
+## Documentation Reading Guide
+
+### Essential Reading Order
+1. **README.md** - Project overview and examples
+2. **Memory Bank files** - Deep understanding
+3. **tests/e2e/** - End-to-end examples
+4. **Returns docs** - https://returns.readthedocs.io/en/latest/pages/result.html
+
+### What NOT to Read
+- **docs/** folder - Under construction, may be incorrect
+- Old commit messages - Focus on current state
+- Implementation details in comments - Read the code
+
+### Learning Resources
+- Integration tests show real usage
+- E2E tests demonstrate workflows
+- Memory bank captures patterns
+- Git log shows evolution
+
+## Tool Usage Patterns
+
+### uv Commands
+```bash
+# Install dependencies
+uv pip install -r requirements.txt
+
+# Add new dependency
+uv pip install package-name
+uv pip freeze > requirements.txt
+
+# Run any command in venv
+uv run python script.py
+uv run pytest
+uv run mypy src/
+
+# Build package
+uv build
 ```
 
-### Debug Plugins
-```python
-# Check loaded plugins
-suite.plugin_manager.get_plugins()
+### pytest Patterns
+```bash
+# Run with output
+uv run pytest -s
 
-# Test plugin directly
-plugin.process(context)
+# Run specific test
+uv run pytest tests/test_file.py::test_name
+
+# Run with debugging
+uv run pytest --pdb
+
+# Parallel execution
+uv run pytest -n auto
+
+# Coverage report
+uv run pytest --cov=dqx --cov-report=html
+# Open htmlcov/index.html
 ```
 
-## Common Issues
+### Type Checking
+```bash
+# Check all
+uv run mypy src/
 
-### Import Errors
-- Ensure Python 3.11+
-- Check virtual environment activation
-- Verify all dependencies installed
+# Check specific file
+uv run mypy src/dqx/cache.py
 
-### Type Errors
-- Run mypy for detailed messages
-- Check protocol implementations
-- Verify type annotations
+# Strict mode (default)
+uv run mypy --strict src/
+```
 
-### Test Failures
-- Check test isolation
-- Verify database state
-- Look for timing dependencies
+## Continuous Integration
 
-### Plugin Issues
-- Check plugin registration
-- Verify metadata() returns PluginMetadata
-- Ensure process() handles all context fields
+### GitHub Actions
+- Runs on every push/PR
+- Tests multiple Python versions
+- Type checking required
+- Coverage must not decrease
+- Pre-commit hooks enforced
 
-## Recent Changes
+### Local CI Simulation
+```bash
+# Run full CI locally
+uv run pre-commit run --all-files
+uv run pytest
+uv run mypy src/
+uv build
+```
 
-### Removed Features
-- Batch processing support (simplified architecture)
-- Threading infrastructure (no longer needed)
-- Parallel execution capabilities
-- Extensions directory (consolidated into datasource.py)
+## Future Technical Directions
 
-### Added Tools
-- yamllint for YAML validation
-- shfmt for shell script formatting
-- shellcheck for shell script linting
-- sqlparse for SQL formatting
+### Under Consideration
+- Async/await support for I/O operations
+- Additional SQL dialects (PostgreSQL, Snowflake)
+- Streaming result processing
+- Distributed execution support
+- Real-time validation mode
 
-### Dependency Changes
-- Rich moved from dev to core dependencies
-- Added sqlparse as core dependency
-- Updated pre-commit hooks configuration
-- Consolidated data sources from extensions/ to datasource.py module
+### Technical Debt
+- Some old code uses Optional instead of Maybe
+- Migration from unittest to pytest style
+- Consolidation of test utilities
+- Documentation generation automation

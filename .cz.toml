@@ -1,3 +1,12 @@
+# Commitizen Configuration
+#
+# Changelog Update Workflow:
+# - Prereleases (no changelog): uv run cz bump --prerelease alpha|beta|rc
+# - Regular releases (with changelog): uv run cz bump --changelog
+# - Manual version (with changelog): uv run cz bump 1.2.3 --changelog
+#
+# The changelog is disabled by default to keep prereleases clean.
+
 [tool.commitizen]
 name = "cz_conventional_commits"
 version = "0.3.0"
@@ -9,7 +18,7 @@ version_files = [
     "pyproject.toml:version",
     "src/dqx/__init__.py:__version__"
 ]
-update_changelog_on_bump = true
+update_changelog_on_bump = false
 changelog_start_rev = "v0.5.0"
 bump_message = "chore(release): bump version from $current_version to $new_version"
 

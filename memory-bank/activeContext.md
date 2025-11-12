@@ -1,127 +1,94 @@
 # Active Context - DQX
 
 ## Current Focus
-- Logger test consolidation and refactoring
-- Working on `feat/bkng-integration` branch
+- Memory bank updates to align with current codebase (v0.5.9)
+- Working on `main` branch
 
 ## Recent Changes
 
-### Logger Test Refactoring (2025-11-04)
-1. **Test Consolidation**: Merged `test_rich_logging.py` into `test_logger.py`
-2. **API Update**: Updated all tests to use `setup_logger()` instead of old `get_logger()`
-3. **Test Organization**: Organized tests into two classes:
-   - `TestSetupLogger`: Basic logger functionality tests
-   - `TestRichIntegration`: Rich-specific feature tests
-4. **Pattern Change**: Tests now use proper pattern:
-   ```python
-   setup_logger("test.name", level=logging.INFO)
-   logger = logging.getLogger("test.name")
-   ```
-5. **Cleanup**: Removed duplicate tests and deleted `test_rich_logging.py`
+### CustomSQL Operation Implementation (2025-11-07)
+- Added CustomSQL operation with universal parameter support
+- Allows user-defined SQL expressions as metrics
+- Parameters passed to CTE level for filtering/grouping
+- Comprehensive test coverage across multiple test files
+- Both DuckDB and BigQuery dialect support
 
-### Previous Work (2025-11-02)
-- Cache system performance improvements and statistics tracking
-- Achieved 100% test coverage for compute and repositories modules
-- Added CommercialDataSource with date filtering support
-- Implemented metric expiration functionality in MetricDB
-- Version bumped to 0.5.5
+### Date Exclusion Feature (2025-11-07)
+- Implemented comprehensive date exclusion with data availability tracking
+- Added `skip_dates` parameter to datasources
+- Allows excluding specific dates from calculations
+- Supports better handling of data gaps and maintenance windows
+
+### Previous Work
+- Logger API refactoring and type safety improvements
+- DoD/WoW calculation fixes to use percentage change
+- BigQuery SQL generation compatibility improvements
+- Numpy dependency removal and project structure cleanup
+- Cache system performance improvements with statistics tracking
 
 ## Next Steps
-- Continue with Booking.com integration features
-- Monitor logger performance in production scenarios
-- Consider additional logging enhancements
+- Continue performance optimization efforts
+- Expand plugin system beyond audit capabilities
+- Monitor production usage and gather feedback
+- Consider additional database dialect support
 
 ## Important Patterns and Preferences
 
-### Logger Design Principles
-- `setup_logger()` is for configuration only
-- Users get loggers via standard `logging.getLogger()`
-- Root logger configuration stays internal
-- Rich handler provides enhanced formatting capabilities
-- No logger object returned from setup function
+### Development Methodology
+- **3D Methodology (Design-Driven Development)**: Think before you build, build with intention, ship with confidence
+- **KISS/YAGNI Principles**: Start simple, evolve thoughtfully
+- **TDD Mandatory**: Follow 5-step process for every feature/bugfix
+
+### Coding Standards
+- **Type Hints Required**: Modern PEP 604 syntax (`list[str]` not `List[str]`)
+- **F-strings Always**: `f"Value: {var}"` not string concatenation
+- **No Temporal Names**: Avoid "new", "old", "legacy", "enhanced" in names
+- **No Implementation Details in Names**: Use purpose, not technology
 
 ### Testing Philosophy
-- Comprehensive edge case coverage
-- Test both success and failure paths
-- Use pragma comments judiciously for truly unreachable code
-- Maintain 100% coverage as a quality standard
-- Real objects over mocks
-- Pattern matching for Result/Maybe types
+- **Real Objects Over Mocks**: Use in-memory databases, not mocks
+- **Pattern Matching for Result/Maybe**: Never use isinstance
+- **100% Coverage Required**: Maintain or exceed current levels
+- **Pristine Test Output**: Capture and validate all expected errors
 
-### Performance Considerations
-- Lock acquisition only for in-memory operations
-- DB queries performed without holding locks
-- Statistics tracking with minimal overhead
-- Mutable stats objects to avoid allocation overhead
+### Git Workflow
+- **Conventional Commits Required**: feat, fix, docs, style, refactor, perf, test, build, ci, chore
+- **Always Use --no-pager**: `git --no-pager log`
+- **Never Skip Pre-commit Hooks**: Fix issues and retry
+- **Commit Frequently**: Small, focused commits
 
 ## Recent Learnings
 
-### Logger Best Practices
-- Setup functions should configure but not return logger objects
-- Standard Python logging.getLogger() maintains proper separation
-- Rich handler configuration through handler parameters, not formatter
-- Force reconfigure option allows clean reinitialization when needed
+### CustomSQL Design
+- Hash-based naming for unique identification
+- SQL expression passed as-is to dialect
+- Parameters handled at CTE level, not in SQL string
+- Consistent with other operations' parameter handling
 
-### Test Organization
-- Group related tests into logical classes
-- Remove duplicate tests when consolidating files
-- Maintain backward compatibility in test coverage
-- Use unique logger names in tests to prevent interference
+### Date Exclusion Pattern
+- Implemented as set of dates on datasource
+- Allows flexible data availability management
+- Integrates cleanly with existing analyzer logic
 
-### Threading Best Practices
-- Acquire locks for shortest possible duration
-- Perform I/O operations outside of critical sections
-- Use RLock for recursive locking scenarios
-- Consider lock-free designs where possible
-
-### Statistics Collection
-- Mutable dataclasses can be efficient for frequently updated stats
-- Helper methods (record_hit, record_miss) improve API clarity
-- Reset functionality important for testing and monitoring
-- Hit ratio calculation should handle zero-division gracefully
-
-### Type System Integration
-- TypeAlias helpful for complex tuple types (CacheKey)
-- Overloading allows flexible APIs (single metric vs sequence)
-- Protocol types ensure proper plugin implementation
-- Maybe type effectively handles cache miss scenarios
-
-### Returns Library Best Practices
-- ALWAYS use pattern matching with Result and Maybe types
-- NEVER use isinstance(value, Some/Nothing) - this is an anti-pattern
-- NEVER use hasattr to check for unwrap method
-- Pattern matching is the ONLY correct way to handle returns types
-- Read https://returns.readthedocs.io/en/latest/pages/result.html before using
+### Performance Optimization
+- Lock-free designs where possible
+- Batch operations for efficiency
+- Cache statistics for monitoring
+- Single-pass SQL generation
 
 ## Recently Fixed Issues
 
-### Logger Test Migration (FIXED 2025-11-04)
-Successfully migrated all logger tests from old `get_logger()` API to new `setup_logger()` pattern:
-- Updated test_logger.py with proper setup/get pattern
-- Merged Rich-specific tests from test_rich_logging.py
-- Organized tests into logical classes
-- All 20 tests passing
+### Version and Project Identity (FIXED 2025-11-07)
+- Updated project version from 0.3.0 to 0.5.9
+- Clarified project distributed as `dqlib` package
+- Aligned with pyproject.toml configuration
 
-### provider.py isinstance Usage (FIXED 2025-11-02)
-Fixed incorrect usage of isinstance with Maybe types in provider.py:
-- Replaced `isinstance(cache_result, Some)` with proper pattern matching in `get_metric` method
-- Replaced `isinstance(cache_result, Some)` with proper pattern matching in `get_metrics_by_execution_id` method
-- All tests pass and type checking confirms correctness
+### Branch Context (FIXED 2025-11-07)
+- Updated from feat/bkng-integration to main branch
+- Removed outdated branch references
+- Aligned with current git state
 
-### Testing Standards Documentation (ADDED 2025-11-02)
-Comprehensive testing standards now documented in memory bank:
-- Added detailed Testing Patterns section to systemPatterns.md
-- Updated Testing Philosophy in techContext.md
-- Emphasizes real objects over mocks
-- Requires type annotations in all test code
-- Mandates pattern matching for Result/Maybe assertions
-- Follows "minimal tests, maximal coverage" principle
-
-### Git Workflow Documentation (ADDED 2025-11-02)
-Complete Git workflow patterns now documented in memory bank:
-- Added Git Workflow Patterns section to systemPatterns.md
-- Enhanced Git Workflow section in techContext.md
-- Conventional commit format is mandatory
-- Detailed commit and PR creation workflows
-- Branch naming conventions documented
-- Emphasizes --no-pager usage and permission-based commits
+### Missing Features Documentation (FIXED 2025-11-07)
+- Added CustomSQL operation documentation
+- Added date exclusion feature documentation
+- Updated with recent architectural improvements

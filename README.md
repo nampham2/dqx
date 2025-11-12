@@ -203,6 +203,7 @@ def enforce_slas(mp: MetricProvider, ctx: Context) -> None:
 | `duplicate_count([cols])` | Count of duplicate rows | `mp.duplicate_count(["id"])` |
 | `count_values(col, val)` | Count specific values | `mp.count_values("status", "active")` |
 | `unique_count(col)` | Distinct value count | `mp.unique_count("user_id")` |
+| `custom_sql(sql)` | Execute custom SQL expression | `mp.custom_sql("SUM(CASE WHEN origin = 'NL' THEN 1 ELSE 0 END)")` |
 
 ### Extended Metrics
 

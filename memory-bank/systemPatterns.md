@@ -17,6 +17,67 @@ DQX follows a graph-based architecture where data quality checks are represented
                     └──────────────┘     └─────────────┘
 ```
 
+## Development Methodology
+
+### 3D Methodology (Design-Driven Development)
+
+**Key principle**: Think before you build, build with intention, ship with confidence.
+
+#### Quick 3D Reminders
+- **Run `uv run pytest` at end of every phase** - 100% pass required
+- **Update implementation progress checkboxes** as you complete each phase
+- **Follow Example Creation Guidelines** for comprehensive examples
+- **Apply Unit Testing Guidelines** for thorough test coverage
+
+### KISS/YAGNI Design Principles
+
+**KISS (Keep It Simple, Stupid)** & **YAGNI (You Aren't Gonna Need It)**: Balance engineering rigor with practical simplicity.
+
+#### AI Decision-Making Guidelines
+
+🎯 **START SIMPLE, EVOLVE THOUGHTFULLY**
+
+For design decisions, AI coders should:
+1. **Default to simplest solution** that meets current requirements
+2. **Document complexity trade-offs** when proposing alternatives
+3. **Present options** when multiple approaches have merit
+4. **Justify complexity** only when immediate needs require it
+
+🤖 **AI CAN DECIDE** (choose simplest):
+- Data structure choice (dict vs class vs dataclass)
+- Function organization (single file vs module split)
+- Error handling level (basic vs comprehensive)
+- Documentation depth (minimal vs extensive)
+
+👤 **PRESENT TO HUMAN** (let them choose):
+- Architecture patterns (monolith vs microservices)
+- Framework choices (custom vs third-party)
+- Performance optimizations (simple vs complex)
+- Extensibility mechanisms (hardcoded vs configurable)
+
+⚖️ **COMPLEXITY JUSTIFICATION TEMPLATE**:
+"Proposing [complex solution] over [simple solution] because:
+- Current requirement: [specific need]
+- Simple approach limitation: [concrete issue]
+- Complexity benefit: [measurable advantage]
+- Alternative: [let human decide vs simpler approach]"
+
+#### Incremental Complexity Strategy
+
+📈 **EVOLUTION PATH** (add complexity only when needed):
+
+Phase 1: Hardcoded → Phase 2: Configurable → Phase 3: Extensible
+
+Example:
+- Phase 1: `return "Hello, World!"`
+- Phase 2: `return f"Hello, {name}!"`
+- Phase 3: `return formatter.format(greeting_template, name)`
+
+🔄 **WHEN TO EVOLVE**:
+- Phase 1→2: When second use case appears
+- Phase 2→3: When third different pattern emerges
+- Never evolve: If usage remains stable
+
 ## Core Design Patterns
 
 ### 1. Graph Pattern
@@ -926,17 +987,14 @@ def test_average_computation(column: str, expected: float) -> None:
             pytest.fail(f"Computation failed: {error}")
 ```
 
-### 6. Avoid Any Type
+### 6. Test-Driven Development (TDD)
 
-```python
-# ❌ WRONG - Using Any
-def process_data(data: Any) -> Any:
-    return data
-
-# ✅ CORRECT - Specific types
-def process_data(data: dict[str, float]) -> Result[float, str]:
-    return Success(sum(data.values()))
-```
+**FOR EVERY NEW FEATURE OR BUGFIX, YOU MUST follow Test Driven Development**:
+1. Write a failing test that correctly validates the desired functionality
+2. Run the test to confirm it fails as expected
+3. Write ONLY enough code to make the failing test pass
+4. Run the test to confirm success
+5. Refactor if needed while keeping tests green
 
 ### 7. Test Organization Pattern
 
@@ -967,29 +1025,15 @@ class TestMetricCache:
 
 ### 8. Coverage Standards
 
-- **Target**: Maintain or exceed current coverage levels
-- **No 100% requirement**: Unless explicitly requested
+- **Target**: Maintain or exceed current coverage levels (100%)
 - **Meaningful coverage**: Focus on critical paths and edge cases
 - **Pragma usage**: Use `# pragma: no cover` only for truly unreachable code
 
-### 9. Functional Testing Style
+### 9. Test Output Standards
 
-```python
-# Chain operations functionally
-def test_metric_pipeline() -> None:
-    result = (
-        provider.create_metric(spec)
-        .pipe(lambda s: provider.evaluate(s, key))
-        .bind(validate_range)
-        .map(lambda x: x * 100)
-    )
-
-    match result:
-        case Success(value):
-            assert 0 <= value <= 10000
-        case Failure(error):
-            pytest.fail(f"Pipeline failed: {error}")
-```
+- **Test output MUST BE PRISTINE TO PASS**
+- If logs are expected to contain errors, these MUST be captured and tested
+- If a test is intentionally triggering an error, we *must* capture and validate that the error output is as expected
 
 ### 10. Test Naming Conventions
 
@@ -1020,7 +1064,7 @@ def test_provider_falls_back_to_db_on_cache_miss() -> None: ...
 
 **Types**:
 - `feat`: New feature
-- `fix`: Bug-fix
+- `fix`: Bug fix
 - `docs`: Documentation only changes
 - `style`: Code style changes (formatting, missing semicolons, etc.)
 - `refactor`: Code change that neither fixes a bug nor adds a feature
@@ -1083,64 +1127,7 @@ rm .tmp/commit-msg.txt
    - Wait for approval before executing
    - Never auto-push
 
-### 3. Pull Request Creation Pattern
-
-**Workflow for creating PRs**:
-
-1. **Pre-flight Checks**:
-```bash
-# Check branch is clean
-git --no-pager status
-
-# If not clean, STOP and ask to clean first
-```
-
-2. **Read All Changes**:
-```bash
-git --no-pager diff main...HEAD
-git --no-pager log --oneline main...HEAD
-
-# Review README.md, code changes, test changes
-```
-
-3. **Push Branch**:
-```bash
-git push -u origin <branch-name>
-```
-
-4. **Prepare PR Message**:
-   - Title: Conventional commit format
-   - Body: **< 10 lines**
-   - Focus on high-level goal
-   - Generic, not mundane details
-
-5. **For Simple PRs**:
-```bash
-gh pr create --title "type(scope): description" \
-             --body "High-level explanation..."
-```
-
-6. **For Complex PRs**:
-```bash
-# Create PR body file
-cat > .tmp/pr-body.md << EOF
-## Summary
-High-level goal explanation...
-
-## Key Changes
-- Major change 1
-- Major change 2
-EOF
-
-# Create PR with file
-gh pr create --title "type(scope): description" \
-             --body-file .tmp/pr-body.md
-
-# Clean up
-rm .tmp/pr-body.md
-```
-
-### 4. Branch Management Pattern
+### 3. Branch Management Pattern
 
 **Naming Conventions**:
 ```text
@@ -1169,7 +1156,7 @@ git checkout -b bugfix/pattern-matching-fix
 git checkout -b wip/exploring-options
 ```
 
-### 5. Git Command Patterns
+### 4. Git Command Patterns
 
 **Always use --no-pager**:
 ```bash
@@ -1198,7 +1185,7 @@ git add -A  # Only if all changes intended
 - Small, focused commits preferred
 - Even commit journal/documentation updates
 
-### 6. Pre-commit Hook Pattern
+### 5. Pre-commit Hook Pattern
 
 **Never skip pre-commit hooks**:
 ```bash
@@ -1215,7 +1202,7 @@ git commit  # Hooks run automatically
 - Type checking: Fix type annotations
 - YAML/Shell: Fix syntax issues
 
-### 7. Git Workflow Integration
+### 6. Git Workflow Integration
 
 **With Development Process**:
 1. Create branch following naming convention
@@ -1250,26 +1237,77 @@ gh pr create --title "docs(memory-bank): add comprehensive testing standards" \
 Emphasizes real objects over mocks and pattern matching for Result types."
 ```
 
-### 8. Common Git Patterns
+## Coding Standards
 
-**Amending Last Commit**:
-```bash
-# Only if not pushed
-git commit --amend -m "type(scope): better description"
+### Core Principles
+
+- Follow PEP 8 style guide for Python code
+- Use 4-space indentation (no tabs)
+- **Type hints required**: `def func(x: int) -> str:` (mandatory)
+- Use docstrings for all public modules, classes, and functions
+- **Always use f-strings**: `f"Value: {var}"` not `"Value: " + str(var)`
+
+### Modern Type Hints (PEP 604)
+
+```python
+# ✅ CORRECT - Modern syntax
+def process_data(items: list[str], config: dict[str, int] | None = None) -> str | None:
+    return f"Processed {len(items)} items"
+
+# ❌ AVOID - Old syntax
+from typing import Dict, List, Optional, Union
+
+def process_data(
+    items: List[str], config: Optional[Dict[str, int]] = None
+) -> Union[str, None]:
+    return "Processed " + str(len(items)) + " items"
 ```
 
-**Interactive Rebase** (get permission first):
-```bash
-# Clean up commits before PR
-git rebase -i main
+### Naming Conventions
+
+- Names MUST tell what code does, not how it's implemented or its history
+- When changing code, never document the old behavior or the behavior change
+- NEVER use implementation details in names (e.g., "ZodValidator", "MCPWrapper", "JSONParser")
+- NEVER use temporal/historical context in names (e.g., "NewAPI", "LegacyHandler", "UnifiedTool", "ImprovedInterface", "EnhancedParser")
+- NEVER use pattern names unless they add clarity (e.g., prefer "Tool" over "ToolFactory")
+
+### Code Comments
+
+- NEVER add comments explaining that something is "improved", "better", "new", "enhanced", or referencing what it used to be
+- NEVER add instructional comments telling developers what to do ("copy this pattern", "use this instead")
+- Comments should explain WHAT the code does or WHY it exists, not how it's better than something else
+- If you're refactoring, remove old comments - don't add new ones explaining the refactoring
+- YOU MUST NEVER remove code comments unless you can PROVE they are actively false
+- YOU MUST NEVER add comments about what used to be there or how something has changed
+- YOU MUST NEVER refer to temporal context in comments
+
+Examples:
+```python
+# BAD: This uses Zod for validation instead of manual checking
+# BAD: Refactored from the old validation system
+# BAD: Wrapper around MCP tool protocol
+# GOOD: Executes tools with validated arguments
 ```
 
-**Checking Branch State**:
-```bash
-# Always check before operations
-git --no-pager status
-git --no-pager log --oneline -3
-```
+### Writing Code Principles
+
+- When submitting work, verify that you have FOLLOWED ALL RULES
+- YOU MUST make the SMALLEST reasonable changes to achieve the desired outcome
+- We STRONGLY prefer simple, clean, maintainable solutions over clever or complex ones
+- YOU MUST WORK HARD to reduce code duplication, even if the refactoring takes extra effort
+- YOU MUST NEVER throw away or rewrite implementations without EXPLICIT permission
+- YOU MUST get Nam's explicit approval before implementing ANY backward compatibility
+- YOU MUST MATCH the style and formatting of surrounding code
+- Fix broken things immediately when you find them. Don't ask permission to fix bugs
+
+### Proactiveness
+
+When asked to do something, just do it - including obvious follow-up actions needed to complete the task properly.
+Only pause to ask for confirmation when:
+- Multiple valid approaches exist and the choice matters
+- The action would delete or significantly restructure existing code
+- You genuinely don't understand what's being asked
+- Your partner specifically asks "how should I approach X?"
 
 ## Anti-Patterns to Avoid
 
@@ -1296,3 +1334,23 @@ Tests without type annotations are error-prone.
 
 ### ❌ isinstance with Result/Maybe
 Always use pattern matching for functional types.
+
+### ❌ Over-Engineering
+- Abstract base classes for single implementations
+- Configuration systems for hardcoded values
+- Generic solutions for specific problems
+- Premature performance optimizations
+- Complex inheritance hierarchies
+- Over-flexible APIs with many parameters
+- Caching systems without proven performance needs
+- Event systems for simple function calls
+
+### ✅ What to Prefer Instead
+- Concrete implementations that work
+- Hardcoded values that can be extracted later
+- Specific solutions for specific problems
+- Simple, readable code first
+- Composition over inheritance
+- Simple function signatures
+- Direct computation until performance matters
+- Direct function calls for simple interactions
