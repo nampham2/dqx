@@ -19,7 +19,7 @@ jobs:
         python-version: ["3.11", "3.12", "3.13"]
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -114,7 +114,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: test-results-${{ matrix.python-version }}
           path: |
@@ -130,7 +130,7 @@ jobs:
 
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: test-results-3.11
 
@@ -157,7 +157,7 @@ jobs:
           \"message\": \"${COVERAGE}%\", \"color\": \"brightgreen\"}" > type-coverage.json
 
       - name: Upload type coverage badge data
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: type-coverage-badge
           path: type-coverage.json
