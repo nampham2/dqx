@@ -62,10 +62,6 @@ class PluginExecutionContext:
         """Number of skipped assertions."""
         return sum(1 for r in self.results if r.status == "SKIPPED")
 
-    def error_assertions(self) -> int:
-        """Number of error assertions."""
-        return sum(1 for r in self.results if r.status == "ERROR")
-
     def assertion_pass_rate(self) -> float:
         """Pass rate as percentage (0-100)."""
         if not self.results:
@@ -352,7 +348,6 @@ class AuditPlugin:
         passed = context.passed_assertions()
         failed = context.failed_assertions()
         skipped = context.skipped_assertions()
-        error = context.error_assertions()
 
         self.console.print()
         self.console.print("[cyan]Execution Summary:[/cyan]")
@@ -375,11 +370,6 @@ class AuditPlugin:
             if skipped > 0:
                 skip_rate = skipped / total * 100
                 assertion_parts.append(f"[yellow]{skipped} skipped ({skip_rate:.1f}%)[/yellow]")
-
-            # Only show error if > 0
-            if error > 0:
-                error_rate = error / total * 100
-                assertion_parts.append(f"[red]{error} error ({error_rate:.1f}%)[/red]")
 
             self.console.print(f"  Assertions: {', '.join(assertion_parts)}")
         else:
