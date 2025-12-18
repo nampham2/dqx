@@ -52,7 +52,7 @@ class PluginExecutionContext:
 
     def failed_assertions(self) -> int:
         """Number of failed assertions."""
-        return sum(1 for r in self.results if r.status in ("FAILED", "FAILURE"))
+        return sum(1 for r in self.results if r.status == "FAILED")
 
     def passed_assertions(self) -> int:
         """Number of passed assertions."""
@@ -61,10 +61,6 @@ class PluginExecutionContext:
     def skipped_assertions(self) -> int:
         """Number of skipped assertions."""
         return sum(1 for r in self.results if r.status == "SKIPPED")
-
-    def error_assertions(self) -> int:
-        """Number of error assertions."""
-        return sum(1 for r in self.results if r.status == "ERROR")
 
     def assertion_pass_rate(self) -> float:
         """Pass rate as percentage (0-100)."""
@@ -90,7 +86,7 @@ class PluginExecutionContext:
         """Count of failures grouped by severity."""
         from collections import Counter
 
-        failures = [r for r in self.results if r.status in ("FAILED", "FAILURE")]
+        failures = [r for r in self.results if r.status == "FAILED"]
         return dict(Counter(f.severity for f in failures))
 
     def data_discrepancy_stats(self) -> "MetricTraceStats | None":
@@ -352,7 +348,6 @@ class AuditPlugin:
         passed = context.passed_assertions()
         failed = context.failed_assertions()
         skipped = context.skipped_assertions()
-        error = context.error_assertions()
 
         self.console.print()
         self.console.print("[cyan]Execution Summary:[/cyan]")
@@ -375,11 +370,6 @@ class AuditPlugin:
             if skipped > 0:
                 skip_rate = skipped / total * 100
                 assertion_parts.append(f"[yellow]{skipped} skipped ({skip_rate:.1f}%)[/yellow]")
-
-            # Only show error if > 0
-            if error > 0:
-                error_rate = error / total * 100
-                assertion_parts.append(f"[red]{error} error ({error_rate:.1f}%)[/red]")
 
             self.console.print(f"  Assertions: {', '.join(assertion_parts)}")
         else:

@@ -14,5 +14,4 @@ class TestDateExclusionTypes:
         assert "PASSED" in status_values
         assert "FAILED" in status_values
         assert "SKIPPED" in status_values
-        assert "ERROR" in status_values
-        assert len(status_values) == 4
+        assert len(status_values) == 3
