@@ -107,8 +107,8 @@ class TestEnhancedAuditPlugin:
         assert "Assertions: 5 total, 2 passed (40.0%), 1 failed (20.0%), 2 skipped (40.0%)" in clean_output
         assert "error" not in output.lower()  # No errors, so shouldn't be shown
 
-    def test_audit_plugin_with_error_assertions(self) -> None:
-        """Test audit plugin correctly displays error assertions."""
+    def test_audit_plugin_with_failed_metric_assertions(self) -> None:
+        """Test audit plugin correctly displays failed assertions with metric failures."""
         plugin = AuditPlugin()
 
         # Create context with error assertions
@@ -148,7 +148,7 @@ class TestEnhancedAuditPlugin:
                     check="Test Check",
                     assertion="Check 3",
                     severity="P0",
-                    status="ERROR",
+                    status="FAILED",
                     metric=Failure(
                         [
                             EvaluationFailure(
@@ -176,8 +176,8 @@ class TestEnhancedAuditPlugin:
 
         clean_output = re.sub(r"\x1b\[[0-9;]*m", "", output)
 
-        # Verify the assertions line includes error
-        assert "Assertions: 3 total, 1 passed (33.3%), 1 failed (33.3%), 1 error (33.3%)" in clean_output
+        # Verify the assertions line includes failed
+        assert "Assertions: 3 total, 1 passed (33.3%), 2 failed (66.7%)" in clean_output
         assert "skipped" not in output.lower()  # No skipped, so shouldn't be shown
 
     def test_audit_plugin_only_passed_assertions(self) -> None:
@@ -394,14 +394,14 @@ class TestEnhancedAuditPlugin:
                     expression="z > 0",
                     tags={"env": "test"},
                 ),
-                # 1 error
+                # 1 more failed (making 3 total failed)
                 AssertionResult(
                     yyyy_mm_dd=datetime.date(2025, 11, 6),
                     suite="Complex Suite",
                     check="Check",
                     assertion="Check 7",
                     severity="P0",
-                    status="ERROR",
+                    status="FAILED",
                     metric=Failure(
                         [EvaluationFailure(error_message="Error in expression", expression="invalid", symbols=[])]
                     ),
@@ -430,10 +430,7 @@ class TestEnhancedAuditPlugin:
 
         # Replace any whitespace (including newlines) with a single space
         normalized_output = re.sub(r"\s+", " ", clean_output)
-        assert (
-            "Assertions: 7 total, 3 passed (42.9%), 2 failed (28.6%), 1 skipped (14.3%), 1 error (14.3%)"
-            in normalized_output
-        )
+        assert "Assertions: 7 total, 3 passed (42.9%), 3 failed (42.9%), 1 skipped (14.3%)" in normalized_output
         # Verify other elements (use clean_output for consistent testing)
         assert "Tags: env=test" in clean_output
         assert "Datasets:" in clean_output
