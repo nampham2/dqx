@@ -242,7 +242,7 @@ def test_e2e_profile_metric_multiplier_effect() -> None:
     key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={})
 
     # First run WITHOUT profile - assertion should FAIL
-    # (tax average ~100 is not > 150)
+    # (tax average ~50-80 is not > 80)
     suite_no_profile = VerificationSuite(
         [multiplier_test_check],
         db,
@@ -254,7 +254,7 @@ def test_e2e_profile_metric_multiplier_effect() -> None:
     results_no_profile = suite_no_profile.collect_results()
 
     # Second run WITH profile - multiplier=2.0 should make assertion PASS
-    # (tax average ~100 * 2.0 = ~200 > 150)
+    # (tax average ~50-80 * 2.0 = ~100-160 > 80)
     db2 = InMemoryMetricDB()
     profile_with_multiplier = HolidayProfile(
         name="Multiplier Test",
