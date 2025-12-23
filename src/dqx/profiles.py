@@ -106,16 +106,11 @@ class HolidayProfile:
     name: str
     start_date: date
     end_date: date
-    _rules: list[Rule] = field(default_factory=list)
+    rules: list[Rule] = field(default_factory=list)
 
     def is_active(self, target_date: date) -> bool:
         """Return True if target_date falls within the profile's date range."""
         return self.start_date <= target_date <= self.end_date
-
-    @property
-    def rules(self) -> list[Rule]:
-        """Return the list of rules this profile applies."""
-        return self._rules
 
 
 class RuleBuilder:

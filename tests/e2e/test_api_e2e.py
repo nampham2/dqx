@@ -157,7 +157,7 @@ def test_e2e_suite_with_profiles() -> None:
         name="January Holiday",
         start_date=dt.date(2025, 1, 1),
         end_date=dt.date(2025, 1, 31),
-        _rules=[
+        rules=[
             profile_check("Delivered null percentage").disable(),
             tag("xmas").set(metric_multiplier=1.0),  # No change, just verify it's applied
         ],
@@ -229,7 +229,7 @@ def test_e2e_profile_metric_multiplier_effect() -> None:
         name="Multiplier Test",
         start_date=dt.date(2025, 1, 1),
         end_date=dt.date(2025, 1, 31),
-        _rules=[
+        rules=[
             tag("xmas").set(metric_multiplier=1.0),
         ],
     )

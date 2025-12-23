@@ -76,7 +76,7 @@ class TestHolidayProfile:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=[],
+            rules=[],
         )
         assert profile.is_active(date(2024, 12, 20))  # Start date
         assert profile.is_active(date(2024, 12, 25))  # Middle
@@ -87,7 +87,7 @@ class TestHolidayProfile:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=[],
+            rules=[],
         )
         assert not profile.is_active(date(2024, 12, 19))  # Before
         assert not profile.is_active(date(2025, 1, 6))  # After
@@ -101,7 +101,7 @@ class TestHolidayProfile:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=rules,
+            rules=rules,
         )
         assert profile.rules == rules
 
@@ -171,7 +171,7 @@ class TestResolveOverrides:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=[tag("xmas").set(metric_multiplier=2.0)],
+            rules=[tag("xmas").set(metric_multiplier=2.0)],
         )
         node = MockAssertionNode("Test Assertion", {"xmas"})
         result = resolve_overrides(
@@ -188,7 +188,7 @@ class TestResolveOverrides:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=[tag("xmas").set(metric_multiplier=2.0)],
+            rules=[tag("xmas").set(metric_multiplier=2.0)],
         )
         node = MockAssertionNode("Test Assertion", {"xmas"})
         result = resolve_overrides(
@@ -205,7 +205,7 @@ class TestResolveOverrides:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=[tag("xmas").set(metric_multiplier=2.0)],
+            rules=[tag("xmas").set(metric_multiplier=2.0)],
         )
         node = MockAssertionNode("Test Assertion", {"volume"})  # No xmas tag
         result = resolve_overrides(
@@ -222,7 +222,7 @@ class TestResolveOverrides:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=[check("Volume Check").disable()],
+            rules=[check("Volume Check").disable()],
         )
         node = MockAssertionNode("Daily orders")
         result = resolve_overrides(
@@ -238,7 +238,7 @@ class TestResolveOverrides:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=[assertion("Volume Check", "Daily orders").disable()],
+            rules=[assertion("Volume Check", "Daily orders").disable()],
         )
         node = MockAssertionNode("Daily orders")
         result = resolve_overrides(
@@ -254,7 +254,7 @@ class TestResolveOverrides:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=[
+            rules=[
                 tag("volume").set(metric_multiplier=1.5),
                 tag("xmas").set(metric_multiplier=2.0),
             ],
@@ -273,13 +273,13 @@ class TestResolveOverrides:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=[tag("xmas").set(metric_multiplier=2.0)],
+            rules=[tag("xmas").set(metric_multiplier=2.0)],
         )
         profile2 = HolidayProfile(
             name="Year End",
             start_date=date(2024, 12, 25),
             end_date=date(2024, 12, 31),
-            _rules=[tag("xmas").set(metric_multiplier=1.5)],
+            rules=[tag("xmas").set(metric_multiplier=1.5)],
         )
         node = MockAssertionNode("Test Assertion", {"xmas"})
         result = resolve_overrides(
@@ -295,7 +295,7 @@ class TestResolveOverrides:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=[
+            rules=[
                 tag("xmas").set(metric_multiplier=2.0),
                 check("Volume Check").disable(),
             ],
@@ -375,7 +375,7 @@ class TestEvaluatorWithProfiles:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=[tag("xmas").set(metric_multiplier=2.0)],
+            rules=[tag("xmas").set(metric_multiplier=2.0)],
         )
 
         evaluator, _ = self._create_evaluator_with_metric(
@@ -410,7 +410,7 @@ class TestEvaluatorWithProfiles:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=[check("Volume Check").disable()],
+            rules=[check("Volume Check").disable()],
         )
 
         evaluator, _ = self._create_evaluator_with_metric(
@@ -442,7 +442,7 @@ class TestEvaluatorWithProfiles:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=[tag("xmas").set(metric_multiplier=2.0)],
+            rules=[tag("xmas").set(metric_multiplier=2.0)],
         )
 
         # Date is outside profile range
@@ -478,7 +478,7 @@ class TestEvaluatorWithProfiles:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=[tag("xmas").set(metric_multiplier=2.0)],
+            rules=[tag("xmas").set(metric_multiplier=2.0)],
         )
 
         evaluator, _ = self._create_evaluator_with_metric(
@@ -513,13 +513,13 @@ class TestEvaluatorWithProfiles:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=[tag("xmas").set(metric_multiplier=2.0)],
+            rules=[tag("xmas").set(metric_multiplier=2.0)],
         )
         profile2 = HolidayProfile(
             name="Year End",
             start_date=date(2024, 12, 25),
             end_date=date(2024, 12, 31),
-            _rules=[tag("xmas").set(metric_multiplier=1.5)],
+            rules=[tag("xmas").set(metric_multiplier=1.5)],
         )
 
         evaluator, _ = self._create_evaluator_with_metric(
@@ -554,7 +554,7 @@ class TestEvaluatorWithProfiles:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=[assertion("Volume Check", "Daily orders").disable()],
+            rules=[assertion("Volume Check", "Daily orders").disable()],
         )
 
         evaluator, _ = self._create_evaluator_with_metric(
@@ -592,7 +592,7 @@ class TestEvaluatorWithProfiles:
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
-            _rules=[check("Volume Check").disable()],
+            rules=[check("Volume Check").disable()],
         )
 
         evaluator, _ = self._create_evaluator_with_metric(
