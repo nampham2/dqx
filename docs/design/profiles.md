@@ -2,16 +2,16 @@
 
 ## Problem
 
-Data quality checks produce false positives during holiday seasons. Order volumes drop. User behavior shifts. Metrics that pass on normal days fail on Christmas.
+Data quality checks fail during holiday seasons. Order volumes drop. User behavior shifts. Metrics that pass on normal days fail on Christmas.
 
 Teams need two capabilities:
 
-1. **Batch threshold changes** — Relax validation rules during specific date ranges
-2. **Check enable/disable** — Turn off checks that do not apply during holidays
+1. **Disable checks** that do not apply during holidays
+2. **Compensate metrics** by scaling values to account for expected changes
 
-## Solution Overview
+## Solution
 
-Profiles let users define rules that modify assertion behavior during specific periods. A profile activates based on the current date and applies threshold overrides or disables assertions.
+Profiles modify assertion behavior during specific periods. A profile activates based on the current date and applies rules: disable assertions or scale metric values.
 
 ```python
 christmas = HolidayProfile(
@@ -19,8 +19,8 @@ christmas = HolidayProfile(
     start_date=date(2024, 12, 20),
     end_date=date(2025, 1, 5),
     rules=[
-        tag("xmas").set(threshold_multiplier=2.0),
-        assertion("Volume Check", "Daily orders above minimum").disable(),
+        tag("xmas").set(metric_multiplier=2.0),
+        check("Volume Check").disable(),
     ],
 )
 
@@ -31,9 +31,7 @@ suite = VerificationSuite(
 
 ## Key Concepts
 
-### DQX Background
-
-DQX validates data quality through three constructs:
+### DQX Constructs
 
 | Construct | Purpose | Example |
 |-----------|---------|---------|
@@ -46,9 +44,9 @@ A check contains one or more assertions. Each assertion compares a metric agains
 ```python
 @check(name="Volume Check")
 def volume_check(mp, ctx):
-    ctx.assert_that(mp.sum("orders")).where(name="Daily orders above minimum").is_gt(
-        100
-    )  # threshold = 100
+    ctx.assert_that(mp.sum("orders")).where(
+        name="Daily orders above minimum", tags={"volume", "xmas"}
+    ).is_gt(100)
 ```
 
 ### Profile
@@ -61,6 +59,8 @@ class Profile(Protocol):
     name: str
 
     def is_active(self, target_date: date) -> bool: ...
+
+    @property
     def rules(self) -> list[Rule]: ...
 ```
 
@@ -68,28 +68,28 @@ The protocol enables future profile types: `MaintenanceProfile`, `RegionProfile`
 
 ### Rule
 
-A rule selects assertions and specifies what to change.
+A rule selects assertions and specifies an action.
 
 ```python
 @dataclass(frozen=True)
 class Rule:
     selector: Selector
     disabled: bool = False
-    threshold: ThresholdOverride | None = None
+    metric_multiplier: float = 1.0
 ```
 
 ### Selector
 
-Selectors identify which assertions a rule targets. Two selector types exist:
+Selectors identify which assertions a rule targets.
 
-**AssertionSelector** — Matches by check name and assertion name:
+**AssertionSelector** matches by check name and assertion name:
 
 ```python
 assertion("Volume Check", "Daily orders above minimum")  # exact match
 check("Volume Check")  # all assertions in check
 ```
 
-**TagSelector** — Matches by tag:
+**TagSelector** matches by tag:
 
 ```python
 tag("xmas")
@@ -138,21 +138,12 @@ class TagSelector:
 
 
 @dataclass(frozen=True)
-class ThresholdOverride:
-    """Specifies how to modify a threshold."""
-
-    value: float | None = None
-    multiplier: float | None = None
-    tol: float | None = None
-
-
-@dataclass(frozen=True)
 class Rule:
     """Pairs a selector with an action."""
 
     selector: Selector
     disabled: bool = False
-    threshold: ThresholdOverride | None = None
+    metric_multiplier: float = 1.0
 
 
 @runtime_checkable
@@ -174,10 +165,14 @@ class HolidayProfile:
     name: str
     start_date: date
     end_date: date
-    rules: list[Rule] = field(default_factory=list)
+    _rules: list[Rule] = field(default_factory=list)
 
     def is_active(self, target_date: date) -> bool:
         return self.start_date <= target_date <= self.end_date
+
+    @property
+    def rules(self) -> list[Rule]:
+        return self._rules
 ```
 
 ### Builder Functions
@@ -194,26 +189,13 @@ class RuleBuilder:
     def disable(self) -> Rule:
         return Rule(selector=self._selector, disabled=True)
 
-    def set(
-        self,
-        *,
-        threshold: float | None = None,
-        threshold_multiplier: float | None = None,
-        tol: float | None = None,
-    ) -> Rule:
-        return Rule(
-            selector=self._selector,
-            threshold=ThresholdOverride(
-                value=threshold,
-                multiplier=threshold_multiplier,
-                tol=tol,
-            ),
-        )
+    def set(self, *, metric_multiplier: float = 1.0) -> Rule:
+        return Rule(selector=self._selector, metric_multiplier=metric_multiplier)
 
 
-def assertion(check: str, assertion: str | None = None) -> RuleBuilder:
-    """Select by check and assertion name (exact match)."""
-    return RuleBuilder(AssertionSelector(check=check, assertion=assertion))
+def assertion(check: str, name: str | None = None) -> RuleBuilder:
+    """Select by check and assertion name."""
+    return RuleBuilder(AssertionSelector(check=check, assertion=name))
 
 
 def check(name: str) -> RuleBuilder:
@@ -226,43 +208,6 @@ def tag(name: str) -> RuleBuilder:
     return RuleBuilder(TagSelector(tag=name))
 ```
 
-### Adding Tags to Assertions
-
-Extend `where()` to accept tags:
-
-```python
-# In src/dqx/api.py
-
-
-def where(
-    self,
-    *,
-    name: str,
-    severity: SeverityLevel = "P1",
-    tags: set[str] | None = None,  # NEW
-) -> AssertionReady: ...
-```
-
-Store tags in `AssertionNode`:
-
-```python
-# In src/dqx/graph/nodes.py
-
-
-class AssertionNode(BaseNode["CheckNode"]):
-    def __init__(
-        self,
-        parent: CheckNode,
-        actual: sp.Expr,
-        name: str,
-        validator: SymbolicValidator,
-        severity: SeverityLevel = "P1",
-        tags: set[str] | None = None,  # NEW
-    ) -> None:
-        ...
-        self.tags = tags or set()
-```
-
 ### Profile Resolution
 
 The evaluator resolves rules before evaluating each assertion:
@@ -273,9 +218,7 @@ class ResolvedOverrides:
     """Accumulated overrides from all matching rules."""
 
     disabled: bool = False
-    threshold_value: float | None = None
-    threshold_multiplier: float | None = None
-    tol_value: float | None = None
+    metric_multiplier: float = 1.0
 
 
 def resolve_overrides(
@@ -299,8 +242,8 @@ def resolve_overrides(
             if rule.disabled:
                 result.disabled = True
 
-            if rule.threshold:
-                _apply_threshold(result, rule.threshold)
+            if rule.metric_multiplier != 1.0:
+                result.metric_multiplier *= rule.metric_multiplier
 
     return result
 
@@ -315,33 +258,48 @@ def _matches(
             return selector.matches(check_name, assertion.name)
         case TagSelector():
             return selector.matches(assertion.tags)
+```
 
+### Metric Multiplier
 
-def _apply_threshold(result: ResolvedOverrides, override: ThresholdOverride) -> None:
-    if override.value is not None:
-        result.threshold_value = override.value
-    if override.multiplier is not None:
-        result.threshold_multiplier = override.multiplier
-    if override.tol is not None:
-        result.tol_value = override.tol
+The multiplier scales the computed metric value before comparison. This compensates for expected metric changes during the profile period.
+
+**Example:** Orders drop 50% during Christmas.
+
+```python
+# Assertion: orders > 100
+# Christmas day: orders = 60
+
+# Without profile: 60 > 100 → FAILED
+# With metric_multiplier=2.0: 60 × 2.0 = 120 > 100 → PASSED
+```
+
+The evaluator applies the multiplier:
+
+```python
+# In Evaluator.visit():
+match node._metric:
+    case Success(value):
+        adjusted = value * overrides.metric_multiplier
+        passed = node.validator.fn(adjusted)
+        node._result = "PASSED" if passed else "FAILED"
 ```
 
 ### Rule Ordering
 
-Rules apply in definition order. Later rules override earlier ones:
+Rules apply in definition order. Later rules compound with earlier ones:
 
 ```python
 rules = [
-    tag("volume").set(threshold_multiplier=1.5),  # First: multiply by 1.5
-    assertion("Check", "Orders").set(threshold=50),  # Second: override to 50
+    tag("volume").set(metric_multiplier=1.5),
+    assertion("Check", "Orders").set(metric_multiplier=2.0),
 ]
+# For "Orders" with tag "volume": multiplier = 1.5 × 2.0 = 3.0
 ```
-
-For the assertion named "Orders" with tag "volume", the final threshold is 50.
 
 ## Usage Examples
 
-### Holiday Season Profile
+### Holiday Profile
 
 ```python
 from datetime import date
@@ -352,17 +310,13 @@ christmas = HolidayProfile(
     start_date=date(2024, 12, 20),
     end_date=date(2025, 1, 5),
     rules=[
-        # Relax all xmas assertions by 2x
-        tag("xmas").set(threshold_multiplier=2.0),
-        # Disable volume checks entirely
+        tag("xmas").set(metric_multiplier=2.0),
         check("Volume Check").disable(),
-        # Set specific threshold for one assertion
-        assertion("Quality Check", "Error rate below threshold").set(threshold=0.1),
     ],
 )
 ```
 
-### Defining Checks with Tags
+### Checks with Tags
 
 ```python
 @check(name="Volume Check")
@@ -400,21 +354,21 @@ christmas = HolidayProfile(
     name="Christmas",
     start_date=date(2024, 12, 20),
     end_date=date(2025, 1, 5),
-    rules=[tag("xmas").set(threshold_multiplier=2.0)],
+    rules=[tag("xmas").set(metric_multiplier=2.0)],
 )
 
 black_friday = HolidayProfile(
     name="Black Friday",
     start_date=date(2024, 11, 29),
     end_date=date(2024, 12, 2),
-    rules=[check("Volume Check").set(threshold_multiplier=3.0)],
+    rules=[check("Volume Check").set(metric_multiplier=3.0)],
 )
 
 suite = VerificationSuite(
     checks=[...],
     db=db,
     name="Suite",
-    profiles=[christmas, black_friday],  # Both evaluated
+    profiles=[christmas, black_friday],
 )
 ```
 
@@ -423,33 +377,32 @@ suite = VerificationSuite(
 | File | Change |
 |------|--------|
 | `src/dqx/profiles.py` | Create: Profile protocol, selectors, rules, builders |
-| `src/dqx/api.py` | Add `tags` to `where()`, add `profiles` to `VerificationSuite` |
-| `src/dqx/graph/nodes.py` | Add `tags` to `AssertionNode` |
-| `src/dqx/evaluator.py` | Resolve and apply overrides before evaluation |
+| `src/dqx/api.py` | Add `profiles` to `VerificationSuite` |
+| `src/dqx/evaluator.py` | Resolve and apply `metric_multiplier` before validation |
 | `src/dqx/__init__.py` | Export profile types |
 
 ## Testing Strategy
 
 ### Unit Tests
 
-1. **Selector matching** — Verify exact name matching and tag matching
-2. **Rule application** — Confirm overrides apply correctly
-3. **Profile activation** — Test date range logic
-4. **Rule ordering** — Validate later rules override earlier ones
+1. **Selector matching** — AssertionSelector and TagSelector match correctly
+2. **Rule application** — metric_multiplier compounds across rules
+3. **Profile activation** — date range logic works
+4. **Rule ordering** — later rules compound with earlier ones
 
 ### Integration Tests
 
-1. **Profile disables assertion** — Assertion skipped when rule disables it
-2. **Profile modifies threshold** — Assertion uses overridden threshold
-3. **Multiple profiles** — Rules from all active profiles apply
-4. **No active profile** — Assertions evaluate normally
+1. **Disabled assertion** — assertion skipped when rule disables it
+2. **Scaled metric** — assertion uses adjusted value
+3. **Multiple profiles** — rules from all active profiles apply
+4. **No active profile** — assertions evaluate normally
 
 ## Future Extensions
 
 The `Profile` protocol enables additional profile types:
 
-- **MaintenanceProfile** — Relax checks during scheduled maintenance
-- **RegionProfile** — Apply region-specific thresholds
-- **ABTestProfile** — Test different threshold configurations
+- **MaintenanceProfile** — relax checks during scheduled maintenance
+- **RegionProfile** — apply region-specific multipliers
+- **ABTestProfile** — test different configurations
 
 Each implements `is_active()` and `rules` with its own activation logic.

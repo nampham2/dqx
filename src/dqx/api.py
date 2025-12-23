@@ -28,6 +28,7 @@ from dqx.graph.traversal import Graph
 
 # import moved to local scope(s) to avoid cyclic dependency
 from dqx.plugins import PluginExecutionContext, PluginManager
+from dqx.profiles import Profile
 from dqx.provider import MetricProvider, SymbolicMetric
 from dqx.timer import Registry
 from dqx.validator import SuiteValidator
@@ -338,6 +339,7 @@ class VerificationSuite:
         name: str,
         log_level: int | str = logging.INFO,
         data_av_threshold: float = 0.9,
+        profiles: Sequence[Profile] | None = None,
     ) -> None:
         """
         Initialize the verification suite.
@@ -347,6 +349,7 @@ class VerificationSuite:
             db: Database for storing and retrieving metrics
             name: Human-readable name for the suite
             data_av_threshold: Minimum data availability to evaluate assertions (default: 0.9)
+            profiles: Optional sequence of profiles for modifying assertion behavior
 
         Raises:
             DQXError: If no checks provided or name is empty
@@ -391,6 +394,9 @@ class VerificationSuite:
 
         # Cache for metrics stats
         self._metrics_stats: "MetricStats | None" = None
+
+        # Store profiles for evaluation
+        self._profiles: list[Profile] = list(profiles) if profiles else []
 
     @property
     def execution_id(self) -> str:
@@ -656,7 +662,7 @@ class VerificationSuite:
 
         # 3. Evaluate assertions
         # Use graph in the context to avoid the check if the suite has been evaluated
-        evaluator = Evaluator(self.provider, key, self._name, self._data_av_threshold)
+        evaluator = Evaluator(self.provider, key, self._name, self._data_av_threshold, self._profiles)
         self._context._graph.bfs(evaluator)
 
         # Mark suite as evaluated only after successful completion
