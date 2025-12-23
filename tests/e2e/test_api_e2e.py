@@ -209,8 +209,25 @@ def test_e2e_suite_with_profiles() -> None:
     print(f"  - FAILED: {len([r for r in results if r.status == 'FAILED'])}")
 
 
+@check(name="Multiplier Test Check", datasets=["ds1"])
+def multiplier_test_check(mp: MetricProvider, ctx: Context) -> None:
+    """Check designed to fail without multiplier, pass with multiplier=2.0.
+
+    Uses a threshold between the raw metric and the scaled metric.
+    The threshold is chosen so raw_value < threshold < raw_value * 2.0
+    """
+    tax_avg = mp.average("tax")
+    # Tax average with this seed is around 50-80
+    # Threshold 80: raw ~70 < 80 = FAILED, scaled ~140 > 80 = PASSED
+    ctx.assert_that(tax_avg).where(name="Tax average exceeds threshold", tags={"multiplier-test"}).is_gt(80)
+
+
 def test_e2e_profile_metric_multiplier_effect() -> None:
-    """Test that metric_multiplier actually changes assertion outcomes."""
+    """Test that metric_multiplier actually changes assertion outcomes.
+
+    This test demonstrates that a profile with metric_multiplier can change
+    a failing assertion to passing by scaling the metric value before validation.
+    """
     db = InMemoryMetricDB()
 
     ds1 = CommercialDataSource(
@@ -222,23 +239,12 @@ def test_e2e_profile_metric_multiplier_effect() -> None:
         skip_dates={dt.date.fromisoformat("2025-01-13")},
     )
 
-    # Profile with large multiplier to force pass on xmas-tagged assertions
-    # The manual_day_over_day check tests tax_avg / tax_avg_lag == 1.0 (within 0.01)
-    # With a multiplier of 1.0, behavior is unchanged
-    profile_with_multiplier = HolidayProfile(
-        name="Multiplier Test",
-        start_date=dt.date(2025, 1, 1),
-        end_date=dt.date(2025, 1, 31),
-        rules=[
-            tag("xmas").set(metric_multiplier=1.0),
-        ],
-    )
-
     key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={})
 
-    # First run WITHOUT profile
+    # First run WITHOUT profile - assertion should FAIL
+    # (tax average ~100 is not > 150)
     suite_no_profile = VerificationSuite(
-        [manual_day_over_day],
+        [multiplier_test_check],
         db,
         name="No profile suite",
         data_av_threshold=0.8,
@@ -247,10 +253,19 @@ def test_e2e_profile_metric_multiplier_effect() -> None:
     suite_no_profile.run([ds1], key)
     results_no_profile = suite_no_profile.collect_results()
 
-    # Second run WITH profile (multiplier=1.0, so same result expected)
+    # Second run WITH profile - multiplier=2.0 should make assertion PASS
+    # (tax average ~100 * 2.0 = ~200 > 150)
     db2 = InMemoryMetricDB()
+    profile_with_multiplier = HolidayProfile(
+        name="Multiplier Test",
+        start_date=dt.date(2025, 1, 1),
+        end_date=dt.date(2025, 1, 31),
+        rules=[
+            tag("multiplier-test").set(metric_multiplier=2.0),
+        ],
+    )
     suite_with_profile = VerificationSuite(
-        [manual_day_over_day],
+        [multiplier_test_check],
         db2,
         name="With profile suite",
         data_av_threshold=0.8,
@@ -259,10 +274,12 @@ def test_e2e_profile_metric_multiplier_effect() -> None:
     suite_with_profile.run([ds1], key)
     results_with_profile = suite_with_profile.collect_results()
 
-    # Both should have the same result since multiplier is 1.0
-    assert len(results_no_profile) == len(results_with_profile)
-    assert results_no_profile[0].status == results_with_profile[0].status
+    # Verify the multiplier actually changed the outcome
+    assert len(results_no_profile) == 1
+    assert len(results_with_profile) == 1
+    assert results_no_profile[0].status == "FAILED", "Without multiplier, assertion should fail"
+    assert results_with_profile[0].status == "PASSED", "With multiplier=2.0, assertion should pass"
 
-    print("\nMetric multiplier test:")
-    print(f"  Without profile: {results_no_profile[0].status}")
-    print(f"  With profile (multiplier=1.0): {results_with_profile[0].status}")
+    print("\nMetric multiplier effect test:")
+    print(f"  Without profile: {results_no_profile[0].status} (metric not scaled)")
+    print(f"  With profile (multiplier=2.0): {results_with_profile[0].status} (metric doubled)")
