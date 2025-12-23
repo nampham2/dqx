@@ -106,6 +106,7 @@ class AssertionResult:
         metric: The metric computation result (Success with value or Failure with errors)
         expression: Full validation expression (e.g., "average(price) > 0")
         tags: Tags from the ResultKey (e.g., {"env": "prod"})
+        assertion_tags: Tags assigned to the assertion for profile-based selection
     """
 
     yyyy_mm_dd: datetime.date
@@ -117,6 +118,7 @@ class AssertionResult:
     metric: Result[float, list[EvaluationFailure]]  # The metric computation result
     expression: str | None = None
     tags: Tags = field(default_factory=dict)
+    assertion_tags: set[str] = field(default_factory=set)
 
 
 @dataclass

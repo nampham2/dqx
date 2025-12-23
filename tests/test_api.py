@@ -629,3 +629,65 @@ def test_verification_suite_metric_trace_stats() -> None:
     assert stats.discrepancy_count == 0
     assert len(stats.discrepancy_rows) == 0
     assert len(stats.discrepancy_details) == 0
+
+
+def test_assertion_tags() -> None:
+    """Assertions can have tags for profile-based selection."""
+    from dqx.common import SymbolicValidator
+    from dqx.graph.nodes import RootNode
+
+    root = RootNode("test_suite")
+    check_node = root.add_check("test_check")
+    validator = SymbolicValidator("> 0", lambda x: x > 0)
+
+    # Create assertion with tags
+    node = check_node.add_assertion(
+        actual=sp.Symbol("x"),
+        name="tagged assertion",
+        validator=validator,
+        tags={"xmas", "volume"},
+    )
+
+    assert node.tags == {"xmas", "volume"}
+
+    # Create assertion without tags - defaults to empty set
+    node_no_tags = check_node.add_assertion(
+        actual=sp.Symbol("y"),
+        name="untagged assertion",
+        validator=validator,
+    )
+
+    assert node_no_tags.tags == set()
+
+
+def test_assertion_tags_via_where() -> None:
+    """Tags can be specified via the where() method."""
+    db = InMemoryMetricDB()
+    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+    @check(name="Test Check")
+    def test_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(sp.Symbol("x")).where(
+            name="Tagged assertion",
+            tags={"xmas", "critical"},
+        ).is_gt(0)
+
+        ctx.assert_that(sp.Symbol("y")).where(
+            name="Untagged assertion",
+        ).is_gt(0)
+
+    # Build the graph
+    root = context._graph.root
+    check_node = root.add_check("Test Check")
+    with context.check_context(check_node):
+        test_check(context._provider, context)
+
+    # Get assertions
+    assertions = list(context._graph.assertions())
+    assert len(assertions) == 2
+
+    tagged = next(a for a in assertions if a.name == "Tagged assertion")
+    untagged = next(a for a in assertions if a.name == "Untagged assertion")
+
+    assert tagged.tags == {"xmas", "critical"}
+    assert untagged.tags == set()
