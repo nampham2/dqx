@@ -55,10 +55,10 @@ def validate_tags(tags: set[str] | frozenset[str] | None) -> frozenset[str]:
     for tag in tags:
         if not tag or not tag.strip():
             raise ValueError("Tag cannot be empty or whitespace-only")
-        tag = tag.strip()
-        if not _TAG_PATTERN.match(tag):
-            raise ValueError(f"Invalid tag '{tag}': tags must contain only alphanumerics, dashes, and underscores")
-        validated.add(tag)
+        stripped = tag.strip()
+        if not _TAG_PATTERN.match(stripped):
+            raise ValueError(f"Invalid tag '{stripped}': tags must contain only alphanumerics, dashes, and underscores")
+        validated.add(stripped)
 
     return frozenset(validated)
 

@@ -129,7 +129,11 @@ class RuleBuilder:
         return Rule(selector=self._selector, disabled=True)
 
     def set(self, *, metric_multiplier: float = 1.0) -> Rule:
-        """Create a rule that scales the metric value by the given multiplier."""
+        """Create a rule that scales the metric value by the given multiplier.
+
+        Note: Calling set() without arguments creates a no-op rule (multiplier=1.0).
+        This is valid for API consistency but has no effect on assertion evaluation.
+        """
         return Rule(selector=self._selector, metric_multiplier=metric_multiplier)
 
 

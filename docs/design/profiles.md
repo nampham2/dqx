@@ -238,8 +238,7 @@ def resolve_overrides(
             if rule.disabled:
                 result.disabled = True
 
-            if rule.metric_multiplier != 1.0:
-                result.metric_multiplier *= rule.metric_multiplier
+            result.metric_multiplier *= rule.metric_multiplier
 
     return result
 

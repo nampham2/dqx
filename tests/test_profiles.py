@@ -147,16 +147,16 @@ class TestRuleBuilder:
 class MockAssertionNode:
     """Mock AssertionNode for testing resolve_overrides."""
 
-    def __init__(self, name: str, tags: set[str] | None = None) -> None:
+    def __init__(self, name: str, tags: frozenset[str] | None = None) -> None:
         self.name = name
-        self.tags = tags or set()
+        self.tags: frozenset[str] = tags or frozenset()
 
 
 class TestResolveOverrides:
     """Tests for resolve_overrides function."""
 
     def test_no_profiles(self) -> None:
-        node = MockAssertionNode("Test Assertion", {"xmas"})
+        node = MockAssertionNode("Test Assertion", frozenset({"xmas"}))
         result = resolve_overrides(
             check_name="Test Check",
             assertion=node,  # type: ignore
@@ -173,7 +173,7 @@ class TestResolveOverrides:
             end_date=date(2025, 1, 5),
             rules=[tag("xmas").set(metric_multiplier=2.0)],
         )
-        node = MockAssertionNode("Test Assertion", {"xmas"})
+        node = MockAssertionNode("Test Assertion", frozenset({"xmas"}))
         result = resolve_overrides(
             check_name="Test Check",
             assertion=node,  # type: ignore
@@ -190,7 +190,7 @@ class TestResolveOverrides:
             end_date=date(2025, 1, 5),
             rules=[tag("xmas").set(metric_multiplier=2.0)],
         )
-        node = MockAssertionNode("Test Assertion", {"xmas"})
+        node = MockAssertionNode("Test Assertion", frozenset({"xmas"}))
         result = resolve_overrides(
             check_name="Test Check",
             assertion=node,  # type: ignore
@@ -207,7 +207,7 @@ class TestResolveOverrides:
             end_date=date(2025, 1, 5),
             rules=[tag("xmas").set(metric_multiplier=2.0)],
         )
-        node = MockAssertionNode("Test Assertion", {"volume"})  # No xmas tag
+        node = MockAssertionNode("Test Assertion", frozenset({"volume"}))  # No xmas tag
         result = resolve_overrides(
             check_name="Test Check",
             assertion=node,  # type: ignore
@@ -259,7 +259,7 @@ class TestResolveOverrides:
                 tag("xmas").set(metric_multiplier=2.0),
             ],
         )
-        node = MockAssertionNode("Test Assertion", {"volume", "xmas"})
+        node = MockAssertionNode("Test Assertion", frozenset({"volume", "xmas"}))
         result = resolve_overrides(
             check_name="Test Check",
             assertion=node,  # type: ignore
@@ -281,7 +281,7 @@ class TestResolveOverrides:
             end_date=date(2024, 12, 31),
             rules=[tag("xmas").set(metric_multiplier=1.5)],
         )
-        node = MockAssertionNode("Test Assertion", {"xmas"})
+        node = MockAssertionNode("Test Assertion", frozenset({"xmas"}))
         result = resolve_overrides(
             check_name="Test Check",
             assertion=node,  # type: ignore
@@ -300,7 +300,7 @@ class TestResolveOverrides:
                 check("Volume Check").disable(),
             ],
         )
-        node = MockAssertionNode("Daily orders", {"xmas"})
+        node = MockAssertionNode("Daily orders", frozenset({"xmas"}))
         result = resolve_overrides(
             check_name="Volume Check",
             assertion=node,  # type: ignore
