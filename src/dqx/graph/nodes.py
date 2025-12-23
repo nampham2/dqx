@@ -99,7 +99,7 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
         name: str,
         validator: SymbolicValidator,
         severity: SeverityLevel = "P1",
-        tags: set[str] | None = None,
+        tags: frozenset[str] | None = None,
     ) -> AssertionNode:
         """Factory method to create and add an assertion node.
 
@@ -110,7 +110,7 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
             name: Optional human-readable description
             validator: Validation function
             severity: Severity level for failures
-            tags: Optional set of tags for assertion selection
+            tags: Optional frozenset of tags for assertion selection
 
         Returns:
             The newly created AssertionNode
@@ -136,7 +136,7 @@ class AssertionNode(BaseNode["CheckNode"]):
         name: str,
         validator: SymbolicValidator,
         severity: SeverityLevel = "P1",
-        tags: set[str] | None = None,
+        tags: frozenset[str] | None = None,
     ) -> None:
         """Initialize an assertion node.
 
@@ -146,18 +146,20 @@ class AssertionNode(BaseNode["CheckNode"]):
             name: Optional human-readable description
             validator: Validation function
             severity: Severity level for failures
-            tags: Optional set of tags for assertion selection
+            tags: Optional frozenset of tags for assertion selection
         """
         super().__init__(parent)
         self.actual = actual
         self.name = name
         self.severity = severity
         self.validator = validator
-        self.tags: set[str] = tags or set()
+        self.tags: frozenset[str] = tags or frozenset()
         # Stores the computed metric result
         self._metric: Result[float, list[EvaluationFailure]]
         # Stores whether the assertion passes validation
         self._result: AssertionStatus
+        # Stores the effective severity (after profile override)
+        self._effective_severity: SeverityLevel | None = None
 
     def is_leaf(self) -> bool:
         return True

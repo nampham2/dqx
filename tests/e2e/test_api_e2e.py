@@ -6,6 +6,7 @@ from dqx.api import VerificationSuite, check
 from dqx.common import Context, ResultKey
 from dqx.display import print_assertion_results, print_metric_trace
 from dqx.orm.repositories import InMemoryMetricDB
+from dqx.profiles import HolidayProfile, check as profile_check, tag
 from dqx.provider import MetricProvider
 from tests.fixtures.data_fixtures import CommercialDataSource
 
@@ -131,3 +132,154 @@ def test_e2e_suite() -> None:
     suite.run([ds1, ds2], key)
     print_assertion_results(suite.collect_results())
     print_metric_trace(suite.metric_trace(db), suite.data_av_threshold)
+
+
+def test_e2e_suite_with_profiles() -> None:
+    """Test e2e suite with profiles that modify assertion behavior."""
+    db = InMemoryMetricDB()
+
+    ds1_start_date = dt.date(2025, 1, 1)
+    ds1_end_date = dt.date(2025, 1, 31)
+
+    ds1 = CommercialDataSource(
+        start_date=ds1_start_date,
+        end_date=ds1_end_date,
+        name="ds1",
+        records_per_day=30,
+        seed=1050,
+        skip_dates={dt.date.fromisoformat("2025-01-13")},
+    )
+
+    # Create a profile that:
+    # 1. Disables the "Delivered null percentage" check entirely
+    # 2. Applies a metric_multiplier to assertions tagged with "xmas"
+    holiday_profile = HolidayProfile(
+        name="January Holiday",
+        start_date=dt.date(2025, 1, 1),
+        end_date=dt.date(2025, 1, 31),
+        rules=[
+            profile_check("Delivered null percentage").disable(),
+            tag("xmas").set(metric_multiplier=1.0),  # No change, just verify it's applied
+        ],
+    )
+
+    key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={"env": "prod"})
+
+    # Use only checks that work with ds1
+    checks = [
+        simple_checks,
+        manual_day_over_day,
+        null_percentage,  # This will be disabled by profile
+    ]
+
+    suite = VerificationSuite(
+        checks,
+        db,
+        name="Profile test suite",
+        data_av_threshold=0.8,
+        log_level="DEBUG",
+        profiles=[holiday_profile],
+    )
+
+    suite.run([ds1], key)
+    results = suite.collect_results()
+
+    # Verify profile effects
+    # 1. "Delivered null percentage" assertions should be SKIPPED
+    disabled_results = [r for r in results if r.check == "Delivered null percentage"]
+    assert len(disabled_results) > 0, "Expected Delivered null percentage assertions"
+    for r in disabled_results:
+        assert r.status == "SKIPPED", f"Expected SKIPPED for {r.assertion}, got {r.status}"
+
+    # 2. "Manual Day Over Day" assertion with xmas tag should be evaluated (not skipped)
+    xmas_results = [r for r in results if "xmas" in r.assertion_tags]
+    assert len(xmas_results) > 0, "Expected assertions with xmas tag"
+    for r in xmas_results:
+        # Should be evaluated (PASSED or FAILED), not SKIPPED
+        assert r.status in ("PASSED", "FAILED"), f"Expected evaluation for {r.assertion}, got {r.status}"
+
+    # 3. Other assertions should be evaluated normally
+    simple_results = [r for r in results if r.check == "Simple Checks"]
+    assert len(simple_results) > 0, "Expected Simple Checks assertions"
+
+    print_assertion_results(results)
+    print(f"\nProfile test completed: {len(results)} assertions evaluated")
+    print(f"  - SKIPPED by profile: {len([r for r in results if r.status == 'SKIPPED'])}")
+    print(f"  - PASSED: {len([r for r in results if r.status == 'PASSED'])}")
+    print(f"  - FAILED: {len([r for r in results if r.status == 'FAILED'])}")
+
+
+@check(name="Multiplier Test Check", datasets=["ds1"])
+def multiplier_test_check(mp: MetricProvider, ctx: Context) -> None:
+    """Check designed to fail without multiplier, pass with multiplier=2.0.
+
+    Uses a threshold between the raw metric and the scaled metric.
+    The threshold is chosen so raw_value < threshold < raw_value * 2.0
+    """
+    tax_avg = mp.average("tax")
+    # Tax average with this seed is around 50-80
+    # Threshold 80: raw ~70 < 80 = FAILED, scaled ~140 > 80 = PASSED
+    ctx.assert_that(tax_avg).where(name="Tax average exceeds threshold", tags={"multiplier-test"}).is_gt(80)
+
+
+def test_e2e_profile_metric_multiplier_effect() -> None:
+    """Test that metric_multiplier actually changes assertion outcomes.
+
+    This test demonstrates that a profile with metric_multiplier can change
+    a failing assertion to passing by scaling the metric value before validation.
+    """
+    db = InMemoryMetricDB()
+
+    ds1 = CommercialDataSource(
+        start_date=dt.date(2025, 1, 1),
+        end_date=dt.date(2025, 1, 31),
+        name="ds1",
+        records_per_day=30,
+        seed=1050,
+        skip_dates={dt.date.fromisoformat("2025-01-13")},
+    )
+
+    key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={})
+
+    # First run WITHOUT profile - assertion should FAIL
+    # (tax average ~50-80 is not > 80)
+    suite_no_profile = VerificationSuite(
+        [multiplier_test_check],
+        db,
+        name="No profile suite",
+        data_av_threshold=0.8,
+        profiles=[],
+    )
+    suite_no_profile.run([ds1], key)
+    results_no_profile = suite_no_profile.collect_results()
+
+    # Second run WITH profile - multiplier=2.0 should make assertion PASS
+    # (tax average ~50-80 * 2.0 = ~100-160 > 80)
+    db2 = InMemoryMetricDB()
+    profile_with_multiplier = HolidayProfile(
+        name="Multiplier Test",
+        start_date=dt.date(2025, 1, 1),
+        end_date=dt.date(2025, 1, 31),
+        rules=[
+            tag("multiplier-test").set(metric_multiplier=2.0),
+        ],
+    )
+    suite_with_profile = VerificationSuite(
+        [multiplier_test_check],
+        db2,
+        name="With profile suite",
+        data_av_threshold=0.8,
+        profiles=[profile_with_multiplier],
+    )
+    suite_with_profile.run([ds1], key)
+    results_with_profile = suite_with_profile.collect_results()
+
+    # Verify the multiplier actually changed the outcome
+    assert len(results_no_profile) == 1
+    assert len(results_with_profile) == 1
+    assert results_no_profile[0].status == "FAILED", "Without multiplier, assertion should fail"
+    assert results_with_profile[0].status == "PASSED", "With multiplier=2.0, assertion should pass"
+
+    print("\nMetric multiplier effect test:")
+    print(f"  Without profile: {results_no_profile[0].status} (metric not scaled)")
+    print(f"  With profile (multiplier=2.0): {results_with_profile[0].status} (metric doubled)")

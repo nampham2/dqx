@@ -4,6 +4,25 @@ import logging
 
 from rich.logging import RichHandler
 
+from dqx.profiles import (
+    HolidayProfile,
+    Profile,
+    Rule,
+    assertion,
+    check,
+    tag,
+)
+
+__all__ = [
+    "HolidayProfile",
+    "Profile",
+    "Rule",
+    "assertion",
+    "check",
+    "tag",
+    "setup_logger",
+]
+
 # Version information
 try:
     from importlib.metadata import version

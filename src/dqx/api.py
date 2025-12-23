@@ -21,6 +21,7 @@ from dqx.common import (
     SeverityLevel,
     SqlDataSource,
     SymbolicValidator,
+    validate_tags,
 )
 from dqx.evaluator import Evaluator
 from dqx.graph.nodes import CheckNode, RootNode
@@ -28,6 +29,7 @@ from dqx.graph.traversal import Graph
 
 # import moved to local scope(s) to avoid cyclic dependency
 from dqx.plugins import PluginExecutionContext, PluginManager
+from dqx.profiles import Profile
 from dqx.provider import MetricProvider, SymbolicMetric
 from dqx.timer import Registry
 from dqx.validator import SuiteValidator
@@ -67,7 +69,9 @@ class AssertionDraft:
         self._actual = actual
         self._context = context
 
-    def where(self, *, name: str, severity: SeverityLevel = "P1", tags: set[str] | None = None) -> AssertionReady:
+    def where(
+        self, *, name: str, severity: SeverityLevel = "P1", tags: frozenset[str] | set[str] | None = None
+    ) -> AssertionReady:
         """
         Provide a descriptive name for this assertion.
 
@@ -76,20 +80,23 @@ class AssertionDraft:
             severity: Severity level (P0, P1, P2, P3). Defaults to "P1".
                      All assertions must have a severity level.
             tags: Optional set of tags for profile-based assertion selection.
+                  Tags must contain only alphanumerics, dashes, and underscores.
 
         Returns:
             AssertionReady instance with all assertion methods available
 
         Raises:
-            ValueError: If name is empty or too long
+            ValueError: If name is empty or too long, or if tags are invalid
         """
         if not name or not name.strip():
             raise ValueError("Assertion name cannot be empty")
         if len(name) > 255:
             raise ValueError("Assertion name is too long (max 255 characters)")
 
+        validated_tags = validate_tags(tags)
+
         return AssertionReady(
-            actual=self._actual, name=name.strip(), severity=severity, tags=tags, context=self._context
+            actual=self._actual, name=name.strip(), severity=severity, tags=validated_tags, context=self._context
         )
 
 
@@ -106,7 +113,7 @@ class AssertionReady:
         actual: sp.Expr,
         name: str,
         severity: SeverityLevel = "P1",
-        tags: set[str] | None = None,
+        tags: frozenset[str] | None = None,
         context: Context | None = None,
     ) -> None:
         """
@@ -338,6 +345,7 @@ class VerificationSuite:
         name: str,
         log_level: int | str = logging.INFO,
         data_av_threshold: float = 0.9,
+        profiles: Sequence[Profile] | None = None,
     ) -> None:
         """
         Initialize the verification suite.
@@ -347,6 +355,7 @@ class VerificationSuite:
             db: Database for storing and retrieving metrics
             name: Human-readable name for the suite
             data_av_threshold: Minimum data availability to evaluate assertions (default: 0.9)
+            profiles: Optional sequence of profiles for modifying assertion behavior
 
         Raises:
             DQXError: If no checks provided or name is empty
@@ -391,6 +400,9 @@ class VerificationSuite:
 
         # Cache for metrics stats
         self._metrics_stats: "MetricStats | None" = None
+
+        # Store profiles for evaluation
+        self._profiles: list[Profile] = list(profiles) if profiles else []
 
     @property
     def execution_id(self) -> str:
@@ -613,6 +625,8 @@ class VerificationSuite:
 
         logger.info(f"Running verification suite '{self._name}' with datasets: {[ds.name for ds in datasources]}")
         logger.info("Execution id: %s", self.execution_id)
+        active_profiles = [p.name for p in self._profiles if p.is_active(key.yyyy_mm_dd)]
+        logger.info("Active profiles: %s", active_profiles if active_profiles else None)
 
         # Store the key for later use in collect_results
         self._key = key
@@ -656,7 +670,7 @@ class VerificationSuite:
 
         # 3. Evaluate assertions
         # Use graph in the context to avoid the check if the suite has been evaluated
-        evaluator = Evaluator(self.provider, key, self._name, self._data_av_threshold)
+        evaluator = Evaluator(self.provider, key, self._name, self._data_av_threshold, self._profiles)
         self._context._graph.bfs(evaluator)
 
         # Mark suite as evaluated only after successful completion
@@ -712,12 +726,15 @@ class VerificationSuite:
             # Extract parent hierarchy
             check_node = assertion.parent  # Parent is always a CheckNode
 
+            # Use effective severity (profile override) if set, otherwise original
+            effective_severity = assertion._effective_severity or assertion.severity
+
             result = AssertionResult(
                 yyyy_mm_dd=key.yyyy_mm_dd,
                 suite=self._name,
                 check=check_node.name,
                 assertion=assertion.name,
-                severity=assertion.severity,
+                severity=effective_severity,
                 status=assertion._result,
                 metric=assertion._metric,
                 expression=f"{assertion.actual} {assertion.validator.name}",

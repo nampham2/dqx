@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime
 import datetime as dt
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
@@ -29,6 +30,37 @@ AssertionStatus = Literal["PASSED", "FAILED", "SKIPPED"]
 Validator = Callable[[float], bool]
 RetrievalFn = Callable[["ResultKey"], Result[float, str]]
 MetricKey = tuple["MetricSpec", "ResultKey", DatasetName]
+
+# Tag validation pattern: alphanumerics, dashes, underscores only
+_TAG_PATTERN = re.compile(r"^[a-zA-Z0-9_-]+$")
+
+
+def validate_tags(tags: set[str] | frozenset[str] | None) -> frozenset[str]:
+    """Validate and convert tags to frozenset.
+
+    Args:
+        tags: Set of tag strings to validate
+
+    Returns:
+        Immutable frozenset of validated tags
+
+    Raises:
+        ValueError: If any tag is invalid (empty, whitespace-only,
+                   or contains invalid characters)
+    """
+    if tags is None:
+        return frozenset()
+
+    validated = set()
+    for tag in tags:
+        if not tag or not tag.strip():
+            raise ValueError("Tag cannot be empty or whitespace-only")
+        stripped = tag.strip()
+        if not _TAG_PATTERN.match(stripped):
+            raise ValueError(f"Invalid tag '{stripped}': tags must contain only alphanumerics, dashes, and underscores")
+        validated.add(stripped)
+
+    return frozenset(validated)
 
 
 class DQXError(Exception): ...
@@ -118,7 +150,7 @@ class AssertionResult:
     metric: Result[float, list[EvaluationFailure]]  # The metric computation result
     expression: str | None = None
     tags: Tags = field(default_factory=dict)
-    assertion_tags: set[str] = field(default_factory=set)
+    assertion_tags: frozenset[str] = field(default_factory=frozenset)
 
 
 @dataclass

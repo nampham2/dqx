@@ -9,6 +9,7 @@ from returns.result import Failure, Result, Success
 from dqx.common import DQXError, EvaluationFailure, ResultKey
 from dqx.graph.base import BaseNode
 from dqx.graph.nodes import AssertionNode
+from dqx.profiles import Profile, resolve_overrides
 from dqx.provider import MetricProvider, SymbolicMetric, SymbolInfo
 
 logger = logging.getLogger(__name__)
@@ -33,7 +34,14 @@ class Evaluator:
         _metrics: Dictionary mapping symbols to their computed Result values
     """
 
-    def __init__(self, provider: MetricProvider, key: ResultKey, suite_name: str, data_av_threshold: float):
+    def __init__(
+        self,
+        provider: MetricProvider,
+        key: ResultKey,
+        suite_name: str,
+        data_av_threshold: float,
+        profiles: list[Profile] | None = None,
+    ):
         """Initialize the Evaluator with a metric provider and result key.
 
         Args:
@@ -41,11 +49,13 @@ class Evaluator:
             key: ResultKey specifying the context for metric evaluation (e.g., date, tags)
             suite_name: Name of the verification suite for context tracking
             data_av_threshold: Minimum data availability ratio to evaluate assertions
+            profiles: Optional list of profiles for modifying assertion behavior
         """
         self.provider = provider
         self._key = key
         self._suite_name = suite_name
         self._data_av_threshold = data_av_threshold
+        self._profiles: list[Profile] = profiles or []
         self._metrics: dict[sp.Basic, Result[float, str]] | None = None
 
     @property
@@ -289,16 +299,41 @@ class Evaluator:
         """Visit a node in the DQX graph and evaluate assertions.
 
         For AssertionNodes:
-        1. Checks data availability for all metrics in the expression
-        2. Skips evaluation if any metric is below the threshold
+        1. Resolves profile overrides for the assertion
+        2. Skips if disabled by profile or insufficient data availability
         3. Evaluates the metric expression if data is available
-        4. Applies the validator function if metric succeeds
+        4. Applies metric_multiplier and validator function
         5. Stores both metric result and validation status
         """
         if isinstance(node, AssertionNode):
-            # Check data availability first
+            # Resolve profile overrides
+            check_name = node.parent.name
+            overrides = resolve_overrides(
+                check_name=check_name,
+                assertion=node,
+                profiles=self._profiles,
+                target_date=self._key.yyyy_mm_dd,
+            )
+
+            # Store effective severity (profile override or original)
+            node._effective_severity = overrides.severity if overrides.severity else node.severity
+
+            # Skip if disabled by profile
+            if overrides.disabled:
+                node._result = "SKIPPED"
+                node._metric = Failure(
+                    [
+                        EvaluationFailure(
+                            error_message="Disabled by profile",
+                            expression=str(node.actual),
+                            symbols=[],
+                        )
+                    ]
+                )
+                return
+
+            # Check data availability
             if not self._check_data_availability(node.actual):
-                # Skip this assertion due to insufficient data
                 node._result = "SKIPPED"
                 node._metric = Failure(
                     [
@@ -314,12 +349,13 @@ class Evaluator:
             # Evaluate the metric
             node._metric = self.evaluate(node.actual)
 
-            # Apply validator to determine pass/fail
+            # Apply validator with metric_multiplier
             match node._metric:
                 case Success(value):
                     try:
-                        # validator.fn returns True if assertion passes
-                        passed = node.validator.fn(value)
+                        # Apply metric_multiplier before validation
+                        adjusted_value = value * overrides.metric_multiplier
+                        passed = node.validator.fn(adjusted_value)
                         node._result = "PASSED" if passed else "FAILED"
                     except Exception as e:
                         raise DQXError(f"Validator execution failed: {str(e)}") from e
