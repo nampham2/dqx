@@ -645,10 +645,10 @@ def test_assertion_tags() -> None:
         actual=sp.Symbol("x"),
         name="tagged assertion",
         validator=validator,
-        tags={"xmas", "volume"},
+        tags=frozenset({"xmas", "volume"}),
     )
 
-    assert node.tags == {"xmas", "volume"}
+    assert node.tags == frozenset({"xmas", "volume"})
 
     # Create assertion without tags - defaults to empty set
     node_no_tags = check_node.add_assertion(
@@ -657,7 +657,7 @@ def test_assertion_tags() -> None:
         validator=validator,
     )
 
-    assert node_no_tags.tags == set()
+    assert node_no_tags.tags == frozenset()
 
 
 def test_assertion_tags_via_where() -> None:
@@ -689,5 +689,67 @@ def test_assertion_tags_via_where() -> None:
     tagged = next(a for a in assertions if a.name == "Tagged assertion")
     untagged = next(a for a in assertions if a.name == "Untagged assertion")
 
-    assert tagged.tags == {"xmas", "critical"}
-    assert untagged.tags == set()
+    assert tagged.tags == frozenset({"xmas", "critical"})
+    assert untagged.tags == frozenset()
+
+
+class TestTagValidation:
+    """Tests for tag validation."""
+
+    def test_valid_tags(self) -> None:
+        """Test that valid tags are accepted."""
+        from dqx.common import validate_tags
+
+        assert validate_tags({"xmas", "critical"}) == frozenset({"xmas", "critical"})
+        assert validate_tags({"tag-with-dash"}) == frozenset({"tag-with-dash"})
+        assert validate_tags({"tag_with_underscore"}) == frozenset({"tag_with_underscore"})
+        assert validate_tags({"tag123"}) == frozenset({"tag123"})
+        assert validate_tags({"CamelCase"}) == frozenset({"CamelCase"})
+
+    def test_empty_tags(self) -> None:
+        """Test that None and empty set return empty frozenset."""
+        from dqx.common import validate_tags
+
+        assert validate_tags(None) == frozenset()
+        assert validate_tags(set()) == frozenset()
+
+    def test_invalid_empty_tag(self) -> None:
+        """Test that empty string tag raises ValueError."""
+        from dqx.common import validate_tags
+
+        with pytest.raises(ValueError, match="empty or whitespace"):
+            validate_tags({""})
+
+    def test_invalid_whitespace_tag(self) -> None:
+        """Test that whitespace-only tag raises ValueError."""
+        from dqx.common import validate_tags
+
+        with pytest.raises(ValueError, match="empty or whitespace"):
+            validate_tags({"   "})
+
+    def test_invalid_special_characters(self) -> None:
+        """Test that tags with special characters raise ValueError."""
+        from dqx.common import validate_tags
+
+        with pytest.raises(ValueError, match="alphanumerics, dashes, and underscores"):
+            validate_tags({"tag with space"})
+
+        with pytest.raises(ValueError, match="alphanumerics, dashes, and underscores"):
+            validate_tags({"tag@special"})
+
+        with pytest.raises(ValueError, match="alphanumerics, dashes, and underscores"):
+            validate_tags({"tag.dot"})
+
+    def test_tags_are_trimmed(self) -> None:
+        """Test that tags with leading/trailing whitespace are trimmed."""
+        from dqx.common import validate_tags
+
+        assert validate_tags({"  valid  "}) == frozenset({"valid"})
+
+    def test_assertion_with_invalid_tags_raises(self) -> None:
+        """Test that creating assertion with invalid tags raises ValueError."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        with pytest.raises(ValueError, match="alphanumerics, dashes, and underscores"):
+            context.assert_that(sp.Symbol("x")).where(name="Test", tags={"invalid tag"})

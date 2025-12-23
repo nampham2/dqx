@@ -47,7 +47,7 @@ class TagSelector:
 
     tag: str
 
-    def matches(self, tags: set[str]) -> bool:
+    def matches(self, tags: frozenset[str]) -> bool:
         """Return True if selector's tag is in the given tags set."""
         return self.tag in tags
 

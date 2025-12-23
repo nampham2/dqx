@@ -21,6 +21,7 @@ from dqx.common import (
     SeverityLevel,
     SqlDataSource,
     SymbolicValidator,
+    validate_tags,
 )
 from dqx.evaluator import Evaluator
 from dqx.graph.nodes import CheckNode, RootNode
@@ -68,7 +69,9 @@ class AssertionDraft:
         self._actual = actual
         self._context = context
 
-    def where(self, *, name: str, severity: SeverityLevel = "P1", tags: set[str] | None = None) -> AssertionReady:
+    def where(
+        self, *, name: str, severity: SeverityLevel = "P1", tags: frozenset[str] | set[str] | None = None
+    ) -> AssertionReady:
         """
         Provide a descriptive name for this assertion.
 
@@ -77,20 +80,23 @@ class AssertionDraft:
             severity: Severity level (P0, P1, P2, P3). Defaults to "P1".
                      All assertions must have a severity level.
             tags: Optional set of tags for profile-based assertion selection.
+                  Tags must contain only alphanumerics, dashes, and underscores.
 
         Returns:
             AssertionReady instance with all assertion methods available
 
         Raises:
-            ValueError: If name is empty or too long
+            ValueError: If name is empty or too long, or if tags are invalid
         """
         if not name or not name.strip():
             raise ValueError("Assertion name cannot be empty")
         if len(name) > 255:
             raise ValueError("Assertion name is too long (max 255 characters)")
 
+        validated_tags = validate_tags(tags)
+
         return AssertionReady(
-            actual=self._actual, name=name.strip(), severity=severity, tags=tags, context=self._context
+            actual=self._actual, name=name.strip(), severity=severity, tags=validated_tags, context=self._context
         )
 
 
@@ -107,7 +113,7 @@ class AssertionReady:
         actual: sp.Expr,
         name: str,
         severity: SeverityLevel = "P1",
-        tags: set[str] | None = None,
+        tags: frozenset[str] | None = None,
         context: Context | None = None,
     ) -> None:
         """

@@ -45,10 +45,10 @@ class TestTagSelector:
 
     def test_matches_tag(self) -> None:
         selector = TagSelector(tag="xmas")
-        assert selector.matches({"xmas", "volume"})
-        assert selector.matches({"xmas"})
-        assert not selector.matches({"volume"})
-        assert not selector.matches(set())
+        assert selector.matches(frozenset({"xmas", "volume"}))
+        assert selector.matches(frozenset({"xmas"}))
+        assert not selector.matches(frozenset({"volume"}))
+        assert not selector.matches(frozenset())
 
 
 class TestRule:
@@ -395,7 +395,7 @@ class TestEvaluatorWithProfiles:
             name="Orders above 100",
             validator=validator,
             severity="P1",
-            tags={"xmas"},  # Tag matches profile rule
+            tags=frozenset({"xmas"}),  # Tag matches profile rule
         )
 
         evaluator.visit(assertion_node)
@@ -463,7 +463,7 @@ class TestEvaluatorWithProfiles:
             name="Orders above 100",
             validator=validator,
             severity="P1",
-            tags={"xmas"},
+            tags=frozenset({"xmas"}),
         )
 
         evaluator.visit(assertion_node)
@@ -498,7 +498,7 @@ class TestEvaluatorWithProfiles:
             name="Orders above 100",
             validator=validator,
             severity="P1",
-            tags={"volume"},  # Different tag, no match
+            tags=frozenset({"volume"}),  # Different tag, no match
         )
 
         evaluator.visit(assertion_node)
@@ -539,7 +539,7 @@ class TestEvaluatorWithProfiles:
             name="Orders above 100",
             validator=validator,
             severity="P1",
-            tags={"xmas"},
+            tags=frozenset({"xmas"}),
         )
 
         evaluator.visit(assertion_node)
