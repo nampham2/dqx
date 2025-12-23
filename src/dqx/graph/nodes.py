@@ -99,6 +99,7 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
         name: str,
         validator: SymbolicValidator,
         severity: SeverityLevel = "P1",
+        tags: set[str] | None = None,
     ) -> AssertionNode:
         """Factory method to create and add an assertion node.
 
@@ -109,11 +110,14 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
             name: Optional human-readable description
             validator: Validation function
             severity: Severity level for failures
+            tags: Optional set of tags for assertion selection
 
         Returns:
             The newly created AssertionNode
         """
-        assertion = AssertionNode(parent=self, actual=actual, name=name, validator=validator, severity=severity)
+        assertion = AssertionNode(
+            parent=self, actual=actual, name=name, validator=validator, severity=severity, tags=tags
+        )
         self.add_child(assertion)
         return assertion
 
@@ -132,6 +136,7 @@ class AssertionNode(BaseNode["CheckNode"]):
         name: str,
         validator: SymbolicValidator,
         severity: SeverityLevel = "P1",
+        tags: set[str] | None = None,
     ) -> None:
         """Initialize an assertion node.
 
@@ -141,12 +146,14 @@ class AssertionNode(BaseNode["CheckNode"]):
             name: Optional human-readable description
             validator: Validation function
             severity: Severity level for failures
+            tags: Optional set of tags for assertion selection
         """
         super().__init__(parent)
         self.actual = actual
         self.name = name
         self.severity = severity
         self.validator = validator
+        self.tags: set[str] = tags or set()
         # Stores the computed metric result
         self._metric: Result[float, list[EvaluationFailure]]
         # Stores whether the assertion passes validation

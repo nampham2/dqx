@@ -67,7 +67,7 @@ class AssertionDraft:
         self._actual = actual
         self._context = context
 
-    def where(self, *, name: str, severity: SeverityLevel = "P1") -> AssertionReady:
+    def where(self, *, name: str, severity: SeverityLevel = "P1", tags: set[str] | None = None) -> AssertionReady:
         """
         Provide a descriptive name for this assertion.
 
@@ -75,6 +75,7 @@ class AssertionDraft:
             name: Required description of what this assertion validates
             severity: Severity level (P0, P1, P2, P3). Defaults to "P1".
                      All assertions must have a severity level.
+            tags: Optional set of tags for profile-based assertion selection.
 
         Returns:
             AssertionReady instance with all assertion methods available
@@ -87,7 +88,9 @@ class AssertionDraft:
         if len(name) > 255:
             raise ValueError("Assertion name is too long (max 255 characters)")
 
-        return AssertionReady(actual=self._actual, name=name.strip(), severity=severity, context=self._context)
+        return AssertionReady(
+            actual=self._actual, name=name.strip(), severity=severity, tags=tags, context=self._context
+        )
 
 
 class AssertionReady:
@@ -99,7 +102,12 @@ class AssertionReady:
     """
 
     def __init__(
-        self, actual: sp.Expr, name: str, severity: SeverityLevel = "P1", context: Context | None = None
+        self,
+        actual: sp.Expr,
+        name: str,
+        severity: SeverityLevel = "P1",
+        tags: set[str] | None = None,
+        context: Context | None = None,
     ) -> None:
         """
         Initialize ready assertion.
@@ -108,11 +116,13 @@ class AssertionReady:
             actual: The symbolic expression to evaluate
             name: Required description of the assertion
             severity: Severity level (P0, P1, P2, P3). Defaults to "P1".
+            tags: Optional set of tags for profile-based assertion selection.
             context: The Context instance
         """
         self._actual = actual
         self._name = name
         self._severity = severity
+        self._tags = tags
         self._context = context
 
     def is_geq(self, other: float, tol: float = functions.EPSILON) -> None:
@@ -182,6 +192,7 @@ class AssertionReady:
             actual=self._actual,
             name=self._name,  # Always has a name now!
             severity=self._severity,
+            tags=self._tags,
             validator=validator,
         )
 
@@ -711,6 +722,7 @@ class VerificationSuite:
                 metric=assertion._metric,
                 expression=f"{assertion.actual} {assertion.validator.name}",
                 tags=key.tags,
+                assertion_tags=assertion.tags,
             )
             results.append(result)
 

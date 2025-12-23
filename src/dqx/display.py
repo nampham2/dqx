@@ -99,10 +99,15 @@ def print_assertion_results(results: list[AssertionResult]) -> None:
         else:
             value_error_str = "-"
 
+        # Format assertion name with tags
+        assertion_display = result.assertion
+        if result.assertion_tags:
+            assertion_display = f"{result.assertion} [white]{sorted(result.assertion_tags)}[/white]"
+
         table.add_row(
             str(result.yyyy_mm_dd),
             result.check,
-            result.assertion,
+            assertion_display,
             result.expression if result.expression else "-",
             result.severity,
             status_style,
