@@ -187,6 +187,27 @@ def enforce_slas(mp: MetricProvider, ctx: Context) -> None:
     ).is_gt(1000)
 ```
 
+## Profiles
+
+Adjust validation behavior during specific periods:
+
+```python
+from dqx.profiles import HolidayProfile, tag
+
+christmas = HolidayProfile(
+    name="Christmas 2024",
+    start_date=date(2024, 12, 20),
+    end_date=date(2025, 1, 5),
+    rules=[
+        tag("xmas").set(metric_multiplier=2.0),  # Scale metrics
+        tag("non-critical").set(severity="P3"),  # Downgrade severity
+        check("Volume Check").disable(),  # Skip checks
+    ],
+)
+
+suite = VerificationSuite(checks, db, "My Suite", profiles=[christmas])
+```
+
 ## Quick Reference
 
 ### Available Metrics
