@@ -625,6 +625,8 @@ class VerificationSuite:
 
         logger.info(f"Running verification suite '{self._name}' with datasets: {[ds.name for ds in datasources]}")
         logger.info("Execution id: %s", self.execution_id)
+        active_profiles = [p.name for p in self._profiles if p.is_active(key.yyyy_mm_dd)]
+        logger.info("Active profiles: %s", active_profiles if active_profiles else None)
 
         # Store the key for later use in collect_results
         self._key = key
