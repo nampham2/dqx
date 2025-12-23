@@ -133,7 +133,7 @@ class TagSelector:
 
     tag: str
 
-    def matches(self, tags: set[str]) -> bool:
+    def matches(self, tags: frozenset[str]) -> bool:
         return self.tag in tags
 
 
@@ -165,14 +165,10 @@ class HolidayProfile:
     name: str
     start_date: date
     end_date: date
-    _rules: list[Rule] = field(default_factory=list)
+    rules: list[Rule] = field(default_factory=list)
 
     def is_active(self, target_date: date) -> bool:
         return self.start_date <= target_date <= self.end_date
-
-    @property
-    def rules(self) -> list[Rule]:
-        return self._rules
 ```
 
 ### Builder Functions
