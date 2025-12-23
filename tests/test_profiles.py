@@ -143,6 +143,22 @@ class TestRuleBuilder:
         assert rule.selector.check == "Volume Check"
         assert rule.selector.assertion is None
 
+    def test_tag_builder_with_severity(self) -> None:
+        rule = tag("xmas").set(severity="P3")
+        assert isinstance(rule.selector, TagSelector)
+        assert rule.selector.tag == "xmas"
+        assert rule.severity == "P3"
+        assert rule.metric_multiplier == 1.0  # Default
+
+    def test_tag_builder_with_multiplier_and_severity(self) -> None:
+        rule = tag("xmas").set(metric_multiplier=2.0, severity="P2")
+        assert rule.metric_multiplier == 2.0
+        assert rule.severity == "P2"
+
+    def test_assertion_builder_with_severity(self) -> None:
+        rule = assertion("Volume Check").set(severity="P0")
+        assert rule.severity == "P0"
+
 
 class MockAssertionNode:
     """Mock AssertionNode for testing resolve_overrides."""
@@ -309,6 +325,74 @@ class TestResolveOverrides:
         )
         assert result.disabled
         assert result.metric_multiplier == 2.0  # Still computed
+
+    def test_severity_override(self) -> None:
+        profile = HolidayProfile(
+            name="Christmas",
+            start_date=date(2024, 12, 20),
+            end_date=date(2025, 1, 5),
+            rules=[tag("xmas").set(severity="P3")],
+        )
+        node = MockAssertionNode("Test Assertion", frozenset({"xmas"}))
+        result = resolve_overrides(
+            check_name="Test Check",
+            assertion=node,  # type: ignore
+            profiles=[profile],
+            target_date=date(2024, 12, 25),
+        )
+        assert result.severity == "P3"
+
+    def test_severity_last_match_wins(self) -> None:
+        profile = HolidayProfile(
+            name="Christmas",
+            start_date=date(2024, 12, 20),
+            end_date=date(2025, 1, 5),
+            rules=[
+                tag("volume").set(severity="P2"),
+                tag("xmas").set(severity="P3"),
+            ],
+        )
+        node = MockAssertionNode("Test Assertion", frozenset({"volume", "xmas"}))
+        result = resolve_overrides(
+            check_name="Test Check",
+            assertion=node,  # type: ignore
+            profiles=[profile],
+            target_date=date(2024, 12, 25),
+        )
+        assert result.severity == "P3"  # Last match wins
+
+    def test_severity_with_multiplier(self) -> None:
+        profile = HolidayProfile(
+            name="Christmas",
+            start_date=date(2024, 12, 20),
+            end_date=date(2025, 1, 5),
+            rules=[tag("xmas").set(metric_multiplier=2.0, severity="P3")],
+        )
+        node = MockAssertionNode("Test Assertion", frozenset({"xmas"}))
+        result = resolve_overrides(
+            check_name="Test Check",
+            assertion=node,  # type: ignore
+            profiles=[profile],
+            target_date=date(2024, 12, 25),
+        )
+        assert result.metric_multiplier == 2.0
+        assert result.severity == "P3"
+
+    def test_no_severity_override_returns_none(self) -> None:
+        profile = HolidayProfile(
+            name="Christmas",
+            start_date=date(2024, 12, 20),
+            end_date=date(2025, 1, 5),
+            rules=[tag("xmas").set(metric_multiplier=2.0)],  # No severity
+        )
+        node = MockAssertionNode("Test Assertion", frozenset({"xmas"}))
+        result = resolve_overrides(
+            check_name="Test Check",
+            assertion=node,  # type: ignore
+            profiles=[profile],
+            target_date=date(2024, 12, 25),
+        )
+        assert result.severity is None  # No override
 
 
 class TestEvaluatorWithProfiles:

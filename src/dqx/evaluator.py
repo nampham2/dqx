@@ -315,6 +315,9 @@ class Evaluator:
                 target_date=self._key.yyyy_mm_dd,
             )
 
+            # Store effective severity (profile override or original)
+            node._effective_severity = overrides.severity if overrides.severity else node.severity
+
             # Skip if disabled by profile
             if overrides.disabled:
                 node._result = "SKIPPED"

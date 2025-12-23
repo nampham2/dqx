@@ -4,14 +4,15 @@
 
 Data quality checks fail during holiday seasons. Order volumes drop. User behavior shifts. Metrics that pass on normal days fail on Christmas.
 
-Teams need two capabilities:
+Teams need three capabilities:
 
 1. **Disable checks** that do not apply during holidays
 2. **Compensate metrics** by scaling values to account for expected changes
+3. **Adjust severity** to reduce alert noise during known disruption periods
 
 ## Solution
 
-Profiles modify assertion behavior during specific periods. A profile activates based on the current date and applies rules: disable assertions or scale metric values.
+Profiles modify assertion behavior during specific periods. A profile activates based on the current date and applies rules: disable assertions, scale metric values, or adjust severity.
 
 ```python
 christmas = HolidayProfile(
@@ -20,6 +21,7 @@ christmas = HolidayProfile(
     end_date=date(2025, 1, 5),
     rules=[
         tag("xmas").set(metric_multiplier=2.0),
+        tag("non-critical").set(severity="P3"),  # Downgrade during holidays
         check("Volume Check").disable(),
     ],
 )
@@ -76,6 +78,7 @@ class Rule:
     selector: Selector
     disabled: bool = False
     metric_multiplier: float = 1.0
+    severity: SeverityLevel | None = None
 ```
 
 ### Selector
@@ -144,6 +147,7 @@ class Rule:
     selector: Selector
     disabled: bool = False
     metric_multiplier: float = 1.0
+    severity: SeverityLevel | None = None
 
 
 @runtime_checkable
@@ -185,8 +189,14 @@ class RuleBuilder:
     def disable(self) -> Rule:
         return Rule(selector=self._selector, disabled=True)
 
-    def set(self, *, metric_multiplier: float = 1.0) -> Rule:
-        return Rule(selector=self._selector, metric_multiplier=metric_multiplier)
+    def set(
+        self, *, metric_multiplier: float = 1.0, severity: SeverityLevel | None = None
+    ) -> Rule:
+        return Rule(
+            selector=self._selector,
+            metric_multiplier=metric_multiplier,
+            severity=severity,
+        )
 
 
 def assertion(check: str, name: str | None = None) -> RuleBuilder:
@@ -215,6 +225,7 @@ class ResolvedOverrides:
 
     disabled: bool = False
     metric_multiplier: float = 1.0
+    severity: SeverityLevel | None = None
 
 
 def resolve_overrides(
@@ -239,6 +250,9 @@ def resolve_overrides(
                 result.disabled = True
 
             result.metric_multiplier *= rule.metric_multiplier
+
+            if rule.severity is not None:
+                result.severity = rule.severity
 
     return result
 
@@ -280,9 +294,33 @@ match node._metric:
         node._result = "PASSED" if passed else "FAILED"
 ```
 
+### Severity Override
+
+The severity override changes an assertion's priority level. Use it to reduce alert noise during periods of expected disruption.
+
+**Example:** Non-critical checks trigger pages during normal operations but should only log during holidays.
+
+```python
+# Assertion defined with severity P1
+ctx.assert_that(orders).where(name="Order count", severity="P1", tags={"non-critical"})
+
+# During Christmas, downgrade to P3
+tag("non-critical").set(severity="P3")
+```
+
+The last matching rule determines severity. Unlike multipliers, severities do not compound.
+
+```python
+rules = [
+    tag("volume").set(severity="P2"),
+    tag("xmas").set(severity="P3"),
+]
+# Assertion with both tags: severity = P3 (last match wins)
+```
+
 ### Rule Ordering
 
-Rules apply in definition order. Later rules compound with earlier ones:
+Rules apply in definition order. Later rules compound with earlier ones (multipliers multiply, severity uses last match):
 
 ```python
 rules = [

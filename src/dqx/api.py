@@ -726,12 +726,15 @@ class VerificationSuite:
             # Extract parent hierarchy
             check_node = assertion.parent  # Parent is always a CheckNode
 
+            # Use effective severity (profile override) if set, otherwise original
+            effective_severity = assertion._effective_severity or assertion.severity
+
             result = AssertionResult(
                 yyyy_mm_dd=key.yyyy_mm_dd,
                 suite=self._name,
                 check=check_node.name,
                 assertion=assertion.name,
-                severity=assertion.severity,
+                severity=effective_severity,
                 status=assertion._result,
                 metric=assertion._metric,
                 expression=f"{assertion.actual} {assertion.validator.name}",

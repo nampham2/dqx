@@ -21,6 +21,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
+from dqx.common import SeverityLevel
+
 if TYPE_CHECKING:
     from dqx.graph.nodes import AssertionNode
 
@@ -63,11 +65,13 @@ class Rule:
         selector: Identifies which assertions this rule targets.
         disabled: If True, matching assertions are skipped.
         metric_multiplier: Scales the metric value before comparison.
+        severity: Overrides the assertion's severity level.
     """
 
     selector: Selector
     disabled: bool = False
     metric_multiplier: float = 1.0
+    severity: SeverityLevel | None = None
 
 
 @runtime_checkable
@@ -128,13 +132,16 @@ class RuleBuilder:
         """Create a rule that disables matching assertions."""
         return Rule(selector=self._selector, disabled=True)
 
-    def set(self, *, metric_multiplier: float = 1.0) -> Rule:
-        """Create a rule that scales the metric value by the given multiplier.
+    def set(self, *, metric_multiplier: float = 1.0, severity: SeverityLevel | None = None) -> Rule:
+        """Create a rule that modifies assertion behavior.
 
-        Note: Calling set() without arguments creates a no-op rule (multiplier=1.0).
-        This is valid for API consistency but has no effect on assertion evaluation.
+        Args:
+            metric_multiplier: Scales the metric value before comparison.
+            severity: Overrides the assertion's severity level.
+
+        Note: Calling set() without arguments creates a no-op rule.
         """
-        return Rule(selector=self._selector, metric_multiplier=metric_multiplier)
+        return Rule(selector=self._selector, metric_multiplier=metric_multiplier, severity=severity)
 
 
 def assertion(check: str, name: str | None = None) -> RuleBuilder:
@@ -182,10 +189,12 @@ class ResolvedOverrides:
     Attributes:
         disabled: True if any matching rule disables the assertion.
         metric_multiplier: Product of all matching rules' multipliers.
+        severity: Overridden severity level (last matching rule wins).
     """
 
     disabled: bool = False
     metric_multiplier: float = 1.0
+    severity: SeverityLevel | None = None
 
 
 def resolve_overrides(
@@ -222,6 +231,9 @@ def resolve_overrides(
                 result.disabled = True
 
             result.metric_multiplier *= rule.metric_multiplier
+
+            if rule.severity is not None:
+                result.severity = rule.severity
 
     return result
 

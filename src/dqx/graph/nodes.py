@@ -158,6 +158,8 @@ class AssertionNode(BaseNode["CheckNode"]):
         self._metric: Result[float, list[EvaluationFailure]]
         # Stores whether the assertion passes validation
         self._result: AssertionStatus
+        # Stores the effective severity (after profile override)
+        self._effective_severity: SeverityLevel | None = None
 
     def is_leaf(self) -> bool:
         return True
