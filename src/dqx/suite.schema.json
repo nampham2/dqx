@@ -90,7 +90,7 @@
         "expect": {
           "type": "string",
           "minLength": 1,
-          "pattern": "^(positive|negative|collect|>=?\\s*-?[0-9.]+|<=?\\s*-?[0-9.]+|=\\s*-?[0-9.]+|between\\s+-?[0-9.]+\\s+and\\s+-?[0-9.]+)$",
+          "pattern": "^(positive|negative|collect|>=?\\s*-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?|<=?\\s*-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?|=\\s*-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?|between\\s+-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?\\s+and\\s+-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)$",
           "description": "Validation condition: '> N', '>= N', '< N', '<= N', '= N', 'between A and B', 'positive', 'negative', or 'collect'",
           "examples": [
             "> 0",
