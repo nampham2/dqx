@@ -67,7 +67,7 @@ def _load_schema(schema_path: Path | None = None) -> dict[str, Any]:
         raise DQXError(f"JSON schema not found: {path}")
 
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:  # pragma: no cover
         raise DQXError(f"Failed to load JSON schema: {e}") from e
@@ -108,15 +108,15 @@ def validate_config_schema(
         if not path.exists():  # pragma: no cover
             return [f"Configuration file not found: {path}"]
         try:
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 config_dict = yaml.safe_load(f)
-        except Exception as e:
+        except yaml.YAMLError as e:
             return [f"Failed to parse YAML: {e}"]
     else:
         # Assume it's a YAML string
         try:
             config_dict = yaml.safe_load(str(path_or_content))
-        except Exception as e:
+        except yaml.YAMLError as e:
             return [f"Failed to parse YAML: {e}"]
 
     return validate_dict_schema(config_dict, schema_path)
@@ -193,17 +193,6 @@ MATH_FUNCTIONS = {
     "min": sp.Min,
     "max": sp.Max,
 }
-
-
-@dataclass
-class ParsedMetric:
-    """Represents a parsed metric expression."""
-
-    func_name: str
-    args: list[Any] = field(default_factory=list)
-    kwargs: dict[str, Any] = field(default_factory=dict)
-    is_extended: bool = False
-    base_metric: "ParsedMetric | None" = None
 
 
 class MetricExpressionParser:
@@ -320,6 +309,8 @@ class MetricExpressionParser:
             return method(column, values, lag=lag, dataset=dataset, parameters=parameters)
         elif func_name == "custom_sql":
             # First arg is SQL expression - pop from kwargs
+            # Security note: SQL is passed to provider without sanitization.
+            # Only load configurations from trusted sources.
             sql_expr = args[0] if args else kwargs.pop("sql_expression", None)
             # Update parameters after popping
             parameters = kwargs if kwargs else None
@@ -603,9 +594,9 @@ def load_config(path: str | Path, *, validate_schema: bool = True) -> SuiteConfi
         raise DQXError(f"Configuration file not found: {path}")
 
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             config_dict = yaml.safe_load(f)
-    except Exception as e:
+    except yaml.YAMLError as e:
         raise DQXError(f"Failed to parse configuration file: {e}") from e
 
     if validate_schema:
@@ -806,8 +797,8 @@ def suite_config_to_dict(config: SuiteConfig) -> dict[str, Any]:
         "name": config.name,
     }
 
-    if config.data_av_threshold != 0.9:
-        result["data_av_threshold"] = config.data_av_threshold
+    # Always include data_av_threshold for round-trip safety
+    result["data_av_threshold"] = config.data_av_threshold
 
     # Serialize checks
     result["checks"] = [_check_to_dict(check) for check in config.checks]

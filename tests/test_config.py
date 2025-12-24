@@ -683,7 +683,7 @@ class TestSerialization:
         result = suite_config_to_dict(config)
 
         assert result["name"] == "Test Suite"
-        assert "data_av_threshold" not in result  # Default value omitted
+        assert result["data_av_threshold"] == 0.9  # Always included for round-trip safety
         assert len(result["checks"]) == 1
         assert "profiles" not in result  # Empty profiles omitted
 

@@ -998,6 +998,8 @@ def _create_config_check(check_config: "CheckConfig") -> DecoratedCheck:
         name=check_config.name,
         datasets=check_config.datasets if check_config.datasets else None,
     )
+    # Set __name__ for protocol compliance with DecoratedCheck
+    wrapped.__name__ = check_config.name  # type: ignore[attr-defined]
     return cast(DecoratedCheck, wrapped)
 
 

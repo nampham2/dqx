@@ -415,7 +415,7 @@ profiles:
 
     # Compare each result
     mismatches = []
-    for py_result, yaml_result in zip(python_sorted, yaml_sorted):
+    for py_result, yaml_result in zip(python_sorted, yaml_sorted, strict=True):
         if py_result.check != yaml_result.check:
             mismatches.append(f"Check mismatch: {py_result.check} vs {yaml_result.check}")
         if py_result.assertion != yaml_result.assertion:
@@ -472,14 +472,14 @@ profiles:
     assert len(original_config.profiles) == len(reparsed_config.profiles), "Profile count mismatch"
 
     # Verify each check
-    for orig_check, repr_check in zip(original_config.checks, reparsed_config.checks):
+    for orig_check, repr_check in zip(original_config.checks, reparsed_config.checks, strict=True):
         assert orig_check.name == repr_check.name, f"Check name mismatch: {orig_check.name}"
         assert orig_check.datasets == repr_check.datasets, f"Datasets mismatch for {orig_check.name}"
         assert len(orig_check.assertions) == len(repr_check.assertions), (
             f"Assertion count mismatch for {orig_check.name}"
         )
 
-        for orig_a, repr_a in zip(orig_check.assertions, repr_check.assertions):
+        for orig_a, repr_a in zip(orig_check.assertions, repr_check.assertions, strict=True):
             assert orig_a.name == repr_a.name, f"Assertion name mismatch: {orig_a.name}"
             assert orig_a.metric == repr_a.metric, f"Metric mismatch for {orig_a.name}"
             assert orig_a.expect == repr_a.expect, f"Expect mismatch for {orig_a.name}"
@@ -488,7 +488,7 @@ profiles:
             assert orig_a.tags == repr_a.tags, f"Tags mismatch for {orig_a.name}"
 
     # Verify profiles
-    for orig_p, repr_p in zip(original_config.profiles, reparsed_config.profiles):
+    for orig_p, repr_p in zip(original_config.profiles, reparsed_config.profiles, strict=True):
         assert orig_p.name == repr_p.name, f"Profile name mismatch: {orig_p.name}"
         assert len(orig_p.rules) == len(repr_p.rules), f"Rule count mismatch for {orig_p.name}"
 
