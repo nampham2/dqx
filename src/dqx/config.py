@@ -893,11 +893,14 @@ def _rule_to_dict(rule: Rule) -> dict[str, Any]:
     if rule.disabled:
         result["action"] = "disable"
 
-    if rule.metric_multiplier != 1.0:
-        result["metric_multiplier"] = rule.metric_multiplier
-
     if rule.severity is not None:
         result["severity"] = rule.severity
+
+    # Include metric_multiplier if non-default OR if it's the only modifier
+    # (schema requires at least one of: action, metric_multiplier, severity)
+    has_other_modifier = rule.disabled or rule.severity is not None
+    if rule.metric_multiplier != 1.0 or not has_other_modifier:
+        result["metric_multiplier"] = rule.metric_multiplier
 
     return result
 
