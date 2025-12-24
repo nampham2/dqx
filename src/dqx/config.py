@@ -45,15 +45,11 @@ _SCHEMA_PATH = Path(__file__).parent / "suite.schema.json"
 
 
 @lru_cache(maxsize=1)
-def _load_schema(schema_path: Path | None = None) -> dict[str, Any]:
-    """Load and cache the JSON schema.
-
-    Note: This function caches only one schema (maxsize=1). The cache uses
-    the default schema path. If you need to load multiple different schemas,
-    clear the cache first with `_load_schema.cache_clear()`.
+def _load_schema_cached(schema_path: Path) -> dict[str, Any]:
+    """Load and cache the JSON schema (internal, use get_schema instead).
 
     Args:
-        schema_path: Path to schema file. Uses default if None.
+        schema_path: Path to schema file.
 
     Returns:
         Parsed JSON schema dictionary
@@ -61,7 +57,7 @@ def _load_schema(schema_path: Path | None = None) -> dict[str, Any]:
     Raises:
         DQXError: If schema file cannot be loaded
     """
-    path = schema_path or _SCHEMA_PATH
+    path = schema_path
 
     if not path.exists():  # pragma: no cover
         raise DQXError(f"JSON schema not found: {path}")
@@ -71,6 +67,18 @@ def _load_schema(schema_path: Path | None = None) -> dict[str, Any]:
             return json.load(f)
     except Exception as e:  # pragma: no cover
         raise DQXError(f"Failed to load JSON schema: {e}") from e
+
+
+def _load_schema(schema_path: Path | None = None) -> dict[str, Any]:
+    """Load the JSON schema, normalizing None to default path for caching.
+
+    Args:
+        schema_path: Path to schema file. Uses default if None.
+
+    Returns:
+        Parsed JSON schema dictionary
+    """
+    return _load_schema_cached(schema_path or _SCHEMA_PATH)
 
 
 def validate_config_schema(
@@ -531,6 +539,9 @@ def _parse_rule(rule_dict: dict[str, Any]) -> Rule:
     metric_multiplier = rule_dict.get("metric_multiplier", 1.0)
     severity = rule_dict.get("severity")
 
+    if severity is not None and severity not in ("P0", "P1", "P2", "P3"):
+        raise DQXError(f"Invalid severity '{severity}' in rule")
+
     return Rule(
         selector=selector,
         disabled=disabled,
@@ -729,7 +740,11 @@ def _parse_assertion(assertion_dict: dict[str, Any], check_name: str) -> Asserti
 
 
 def validate_config(path: str | Path) -> list[str]:
-    """Validate a configuration file without loading it.
+    """Validate a configuration file with full semantic checks.
+
+    This function fully loads and parses the configuration to perform
+    semantic validation (duplicate names, expect format, etc.).
+    For lightweight schema-only validation, use validate_config_schema().
 
     Args:
         path: Path to configuration file

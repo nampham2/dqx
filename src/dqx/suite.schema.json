@@ -208,6 +208,11 @@
           "required": ["tag"]
         }
       ],
+      "anyOf": [
+        { "required": ["action"] },
+        { "required": ["metric_multiplier"] },
+        { "required": ["severity"] }
+      ],
       "dependentRequired": {
         "assertion": ["check"]
       },
