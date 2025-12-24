@@ -1,5 +1,5 @@
 {
-  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://dqx.dev/schemas/suite.json",
   "title": "DQX Suite Configuration",
   "description": "Schema for DQX verification suite YAML/JSON configuration files",
@@ -208,7 +208,7 @@
           "required": ["tag"]
         }
       ],
-      "dependencies": {
+      "dependentRequired": {
         "assertion": ["check"]
       },
       "additionalProperties": false

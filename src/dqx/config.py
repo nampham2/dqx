@@ -143,7 +143,7 @@ def validate_dict_schema(
     except DQXError as e:
         return [str(e)]
 
-    validator = jsonschema.Draft7Validator(schema)
+    validator = jsonschema.Draft202012Validator(schema)
     errors = []
 
     for error in validator.iter_errors(config_dict):
