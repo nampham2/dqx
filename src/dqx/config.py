@@ -63,13 +63,13 @@ def _load_schema(schema_path: Path | None = None) -> dict[str, Any]:
     """
     path = schema_path or _SCHEMA_PATH
 
-    if not path.exists():
+    if not path.exists():  # pragma: no cover
         raise DQXError(f"JSON schema not found: {path}")
 
     try:
         with open(path) as f:
             return json.load(f)
-    except Exception as e:
+    except Exception as e:  # pragma: no cover
         raise DQXError(f"Failed to load JSON schema: {e}") from e
 
 
@@ -363,7 +363,7 @@ class MetricExpressionParser:
             n = to_int(kwargs.get("n"), 7)
             dataset = to_str(kwargs.get("dataset"))
             return ext.stddev(base_metric, offset=offset, n=n, dataset=dataset)
-        else:
+        else:  # pragma: no cover
             raise DQXError(f"Unknown extended metric: {func_name}")
 
 
@@ -865,7 +865,7 @@ def _profile_to_dict(profile: Profile) -> dict[str, Any]:
             result["rules"] = [_rule_to_dict(rule) for rule in profile.rules]
 
         return result
-    else:
+    else:  # pragma: no cover
         raise DQXError(f"Unsupported profile type for serialization: {type(profile)}")
 
 
@@ -880,7 +880,7 @@ def _rule_to_dict(rule: Rule) -> dict[str, Any]:
             result["assertion"] = rule.selector.assertion
     elif isinstance(rule.selector, TagSelector):
         result["tag"] = rule.selector.tag
-    else:
+    else:  # pragma: no cover
         raise DQXError(f"Unsupported selector type for serialization: {type(rule.selector)}")
 
     # Serialize action/modifiers
