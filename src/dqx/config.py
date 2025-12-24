@@ -113,11 +113,11 @@ def validate_config_schema(
 
     if is_file_path:
         path = Path(path_or_content) if not isinstance(path_or_content, Path) else path_or_content
-        if not path.exists():  # pragma: no cover
-            return [f"Configuration file not found: {path}"]
         try:
             with open(path, encoding="utf-8") as f:
                 config_dict = yaml.safe_load(f)
+        except FileNotFoundError:
+            return [f"Configuration file not found: {path}"]
         except yaml.YAMLError as e:
             return [f"Failed to parse YAML: {e}"]
     else:
@@ -436,31 +436,34 @@ def parse_expect(expect_str: str, tolerance: float | None = None) -> SymbolicVal
     for pattern, op_type in EXPECT_PATTERNS:
         match = re.match(pattern, expect_str, re.IGNORECASE)
         if match:
-            if op_type == "gt":
-                value = float(match.group(1))
-                return _make_gt_validator(value, tol)
-            elif op_type == "geq":
-                value = float(match.group(1))
-                return _make_geq_validator(value, tol)
-            elif op_type == "lt":
-                value = float(match.group(1))
-                return _make_lt_validator(value, tol)
-            elif op_type == "leq":
-                value = float(match.group(1))
-                return _make_leq_validator(value, tol)
-            elif op_type == "eq":
-                value = float(match.group(1))
-                return _make_eq_validator(value, tol)
-            elif op_type == "between":
-                low = float(match.group(1))
-                high = float(match.group(2))
-                return _make_between_validator(low, high, tol)
-            elif op_type == "positive":
-                return _make_positive_validator(tol)
-            elif op_type == "negative":
-                return _make_negative_validator(tol)
-            elif op_type == "noop":
-                return SymbolicValidator("noop", functions.noop)
+            try:
+                if op_type == "gt":
+                    value = float(match.group(1))
+                    return _make_gt_validator(value, tol)
+                elif op_type == "geq":
+                    value = float(match.group(1))
+                    return _make_geq_validator(value, tol)
+                elif op_type == "lt":
+                    value = float(match.group(1))
+                    return _make_lt_validator(value, tol)
+                elif op_type == "leq":
+                    value = float(match.group(1))
+                    return _make_leq_validator(value, tol)
+                elif op_type == "eq":
+                    value = float(match.group(1))
+                    return _make_eq_validator(value, tol)
+                elif op_type == "between":
+                    low = float(match.group(1))
+                    high = float(match.group(2))
+                    return _make_between_validator(low, high, tol)
+                elif op_type == "positive":
+                    return _make_positive_validator(tol)
+                elif op_type == "negative":
+                    return _make_negative_validator(tol)
+                elif op_type == "noop":
+                    return SymbolicValidator("noop", functions.noop)
+            except ValueError as e:
+                raise DQXError(f"Invalid numeric value in expect '{expect_str}': {e}") from e
 
     raise DQXError(f"Invalid expect format: '{expect_str}'")
 

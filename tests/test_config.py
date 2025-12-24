@@ -1397,3 +1397,60 @@ checks:
         errors = validate_config_schema("invalid: yaml: [unclosed")
         assert len(errors) == 1
         assert "Failed to parse YAML" in errors[0]
+
+    def test_validate_schema_file_deleted_after_check(self) -> None:
+        """validate_config_schema handles file deleted after exists() check (TOCTOU)."""
+        import os
+
+        # Create a temp file, get its path, then delete it
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            temp_path = f.name
+            f.write("name: test")
+            f.flush()
+
+        # Delete the file to simulate TOCTOU race condition
+        os.unlink(temp_path)
+
+        # Now validate_config_schema should handle FileNotFoundError
+        from pathlib import Path
+
+        errors = validate_config_schema(Path(temp_path))
+        assert len(errors) == 1
+        assert "Configuration file not found" in errors[0]
+
+
+class TestParseExpectValueError:
+    """Tests for parse_expect ValueError handling."""
+
+    def test_parse_expect_invalid_numeric_value(self) -> None:
+        """parse_expect raises DQXError for invalid numeric values when schema validation is bypassed."""
+        import builtins
+        from unittest.mock import patch
+
+        original_float = builtins.float
+
+        def mock_float(value: str) -> float:
+            # Only raise for specific test values, let others through
+            if value == "100":
+                raise ValueError("could not convert string to float")
+            return original_float(value)
+
+        with patch("builtins.float", mock_float):
+            with pytest.raises(DQXError, match="Invalid numeric value in expect"):
+                parse_expect("> 100")
+
+
+class TestParseRuleInvalidSeverity:
+    """Tests for rule parsing with invalid severity."""
+
+    def test_rule_invalid_severity(self) -> None:
+        """Rule with invalid severity raises DQXError."""
+        profile_dict = {
+            "name": "Test",
+            "type": "holiday",
+            "start_date": "2024-01-01",
+            "end_date": "2024-12-31",
+            "rules": [{"check": "Check 1", "severity": "CRITICAL"}],  # Invalid severity
+        }
+        with pytest.raises(DQXError, match="Invalid severity 'CRITICAL' in rule"):
+            parse_profile(profile_dict)
