@@ -578,7 +578,7 @@ class ExtendedMetricProvider(RegistryMixin):
         return self._provider.execution_id
 
     def day_over_day(self, metric: sp.Symbol, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
-        """Create day-over-day absolute percentage change metric: abs((today - yesterday) / yesterday)."""
+        """Create day-over-day ratio metric (today/yesterday)."""
         # Get the full SymbolicMetric object
         symbolic_metric = self._provider.get_symbol(metric)
         spec = symbolic_metric.metric_spec
@@ -613,7 +613,7 @@ class ExtendedMetricProvider(RegistryMixin):
         return sym
 
     def week_over_week(self, metric: sp.Symbol, lag: int = 0, dataset: str | None = None) -> sp.Symbol:
-        """Create week-over-week absolute percentage change metric: abs((today - week_ago) / week_ago)."""
+        """Create week-over-week ratio metric (today/week_ago)."""
         # Get the full SymbolicMetric object
         symbolic_metric = self._provider.get_symbol(metric)
         spec = symbolic_metric.metric_spec
