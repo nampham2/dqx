@@ -149,3 +149,18 @@ def is_between(a: float, lower: float, upper: float, tol: float = EPSILON) -> bo
         bool: True if lower ≤ a ≤ upper (within tolerance), False otherwise.
     """
     return is_geq(a, lower, tol) and is_leq(a, upper, tol)
+
+
+def noop(a: float) -> bool:
+    """
+    No-op validator that always returns True.
+
+    Used for assertions that only collect metric values without validation.
+
+    Args:
+        a: The value (ignored).
+
+    Returns:
+        bool: Always True.
+    """
+    return True

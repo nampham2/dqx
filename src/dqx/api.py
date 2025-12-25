@@ -35,6 +35,7 @@ from dqx.timer import Registry
 from dqx.validator import SuiteValidator
 
 if TYPE_CHECKING:
+    from dqx.config import CheckConfig, SuiteConfig
     from dqx.orm.repositories import MetricDB, MetricStats
 
 CheckProducer = Callable[[MetricProvider, "Context"], None]
@@ -876,6 +877,130 @@ class VerificationSuite:
             >>> print("Expired metrics deleted")
         """
         self.provider._db.delete_expired_metrics()
+
+    @classmethod
+    def from_yaml(
+        cls,
+        path: str,
+        db: "MetricDB",
+        log_level: int | str = logging.INFO,
+    ) -> "VerificationSuite":
+        """
+        Create a VerificationSuite from a YAML configuration file.
+
+        Args:
+            path: Path to the YAML configuration file
+            db: Database for storing and retrieving metrics
+            log_level: Logging level for the suite
+
+        Returns:
+            Configured VerificationSuite instance
+
+        Example:
+            >>> suite = VerificationSuite.from_yaml("suite.yaml", db=my_db)
+            >>> suite.run([datasource], key)
+        """
+        from dqx.config import load_config
+
+        config = load_config(path)
+        return cls._from_config(config, db, log_level)
+
+    @classmethod
+    def from_yaml_string(
+        cls,
+        content: str,
+        db: "MetricDB",
+        log_level: int | str = logging.INFO,
+    ) -> "VerificationSuite":
+        """
+        Create a VerificationSuite from a YAML configuration string.
+
+        Args:
+            content: YAML configuration string
+            db: Database for storing and retrieving metrics
+            log_level: Logging level for the suite
+
+        Returns:
+            Configured VerificationSuite instance
+
+        Example:
+            >>> yaml_content = '''
+            ... name: "My Suite"
+            ... checks:
+            ...   - name: "Basic Check"
+            ...     assertions:
+            ...       - name: "Has data"
+            ...         metric: num_rows()
+            ...         expect: "> 0"
+            ... '''
+            >>> suite = VerificationSuite.from_yaml_string(yaml_content, db=my_db)
+        """
+        from dqx.config import load_config_string
+
+        config = load_config_string(content)
+        return cls._from_config(config, db, log_level)
+
+    @classmethod
+    def _from_config(
+        cls,
+        config: "SuiteConfig",
+        db: "MetricDB",
+        log_level: int | str,
+    ) -> "VerificationSuite":
+        """Create a VerificationSuite from a parsed SuiteConfig."""
+
+        # Create check functions from config
+        checks = []
+        for check_config in config.checks:
+            check_fn = _create_config_check(check_config)
+            checks.append(check_fn)
+
+        return cls(
+            checks=checks,
+            db=db,
+            name=config.name,
+            log_level=log_level,
+            data_av_threshold=config.data_av_threshold,
+            profiles=config.profiles,
+        )
+
+
+def _create_config_check(check_config: "CheckConfig") -> DecoratedCheck:
+    """Create a check function from a CheckConfig."""
+    from dqx.config import MetricExpressionParser, parse_expect
+
+    def check_fn(mp: MetricProvider, ctx: Context) -> None:
+        # Create parser with the provider
+        parser = MetricExpressionParser(mp)
+
+        # Create assertions from config
+        for assertion_config in check_config.assertions:
+            # Parse the metric expression
+            metric_expr = parser.parse(assertion_config.metric)
+
+            # Parse the expect/validator
+            validator = parse_expect(assertion_config.expect, assertion_config.tolerance)
+
+            # Convert tags list to frozenset
+            tags = frozenset(assertion_config.tags) if assertion_config.tags else None
+
+            # Create the assertion using the context
+            ctx.assert_that(metric_expr).where(
+                name=assertion_config.name,
+                severity=assertion_config.severity,
+                tags=tags,
+            )._create_assertion_node(validator)
+
+    # Wrap with check decorator behavior
+    wrapped = functools.partial(
+        _create_check,
+        _check=check_fn,
+        name=check_config.name,
+        datasets=check_config.datasets if check_config.datasets else None,
+    )
+    # Set __name__ for protocol compliance with DecoratedCheck
+    wrapped.__name__ = check_config.name  # type: ignore[attr-defined]
+    return cast(DecoratedCheck, wrapped)
 
 
 def _create_check(

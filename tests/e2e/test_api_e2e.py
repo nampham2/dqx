@@ -283,3 +283,213 @@ def test_e2e_profile_metric_multiplier_effect() -> None:
     print("\nMetric multiplier effect test:")
     print(f"  Without profile: {results_no_profile[0].status} (metric not scaled)")
     print(f"  With profile (multiplier=2.0): {results_with_profile[0].status} (metric doubled)")
+
+
+def test_yaml_vs_python_suite_equivalence() -> None:
+    """Test that a YAML-loaded suite produces the same results as a Python-defined suite.
+
+    This test creates the same suite configuration in two ways:
+    1. Using Python code (like test_e2e_suite_with_profiles)
+    2. Using YAML configuration
+
+    Both suites are run against the same data and the results are compared.
+    """
+    # YAML configuration equivalent to test_e2e_suite_with_profiles checks
+    yaml_config = """
+name: "Profile test suite"
+data_av_threshold: 0.8
+
+checks:
+  - name: "Simple Checks"
+    datasets: ["ds1"]
+    assertions:
+      - name: "Delivered null count is less than 100"
+        metric: null_count(delivered)
+        expect: "<= 100"
+
+      - name: "Minimum quantity check"
+        metric: minimum(quantity)
+        expect: "<= 2.5"
+
+      - name: "Average price check"
+        metric: average(price)
+        expect: ">= 10.0"
+
+      - name: "Tax day-over-day check"
+        metric: day_over_day(average(tax))
+        expect: ">= 0.5"
+
+      - name: "No duplicates on name"
+        metric: duplicate_count(columns=[name], dataset=ds1)
+        expect: "= 0"
+
+      - name: "Quantity minimum is between 1 and 5"
+        metric: minimum(quantity, dataset=ds1, min_quantity=10)
+        expect: "between 1 and 5.0"
+
+      - name: "NP never buys here"
+        metric: count_values(name, "np", dataset=ds1)
+        expect: "= 0"
+
+      - name: "At least 5 unique customers"
+        metric: unique_count(name)
+        expect: ">= 5"
+
+  - name: "Manual Day Over Day"
+    datasets: ["ds1"]
+    assertions:
+      - name: "Tax average day-over-day equals 1.0"
+        metric: average(tax) / average(tax, lag=1)
+        expect: "= 1.0"
+        tolerance: 0.01
+        tags: ["xmas"]
+
+  - name: "Delivered null percentage"
+    datasets: ["ds1"]
+    assertions:
+      - name: "null percentage is less than 40%"
+        metric: null_count(delivered, dataset=ds1) / num_rows()
+        expect: "<= 0.4"
+
+profiles:
+  - name: "January Holiday"
+    type: holiday
+    start_date: "2025-01-01"
+    end_date: "2025-01-31"
+    rules:
+      - check: "Delivered null percentage"
+        action: disable
+      - tag: "xmas"
+        metric_multiplier: 1.0
+"""
+
+    # Create datasource (same as test_e2e_suite_with_profiles)
+    ds1 = CommercialDataSource(
+        start_date=dt.date(2025, 1, 1),
+        end_date=dt.date(2025, 1, 31),
+        name="ds1",
+        records_per_day=30,
+        seed=1050,
+        skip_dates={dt.date.fromisoformat("2025-01-13")},
+    )
+
+    key = ResultKey(yyyy_mm_dd=dt.date.fromisoformat("2025-01-15"), tags={"env": "prod"})
+
+    # Create profile for Python suite
+    holiday_profile = HolidayProfile(
+        name="January Holiday",
+        start_date=dt.date(2025, 1, 1),
+        end_date=dt.date(2025, 1, 31),
+        rules=[
+            profile_check("Delivered null percentage").disable(),
+            tag("xmas").set(metric_multiplier=1.0),
+        ],
+    )
+
+    # Run Python-defined suite
+    db_python = InMemoryMetricDB()
+    python_suite = VerificationSuite(
+        [simple_checks, manual_day_over_day, null_percentage],
+        db_python,
+        name="Profile test suite",
+        data_av_threshold=0.8,
+        profiles=[holiday_profile],
+    )
+    python_suite.run([ds1], key)
+    python_results = python_suite.collect_results()
+
+    # Run YAML-loaded suite
+    db_yaml = InMemoryMetricDB()
+    yaml_suite = VerificationSuite.from_yaml_string(yaml_config, db=db_yaml)
+    yaml_suite.run([ds1], key)
+    yaml_results = yaml_suite.collect_results()
+
+    # Compare results
+    assert len(python_results) == len(yaml_results), (
+        f"Result count mismatch: Python={len(python_results)}, YAML={len(yaml_results)}"
+    )
+
+    # Sort results for comparison (by check name, then assertion name)
+    python_sorted = sorted(python_results, key=lambda r: (r.check, r.assertion))
+    yaml_sorted = sorted(yaml_results, key=lambda r: (r.check, r.assertion))
+
+    # Compare each result
+    mismatches = []
+    for py_result, yaml_result in zip(python_sorted, yaml_sorted, strict=True):
+        if py_result.check != yaml_result.check:
+            mismatches.append(f"Check mismatch: {py_result.check} vs {yaml_result.check}")
+        if py_result.assertion != yaml_result.assertion:
+            mismatches.append(f"Assertion mismatch: {py_result.assertion} vs {yaml_result.assertion}")
+        if py_result.status != yaml_result.status:
+            mismatches.append(
+                f"Status mismatch for {py_result.check}/{py_result.assertion}: "
+                f"Python={py_result.status}, YAML={yaml_result.status}"
+            )
+        if py_result.severity != yaml_result.severity:
+            mismatches.append(
+                f"Severity mismatch for {py_result.check}/{py_result.assertion}: "
+                f"Python={py_result.severity}, YAML={yaml_result.severity}"
+            )
+
+    if mismatches:
+        for m in mismatches:
+            print(f"MISMATCH: {m}")
+        raise AssertionError(f"Found {len(mismatches)} mismatches between Python and YAML suites")
+
+    # Verify profile effects are the same
+    py_skipped = [r for r in python_results if r.status == "SKIPPED"]
+    yaml_skipped = [r for r in yaml_results if r.status == "SKIPPED"]
+    assert len(py_skipped) == len(yaml_skipped), "SKIPPED count mismatch"
+
+    py_passed = [r for r in python_results if r.status == "PASSED"]
+    yaml_passed = [r for r in yaml_results if r.status == "PASSED"]
+    assert len(py_passed) == len(yaml_passed), "PASSED count mismatch"
+
+    print("\n=== YAML vs Python Suite Equivalence Test ===")
+    print(f"Total assertions: {len(python_results)}")
+    print(f"SKIPPED (profile disabled): {len(py_skipped)}")
+    print(f"PASSED: {len(py_passed)}")
+    print(f"FAILED: {len([r for r in python_results if r.status == 'FAILED'])}")
+    print("✅ Python and YAML suites produced identical results!")
+
+    # === Round-trip serialization test ===
+    # Parse the yaml_config, serialize it back, and verify consistency
+    from dqx.config import load_config_string, suite_config_to_dict
+
+    original_config = load_config_string(yaml_config)
+    serialized_dict = suite_config_to_dict(original_config)
+
+    # Re-parse from serialized dict to verify round-trip
+    import yaml
+
+    serialized_yaml = yaml.dump(serialized_dict, default_flow_style=False, sort_keys=False)
+    reparsed_config = load_config_string(serialized_yaml)
+
+    # Verify the configs match
+    assert original_config.name == reparsed_config.name, "Name mismatch after round-trip"
+    assert original_config.data_av_threshold == reparsed_config.data_av_threshold, "Threshold mismatch"
+    assert len(original_config.checks) == len(reparsed_config.checks), "Check count mismatch"
+    assert len(original_config.profiles) == len(reparsed_config.profiles), "Profile count mismatch"
+
+    # Verify each check
+    for orig_check, repr_check in zip(original_config.checks, reparsed_config.checks, strict=True):
+        assert orig_check.name == repr_check.name, f"Check name mismatch: {orig_check.name}"
+        assert orig_check.datasets == repr_check.datasets, f"Datasets mismatch for {orig_check.name}"
+        assert len(orig_check.assertions) == len(repr_check.assertions), (
+            f"Assertion count mismatch for {orig_check.name}"
+        )
+
+        for orig_a, repr_a in zip(orig_check.assertions, repr_check.assertions, strict=True):
+            assert orig_a.name == repr_a.name, f"Assertion name mismatch: {orig_a.name}"
+            assert orig_a.metric == repr_a.metric, f"Metric mismatch for {orig_a.name}"
+            assert orig_a.expect == repr_a.expect, f"Expect mismatch for {orig_a.name}"
+            assert orig_a.severity == repr_a.severity, f"Severity mismatch for {orig_a.name}"
+            assert orig_a.tolerance == repr_a.tolerance, f"Tolerance mismatch for {orig_a.name}"
+            assert orig_a.tags == repr_a.tags, f"Tags mismatch for {orig_a.name}"
+
+    # Verify profiles
+    for orig_p, repr_p in zip(original_config.profiles, reparsed_config.profiles, strict=True):
+        assert orig_p.name == repr_p.name, f"Profile name mismatch: {orig_p.name}"
+        assert len(orig_p.rules) == len(repr_p.rules), f"Rule count mismatch for {orig_p.name}"
+
+    print("✅ YAML round-trip serialization verified!")
