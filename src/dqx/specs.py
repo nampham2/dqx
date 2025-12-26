@@ -177,18 +177,24 @@ class First(SimpleMetricSpec):
     metric_type: MetricType = "First"
     is_extended: Literal[False] = False
 
-    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
+    def __init__(self, column: str, order_by: str | None = None, parameters: Parameters | None = None) -> None:
         self._column = column
+        self._order_by = order_by
         self._parameters = parameters or {}
-        self._analyzers = (ops.First(self._column, parameters=self._parameters),)
+        self._analyzers = (ops.First(self._column, order_by=self._order_by, parameters=self._parameters),)
 
     @property
     def name(self) -> str:
+        if self._order_by:
+            return f"first({self._column}, order_by={self._order_by})"
         return f"first({self._column})"
 
     @property
     def parameters(self) -> Parameters:
-        return {"column": self._column, **self._parameters}
+        params: Parameters = {"column": self._column}
+        if self._order_by:
+            params["order_by"] = self._order_by
+        return {**params, **self._parameters}
 
     @property
     def analyzers(self) -> Sequence[ops.Op]:
@@ -203,7 +209,7 @@ class First(SimpleMetricSpec):
 
     def clone(self) -> Self:
         """Create a new instance with the same parameters but new analyzer prefixes."""
-        return self.__class__(self._column, parameters=self._parameters.copy())
+        return self.__class__(self._column, order_by=self._order_by, parameters=self._parameters.copy())
 
     def __hash__(self) -> int:
         return hash((self.name, tuple(sorted(self.parameters.items()))))

@@ -693,6 +693,157 @@ def test_assertion_tags_via_where() -> None:
     assert untagged.tags == frozenset()
 
 
+class TestNewAssertionMethods:
+    """Tests for new assertion methods: is_neq, is_none, is_not_none."""
+
+    def test_assertion_ready_has_is_neq(self) -> None:
+        """AssertionReady should have is_neq method."""
+        from dqx.api import AssertionReady
+
+        expr = sp.Symbol("x")
+        ready = AssertionReady(actual=expr, name="Test assertion", context=None)
+        assert hasattr(ready, "is_neq")
+
+    def test_assertion_ready_has_is_none(self) -> None:
+        """AssertionReady should have is_none method."""
+        from dqx.api import AssertionReady
+
+        expr = sp.Symbol("x")
+        ready = AssertionReady(actual=expr, name="Test assertion", context=None)
+        assert hasattr(ready, "is_none")
+
+    def test_assertion_ready_has_is_not_none(self) -> None:
+        """AssertionReady should have is_not_none method."""
+        from dqx.api import AssertionReady
+
+        expr = sp.Symbol("x")
+        ready = AssertionReady(actual=expr, name="Test assertion", context=None)
+        assert hasattr(ready, "is_not_none")
+
+    def test_is_neq_assertion_workflow(self) -> None:
+        """Test is_neq assertion in complete workflow."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        @check(name="Not Equal Check")
+        def neq_check(mp: MetricProvider, ctx: Context) -> None:
+            ctx.assert_that(sp.Symbol("x")).where(name="X is not zero").is_neq(0)
+            ctx.assert_that(sp.Symbol("y")).where(name="Y is not 100").is_neq(100)
+
+            assert ctx.current_check is not None
+            assert len(ctx.current_check.children) == 2
+            assert ctx.current_check.children[0].name == "X is not zero"
+            assert ctx.current_check.children[1].name == "Y is not 100"
+
+        suite = VerificationSuite([neq_check], db, "test")
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+        suite.build_graph(context, key=key)
+
+    def test_is_neq_validator_description(self) -> None:
+        """Test is_neq creates correct validator description."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        @check(name="Validator Check")
+        def val_check(mp: MetricProvider, ctx: Context) -> None:
+            ctx.assert_that(sp.Symbol("x")).where(name="Test neq").is_neq(42)
+
+            assert ctx.current_check is not None
+            assertion = ctx.current_check.children[0]
+            assert "\u2260 42" in assertion.validator.name  # ≠ symbol
+
+        suite = VerificationSuite([val_check], db, "test")
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+        suite.build_graph(context, key=key)
+
+    def test_is_none_assertion_workflow(self) -> None:
+        """Test is_none assertion in complete workflow."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        @check(name="None Check")
+        def none_check(mp: MetricProvider, ctx: Context) -> None:
+            ctx.assert_that(sp.Symbol("x")).where(name="X is None").is_none()
+
+            assert ctx.current_check is not None
+            assert len(ctx.current_check.children) == 1
+            assert ctx.current_check.children[0].name == "X is None"
+
+        suite = VerificationSuite([none_check], db, "test")
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+        suite.build_graph(context, key=key)
+
+    def test_is_none_validator_description(self) -> None:
+        """Test is_none creates correct validator description."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        @check(name="Validator Check")
+        def val_check(mp: MetricProvider, ctx: Context) -> None:
+            ctx.assert_that(sp.Symbol("x")).where(name="Test none").is_none()
+
+            assert ctx.current_check is not None
+            assertion = ctx.current_check.children[0]
+            assert "is None" in assertion.validator.name
+
+        suite = VerificationSuite([val_check], db, "test")
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+        suite.build_graph(context, key=key)
+
+    def test_is_not_none_assertion_workflow(self) -> None:
+        """Test is_not_none assertion in complete workflow."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        @check(name="Not None Check")
+        def not_none_check(mp: MetricProvider, ctx: Context) -> None:
+            ctx.assert_that(sp.Symbol("x")).where(name="X is not None").is_not_none()
+
+            assert ctx.current_check is not None
+            assert len(ctx.current_check.children) == 1
+            assert ctx.current_check.children[0].name == "X is not None"
+
+        suite = VerificationSuite([not_none_check], db, "test")
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+        suite.build_graph(context, key=key)
+
+    def test_is_not_none_validator_description(self) -> None:
+        """Test is_not_none creates correct validator description."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        @check(name="Validator Check")
+        def val_check(mp: MetricProvider, ctx: Context) -> None:
+            ctx.assert_that(sp.Symbol("x")).where(name="Test not none").is_not_none()
+
+            assert ctx.current_check is not None
+            assertion = ctx.current_check.children[0]
+            assert "is not None" in assertion.validator.name
+
+        suite = VerificationSuite([val_check], db, "test")
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+        suite.build_graph(context, key=key)
+
+    def test_is_neq_with_tolerance(self) -> None:
+        """Test is_neq with custom tolerance."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        @check(name="Tolerance Check")
+        def tol_check(mp: MetricProvider, ctx: Context) -> None:
+            # Default tolerance
+            ctx.assert_that(sp.Symbol("x")).where(name="Default tol").is_neq(0)
+            # Custom tolerance
+            ctx.assert_that(sp.Symbol("y")).where(name="Custom tol").is_neq(0, tol=0.1)
+
+            assert ctx.current_check is not None
+            assert len(ctx.current_check.children) == 2
+
+        suite = VerificationSuite([tol_check], db, "test")
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+        suite.build_graph(context, key=key)
+
+
 class TestTagValidation:
     """Tests for tag validation."""
 

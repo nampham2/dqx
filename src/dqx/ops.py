@@ -376,21 +376,25 @@ class Variance(OpValueMixin[float], SqlOp[float]):
 
 
 class First(OpValueMixin[float], SqlOp[float]):
-    __match_args__ = ("column", "parameters")
+    __match_args__ = ("column", "order_by", "parameters")
 
-    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
+    def __init__(self, column: str, order_by: str | None = None, parameters: Parameters | None = None) -> None:
         """Initialize First operation.
 
         Args:
             column: Column name to get first value
+            order_by: Optional column to sort by before taking first value
             parameters: Optional parameters for CTE customization
         """
         OpValueMixin.__init__(self, parameters)
         self.column = column
+        self.order_by = order_by
         self._prefix = random_prefix()
 
     @property
     def name(self) -> str:
+        if self.order_by:
+            return f"first({self.column}, order_by={self.order_by})"
         return f"first({self.column})"
 
     @property
@@ -404,11 +408,16 @@ class First(OpValueMixin[float], SqlOp[float]):
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, First):
             return NotImplemented
-        return self.column == other.column
+        return self.column == other.column and self.order_by == other.order_by
 
     def __hash__(self) -> int:
         return hash(
-            (self.name, self.column, tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())))
+            (
+                self.name,
+                self.column,
+                self.order_by,
+                tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())),
+            )
         )
 
     def __repr__(self) -> str:

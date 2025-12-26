@@ -157,6 +157,11 @@ class AssertionReady:
         validator = SymbolicValidator(f"= {other}", lambda x: functions.is_eq(x, other, tol))
         self._create_assertion_node(validator)
 
+    def is_neq(self, other: float, tol: float = functions.EPSILON) -> None:
+        """Assert that the expression does not equal the given value (outside tolerance)."""
+        validator = SymbolicValidator(f"≠ {other}", lambda x: functions.is_neq(x, other, tol))
+        self._create_assertion_node(validator)
+
     def is_between(self, lower: float, upper: float, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is between two values (inclusive)."""
         if lower > upper:
@@ -175,6 +180,16 @@ class AssertionReady:
     def is_positive(self, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is positive."""
         validator = SymbolicValidator("> 0", lambda x: functions.is_positive(x, tol))
+        self._create_assertion_node(validator)
+
+    def is_none(self) -> None:
+        """Assert that the expression evaluates to None."""
+        validator = SymbolicValidator("is None", lambda x: x is None)
+        self._create_assertion_node(validator)
+
+    def is_not_none(self) -> None:
+        """Assert that the expression does not evaluate to None."""
+        validator = SymbolicValidator("is not None", lambda x: x is not None)
         self._create_assertion_node(validator)
 
     def noop(self) -> None:

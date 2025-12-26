@@ -163,6 +163,7 @@ def test_first() -> None:
     op = ops.First("timestamp")
     assert op.name == "first(timestamp)"
     assert op.column == "timestamp"
+    assert op.order_by is None
 
     # Test value handling
     with pytest.raises(DQXError):
@@ -170,6 +171,70 @@ def test_first() -> None:
 
     op.assign(123456789.0)
     assert op.value() == pytest.approx(123456789.0)
+
+
+def test_first_with_order_by() -> None:
+    """Test First operation with order_by parameter."""
+    op = ops.First("value", order_by="timestamp")
+    assert op.name == "first(value, order_by=timestamp)"
+    assert op.column == "value"
+    assert op.order_by == "timestamp"
+    assert op.prefix is not None
+    assert op.sql_col == f"{op.prefix}_first(value, order_by=timestamp)"
+
+    # Test value handling
+    with pytest.raises(DQXError):
+        op.value()
+
+    op.assign(42.0)
+    assert op.value() == pytest.approx(42.0)
+
+    op.clear()
+    with pytest.raises(DQXError):
+        op.value()
+
+
+def test_first_order_by_equality() -> None:
+    """Test First operation equality with order_by."""
+    op1 = ops.First("value", order_by="timestamp")
+    op2 = ops.First("value", order_by="timestamp")
+    op3 = ops.First("value", order_by="price")
+    op4 = ops.First("value")  # No order_by
+
+    assert op1 == op2
+    assert op1 != op3  # Different order_by
+    assert op1 != op4  # One has order_by, other doesn't
+    assert op4 != op1
+
+
+def test_first_order_by_hash() -> None:
+    """Test First operation hash with order_by."""
+    op1 = ops.First("value", order_by="timestamp")
+    op2 = ops.First("value", order_by="timestamp")
+    op3 = ops.First("value", order_by="price")
+    op4 = ops.First("value")  # No order_by
+
+    assert hash(op1) == hash(op2)
+    assert hash(op1) != hash(op3)  # Different order_by
+    assert hash(op1) != hash(op4)  # One has order_by, other doesn't
+
+
+def test_first_order_by_with_parameters() -> None:
+    """Test First operation with both order_by and parameters."""
+    op1 = ops.First("value", order_by="timestamp", parameters={"region": "US"})
+    op2 = ops.First("value", order_by="timestamp", parameters={"region": "US"})
+    op3 = ops.First("value", order_by="timestamp", parameters={"region": "EU"})
+
+    assert op1.order_by == "timestamp"
+    assert op1.parameters == {"region": "US"}
+
+    assert hash(op1) == hash(op2)
+    assert hash(op1) != hash(op3)  # Different parameters
+
+
+def test_first_match_args_includes_order_by() -> None:
+    """Test First __match_args__ includes order_by."""
+    assert ops.First.__match_args__ == ("column", "order_by", "parameters")
 
 
 def test_null_count() -> None:
@@ -564,7 +629,7 @@ def test_op_match_args() -> None:
     assert ops.Maximum.__match_args__ == ("column", "parameters")
     assert ops.Sum.__match_args__ == ("column", "parameters")
     assert ops.Variance.__match_args__ == ("column", "parameters")
-    assert ops.First.__match_args__ == ("column", "parameters")
+    assert ops.First.__match_args__ == ("column", "order_by", "parameters")
     assert ops.NullCount.__match_args__ == ("column", "parameters")
     assert ops.NegativeCount.__match_args__ == ("column", "parameters")
     assert ops.UniqueCount.__match_args__ == ("column", "parameters")

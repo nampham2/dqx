@@ -848,10 +848,27 @@ class MetricProvider(SymbolicMetricBase):
         return self.metric(specs.NumRows(parameters=parameters), lag, dataset)
 
     def first(
-        self, column: str, lag: int = 0, dataset: str | None = None, parameters: dict[str, Any] | None = None
+        self,
+        column: str,
+        lag: int = 0,
+        dataset: str | None = None,
+        order_by: str | None = None,
+        parameters: dict[str, Any] | None = None,
     ) -> sp.Symbol:
-        """Create metric returning first value in column."""
-        return self.metric(specs.First(column, parameters=parameters), lag, dataset)
+        """Create metric returning first value in column.
+
+        Args:
+            column: Column name to get first value from.
+            lag: Number of days to lag the metric evaluation.
+            dataset: Optional dataset name.
+            order_by: Optional column to sort by before taking first value.
+                     Without order_by, results are non-deterministic for distributed storage.
+            parameters: Optional parameters for CTE customization.
+
+        Returns:
+            A Symbol representing this metric in expressions.
+        """
+        return self.metric(specs.First(column, order_by=order_by, parameters=parameters), lag, dataset)
 
     def average(
         self, column: str, lag: int = 0, dataset: str | None = None, parameters: dict[str, Any] | None = None

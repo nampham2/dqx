@@ -1,3 +1,7 @@
+from typing import Any
+
+import sympy as sp
+
 from dqx.common import DQXError
 
 EPSILON = 1e-9
@@ -69,6 +73,19 @@ def is_eq(a: float, b: float, tol: float = EPSILON) -> bool:
     """
 
     return abs(a - b) < tol
+
+
+def is_neq(a: float, b: float, tol: float = EPSILON) -> bool:
+    """
+    Check if two floating-point numbers are not equal (outside tolerance).
+    Args:
+        a (float): The first floating-point number.
+        b (float): The second floating-point number.
+        tol (float): Tolerance for comparison.
+    Returns:
+        bool: True if the absolute difference between `a` and `b` is >= tolerance, False otherwise.
+    """
+    return abs(a - b) >= tol
 
 
 def within_tol(a: float, b: float, rel_tol: float | None = None, abs_tol: float | None = None) -> bool:
@@ -149,3 +166,57 @@ def is_between(a: float, lower: float, upper: float, tol: float = EPSILON) -> bo
         bool: True if lower ≤ a ≤ upper (within tolerance), False otherwise.
     """
     return is_geq(a, lower, tol) and is_leq(a, upper, tol)
+
+
+class Coalesce(sp.Function):
+    """
+    Sympy function that returns the first non-None value from its arguments.
+
+    Similar to SQL's COALESCE function. When evaluated, returns the first
+    argument that is not None. If all arguments are None, returns None.
+
+    Example:
+        coalesce(average(price), 0)  # Returns average(price) if not None, else 0
+        coalesce(x, y, 0)            # Returns first non-None of x, y, or 0
+    """
+
+    @classmethod
+    def eval(cls, *args: Any) -> sp.Expr | None:
+        """Evaluate coalesce during sympy simplification.
+
+        Returns the first non-None argument if all arguments are concrete values.
+        Returns None (unevaluated) if any argument contains free symbols.
+        """
+        if not args:
+            raise DQXError("coalesce requires at least one argument")
+
+        # If any argument has free symbols, we can't evaluate yet
+        for arg in args:
+            if hasattr(arg, "free_symbols") and arg.free_symbols:
+                return None  # Return None to keep unevaluated
+
+        # All arguments are concrete - find first non-None
+        for arg in args:
+            # Convert sympy numbers to Python values for None check
+            if arg is not None and arg != sp.S.NaN:
+                return arg
+
+        return sp.S.NaN  # All values were None/NaN
+
+
+def coalesce(*args: Any) -> sp.Expr:
+    """
+    Return the first non-None value from the arguments.
+
+    This is a convenience wrapper around the Coalesce sympy function.
+
+    Args:
+        *args: Values to check, in order of preference.
+
+    Returns:
+        Sympy expression representing the coalesce operation.
+
+    Example:
+        coalesce(average(price), 0)  # Use 0 if average is None
+    """
+    return Coalesce(*args)

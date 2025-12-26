@@ -279,6 +279,46 @@ class TestMetricProvider:
         assert isinstance(registered.metric_spec, specs.First)
         assert registered.metric_spec.parameters["column"] == column
 
+    def test_first_with_order_by(self, provider: MetricProvider) -> None:
+        """Test first() method with order_by parameter."""
+        column = "value"
+        order_by = "timestamp"
+
+        result = provider.first(column, order_by=order_by)
+
+        assert isinstance(result, sp.Symbol)
+        registered = provider.get_symbol(result)
+        assert registered.name == "first(value, order_by=timestamp)"
+        assert registered.lag == 0
+        assert registered.dataset is None
+        assert isinstance(registered.metric_spec, specs.First)
+        assert registered.metric_spec.parameters["column"] == column
+        assert registered.metric_spec.parameters["order_by"] == order_by
+
+    def test_first_with_order_by_and_lag(self, provider: MetricProvider) -> None:
+        """Test first() method with order_by and lag parameters."""
+        column = "value"
+        order_by = "timestamp"
+        lag = 3
+        dataset = "orders"
+
+        result = provider.first(column, lag=lag, dataset=dataset, order_by=order_by)
+
+        assert isinstance(result, sp.Symbol)
+        registered = provider.get_symbol(result)
+        assert registered.name == "first(value, order_by=timestamp)"
+        assert registered.lag == lag
+        assert registered.dataset == dataset
+        assert isinstance(registered.metric_spec, specs.First)
+        assert registered.metric_spec.parameters["column"] == column
+        assert registered.metric_spec.parameters["order_by"] == order_by
+
+    def test_first_without_order_by_has_no_order_by_in_params(self, provider: MetricProvider) -> None:
+        """Test first() without order_by doesn't have order_by in parameters."""
+        result = provider.first("value")
+        registered = provider.get_symbol(result)
+        assert "order_by" not in registered.metric_spec.parameters
+
     def test_average(self, provider: MetricProvider) -> None:
         """Test average() method."""
         column = "test_column"
