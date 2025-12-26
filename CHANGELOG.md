@@ -1,3 +1,19 @@
+## v0.5.11 (2025-12-26)
+
+### Feat
+
+- **api**: add tags support to assertions (#34)
+- **profiles**: add metric_multiplier support for assertion overrides (#35)
+- add YAML/JSON configuration support for verification suites (#36)
+
+### Docs
+
+- add DQL language design specification (#37)
+
+### Refactor
+
+- remove BigQuery e2e test and ERROR assertion status (#33)
+
 ## v0.5.10 (2025-11-11)
 
 ### Feat
