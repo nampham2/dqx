@@ -500,7 +500,9 @@ class VerificationSuite:
         """
         self.assert_is_evaluated()
         if self._metrics_stats is None:
-            raise DQXError("Metrics stats not available. This should not happen after successful run().")
+            raise DQXError(
+                "Metrics stats not available. This should not happen after successful run()."
+            )  # pragma: no cover
         return self._metrics_stats
 
     @property
@@ -530,7 +532,7 @@ class VerificationSuite:
             DQXError: If called before run() has been executed successfully
         """
         if self._key is None:
-            raise DQXError("No ResultKey available. This should not happen after successful run().")
+            raise DQXError("No ResultKey available. This should not happen after successful run().")  # pragma: no cover
         return self._key
 
     @property

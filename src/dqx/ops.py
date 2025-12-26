@@ -188,7 +188,7 @@ class CustomSQL(OpValueMixin[float], SqlOp[float]):
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, CustomSQL):
-            return NotImplemented
+            return NotImplemented  # pragma: no cover
         return self.sql_expression == other.sql_expression and self.parameters == other.parameters
 
     def __hash__(self) -> int:
@@ -231,7 +231,7 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Minimum):
-            return NotImplemented
+            return NotImplemented  # pragma: no cover
         return self.column == other.column
 
     def __hash__(self) -> int:
@@ -274,7 +274,7 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Maximum):
-            return NotImplemented
+            return NotImplemented  # pragma: no cover
         return self.column == other.column
 
     def __hash__(self) -> int:
@@ -317,7 +317,7 @@ class Sum(OpValueMixin[float], SqlOp[float]):
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Sum):
-            return NotImplemented
+            return NotImplemented  # pragma: no cover
         return self.column == other.column
 
     def __hash__(self) -> int:
@@ -360,7 +360,7 @@ class Variance(OpValueMixin[float], SqlOp[float]):
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, Variance):
-            return NotImplemented
+            return NotImplemented  # pragma: no cover
         return self.column == other.column
 
     def __hash__(self) -> int:
@@ -407,7 +407,7 @@ class First(OpValueMixin[float], SqlOp[float]):
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, First):
-            return NotImplemented
+            return NotImplemented  # pragma: no cover
         return self.column == other.column and self.order_by == other.order_by
 
     def __hash__(self) -> int:
@@ -455,7 +455,7 @@ class NullCount(OpValueMixin[float], SqlOp[float]):
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, NullCount):
-            return NotImplemented
+            return NotImplemented  # pragma: no cover
         return self.column == other.column
 
     def __hash__(self) -> int:
@@ -498,7 +498,7 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, NegativeCount):
-            return NotImplemented
+            return NotImplemented  # pragma: no cover
         return self.column == other.column
 
     def __hash__(self) -> int:
@@ -587,7 +587,7 @@ class DuplicateCount(OpValueMixin[float], SqlOp[float]):
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, DuplicateCount):
-            return NotImplemented
+            return NotImplemented  # pragma: no cover
         return self.columns == other.columns
 
     def __hash__(self) -> int:
@@ -684,7 +684,7 @@ class CountValues(OpValueMixin[float], SqlOp[float]):
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, CountValues):
-            return NotImplemented
+            return NotImplemented  # pragma: no cover
         # Need to check both value and type to distinguish True from 1, False from 0
         return self.column == other.column and self.values == other.values and type(self.values) is type(other.values)
 

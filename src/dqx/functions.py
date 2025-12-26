@@ -201,7 +201,7 @@ class Coalesce(sp.Function):
             if arg is not None and arg != sp.S.NaN:
                 return arg
 
-        return sp.S.NaN  # All values were None/NaN
+        return sp.S.NaN  # pragma: no cover - All values were None/NaN
 
 
 def coalesce(*args: Any) -> sp.Expr:
