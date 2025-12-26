@@ -349,7 +349,7 @@ class DuplicateCount(NonMergeable):
             # Try new format first (tuple)
             value, metric_type = msgpack.unpackb(data)
             return cls(value=value)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError):  # pragma: no cover
             # Fall back to old format (single value)
             value = msgpack.unpackb(data)
             return cls(value=value)

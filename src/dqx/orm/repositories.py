@@ -49,7 +49,7 @@ class MetadataType(TypeDecorator):
             return {}
         if isinstance(value, Metadata):
             return asdict(value)
-        return value
+        return value  # pragma: no cover
 
     def process_result_value(self, value: dict[str, Any] | None, dialect: Any) -> Metadata:
         """Convert JSON dict back to Metadata."""

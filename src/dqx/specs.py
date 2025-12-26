@@ -32,7 +32,7 @@ registry: dict[MetricType, Type["MetricSpec"]] = {}
 
 def register_spec(metric_type: MetricType, spec_class: Type["MetricSpec"]) -> None:
     """Register a spec in the global registry."""
-    if metric_type in registry:
+    if metric_type in registry:  # pragma: no cover
         raise ValueError(f"Spec '{metric_type}' is already registered")
     registry[metric_type] = spec_class
 

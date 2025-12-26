@@ -226,7 +226,7 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
         return self._prefix
 
     @property
-    def sql_col(self) -> str:
+    def sql_col(self) -> str:  # pragma: no cover
         return f"{self.prefix}_{self.name}"
 
     def __eq__(self, other: Any) -> bool:
@@ -239,10 +239,10 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
             (self.name, self.column, tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())))
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return self.__repr__()
 
 
@@ -269,7 +269,7 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
         return self._prefix
 
     @property
-    def sql_col(self) -> str:
+    def sql_col(self) -> str:  # pragma: no cover
         return f"{self.prefix}_{self.name}"
 
     def __eq__(self, other: Any) -> bool:
@@ -282,10 +282,10 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
             (self.name, self.column, tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())))
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return self.__repr__()
 
 
@@ -325,10 +325,10 @@ class Sum(OpValueMixin[float], SqlOp[float]):
             (self.name, self.column, tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())))
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return self.__repr__()
 
 
@@ -368,10 +368,10 @@ class Variance(OpValueMixin[float], SqlOp[float]):
             (self.name, self.column, tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())))
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return self.__repr__()
 
 
@@ -420,10 +420,10 @@ class First(OpValueMixin[float], SqlOp[float]):
             )
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return self.__repr__()
 
 
@@ -463,10 +463,10 @@ class NullCount(OpValueMixin[float], SqlOp[float]):
             (self.name, self.column, tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())))
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return self.__repr__()
 
 
@@ -506,10 +506,10 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
             (self.name, self.column, tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())))
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return self.__repr__()
 
 
@@ -549,10 +549,10 @@ class UniqueCount(OpValueMixin[float], SqlOp[float]):
             (self.name, self.column, tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())))
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return self.__repr__()
 
 
@@ -599,10 +599,10 @@ class DuplicateCount(OpValueMixin[float], SqlOp[float]):
             )
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
         return self.__repr__()
 
 

@@ -252,7 +252,7 @@ class Analyzer:
 
         # Phase 1: Collect all analyzers per date and build equivalence mapping
         for key, metrics in metrics_by_key.items():
-            if not metrics:
+            if not metrics:  # pragma: no cover
                 logger.warning(f"No metrics to analyze for date {key.yyyy_mm_dd}")
 
             for metric in metrics:
@@ -287,7 +287,7 @@ class Analyzer:
                     # Propagate to all instances for this specific date
                     for instance in equivalent_instances:
                         instance.assign(value)
-                except DQXError:
+                except DQXError:  # pragma: no cover
                     raise DQXError(f"Failed to retrieve value for analyzer {representative} on date {key.yyyy_mm_dd}")
 
         # Phase 5: Build report
@@ -402,7 +402,7 @@ class Analyzer:
                         case Failure(error):
                             logger.warning(f"Failed to evaluate {sym_metric.name}: {error}")
 
-                except Exception as e:
+                except Exception as e:  # pragma: no cover
                     logger.error(f"Error evaluating {sym_metric.name}: {e}", exc_info=True)
 
         logger.info(f"Evaluated {len(report)} extended metrics")

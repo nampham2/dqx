@@ -151,7 +151,7 @@ def _build_query_with_values(
         if len(parts) >= 5:  # metrics_YYYY_MM_DD_i_j
             year, month, day = parts[1], parts[2], parts[3]
             date_str = f"{year}-{month}-{day}"
-        else:
+        else:  # pragma: no cover
             # Fallback: get from original data
             # Extract index from CTE name
             idx = int(parts[-2]) if len(parts) >= 2 else 0

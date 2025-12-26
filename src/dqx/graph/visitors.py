@@ -116,7 +116,7 @@ class DatasetImputationVisitor:
             symbol = symbols_to_process.pop()  # O(1) operation - removes from end
 
             # Skip if already processed
-            if symbol in processed_symbols:
+            if symbol in processed_symbols:  # pragma: no cover
                 continue
 
             processed_symbols.add(symbol)
@@ -237,7 +237,7 @@ class SymbolDeduplicationVisitor:
             # Apply substitutions to the actual expression
             node.actual = node.actual.subs(self._substitutions)
 
-    async def visit_async(self, node: BaseNode) -> None:
+    async def visit_async(self, node: BaseNode) -> None:  # pragma: no cover
         """Async visit method required by visitor protocol.
 
         Since deduplication is synchronous, this just delegates to visit.

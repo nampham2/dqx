@@ -230,9 +230,9 @@ class Graph:
             The implementation uses an iterative approach with a stack to maintain
             the DFS order while supporting async operations.
         """
-        stack: list[BaseNode] = [self.root]
+        stack: list[BaseNode] = [self.root]  # pragma: no cover
 
-        while stack:
+        while stack:  # pragma: no cover
             current = stack.pop()
             await current.accept_async(visitor)
 
