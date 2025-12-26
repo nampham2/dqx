@@ -2,6 +2,7 @@ import datetime
 
 import pytest
 import sympy as sp
+from returns.result import Success
 
 from dqx.api import Context, MetricProvider, VerificationSuite, check
 from dqx.common import DQXError, ResultKey
@@ -691,6 +692,69 @@ def test_assertion_tags_via_where() -> None:
 
     assert tagged.tags == frozenset({"xmas", "critical"})
     assert untagged.tags == frozenset()
+
+
+def test_experimental_annotation_via_where() -> None:
+    """Experimental annotation can be specified via the where() method."""
+    db = InMemoryMetricDB()
+    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+    @check(name="Test Check")
+    def test_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(sp.Symbol("x")).where(
+            name="Experimental assertion",
+            experimental=True,
+        ).is_gt(0)
+
+        ctx.assert_that(sp.Symbol("y")).where(
+            name="Production assertion",
+        ).is_gt(0)
+
+    # Build the graph
+    root = context._graph.root
+    check_node = root.add_check("Test Check")
+    with context.check_context(check_node):
+        test_check(context._provider, context)
+
+    # Get assertions
+    assertions = list(context._graph.assertions())
+    assert len(assertions) == 2
+
+    experimental = next(a for a in assertions if a.name == "Experimental assertion")
+    production = next(a for a in assertions if a.name == "Production assertion")
+
+    assert experimental.experimental is True
+    assert production.experimental is False
+
+
+def test_experimental_annotation_in_assertion_result() -> None:
+    """Experimental annotation should be included in AssertionResult."""
+    from dqx.common import AssertionResult
+
+    # Check that AssertionResult has experimental field with default False
+    result = AssertionResult(
+        yyyy_mm_dd=datetime.date.today(),
+        suite="test",
+        check="test_check",
+        assertion="test_assertion",
+        severity="P1",
+        status="PASSED",
+        metric=Success(1.0),
+    )
+    assert result.experimental is False
+
+    # Check that experimental can be set to True
+    result_experimental = AssertionResult(
+        yyyy_mm_dd=datetime.date.today(),
+        suite="test",
+        check="test_check",
+        assertion="test_assertion",
+        severity="P1",
+        status="PASSED",
+        metric=Success(1.0),
+        experimental=True,
+    )
+    assert result_experimental.experimental is True
 
 
 class TestNewAssertionMethods:

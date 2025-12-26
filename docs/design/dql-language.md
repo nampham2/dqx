@@ -1663,29 +1663,90 @@ Errors surface immediately with source location.
 
 Macros expand before execution. The interpreter sees only concrete assertions. This simplifies debugging: no macro indirection at runtime.
 
-## Implementation Required
+## Implementation Status
 
-The following features are specified in this design but **not yet implemented** in the DQX codebase:
+### Implemented ✅
 
-### Conditions
+The following features from this design are **already implemented** in the DQX codebase:
 
-| Condition | Description | Required Change |
-|-----------|-------------|-----------------|
-| `!= N` | Not equal to N | Add `is_neq()` to `api.py` AssertionReady |
-| `is None` | Value is None | Add `is_none()` to `api.py` AssertionReady |
-| `is not None` | Value is not None | Add `is_not_none()` to `api.py` AssertionReady |
+#### Conditions
 
-### Utility Functions
+| Condition | Description | Location |
+|-----------|-------------|----------|
+| `!= N` | Not equal to N | ✅ `is_neq()` in `api.py` AssertionReady |
+| `is None` | Value is None | ✅ `is_none()` in `api.py` AssertionReady |
+| `is not None` | Value is not None | ✅ `is_not_none()` in `api.py` AssertionReady |
 
-| Function | Description | Required Change |
-|----------|-------------|-----------------|
-| `coalesce(expr, default)` | Return first non-None value | Add to interpreter's sympy namespace |
+#### Utility Functions
 
-### Metric Parameters
+| Function | Description | Location |
+|----------|-------------|----------|
+| `coalesce(expr, ...)` | Return first non-None value | ✅ `Coalesce` class in `functions.py` |
 
-| Parameter | Description | Required Change |
-|-----------|-------------|-----------------|
-| `order_by` for `first()` | Sort before taking first value | Add to `provider.py` First metric |
+#### Metric Parameters
+
+| Parameter | Description | Location |
+|-----------|-------------|----------|
+| `order_by` for `first()` | Sort before taking first value | ✅ `first()` in `provider.py` |
+
+#### Annotations
+
+| Annotation | Description | Location |
+|------------|-------------|----------|
+| `@experimental` | Mark algorithm-proposed assertions | ✅ `experimental` param in `api.py` AssertionDraft.where() |
+
+### Not Yet Implemented ❌
+
+The following features are specified in this design but **require implementation**:
+
+#### DQL Core (Parser & Interpreter)
+
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| Lexer/Tokenizer | Tokenize DQL source into tokens | High |
+| Parser | Parse tokens into AST nodes | High |
+| AST Nodes | Suite, Check, Assertion, Profile, Macro, etc. | High |
+| Interpreter | Execute AST against DQX runtime | High |
+| Macro expansion | Expand macros before execution | Medium |
+| Import system | `import`, `export`, path resolution | Medium |
+| CLI (`dql run`, `dql check`) | Command-line interface | Medium |
+
+#### RL Agent Integration
+
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| `@required` annotation | Prevent removal by algorithms | High |
+| `@cost(fp, fn)` annotation | False positive/negative costs for reward | High |
+| `tunable` constants | `const X = 5% tunable [0%, 20%]` with bounds | High |
+| `Suite.load(path)` | Parse DQL into manipulable Suite object | High |
+| `suite.get_tunable_params()` | List tunable params with bounds | High |
+| `suite.set_param(name, value)` | Modify threshold within bounds | High |
+| `suite.get_assertion(name)` | Retrieve assertion by name | Medium |
+| `suite.add_assertion(...)` | Add experimental assertion | Medium |
+| `suite.remove_assertion(name)` | Remove assertion (respects `@required`) | Medium |
+| `suite.get_cost(name)` | Get `@cost` annotation values | Medium |
+| `suite.save()` | Persist changes back to `.dql` file | Medium |
+| Safety constraints | P0 implied required, `@required` enforcement | Medium |
+
+#### History & Auditing
+
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| `.dql.history` file | JSONL change log alongside DQL source | Medium |
+| `History.log(entry)` | Append action records | Medium |
+| `dql history` command | View change history | Low |
+| `dql rollback --to DATE` | Revert to previous state | Low |
+| `dql review` command | Approve/reject pending changes | Low |
+
+#### Human-in-the-Loop
+
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| `@human_review` annotation | Changes require approval | Low |
+| `@auto_approve` annotation | Low-risk changes apply immediately | Low |
+| `dql label` command | Label false positives for reward tuning | Low |
+| Shadow mode | Test proposed changes without production impact | Low |
+| `dql promote` command | Promote experimental to production | Low |
 
 ## Future Extensions
 

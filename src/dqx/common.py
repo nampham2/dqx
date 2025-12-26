@@ -139,6 +139,7 @@ class AssertionResult:
         expression: Full validation expression (e.g., "average(price) > 0")
         tags: Tags from the ResultKey (e.g., {"env": "prod"})
         assertion_tags: Tags assigned to the assertion for profile-based selection
+        experimental: Whether this assertion is algorithm-proposed (for RL agents)
     """
 
     yyyy_mm_dd: datetime.date
@@ -151,6 +152,7 @@ class AssertionResult:
     expression: str | None = None
     tags: Tags = field(default_factory=dict)
     assertion_tags: frozenset[str] = field(default_factory=frozenset)
+    experimental: bool = False
 
 
 @dataclass

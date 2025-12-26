@@ -70,7 +70,12 @@ class AssertionDraft:
         self._context = context
 
     def where(
-        self, *, name: str, severity: SeverityLevel = "P1", tags: frozenset[str] | set[str] | None = None
+        self,
+        *,
+        name: str,
+        severity: SeverityLevel = "P1",
+        tags: frozenset[str] | set[str] | None = None,
+        experimental: bool = False,
     ) -> AssertionReady:
         """
         Provide a descriptive name for this assertion.
@@ -81,6 +86,8 @@ class AssertionDraft:
                      All assertions must have a severity level.
             tags: Optional set of tags for profile-based assertion selection.
                   Tags must contain only alphanumerics, dashes, and underscores.
+            experimental: Whether this assertion is algorithm-proposed (default False).
+                         Experimental assertions can be removed by RL agents.
 
         Returns:
             AssertionReady instance with all assertion methods available
@@ -96,7 +103,12 @@ class AssertionDraft:
         validated_tags = validate_tags(tags)
 
         return AssertionReady(
-            actual=self._actual, name=name.strip(), severity=severity, tags=validated_tags, context=self._context
+            actual=self._actual,
+            name=name.strip(),
+            severity=severity,
+            tags=validated_tags,
+            experimental=experimental,
+            context=self._context,
         )
 
 
@@ -114,6 +126,7 @@ class AssertionReady:
         name: str,
         severity: SeverityLevel = "P1",
         tags: frozenset[str] | None = None,
+        experimental: bool = False,
         context: Context | None = None,
     ) -> None:
         """
@@ -124,12 +137,14 @@ class AssertionReady:
             name: Required description of the assertion
             severity: Severity level (P0, P1, P2, P3). Defaults to "P1".
             tags: Optional set of tags for profile-based assertion selection.
+            experimental: Whether this assertion is algorithm-proposed (default False).
             context: The Context instance
         """
         self._actual = actual
         self._name = name
         self._severity = severity
         self._tags = tags
+        self._experimental = experimental
         self._context = context
 
     def is_geq(self, other: float, tol: float = functions.EPSILON) -> None:
@@ -215,6 +230,7 @@ class AssertionReady:
             name=self._name,  # Always has a name now!
             severity=self._severity,
             tags=self._tags,
+            experimental=self._experimental,
             validator=validator,
         )
 
@@ -757,6 +773,7 @@ class VerificationSuite:
                 expression=f"{assertion.actual} {assertion.validator.name}",
                 tags=key.tags,
                 assertion_tags=assertion.tags,
+                experimental=assertion.experimental,
             )
             results.append(result)
 

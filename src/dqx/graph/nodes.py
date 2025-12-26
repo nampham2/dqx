@@ -100,6 +100,7 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
         validator: SymbolicValidator,
         severity: SeverityLevel = "P1",
         tags: frozenset[str] | None = None,
+        experimental: bool = False,
     ) -> AssertionNode:
         """Factory method to create and add an assertion node.
 
@@ -111,12 +112,19 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
             validator: Validation function
             severity: Severity level for failures
             tags: Optional frozenset of tags for assertion selection
+            experimental: Whether this assertion is algorithm-proposed (default False)
 
         Returns:
             The newly created AssertionNode
         """
         assertion = AssertionNode(
-            parent=self, actual=actual, name=name, validator=validator, severity=severity, tags=tags
+            parent=self,
+            actual=actual,
+            name=name,
+            validator=validator,
+            severity=severity,
+            tags=tags,
+            experimental=experimental,
         )
         self.add_child(assertion)
         return assertion
@@ -137,6 +145,7 @@ class AssertionNode(BaseNode["CheckNode"]):
         validator: SymbolicValidator,
         severity: SeverityLevel = "P1",
         tags: frozenset[str] | None = None,
+        experimental: bool = False,
     ) -> None:
         """Initialize an assertion node.
 
@@ -147,6 +156,7 @@ class AssertionNode(BaseNode["CheckNode"]):
             validator: Validation function
             severity: Severity level for failures
             tags: Optional frozenset of tags for assertion selection
+            experimental: Whether this assertion is algorithm-proposed (default False)
         """
         super().__init__(parent)
         self.actual = actual
@@ -154,6 +164,7 @@ class AssertionNode(BaseNode["CheckNode"]):
         self.severity = severity
         self.validator = validator
         self.tags: frozenset[str] = tags or frozenset()
+        self.experimental = experimental
         # Stores the computed metric result
         self._metric: Result[float, list[EvaluationFailure]]
         # Stores whether the assertion passes validation
