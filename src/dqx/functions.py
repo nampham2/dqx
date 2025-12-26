@@ -170,14 +170,14 @@ def is_between(a: float, lower: float, upper: float, tol: float = EPSILON) -> bo
 
 class Coalesce(sp.Function):
     """
-    Sympy function that returns the first non-None value from its arguments.
+    Sympy function that returns the first non-None/non-NaN value from its arguments.
 
     Similar to SQL's COALESCE function. When evaluated, returns the first
-    argument that is not None. If all arguments are None, returns None.
+    argument that is not None or NaN. If all arguments are None/NaN, returns NaN.
 
     Example:
-        coalesce(average(price), 0)  # Returns average(price) if not None, else 0
-        coalesce(x, y, 0)            # Returns first non-None of x, y, or 0
+        coalesce(average(price), 0)  # Returns average(price) if not None/NaN, else 0
+        coalesce(x, y, 0)            # Returns first non-None/NaN of x, y, or 0
     """
 
     @classmethod
@@ -206,9 +206,10 @@ class Coalesce(sp.Function):
 
 def coalesce(*args: Any) -> sp.Expr:
     """
-    Return the first non-None value from the arguments.
+    Return the first non-None/non-NaN value from the arguments.
 
     This is a convenience wrapper around the Coalesce sympy function.
+    If all arguments are None/NaN, returns NaN.
 
     Args:
         *args: Values to check, in order of preference.
@@ -217,6 +218,6 @@ def coalesce(*args: Any) -> sp.Expr:
         Sympy expression representing the coalesce operation.
 
     Example:
-        coalesce(average(price), 0)  # Use 0 if average is None
+        coalesce(average(price), 0)  # Use 0 if average is None/NaN
     """
     return Coalesce(*args)
