@@ -78,6 +78,8 @@ def test_minimum() -> None:
     op = ops.Minimum("score")
     assert op.name == "minimum(score)"
     assert op.column == "score"
+    assert op.prefix is not None
+    assert op.sql_col == f"{op.prefix}_{op.name}"
 
     # Test value handling
     with pytest.raises(DQXError):
@@ -90,12 +92,20 @@ def test_minimum() -> None:
     with pytest.raises(DQXError):
         op.value()
 
+    # Test equality
+    op2 = ops.Minimum("score")
+    op3 = ops.Minimum("other")
+    assert op == op2
+    assert op != op3
+
 
 def test_maximum() -> None:
     """Test Maximum operation basic functionality."""
     op = ops.Maximum("score")
     assert op.name == "maximum(score)"
     assert op.column == "score"
+    assert op.prefix is not None
+    assert op.sql_col == f"{op.prefix}_{op.name}"
 
     # Test value handling
     with pytest.raises(DQXError):
@@ -107,6 +117,12 @@ def test_maximum() -> None:
     op.clear()
     with pytest.raises(DQXError):
         op.value()
+
+    # Test equality
+    op2 = ops.Maximum("score")
+    op3 = ops.Maximum("other")
+    assert op == op2
+    assert op != op3
 
 
 def test_sum() -> None:
@@ -149,6 +165,8 @@ def test_variance() -> None:
     op = ops.Variance("values")
     assert op.name == "variance(values)"
     assert op.column == "values"
+    assert op.prefix is not None
+    assert op.sql_col == f"{op.prefix}_{op.name}"
 
     # Test value handling
     with pytest.raises(DQXError):
@@ -156,6 +174,12 @@ def test_variance() -> None:
 
     op.assign(25.5)
     assert op.value() == pytest.approx(25.5)
+
+    # Test equality
+    op2 = ops.Variance("values")
+    op3 = ops.Variance("other")
+    assert op == op2
+    assert op != op3
 
 
 def test_first() -> None:
@@ -277,6 +301,8 @@ def test_negative_count() -> None:
     op = ops.NegativeCount("balance")
     assert op.name == "negative_count(balance)"
     assert op.column == "balance"
+    assert op.prefix is not None
+    assert op.sql_col == f"{op.prefix}_{op.name}"
 
     # Test value handling
     with pytest.raises(DQXError):
@@ -284,6 +310,12 @@ def test_negative_count() -> None:
 
     op.assign(3.0)
     assert op.value() == pytest.approx(3.0)
+
+    # Test equality
+    op2 = ops.NegativeCount("balance")
+    op3 = ops.NegativeCount("other")
+    assert op == op2
+    assert op != op3
 
 
 def test_duplicate_count() -> None:

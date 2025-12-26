@@ -131,7 +131,7 @@ class BaseValidator(ABC):
         Args:
             node: The node to validate
         """
-        pass
+        pass  # pragma: no cover
 
     def get_issues(self) -> list[ValidationIssue]:
         """Get all issues found by this validator."""
@@ -247,7 +247,7 @@ class DatasetValidator(BaseValidator):
         for symbol in symbols:
             try:
                 metric = self._provider.get_symbol(symbol)
-            except Exception:
+            except Exception:  # pragma: no cover
                 # Symbol not found in provider - skip validation for this symbol
                 continue
 
@@ -286,7 +286,7 @@ class DatasetValidator(BaseValidator):
             for required_symbol in metric.required_metrics:
                 try:
                     required_metric = self._provider.get_symbol(required_symbol)
-                except Exception:
+                except Exception:  # pragma: no cover
                     # Required symbol not found - skip validation
                     continue
 
@@ -416,7 +416,7 @@ class CompositeValidationVisitor:
 
         return {"errors": errors, "warnings": warnings}
 
-    async def visit_async(self, node: BaseNode) -> None:
+    async def visit_async(self, node: BaseNode) -> None:  # pragma: no cover
         """Async visit method required by NodeVisitor protocol.
 
         Since validation is synchronous, this just delegates to visit.

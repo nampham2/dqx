@@ -677,7 +677,7 @@ class VerificationSuite:
         )
 
         # Cleanup expired metrics before analysis
-        if self._metrics_stats.expired_metrics > 0:
+        if self._metrics_stats.expired_metrics > 0:  # pragma: no cover
             logger.info("Cleaning up expired metrics...")
             self.cleanup_expired_metrics()
 

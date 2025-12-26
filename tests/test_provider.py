@@ -1182,3 +1182,17 @@ class TestExtendedMetricProviderProperties:
         assert provider.get_symbol(dod).dataset is None
         assert provider.get_symbol(wow).dataset is None
         assert provider.get_symbol(stddev).dataset is None
+
+
+class TestMetricProviderCache:
+    """Tests for MetricProvider cache methods."""
+
+    def test_flush_cache_returns_count(self) -> None:
+        """Test flush_cache returns number of flushed entries."""
+        db = InMemoryMetricDB()
+        provider = MetricProvider(db, "test-exec", data_av_threshold=0.8)
+
+        # flush_cache should return an integer (0 if nothing to flush)
+        count = provider.flush_cache()
+        assert isinstance(count, int)
+        assert count >= 0

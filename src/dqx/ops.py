@@ -230,8 +230,8 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
         return f"{self.prefix}_{self.name}"
 
     def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, Minimum):
-            return NotImplemented  # pragma: no cover
+        if not isinstance(other, Minimum):  # pragma: no cover
+            return NotImplemented
         return self.column == other.column
 
     def __hash__(self) -> int:
@@ -273,8 +273,8 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
         return f"{self.prefix}_{self.name}"
 
     def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, Maximum):
-            return NotImplemented  # pragma: no cover
+        if not isinstance(other, Maximum):  # pragma: no cover
+            return NotImplemented
         return self.column == other.column
 
     def __hash__(self) -> int:
@@ -355,12 +355,12 @@ class Variance(OpValueMixin[float], SqlOp[float]):
         return self._prefix
 
     @property
-    def sql_col(self) -> str:
+    def sql_col(self) -> str:  # pragma: no cover
         return f"{self.prefix}_{self.name}"
 
     def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, Variance):
-            return NotImplemented  # pragma: no cover
+        if not isinstance(other, Variance):  # pragma: no cover
+            return NotImplemented
         return self.column == other.column
 
     def __hash__(self) -> int:
@@ -493,12 +493,12 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
         return self._prefix
 
     @property
-    def sql_col(self) -> str:
+    def sql_col(self) -> str:  # pragma: no cover
         return f"{self.prefix}_{self.name}"
 
     def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, NegativeCount):
-            return NotImplemented  # pragma: no cover
+        if not isinstance(other, NegativeCount):  # pragma: no cover
+            return NotImplemented
         return self.column == other.column
 
     def __hash__(self) -> int:

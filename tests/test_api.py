@@ -904,3 +904,79 @@ class TestTagValidation:
 
         with pytest.raises(ValueError, match="alphanumerics, dashes, and underscores"):
             context.assert_that(sp.Symbol("x")).where(name="Test", tags={"invalid tag"})
+
+
+class TestVerificationSuiteValidation:
+    """Tests for VerificationSuite validation errors."""
+
+    def test_empty_checks_raises_error(self) -> None:
+        """Test that empty checks list raises DQXError."""
+        db = InMemoryMetricDB()
+        with pytest.raises(DQXError, match="At least one check must be provided"):
+            VerificationSuite([], db, "Test Suite")
+
+    def test_empty_name_raises_error(self) -> None:
+        """Test that empty name raises DQXError."""
+        db = InMemoryMetricDB()
+
+        @check(name="Test Check")
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
+            ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+
+        with pytest.raises(DQXError, match="Suite name cannot be empty"):
+            VerificationSuite([test_check], db, "")
+
+        with pytest.raises(DQXError, match="Suite name cannot be empty"):
+            VerificationSuite([test_check], db, "   ")
+
+    def test_empty_datasources_raises_error(self) -> None:
+        """Test that empty datasources raises DQXError."""
+        db = InMemoryMetricDB()
+
+        @check(name="Test Check")
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
+            ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+
+        suite = VerificationSuite([test_check], db, "Test Suite")
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+
+        with pytest.raises(DQXError, match="No data sources provided"):
+            suite.run([], key)
+
+
+class TestContextPendingMetrics:
+    """Tests for Context.pending_metrics filtering."""
+
+    def test_pending_metrics_all(self) -> None:
+        """Test pending_metrics returns all metrics when no dataset specified."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        # Register metrics directly via provider
+        context.provider.num_rows(dataset="dataset1")
+        context.provider.average("price", dataset="dataset2")
+        context.provider.sum("amount", dataset="dataset1")
+
+        # Get all metrics
+        all_metrics = context.pending_metrics()
+        assert len(all_metrics) == 3
+
+    def test_pending_metrics_filtered_by_dataset(self) -> None:
+        """Test pending_metrics filters by dataset."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        # Register metrics directly via provider
+        context.provider.num_rows(dataset="dataset1")
+        context.provider.average("price", dataset="dataset2")
+        context.provider.sum("amount", dataset="dataset1")
+
+        # Get metrics for dataset1 only
+        dataset1_metrics = context.pending_metrics(dataset="dataset1")
+        assert len(dataset1_metrics) == 2
+        assert all(m.dataset == "dataset1" for m in dataset1_metrics)
+
+        # Get metrics for dataset2 only
+        dataset2_metrics = context.pending_metrics(dataset="dataset2")
+        assert len(dataset2_metrics) == 1
+        assert all(m.dataset == "dataset2" for m in dataset2_metrics)

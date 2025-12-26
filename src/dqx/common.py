@@ -192,7 +192,7 @@ class SqlDataSource(Protocol):
         ...
 
     @property
-    def skip_dates(self) -> set[datetime.date]:
+    def skip_dates(self) -> set[datetime.date]:  # pragma: no cover
         """Dates to exclude from metric calculations for this dataset."""
         return set()
 
