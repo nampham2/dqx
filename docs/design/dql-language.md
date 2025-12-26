@@ -1694,6 +1694,8 @@ The following features from this design are **already implemented** in the DQX c
 | Annotation | Description | Location |
 |------------|-------------|----------|
 | `@experimental` | Mark algorithm-proposed assertions | ✅ `experimental` param in `api.py` AssertionDraft.where() |
+| `@required` | Prevent removal by algorithms | ✅ `required` param in `api.py` AssertionDraft.where() |
+| `@cost(fp, fn)` | False positive/negative costs for RL reward | ✅ `cost={"fp": N, "fn": M}` param in `api.py` AssertionDraft.where() |
 
 ### Not Yet Implemented ❌
 
@@ -1715,8 +1717,6 @@ The following features are specified in this design but **require implementation
 
 | Feature | Description | Priority |
 |---------|-------------|----------|
-| `@required` annotation | Prevent removal by algorithms | High |
-| `@cost(fp, fn)` annotation | False positive/negative costs for reward | High |
 | `tunable` constants | `const X = 5% tunable [0%, 20%]` with bounds | High |
 | `Suite.load(path)` | Parse DQL into manipulable Suite object | High |
 | `suite.get_tunable_params()` | List tunable params with bounds | High |

@@ -757,6 +757,169 @@ def test_experimental_annotation_in_assertion_result() -> None:
     assert result_experimental.experimental is True
 
 
+def test_required_annotation_via_where() -> None:
+    """Required annotation can be specified via the where() method."""
+    db = InMemoryMetricDB()
+    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+    @check(name="Test Check")
+    def test_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(sp.Symbol("x")).where(
+            name="Required assertion",
+            required=True,
+        ).is_gt(0)
+
+        ctx.assert_that(sp.Symbol("y")).where(
+            name="Non-required assertion",
+        ).is_gt(0)
+
+    # Build the graph
+    root = context._graph.root
+    check_node = root.add_check("Test Check")
+    with context.check_context(check_node):
+        test_check(context._provider, context)
+
+    # Get assertions
+    assertions = list(context._graph.assertions())
+    assert len(assertions) == 2
+
+    required = next(a for a in assertions if a.name == "Required assertion")
+    non_required = next(a for a in assertions if a.name == "Non-required assertion")
+
+    assert required.required is True
+    assert non_required.required is False
+
+
+def test_cost_annotation_via_where() -> None:
+    """Cost annotation can be specified via the where() method."""
+    db = InMemoryMetricDB()
+    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+    @check(name="Test Check")
+    def test_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(sp.Symbol("x")).where(
+            name="Assertion with cost",
+            cost={"fp": 1.0, "fn": 100.0},
+        ).is_gt(0)
+
+        ctx.assert_that(sp.Symbol("y")).where(
+            name="Assertion without cost",
+        ).is_gt(0)
+
+    # Build the graph
+    root = context._graph.root
+    check_node = root.add_check("Test Check")
+    with context.check_context(check_node):
+        test_check(context._provider, context)
+
+    # Get assertions
+    assertions = list(context._graph.assertions())
+    assert len(assertions) == 2
+
+    with_cost = next(a for a in assertions if a.name == "Assertion with cost")
+    without_cost = next(a for a in assertions if a.name == "Assertion without cost")
+
+    assert with_cost.cost_fp == 1.0
+    assert with_cost.cost_fn == 100.0
+    assert without_cost.cost_fp is None
+    assert without_cost.cost_fn is None
+
+
+def test_cost_validation_requires_dict() -> None:
+    """Cost must be a dict."""
+    db = InMemoryMetricDB()
+    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+    import pytest
+
+    # Not a dict (tuple)
+    with pytest.raises(ValueError, match="cost must be a dict with 'fp' and 'fn' keys"):
+        context.assert_that(sp.Symbol("x")).where(
+            name="Test",
+            cost=(1.0, 100.0),  # type: ignore[arg-type]
+        )
+
+
+def test_cost_validation_requires_both_fp_and_fn() -> None:
+    """Cost must have exactly 'fp' and 'fn' keys."""
+    db = InMemoryMetricDB()
+    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+    import pytest
+
+    # Missing fn
+    with pytest.raises(ValueError, match="must have exactly 'fp' and 'fn' keys"):
+        context.assert_that(sp.Symbol("x")).where(
+            name="Test",
+            cost={"fp": 1.0},
+        )
+
+    # Extra key
+    with pytest.raises(ValueError, match="must have exactly 'fp' and 'fn' keys"):
+        context.assert_that(sp.Symbol("x")).where(
+            name="Test",
+            cost={"fp": 1.0, "fn": 2.0, "extra": 3.0},
+        )
+
+
+def test_cost_validation_non_negative() -> None:
+    """Cost values must be non-negative."""
+    db = InMemoryMetricDB()
+    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+    import pytest
+
+    # Negative fp
+    with pytest.raises(ValueError, match="cost values must be non-negative"):
+        context.assert_that(sp.Symbol("x")).where(
+            name="Test",
+            cost={"fp": -1.0, "fn": 100.0},
+        )
+
+    # Negative fn
+    with pytest.raises(ValueError, match="cost values must be non-negative"):
+        context.assert_that(sp.Symbol("x")).where(
+            name="Test",
+            cost={"fp": 1.0, "fn": -100.0},
+        )
+
+
+def test_required_and_cost_in_assertion_result() -> None:
+    """Required and cost annotations should be included in AssertionResult."""
+    from dqx.common import AssertionResult
+
+    # Check defaults
+    result = AssertionResult(
+        yyyy_mm_dd=datetime.date.today(),
+        suite="test",
+        check="test_check",
+        assertion="test_assertion",
+        severity="P1",
+        status="PASSED",
+        metric=Success(1.0),
+    )
+    assert result.required is False
+    assert result.cost_fp is None
+    assert result.cost_fn is None
+
+    # Check with values set
+    result_with_annotations = AssertionResult(
+        yyyy_mm_dd=datetime.date.today(),
+        suite="test",
+        check="test_check",
+        assertion="test_assertion",
+        severity="P0",
+        status="PASSED",
+        metric=Success(1.0),
+        required=True,
+        cost_fp=5.0,
+        cost_fn=200.0,
+    )
+    assert result_with_annotations.required is True
+    assert result_with_annotations.cost_fp == 5.0
+    assert result_with_annotations.cost_fn == 200.0
+
+
 class TestNewAssertionMethods:
     """Tests for new assertion methods: is_neq, is_none, is_not_none."""
 

@@ -101,6 +101,9 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
         severity: SeverityLevel = "P1",
         tags: frozenset[str] | None = None,
         experimental: bool = False,
+        required: bool = False,
+        cost_fp: float | None = None,
+        cost_fn: float | None = None,
     ) -> AssertionNode:
         """Factory method to create and add an assertion node.
 
@@ -113,6 +116,9 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
             severity: Severity level for failures
             tags: Optional frozenset of tags for assertion selection
             experimental: Whether this assertion is algorithm-proposed (default False)
+            required: Whether this assertion cannot be removed by algorithms (default False)
+            cost_fp: Cost of false positive (alert fatigue) for RL reward computation
+            cost_fn: Cost of false negative (missed issue) for RL reward computation
 
         Returns:
             The newly created AssertionNode
@@ -125,6 +131,9 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
             severity=severity,
             tags=tags,
             experimental=experimental,
+            required=required,
+            cost_fp=cost_fp,
+            cost_fn=cost_fn,
         )
         self.add_child(assertion)
         return assertion
@@ -146,6 +155,9 @@ class AssertionNode(BaseNode["CheckNode"]):
         severity: SeverityLevel = "P1",
         tags: frozenset[str] | None = None,
         experimental: bool = False,
+        required: bool = False,
+        cost_fp: float | None = None,
+        cost_fn: float | None = None,
     ) -> None:
         """Initialize an assertion node.
 
@@ -157,6 +169,9 @@ class AssertionNode(BaseNode["CheckNode"]):
             severity: Severity level for failures
             tags: Optional frozenset of tags for assertion selection
             experimental: Whether this assertion is algorithm-proposed (default False)
+            required: Whether this assertion cannot be removed by algorithms (default False)
+            cost_fp: Cost of false positive (alert fatigue) for RL reward computation
+            cost_fn: Cost of false negative (missed issue) for RL reward computation
         """
         super().__init__(parent)
         self.actual = actual
@@ -165,6 +180,9 @@ class AssertionNode(BaseNode["CheckNode"]):
         self.validator = validator
         self.tags: frozenset[str] = tags or frozenset()
         self.experimental = experimental
+        self.required = required
+        self.cost_fp = cost_fp
+        self.cost_fn = cost_fn
         # Stores the computed metric result
         self._metric: Result[float, list[EvaluationFailure]]
         # Stores whether the assertion passes validation

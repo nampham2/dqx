@@ -76,6 +76,8 @@ class AssertionDraft:
         severity: SeverityLevel = "P1",
         tags: frozenset[str] | set[str] | None = None,
         experimental: bool = False,
+        required: bool = False,
+        cost: dict[str, float] | None = None,
     ) -> AssertionReady:
         """
         Provide a descriptive name for this assertion.
@@ -88,12 +90,15 @@ class AssertionDraft:
                   Tags must contain only alphanumerics, dashes, and underscores.
             experimental: Whether this assertion is algorithm-proposed (default False).
                          Experimental assertions can be removed by RL agents.
+            required: Whether this assertion cannot be removed by algorithms (default False).
+            cost: Optional cost dict for RL reward computation with keys "fp" (false positive)
+                  and "fn" (false negative). Both values must be non-negative.
 
         Returns:
             AssertionReady instance with all assertion methods available
 
         Raises:
-            ValueError: If name is empty or too long, or if tags are invalid
+            ValueError: If name is empty or too long, if tags are invalid, or if cost is malformed
         """
         if not name or not name.strip():
             raise ValueError("Assertion name cannot be empty")
@@ -102,12 +107,28 @@ class AssertionDraft:
 
         validated_tags = validate_tags(tags)
 
+        # Validate cost if provided
+        cost_fp = None
+        cost_fn = None
+        if cost is not None:
+            if not isinstance(cost, dict):
+                raise ValueError("cost must be a dict with 'fp' and 'fn' keys")
+            if set(cost.keys()) != {"fp", "fn"}:
+                raise ValueError("cost must have exactly 'fp' and 'fn' keys")
+            if cost["fp"] < 0 or cost["fn"] < 0:
+                raise ValueError("cost values must be non-negative")
+            cost_fp = cost["fp"]
+            cost_fn = cost["fn"]
+
         return AssertionReady(
             actual=self._actual,
             name=name.strip(),
             severity=severity,
             tags=validated_tags,
             experimental=experimental,
+            required=required,
+            cost_fp=cost_fp,
+            cost_fn=cost_fn,
             context=self._context,
         )
 
@@ -127,6 +148,9 @@ class AssertionReady:
         severity: SeverityLevel = "P1",
         tags: frozenset[str] | None = None,
         experimental: bool = False,
+        required: bool = False,
+        cost_fp: float | None = None,
+        cost_fn: float | None = None,
         context: Context | None = None,
     ) -> None:
         """
@@ -138,6 +162,9 @@ class AssertionReady:
             severity: Severity level (P0, P1, P2, P3). Defaults to "P1".
             tags: Optional set of tags for profile-based assertion selection.
             experimental: Whether this assertion is algorithm-proposed (default False).
+            required: Whether this assertion cannot be removed by algorithms (default False).
+            cost_fp: Cost of false positive for RL reward computation.
+            cost_fn: Cost of false negative for RL reward computation.
             context: The Context instance
         """
         self._actual = actual
@@ -145,6 +172,9 @@ class AssertionReady:
         self._severity = severity
         self._tags = tags
         self._experimental = experimental
+        self._required = required
+        self._cost_fp = cost_fp
+        self._cost_fn = cost_fn
         self._context = context
 
     def is_geq(self, other: float, tol: float = functions.EPSILON) -> None:
@@ -231,6 +261,9 @@ class AssertionReady:
             severity=self._severity,
             tags=self._tags,
             experimental=self._experimental,
+            required=self._required,
+            cost_fp=self._cost_fp,
+            cost_fn=self._cost_fn,
             validator=validator,
         )
 
@@ -774,6 +807,9 @@ class VerificationSuite:
                 tags=key.tags,
                 assertion_tags=assertion.tags,
                 experimental=assertion.experimental,
+                required=assertion.required,
+                cost_fp=assertion.cost_fp,
+                cost_fn=assertion.cost_fn,
             )
             results.append(result)
 

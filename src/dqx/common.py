@@ -140,6 +140,9 @@ class AssertionResult:
         tags: Tags from the ResultKey (e.g., {"env": "prod"})
         assertion_tags: Tags assigned to the assertion for profile-based selection
         experimental: Whether this assertion is algorithm-proposed (for RL agents)
+        required: Whether this assertion cannot be removed by algorithms
+        cost_fp: Cost of false positive (alert fatigue) for RL reward computation
+        cost_fn: Cost of false negative (missed issue) for RL reward computation
     """
 
     yyyy_mm_dd: datetime.date
@@ -153,6 +156,9 @@ class AssertionResult:
     tags: Tags = field(default_factory=dict)
     assertion_tags: frozenset[str] = field(default_factory=frozenset)
     experimental: bool = False
+    required: bool = False
+    cost_fp: float | None = None
+    cost_fn: float | None = None
 
 
 @dataclass
