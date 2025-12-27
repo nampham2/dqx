@@ -112,7 +112,12 @@ class AssertionDraft:
                 raise ValueError("cost must be a dict with 'fp' and 'fn' keys")
             if set(cost.keys()) != {"fp", "fn"}:
                 raise ValueError("cost must have exactly 'fp' and 'fn' keys")
-            if not isinstance(cost["fp"], (int, float)) or not isinstance(cost["fn"], (int, float)):
+            if (
+                not isinstance(cost["fp"], (int, float))
+                or isinstance(cost["fp"], bool)
+                or not isinstance(cost["fn"], (int, float))
+                or isinstance(cost["fn"], bool)
+            ):
                 raise ValueError("cost values must be numeric (int or float)")
             if cost["fp"] < 0 or cost["fn"] < 0:
                 raise ValueError("cost values must be non-negative")
