@@ -202,9 +202,9 @@ class Graph:
     async def async_dfs(self, visitor: NodeVisitor) -> None:
         """
         Perform an asynchronous depth-first traversal of the graph.
-        
+
         Visits nodes in depth-first order and awaits the visitor's asynchronous visit method for each node.
-        
+
         Parameters:
             visitor (NodeVisitor): A visitor whose asynchronous visit method will be awaited once per node.
         """

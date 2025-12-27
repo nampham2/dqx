@@ -65,12 +65,12 @@ def is_lt(a: float, b: float, tol: float = EPSILON) -> bool:
 def is_eq(a: float, b: float, tol: float = EPSILON) -> bool:
     """
     Determine whether two floating-point numbers are equal within a specified tolerance.
-    
+
     Parameters:
         a (float): First value to compare.
         b (float): Second value to compare.
         tol (float): Maximum allowed absolute difference for equality.
-    
+
     Returns:
         True if the absolute difference between `a` and `b` is less than `tol`, False otherwise.
     """
@@ -81,10 +81,10 @@ def is_eq(a: float, b: float, tol: float = EPSILON) -> bool:
 def is_neq(a: float, b: float, tol: float = EPSILON) -> bool:
     """
     Determine whether two floating-point values differ by at least the given tolerance.
-    
+
     Parameters:
         tol (float): Comparison tolerance; two values are considered different if their absolute difference is greater than or equal to this value.
-    
+
     Returns:
         bool: True if the absolute difference between a and b is greater than or equal to tol, False otherwise.
     """
@@ -94,18 +94,18 @@ def is_neq(a: float, b: float, tol: float = EPSILON) -> bool:
 def within_tol(a: float, b: float, rel_tol: float | None = None, abs_tol: float | None = None) -> bool:
     """
     Determine whether two floats differ by less than a specified tolerance.
-    
+
     Only one of `rel_tol` or `abs_tol` must be provided. If `abs_tol` is given, the function tests whether |a - b| < abs_tol. If `rel_tol` is given, the function tests whether |(a - b) / b| < rel_tol.
-    
+
     Parameters:
         a (float): First value to compare.
         b (float): Second value to compare (used as the denominator for relative tolerance).
         rel_tol (float | None): Relative tolerance; comparison uses |(a - b) / b| < rel_tol.
         abs_tol (float | None): Absolute tolerance; comparison uses |a - b| < abs_tol.
-    
+
     Returns:
         bool: `true` if the difference between `a` and `b` is within the specified tolerance, `false` otherwise.
-    
+
     Raises:
         DQXError: If neither `rel_tol` nor `abs_tol` is provided, or if both are provided.
     """
@@ -165,13 +165,13 @@ def is_negative(a: float, tol: float = EPSILON) -> bool:
 def is_between(a: float, lower: float, upper: float, tol: float = EPSILON) -> bool:
     """
     Determine whether a value lies within the closed interval [lower, upper], using a tolerance for comparisons.
-    
+
     Parameters:
         a (float): Value to test.
         lower (float): Lower bound of the interval.
         upper (float): Upper bound of the interval.
         tol (float): Tolerance applied to both bound comparisons.
-    
+
     Returns:
         bool: `true` if `lower <= a <= upper` within `tol`, `false` otherwise.
     """
@@ -194,13 +194,13 @@ class Coalesce(sp.Function):
     def eval(cls, *args: Any) -> sp.Expr | None:
         """
         Determine the coalesced value from concrete SymPy arguments or signal that evaluation should be deferred.
-        
+
         Parameters:
             *args (Any): Candidate values to coalesce; evaluated only when all arguments are concrete (have no free symbols).
-        
+
         Returns:
             sp.Expr | None: The first argument that is not `None` and not `NaN` when all arguments are concrete; `sp.S.NaN` if every argument is `None` or `NaN`; `None` to indicate the expression must remain unevaluated because at least one argument contains free symbols.
-        
+
         Raises:
             DQXError: If called with no arguments.
         """
@@ -224,10 +224,10 @@ class Coalesce(sp.Function):
 def coalesce(*args: Any) -> sp.Expr:
     """
     Selects the first argument that is neither None nor NaN.
-    
+
     Parameters:
         *args (Any): Values to evaluate in order of preference.
-    
+
     Returns:
         sp.Expr: A sympy expression equal to the first argument that is not None and not NaN, or NaN if no such argument exists.
     """

@@ -120,16 +120,16 @@ def _build_query_with_values(
 ) -> str:
     """
     Build a complete SQL query combining CTE declarations with per-date SELECTs whose metric values are formatted by the provided value_formatter.
-    
+
     Parameters:
         dialect (Dialect): Dialect used to translate SQL operations.
         cte_data (list[BatchCTEData]): Per-date CTE data and associated operations.
         value_formatter (Callable[[list[ops.SqlOp]], str]): Function that takes a list of SqlOp for a metrics CTE and returns a SQL expression representing those values (e.g., MAP, STRUCT, ARRAY of STRUCTs).
         data_source (SqlDataSource | None): Optional data source used to generate parameterized source CTE SQL.
-    
+
     Returns:
         str: A full SQL string containing a WITH clause of source/metrics CTEs followed by a UNION ALL of per-date SELECT statements (each selecting the date and the formatted values).
-    
+
     Raises:
         ValueError: If no metrics are available to compute. A ValueError may also propagate from _build_cte_parts if no CTE data is provided.
     """

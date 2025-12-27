@@ -62,7 +62,7 @@ class AssertionDraft:
     def __init__(self, actual: sp.Expr, context: Context | None = None) -> None:
         """
         Create an AssertionDraft that holds the symbolic expression to be asserted and an optional execution Context.
-        
+
         Parameters:
             actual (sp.Expr): The symbolic expression representing the value or predicate to evaluate.
             context (Context | None): The execution Context used to register the assertion when finalized; may be None for deferred registration.
@@ -82,7 +82,7 @@ class AssertionDraft:
     ) -> AssertionReady:
         """
         Create an AssertionReady bound to this expression with the given name and metadata.
-        
+
         Parameters:
             name (str): Descriptive name for the assertion (1–255 characters).
             severity (SeverityLevel): Severity level for the assertion (e.g., "P0", "P1", "P2", "P3").
@@ -90,10 +90,10 @@ class AssertionDraft:
             experimental (bool): If True, marks the assertion as proposed/experimental and removable by algorithms.
             required (bool): If True, marks the assertion as required and not removable by algorithms.
             cost (dict[str, float] | None): Optional cost dictionary for RL with exactly the keys "fp" and "fn"; values must be numeric and >= 0.
-        
+
         Returns:
             AssertionReady: A ready-to-use assertion object with assertion methods available.
-        
+
         Raises:
             ValueError: If name is empty or longer than 255 characters, if tags are invalid, or if cost is not a dict with numeric, non-negative "fp" and "fn" values.
         """
@@ -159,7 +159,7 @@ class AssertionReady:
     ) -> None:
         """
         Create an assertion ready to be registered with a named check, carrying its expression, metadata, and optional execution context.
-        
+
         Parameters:
             actual (sp.Expr): Symbolic expression representing the assertion target.
             name (str): Human-readable identifier for the assertion (max 255 chars).
@@ -184,7 +184,7 @@ class AssertionReady:
     def is_geq(self, other: float, tol: float = functions.EPSILON) -> None:
         """
         Create an assertion that the expression is greater than or equal to the specified threshold.
-        
+
         Parameters:
             other (float): Threshold value to compare the expression against.
             tol (float): Comparison tolerance; values within `tol` of `other` are treated as equal.
@@ -210,7 +210,7 @@ class AssertionReady:
     def is_eq(self, other: float, tol: float = functions.EPSILON) -> None:
         """
         Assert that the expression equals the given value within tolerance.
-        
+
         Parameters:
             other (float): Target value to compare the expression against.
             tol (float): Absolute tolerance for the comparison; defaults to functions.EPSILON.
@@ -221,7 +221,7 @@ class AssertionReady:
     def is_neq(self, other: float, tol: float = functions.EPSILON) -> None:
         """
         Assert that the expression is not equal to a specified value, allowing for a tolerance.
-        
+
         Parameters:
             other (float): The value to compare against.
             tol (float): Allowed tolerance; values within `tol` of `other` are considered equal.
@@ -232,12 +232,12 @@ class AssertionReady:
     def is_between(self, lower: float, upper: float, tol: float = functions.EPSILON) -> None:
         """
         Assert that the expression lies within the inclusive interval [lower, upper].
-        
+
         Parameters:
             lower (float): Lower bound of the allowed interval.
             upper (float): Upper bound of the allowed interval.
             tol (float): Numeric tolerance applied to the comparison; values within `tol` of a boundary are considered inside.
-        
+
         Raises:
             ValueError: If `lower` is greater than `upper`.
         """
@@ -257,7 +257,7 @@ class AssertionReady:
     def is_positive(self, tol: float = functions.EPSILON) -> None:
         """
         Create an assertion that the expression is greater than zero.
-        
+
         Parameters:
             tol (float): Comparison tolerance; values greater than `tol` are considered positive.
         """
@@ -279,7 +279,7 @@ class AssertionReady:
     def noop(self) -> None:
         """
         Create an assertion that records the metric for the current check without performing any validation.
-        
+
         This assertion collects the underlying metric value but does not evaluate or change the check's pass/fail status.
         """
         validator = SymbolicValidator("", lambda x: True)
@@ -288,12 +288,12 @@ class AssertionReady:
     def _create_assertion_node(self, validator: SymbolicValidator) -> None:
         """
         Attach the given SymbolicValidator as a new assertion node to the currently active check.
-        
+
         If the context is not set, this call is a no-op. If there is no active check, a DQXError is raised.
-        
+
         Parameters:
             validator (SymbolicValidator): The validator that defines the assertion to attach.
-        
+
         Raises:
             DQXError: If no active check is present in the current context.
         """
@@ -467,7 +467,7 @@ class VerificationSuite:
     ) -> None:
         """
         Initialize a VerificationSuite that orchestrates and evaluates a set of data quality checks.
-        
+
         Parameters:
             checks (Sequence[CheckProducer | DecoratedCheck]): Sequence of check callables to execute; each will be invoked to populate the suite's verification graph.
             db ("MetricDB"): Storage backend for producing and retrieving metrics used by checks and analysis.
@@ -476,7 +476,7 @@ class VerificationSuite:
             data_av_threshold (float): Minimum fraction of available data required to evaluate assertions (default: 0.9).
             profiles (Sequence[Profile] | None): Optional profiles that alter assertion evaluation behavior.
             tunables (Sequence["Tunable"] | None): Optional tunable parameters exposed for external agents; names must be unique.
-        
+
         Raises:
             DQXError: If no checks are provided, the suite name is empty, or duplicate tunable names are supplied.
         """
@@ -604,10 +604,10 @@ class VerificationSuite:
     def metrics_stats(self) -> "MetricStats":
         """
         Retrieve cached metrics statistics for the suite.
-        
+
         Returns:
             MetricStats: Total and expired metric counts.
-        
+
         Raises:
             DQXError: If the suite has not been evaluated or metrics stats are unavailable.
         """
@@ -634,10 +634,10 @@ class VerificationSuite:
     def key(self) -> ResultKey:
         """
         Get the ResultKey produced by the last successful run of the suite.
-        
+
         Returns:
             ResultKey: The ResultKey for the most recent run.
-        
+
         Raises:
             DQXError: If the suite has not been run yet and no ResultKey is available.
         """
@@ -685,7 +685,7 @@ class VerificationSuite:
     def get_tunable_params(self) -> list[dict[str, Any]]:
         """
         List all tunable parameters available for the suite's reinforcement-learning action space.
-        
+
         Returns:
             list[dict[str, Any]]: A list of dictionaries where each dictionary describes a tunable and includes keys such as:
                 - "name": the tunable's identifier
@@ -698,13 +698,13 @@ class VerificationSuite:
     def get_param(self, name: str) -> Any:
         """
         Retrieve the current value of a tunable parameter.
-        
+
         Parameters:
             name (str): Name of the tunable parameter.
-        
+
         Returns:
             The current value of the tunable.
-        
+
         Raises:
             KeyError: If a tunable with the given name does not exist.
         """
@@ -715,13 +715,13 @@ class VerificationSuite:
     def set_param(self, name: str, value: Any, agent: str = "human", reason: str | None = None) -> None:
         """
         Update the value of a tunable and record the change in its history.
-        
+
         Parameters:
             name (str): Name of the tunable parameter to update.
             value (Any): New value to assign to the tunable; must satisfy the tunable's constraints.
             agent (str): Identifier of who made the change (e.g., "human", "rl_optimizer", "autotuner").
             reason (str | None): Optional human-readable explanation for the change.
-        
+
         Raises:
             KeyError: If no tunable with the given name exists.
             ValueError: If the provided value violates the tunable's validation rules or bounds.
@@ -733,13 +733,13 @@ class VerificationSuite:
     def get_param_history(self, name: str) -> list[TunableChange]:
         """
         Return the change history for a named tunable parameter.
-        
+
         Parameters:
             name (str): Name of the tunable parameter.
-        
+
         Returns:
             list[TunableChange]: List of TunableChange records for the specified tunable.
-        
+
         Raises:
             KeyError: If a tunable with the given name does not exist.
         """
@@ -750,13 +750,13 @@ class VerificationSuite:
     def build_graph(self, context: Context, key: ResultKey) -> None:
         """
         Populate the execution graph by running all registered checks and validate it.
-        
+
         Runs each check to add nodes and assertions into the provided Context's graph, then validates the assembled graph using SuiteValidator. If validation reports errors a DQXError is raised; validation warnings are emitted to the logger.
-        
+
         Parameters:
             context (Context): Execution context that holds the graph and provider.
             key (ResultKey): Result key identifying the run (time period/tags) for which the graph is being built.
-        
+
         Raises:
             DQXError: If the graph validation reports errors.
         """
@@ -790,12 +790,12 @@ class VerificationSuite:
     def run(self, datasources: list[SqlDataSource], key: ResultKey, *, enable_plugins: bool = True) -> None:
         """
         Run the verification suite against the given data sources and produce evaluation results stored on the suite.
-        
+
         Parameters:
             datasources (list[SqlDataSource]): Data sources to analyze.
             key (ResultKey): Result key that defines the time period and associated tags for this run.
             enable_plugins (bool): If True, execute registered plugins after evaluation (default True).
-        
+
         Raises:
             DQXError: If no data sources are provided or the suite has already been executed.
         """
@@ -868,12 +868,12 @@ class VerificationSuite:
     def collect_results(self) -> list[AssertionResult]:
         """
         Collect all assertion results produced by the most recent run of the suite.
-        
+
         Traverses the suite's evaluation graph and returns a list of AssertionResult objects—one per assertion—using the ResultKey from the last run. The returned list is cached and subsequent calls return the same list object.
-        
+
         Returns:
             List[AssertionResult]: AssertionResult instances for each assertion in graph traversal order.
-        
+
         Raises:
             DQXError: If the suite has not been evaluated (run) yet.
         """

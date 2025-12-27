@@ -235,11 +235,11 @@ class Analyzer:
     ) -> AnalysisReport:
         """
         Analyze a batch of dates for a single datasource by deduplicating SQL operations, executing the queries, propagating computed values to all equivalent analyzers, and assembling an AnalysisReport.
-        
+
         Parameters:
             ds: Data source used to execute deduplicated SQL operations for the batch.
             metrics_by_key: Mapping from ResultKey to the list of MetricSpec to analyze for that date.
-        
+
         Returns:
             AnalysisReport containing built Metric instances for each metric/date in the batch.
         """
@@ -364,12 +364,12 @@ class Analyzer:
 
         """
         Evaluate extended SymbolicMetric objects and return an AnalysisReport containing their computed Metric instances.
-        
+
         Only metrics whose MetricSpec has is_extended set are evaluated; metrics are expected to be provided in topological order. Computed metrics are inserted into the returned AnalysisReport, marked dirty in the internal cache, and the cache is flushed to persistent storage before returning.
-        
+
         Parameters:
             metrics (list[SymbolicMetric]): SymbolicMetric objects to evaluate (topologically sorted).
-        
+
         Returns:
             AnalysisReport: A report mapping (MetricSpec, ResultKey, dataset) to built Metric instances for each successfully evaluated extended metric.
         """

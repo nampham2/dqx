@@ -189,10 +189,10 @@ class CustomSQL(OpValueMixin[float], SqlOp[float]):
     def __eq__(self, other: Any) -> bool:
         """
         Determine whether another object represents the same CustomSQL operation.
-        
+
         Parameters:
             other: The object to compare against.
-        
+
         Returns:
             `True` if `other` is a CustomSQL instance with an identical SQL expression and parameters, `False` otherwise.
         """
@@ -203,9 +203,9 @@ class CustomSQL(OpValueMixin[float], SqlOp[float]):
     def __hash__(self) -> int:
         """
         Compute a stable hash that uniquely identifies this CustomSQL instance.
-        
+
         The hash is derived from the SQL expression and the operation's parameters; parameters are normalized and sorted by key so the result is independent of parameter insertion order.
-        
+
         Returns:
             int: Integer hash based on the SQL expression and normalized parameters.
         """
@@ -242,7 +242,7 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
     def prefix(self) -> str:
         """
         Get the operation's unique per-instance prefix.
-        
+
         Returns:
             prefix (str): Unique prefix string used to form SQL column aliases for this operation.
         """
@@ -252,7 +252,7 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
     def sql_col(self) -> str:  # pragma: no cover
         """
         Constructs the SQL column identifier for the operation.
-        
+
         Returns:
             sql_col (str): Unique SQL column alias formed by joining the operation's prefix and name with an underscore.
         """
@@ -261,10 +261,10 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
     def __eq__(self, other: Any) -> bool:
         """
         Determine whether another object represents the same Minimum operation.
-        
+
         Parameters:
             other (Any): Object to compare against.
-        
+
         Returns:
             `true` if `other` is a `Minimum` with an identical `column` attribute, `false` otherwise.
         """
@@ -275,7 +275,7 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
     def __hash__(self) -> int:
         """
         Compute a deterministic hash for the operation instance based on its identifying attributes.
-        
+
         Returns:
             int: Hash value derived from the operation's name, column, and its parameters (parameters are frozen for stable hashing).
         """
@@ -286,7 +286,7 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
     def __repr__(self) -> str:  # pragma: no cover
         """
         Return the operation's developer-facing representation.
-        
+
         Returns:
             str: The operation's name (the value of the `name` property).
         """
@@ -295,7 +295,7 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
     def __str__(self) -> str:  # pragma: no cover
         """
         Provide the object's informal string representation.
-        
+
         Returns:
             A human-readable string representing the object.
         """
@@ -324,7 +324,7 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
     def prefix(self) -> str:
         """
         Get the operation's unique per-instance prefix.
-        
+
         Returns:
             prefix (str): Unique prefix string used to form SQL column aliases for this operation.
         """
@@ -334,7 +334,7 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
     def sql_col(self) -> str:  # pragma: no cover
         """
         Constructs the SQL column identifier for the operation.
-        
+
         Returns:
             sql_col (str): Unique SQL column alias formed by joining the operation's prefix and name with an underscore.
         """
@@ -343,10 +343,10 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
     def __eq__(self, other: Any) -> bool:
         """
         Determine whether another object represents the same Maximum operation.
-        
+
         Parameters:
             other (Any): Object to compare against.
-        
+
         Returns:
             `True` if `other` is a `Maximum` with the same `column`, `False` if `other` is a `Maximum` with a different `column`, `NotImplemented` if `other` is not a `Maximum`.
         """
@@ -357,7 +357,7 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
     def __hash__(self) -> int:
         """
         Compute a deterministic hash for the operation instance based on its identifying attributes.
-        
+
         Returns:
             int: Hash value derived from the operation's name, column, and its parameters (parameters are frozen for stable hashing).
         """
@@ -368,7 +368,7 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
     def __repr__(self) -> str:  # pragma: no cover
         """
         Return the operation's developer-facing representation.
-        
+
         Returns:
             str: The operation's name (the value of the `name` property).
         """
@@ -377,7 +377,7 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
     def __str__(self) -> str:  # pragma: no cover
         """
         Provide the object's informal string representation.
-        
+
         Returns:
             A human-readable string representing the object.
         """
@@ -413,10 +413,10 @@ class Sum(OpValueMixin[float], SqlOp[float]):
     def __eq__(self, other: Any) -> bool:
         """
         Determine whether another object represents the same Sum operation.
-        
+
         Parameters:
             other: The object to compare against.
-        
+
         Returns:
             `True` if `other` is a `Sum` with the same `column`, `False` if `other` is a `Sum` with a different `column`. Returns `NotImplemented` if `other` is not a `Sum`.
         """
@@ -427,7 +427,7 @@ class Sum(OpValueMixin[float], SqlOp[float]):
     def __hash__(self) -> int:
         """
         Compute a deterministic hash for the operation instance based on its identifying attributes.
-        
+
         Returns:
             int: Hash value derived from the operation's name, column, and its parameters (parameters are frozen for stable hashing).
         """
@@ -438,7 +438,7 @@ class Sum(OpValueMixin[float], SqlOp[float]):
     def __repr__(self) -> str:  # pragma: no cover
         """
         Return the operation's developer-facing representation.
-        
+
         Returns:
             str: The operation's name (the value of the `name` property).
         """
@@ -447,7 +447,7 @@ class Sum(OpValueMixin[float], SqlOp[float]):
     def __str__(self) -> str:  # pragma: no cover
         """
         Provide the object's informal string representation.
-        
+
         Returns:
             A human-readable string representing the object.
         """
@@ -476,7 +476,7 @@ class Variance(OpValueMixin[float], SqlOp[float]):
     def prefix(self) -> str:
         """
         Get the operation's unique per-instance prefix.
-        
+
         Returns:
             prefix (str): Unique prefix string used to form SQL column aliases for this operation.
         """
@@ -486,7 +486,7 @@ class Variance(OpValueMixin[float], SqlOp[float]):
     def sql_col(self) -> str:  # pragma: no cover
         """
         Constructs the SQL column identifier for the operation.
-        
+
         Returns:
             sql_col (str): Unique SQL column alias formed by joining the operation's prefix and name with an underscore.
         """
@@ -495,10 +495,10 @@ class Variance(OpValueMixin[float], SqlOp[float]):
     def __eq__(self, other: Any) -> bool:
         """
         Determine equality with another object by comparing the target column.
-        
+
         Parameters:
             other (Any): Object to compare against.
-        
+
         Returns:
             `True` if `other` is a `Variance` instance with the same `column`, `False` if it is a `Variance` with a different `column`. Returns `NotImplemented` when `other` is not a `Variance`.
         """
@@ -509,7 +509,7 @@ class Variance(OpValueMixin[float], SqlOp[float]):
     def __hash__(self) -> int:
         """
         Compute a deterministic hash for the operation instance based on its identifying attributes.
-        
+
         Returns:
             int: Hash value derived from the operation's name, column, and its parameters (parameters are frozen for stable hashing).
         """
@@ -520,7 +520,7 @@ class Variance(OpValueMixin[float], SqlOp[float]):
     def __repr__(self) -> str:  # pragma: no cover
         """
         Return the operation's developer-facing representation.
-        
+
         Returns:
             str: The operation's name (the value of the `name` property).
         """
@@ -529,7 +529,7 @@ class Variance(OpValueMixin[float], SqlOp[float]):
     def __str__(self) -> str:  # pragma: no cover
         """
         Provide the object's informal string representation.
-        
+
         Returns:
             A human-readable string representing the object.
         """
@@ -542,7 +542,7 @@ class First(OpValueMixin[float], SqlOp[float]):
     def __init__(self, column: str, order_by: str | None = None, parameters: Parameters | None = None) -> None:
         """
         Create a First operation that captures the target column and optional ordering used to select the first value.
-        
+
         Parameters:
             column: Name of the column to extract the first value from.
             order_by: Optional column name to sort by before selecting the first value; if None, no explicit ordering is applied.
@@ -557,7 +557,7 @@ class First(OpValueMixin[float], SqlOp[float]):
     def name(self) -> str:
         """
         Operation name for the `first` aggregation, including `order_by` when provided.
-        
+
         Returns:
             The operation name as a string; when `order_by` is set the name is formatted
             as "first(column, order_by=...)", otherwise as "first(column)".
@@ -577,10 +577,10 @@ class First(OpValueMixin[float], SqlOp[float]):
     def __eq__(self, other: Any) -> bool:
         """
         Determine equality between this First operation and another object.
-        
+
         Parameters:
             other (Any): Object to compare against.
-        
+
         Returns:
             `True` if `other` is a `First` with the same `column` and `order_by`, `False` if `other` is a `First` but differs, or `NotImplemented` when comparing to a non-`First` object.
         """
@@ -591,7 +591,7 @@ class First(OpValueMixin[float], SqlOp[float]):
     def __hash__(self) -> int:
         """
         Compute a stable hash for the operation instance.
-        
+
         Returns:
             int: Hash value derived from the operation's name, column, order_by, and the operation parameters (parameters are normalized for stable hashing).
         """
@@ -607,7 +607,7 @@ class First(OpValueMixin[float], SqlOp[float]):
     def __repr__(self) -> str:  # pragma: no cover
         """
         Return the operation's developer-facing representation.
-        
+
         Returns:
             str: The operation's name (the value of the `name` property).
         """
@@ -616,7 +616,7 @@ class First(OpValueMixin[float], SqlOp[float]):
     def __str__(self) -> str:  # pragma: no cover
         """
         Provide the object's informal string representation.
-        
+
         Returns:
             A human-readable string representing the object.
         """
@@ -652,10 +652,10 @@ class NullCount(OpValueMixin[float], SqlOp[float]):
     def __eq__(self, other: Any) -> bool:
         """
         Compare this NullCount to another object for equality based on the target column.
-        
+
         Parameters:
             other (Any): Object to compare against.
-        
+
         Returns:
             `True` if `other` is a `NullCount` with the same `column`, `False` if `other` is a `NullCount` with a different `column`, `NotImplemented` for other types.
         """
@@ -666,7 +666,7 @@ class NullCount(OpValueMixin[float], SqlOp[float]):
     def __hash__(self) -> int:
         """
         Compute a deterministic hash for the operation instance based on its identifying attributes.
-        
+
         Returns:
             int: Hash value derived from the operation's name, column, and its parameters (parameters are frozen for stable hashing).
         """
@@ -677,7 +677,7 @@ class NullCount(OpValueMixin[float], SqlOp[float]):
     def __repr__(self) -> str:  # pragma: no cover
         """
         Return the operation's developer-facing representation.
-        
+
         Returns:
             str: The operation's name (the value of the `name` property).
         """
@@ -686,7 +686,7 @@ class NullCount(OpValueMixin[float], SqlOp[float]):
     def __str__(self) -> str:  # pragma: no cover
         """
         Provide the object's informal string representation.
-        
+
         Returns:
             A human-readable string representing the object.
         """
@@ -715,7 +715,7 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
     def prefix(self) -> str:
         """
         Get the operation's unique per-instance prefix.
-        
+
         Returns:
             prefix (str): Unique prefix string used to form SQL column aliases for this operation.
         """
@@ -725,7 +725,7 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
     def sql_col(self) -> str:  # pragma: no cover
         """
         Constructs the SQL column identifier for the operation.
-        
+
         Returns:
             sql_col (str): Unique SQL column alias formed by joining the operation's prefix and name with an underscore.
         """
@@ -734,10 +734,10 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
     def __eq__(self, other: Any) -> bool:
         """
         Determine equality with another NegativeCount by comparing the column attribute.
-        
+
         Parameters:
             other (Any): Object to compare against.
-        
+
         Returns:
             True if `other` is a `NegativeCount` instance with the same `column`, `False` if it is a `NegativeCount` with a different `column`. Returns `NotImplemented` if `other` is not a `NegativeCount`.
         """
@@ -748,7 +748,7 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
     def __hash__(self) -> int:
         """
         Compute a deterministic hash for the operation instance based on its identifying attributes.
-        
+
         Returns:
             int: Hash value derived from the operation's name, column, and its parameters (parameters are frozen for stable hashing).
         """
@@ -759,7 +759,7 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
     def __repr__(self) -> str:  # pragma: no cover
         """
         Return the operation's developer-facing representation.
-        
+
         Returns:
             str: The operation's name (the value of the `name` property).
         """
@@ -768,7 +768,7 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
     def __str__(self) -> str:  # pragma: no cover
         """
         Provide the object's informal string representation.
-        
+
         Returns:
             A human-readable string representing the object.
         """
@@ -809,7 +809,7 @@ class UniqueCount(OpValueMixin[float], SqlOp[float]):
     def __hash__(self) -> int:
         """
         Compute a deterministic hash for the operation instance based on its identifying attributes.
-        
+
         Returns:
             int: Hash value derived from the operation's name, column, and its parameters (parameters are frozen for stable hashing).
         """
@@ -820,7 +820,7 @@ class UniqueCount(OpValueMixin[float], SqlOp[float]):
     def __repr__(self) -> str:  # pragma: no cover
         """
         Return the operation's developer-facing representation.
-        
+
         Returns:
             str: The operation's name (the value of the `name` property).
         """
@@ -829,7 +829,7 @@ class UniqueCount(OpValueMixin[float], SqlOp[float]):
     def __str__(self) -> str:  # pragma: no cover
         """
         Provide the object's informal string representation.
-        
+
         Returns:
             A human-readable string representing the object.
         """
@@ -868,10 +868,10 @@ class DuplicateCount(OpValueMixin[float], SqlOp[float]):
     def __eq__(self, other: Any) -> bool:
         """
         Determine whether another object is equal to this DuplicateCount based on its columns.
-        
+
         Parameters:
             other (Any): The object to compare against.
-        
+
         Returns:
             True if `other` is a DuplicateCount with the same `columns`, `False` otherwise.
         """
@@ -882,9 +882,9 @@ class DuplicateCount(OpValueMixin[float], SqlOp[float]):
     def __hash__(self) -> int:
         """
         Compute a stable hash that uniquely identifies this DuplicateCount operation.
-        
+
         The hash is derived from the operation's name, the tuple of columns, and the operation parameters (each value processed with freeze_for_hashing and the parameter pairs sorted) to ensure deterministic hashing regardless of parameter insertion order.
-        
+
         Returns:
             int: Integer hash based on (name, columns, sorted hashed parameters).
         """
@@ -899,7 +899,7 @@ class DuplicateCount(OpValueMixin[float], SqlOp[float]):
     def __repr__(self) -> str:  # pragma: no cover
         """
         Return the operation's developer-facing representation.
-        
+
         Returns:
             str: The operation's name (the value of the `name` property).
         """
@@ -908,7 +908,7 @@ class DuplicateCount(OpValueMixin[float], SqlOp[float]):
     def __str__(self) -> str:  # pragma: no cover
         """
         Provide the object's informal string representation.
-        
+
         Returns:
             A human-readable string representing the object.
         """
@@ -994,10 +994,10 @@ class CountValues(OpValueMixin[float], SqlOp[float]):
     def __eq__(self, other: Any) -> bool:
         """
         Determine whether another object represents the same CountValues operation.
-        
+
         Parameters:
             other (Any): Object to compare against.
-        
+
         Returns:
             True if `other` is a CountValues with the same `column`, identical `values`, and the `values` have the same type; False otherwise.
         """

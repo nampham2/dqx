@@ -267,7 +267,7 @@ class TestVerificationSuiteTunables:
     def test_set_param(self) -> None:
         """
         Verifies that a tunable parameter can be updated via a VerificationSuite and its new value retrieved.
-        
+
         Creates a VerificationSuite with a TunablePercent, calls set_param to change the parameter (including agent and reason), and asserts get_param returns the updated value.
         """
         from dqx.api import VerificationSuite, check
@@ -342,7 +342,7 @@ class TestVerificationSuiteTunables:
     def test_duplicate_tunable_name_raises(self) -> None:
         """
         Verifies that constructing a VerificationSuite with two tunables that share the same name raises an error.
-        
+
         Raises:
             DQXError: with message "Duplicate tunable name" when duplicate tunable names are provided to VerificationSuite.
         """

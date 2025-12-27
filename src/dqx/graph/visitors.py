@@ -92,9 +92,9 @@ class DatasetImputationVisitor:
     def _visit_assertion_node(self, node: AssertionNode) -> None:
         """
         Validate and impute datasets for SymbolicMetrics referenced by an AssertionNode, propagating datasets to dependent metrics and recording any dataset-related errors.
-        
+
         For the assertion's symbols and their transitive dependencies, ensure each metric's dataset is either present in the parent check's datasets or can be unambiguously imputed; propagate a parent's dataset to child metrics when appropriate and append descriptive error messages to self._errors for dataset mismatches or ambiguous imputations.
-        
+
         Parameters:
             node (AssertionNode): The assertion node whose symbolic metrics and dependencies will be validated and potentially imputed.
         """
@@ -226,10 +226,10 @@ class SymbolDeduplicationVisitor:
     def visit(self, node: BaseNode) -> None:
         """
         Apply canonical symbol substitutions to an AssertionNode's actual expression.
-        
+
         If the node is an AssertionNode, replaces symbols in its `actual` expression
         using the visitor's substitution mapping; the node is modified in place.
-        
+
         Parameters:
             node (BaseNode): The node to visit; only AssertionNode instances are modified.
         """
@@ -240,7 +240,7 @@ class SymbolDeduplicationVisitor:
     async def visit_async(self, node: BaseNode) -> None:  # pragma: no cover
         """
         Asynchronous visitor entry point that delegates to the synchronous `visit` implementation.
-        
+
         Parameters:
             node (BaseNode): The node to visit.
         """

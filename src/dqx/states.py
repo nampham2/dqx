@@ -347,10 +347,10 @@ class DuplicateCount(NonMergeable):
         # Handle both old and new serialization formats
         """
         Deserialize msgpack-encoded bytes into a DuplicateCount instance, accepting both legacy and current formats.
-        
+
         Parameters:
             data (bytes): msgpack-encoded bytes in either the new format (tuple (value, metric_type)) or the old format (single value).
-        
+
         Returns:
             DuplicateCount: A new DuplicateCount constructed from the extracted value.
         """

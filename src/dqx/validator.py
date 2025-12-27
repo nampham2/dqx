@@ -128,7 +128,7 @@ class BaseValidator(ABC):
     def process_node(self, node: BaseNode) -> None:
         """
         Process a single node and perform validator-specific checks.
-        
+
         Parameters:
             node (BaseNode): The node to examine; implementations should inspect this node and append any resulting ValidationIssue instances to the validator's internal issue collection.
         """
@@ -137,7 +137,7 @@ class BaseValidator(ABC):
     def get_issues(self) -> list[ValidationIssue]:
         """
         List validation issues collected by the validator.
-        
+
         Returns:
             issues (list[ValidationIssue]): Collected ValidationIssue instances found during processing.
         """
@@ -237,13 +237,13 @@ class DatasetValidator(BaseValidator):
     def process_node(self, node: BaseNode) -> None:
         """
         Validate an assertion node for dataset mismatches and ambiguities relative to its parent check.
-        
+
         Only applies when `node` is an AssertionNode and its parent check specifies one or more datasets. For each symbol referenced by the assertion this method:
         - resolves the symbol via the provider and skips it if resolution fails;
         - reports an ambiguity if the resolved metric has no dataset while the parent check lists multiple datasets;
         - reports a mismatch if the resolved metric's dataset is not one of the parent check's datasets;
         - for each required metric of the resolved metric, reports a mismatch if both metrics have datasets and those datasets differ.
-        
+
         Parameters:
             node (BaseNode): The node to validate; processing is performed only for AssertionNode instances.
         """
@@ -408,9 +408,9 @@ class CompositeValidationVisitor:
     def get_all_issues(self) -> dict[str, list[ValidationIssue]]:
         """
         Process collected nodes with each validator, run validator finalizers, and aggregate all validation issues into error and warning groups.
-        
+
         Processes every node previously visited by this visitor with each configured validator, calls each validator's finalize hook, and then collects issues from validators classified by their `is_error` flag.
-        
+
         Returns:
             dict[str, list[ValidationIssue]]: Mapping with keys "errors" and "warnings". "errors" contains issues from validators where `is_error` is True; "warnings" contains issues from validators where `is_error` is False.
         """
@@ -439,7 +439,7 @@ class CompositeValidationVisitor:
     async def visit_async(self, node: BaseNode) -> None:  # pragma: no cover
         """
         Handle an asynchronous visit by processing the given node with the visitor's synchronous visit method.
-        
+
         This method exists to satisfy the NodeVisitor protocol and forwards the node to visit for actual processing.
         """
         self.visit(node)

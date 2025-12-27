@@ -107,20 +107,20 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
     ) -> AssertionNode:
         """
         Create and attach an AssertionNode as a child of this CheckNode.
-        
+
         Parameters:
-        	actual (sp.Expr): Symbolic expression to evaluate.
-        	name (str): Human-readable description for the assertion.
-        	validator (SymbolicValidator): Function that validates the evaluated expression.
-        	severity (SeverityLevel): Severity level to assign on failure (default "P1").
-        	tags (frozenset[str] | None): Tags used for selecting or grouping assertions.
-        	experimental (bool): Mark the assertion as algorithm-proposed (default False).
-        	required (bool): Mark the assertion as non-removable by algorithms (default False).
-        	cost_fp (float | None): Cost assigned to a false positive for reward computations.
-        	cost_fn (float | None): Cost assigned to a false negative for reward computations.
-        
+                actual (sp.Expr): Symbolic expression to evaluate.
+                name (str): Human-readable description for the assertion.
+                validator (SymbolicValidator): Function that validates the evaluated expression.
+                severity (SeverityLevel): Severity level to assign on failure (default "P1").
+                tags (frozenset[str] | None): Tags used for selecting or grouping assertions.
+                experimental (bool): Mark the assertion as algorithm-proposed (default False).
+                required (bool): Mark the assertion as non-removable by algorithms (default False).
+                cost_fp (float | None): Cost assigned to a false positive for reward computations.
+                cost_fn (float | None): Cost assigned to a false negative for reward computations.
+
         Returns:
-        	AssertionNode: The newly created and attached assertion node.
+                AssertionNode: The newly created and attached assertion node.
         """
         assertion = AssertionNode(
             parent=self,
@@ -160,7 +160,7 @@ class AssertionNode(BaseNode["CheckNode"]):
     ) -> None:
         """
         Create an AssertionNode that encapsulates a symbolic expression, its validator, and assertion metadata.
-        
+
         Parameters:
             parent: The parent CheckNode that contains this assertion.
             actual: The symbolic expression to evaluate for this assertion.

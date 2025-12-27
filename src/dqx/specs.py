@@ -33,11 +33,11 @@ registry: dict[MetricType, Type["MetricSpec"]] = {}
 def register_spec(metric_type: MetricType, spec_class: Type["MetricSpec"]) -> None:
     """
     Add a metric spec class to the global registry under the given metric_type.
-    
+
     Parameters:
         metric_type (MetricType): The key under which to register the spec.
         spec_class (Type["MetricSpec"]): The MetricSpec subclass to register.
-    
+
     Raises:
         ValueError: If a spec is already registered for the given metric_type.
     """
@@ -189,11 +189,11 @@ class First(SimpleMetricSpec):
     def __init__(self, column: str, order_by: str | None = None, parameters: Parameters | None = None) -> None:
         """
         Initialize the First metric specification for a given column.
-        
+
         Parameters:
-        	column (str): Column name to compute the first value for.
-        	order_by (str | None): Optional column name to determine ordering before selecting the first value.
-        	parameters (Parameters | None): Optional additional spec parameters (stored as a dict).
+                column (str): Column name to compute the first value for.
+                order_by (str | None): Optional column name to determine ordering before selecting the first value.
+                parameters (Parameters | None): Optional additional spec parameters (stored as a dict).
         """
         self._column = column
         self._order_by = order_by
@@ -204,7 +204,7 @@ class First(SimpleMetricSpec):
     def name(self) -> str:
         """
         Return the metric's display name, including the order_by clause when set.
-        
+
         Returns:
             str: The metric name formatted as "first(column)" or "first(column, order_by=order_by_column)".
         """
@@ -216,7 +216,7 @@ class First(SimpleMetricSpec):
     def parameters(self) -> Parameters:
         """
         Return the metric parameters for this spec, including the column, optional order_by, and any additional parameters.
-        
+
         Returns:
             dict: A mapping containing "column", and if set "order_by", merged with the spec's stored parameters.
         """
@@ -229,7 +229,7 @@ class First(SimpleMetricSpec):
     def analyzers(self) -> Sequence[ops.Op]:
         """
         Return the analyzers used to compute this metric.
-        
+
         Returns:
             Sequence[ops.Op]: The sequence of analyzer operations associated with the metric.
         """
@@ -245,7 +245,7 @@ class First(SimpleMetricSpec):
     def clone(self) -> Self:
         """
         Create a copy of this spec preserving its column, order_by, and parameters.
-        
+
         Returns:
             Self: A new instance with the same column and order_by and a shallow copy of parameters; analyzers created from the new instance will use fresh prefixes.
         """
@@ -254,7 +254,7 @@ class First(SimpleMetricSpec):
     def __hash__(self) -> int:
         """
         Return a hash value derived from the metric spec's name and parameters.
-        
+
         Returns:
             int: Hash combining the spec's name and its parameters to allow use in hashed collections.
         """

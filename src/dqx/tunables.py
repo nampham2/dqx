@@ -60,10 +60,10 @@ class Tunable(ABC, Generic[T]):
     def validate(self, value: T) -> None:
         """
         Ensure a candidate value is valid for this tunable.
-        
+
         Parameters:
             value (T): Candidate value to validate.
-        
+
         Raises:
             ValueError: If the value is invalid for this tunable.
         """
@@ -73,10 +73,10 @@ class Tunable(ABC, Generic[T]):
     def to_dict(self) -> dict[str, Any]:
         """
         Serialize the tunable into a dictionary suitable for RL action spaces and APIs.
-        
+
         The returned mapping contains the tunable's identifying fields and any type-specific metadata
         required by external systems (for example, keys such as "type", "name", "value" and bounds or choices).
-        
+
         Returns:
             dict[str, Any]: A dictionary representation of the tunable for use by RL agents or external APIs.
         """
@@ -124,7 +124,7 @@ class TunableFloat(Tunable[float]):
     def lower_bound(self) -> float:
         """
         Get the lower bound of the tunable's valid range.
-        
+
         Returns:
             float: The lower bound of the allowed value range.
         """
@@ -134,7 +134,7 @@ class TunableFloat(Tunable[float]):
     def upper_bound(self) -> float:
         """
         Get the upper bound of the valid range.
-        
+
         Returns:
             upper (float): The upper bound value from `bounds`.
         """
@@ -143,7 +143,7 @@ class TunableFloat(Tunable[float]):
     def __post_init__(self) -> None:
         """
         Validate bounds and the initial value on post-initialization.
-        
+
         Performs two checks: ensures the configured lower bound is not greater than the upper bound, and validates the current `value` using the tunable's `validate` method. Raises ValueError if the bounds are invalid or if the initial value fails validation.
         """
         if self.lower_bound > self.upper_bound:
@@ -153,10 +153,10 @@ class TunableFloat(Tunable[float]):
     def validate(self, value: float) -> None:
         """
         Ensure the given value lies within the tunable's inclusive bounds.
-        
+
         Parameters:
             value (float): Candidate value to validate.
-        
+
         Raises:
             ValueError: If `value` is less than `lower_bound` or greater than `upper_bound`.
         """
@@ -166,7 +166,7 @@ class TunableFloat(Tunable[float]):
     def to_dict(self) -> dict[str, Any]:
         """
         Serialize the tunable float to a dictionary suitable for RL action spaces and APIs.
-        
+
         Returns:
             dict[str, Any]: A mapping with keys:
                 - "name" (str): the tunable's identifier.
@@ -199,7 +199,7 @@ class TunablePercent(Tunable[float]):
     def lower_bound(self) -> float:
         """
         Get the lower bound of the tunable's valid range.
-        
+
         Returns:
             float: The lower bound of the allowed value range.
         """
@@ -209,7 +209,7 @@ class TunablePercent(Tunable[float]):
     def upper_bound(self) -> float:
         """
         Get the upper bound of the valid range.
-        
+
         Returns:
             upper (float): The upper bound value from `bounds`.
         """
@@ -218,7 +218,7 @@ class TunablePercent(Tunable[float]):
     def __post_init__(self) -> None:
         """
         Validate bounds and the initial value on post-initialization.
-        
+
         Performs two checks: ensures the configured lower bound is not greater than the upper bound, and validates the current `value` using the tunable's `validate` method. Raises ValueError if the bounds are invalid or if the initial value fails validation.
         """
         if self.lower_bound > self.upper_bound:
@@ -228,9 +228,9 @@ class TunablePercent(Tunable[float]):
     def validate(self, value: float) -> None:
         """
         Validate that a percentage value lies within the tunable's bounds.
-        
+
         Raises a ValueError if the provided value is outside [lower_bound, upper_bound]. The error message reports the value and bounds formatted as percentages.
-        
+
         Parameters:
             value (float): Percentage expressed as a fraction (e.g., 0.25 for 25%).
         """
@@ -243,7 +243,7 @@ class TunablePercent(Tunable[float]):
     def to_dict(self) -> dict[str, Any]:
         """
         Serialize the percent tunable for external/agent consumption.
-        
+
         Returns:
             A dict with:
             - "name" (str): the tunable's identifier.
@@ -276,7 +276,7 @@ class TunableInt(Tunable[int]):
     def lower_bound(self) -> int:
         """
         Retrieve the lower bound of the allowed integer range.
-        
+
         Returns:
             int: The lower bound of the valid range.
         """
@@ -286,7 +286,7 @@ class TunableInt(Tunable[int]):
     def upper_bound(self) -> int:
         """
         Get the inclusive upper bound of the valid range.
-        
+
         Returns:
             upper_bound (int): The inclusive upper bound value from the tunable's bounds tuple.
         """
@@ -295,7 +295,7 @@ class TunableInt(Tunable[int]):
     def __post_init__(self) -> None:
         """
         Validate bounds and the initial value on post-initialization.
-        
+
         Performs two checks: ensures the configured lower bound is not greater than the upper bound, and validates the current `value` using the tunable's `validate` method. Raises ValueError if the bounds are invalid or if the initial value fails validation.
         """
         if self.lower_bound > self.upper_bound:
@@ -305,10 +305,10 @@ class TunableInt(Tunable[int]):
     def validate(self, value: int) -> None:
         """
         Ensure `value` is an integer (not a bool) and falls within the tunable's bounds.
-        
+
         Parameters:
             value (int): Candidate integer to validate.
-        
+
         Raises:
             TypeError: If `value` is not an `int` or is a `bool`.
             ValueError: If `value` is less than `lower_bound` or greater than `upper_bound`.
@@ -321,7 +321,7 @@ class TunableInt(Tunable[int]):
     def to_dict(self) -> dict[str, Any]:
         """
         Serialize the integer tunable for external use (for example, an RL action space).
-        
+
         Returns:
             serialized (dict[str, Any]): Dictionary with keys:
                 - "name" (str): tunable identifier
@@ -353,9 +353,9 @@ class TunableChoice(Tunable[str]):
     def __post_init__(self) -> None:
         """
         Perform post-initialization checks for a TunableChoice.
-        
+
         Ensures the `choices` sequence is not empty and that the instance's current `value` is one of the allowed choices.
-        
+
         Raises:
             ValueError: If `choices` is empty, or if `value` is not a member of `choices`.
         """
@@ -366,7 +366,7 @@ class TunableChoice(Tunable[str]):
     def validate(self, value: str) -> None:
         """
         Ensure the provided value is a member of the tunable's allowed choices.
-        
+
         Raises:
             ValueError: if the value is not one of the allowed choices.
         """
@@ -376,7 +376,7 @@ class TunableChoice(Tunable[str]):
     def to_dict(self) -> dict[str, Any]:
         """
         Serialize the choice tunable into a dictionary suitable for external APIs or an RL action space.
-        
+
         Returns:
             serialized (dict[str, Any]): Dictionary with keys:
                 - "name": tunable name (str)

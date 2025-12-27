@@ -322,7 +322,7 @@ class TestMetricProvider:
     def test_average(self, provider: MetricProvider) -> None:
         """
         Verifies that MetricProvider.average registers an Average metric and records the correct properties.
-        
+
         Asserts that the returned value is a Symbol, that the registered metric has name "average(test_column)", lag 2, dataset "sales", and a metric_spec of type specs.Average.
         """
         column = "test_column"
