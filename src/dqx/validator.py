@@ -129,7 +129,7 @@ class BaseValidator(ABC):
         """
         Process a single node and perform validator-specific checks.
 
-        Parameters:
+        Args:
             node (BaseNode): The node to examine; implementations should inspect this node and append any resulting ValidationIssue instances to the validator's internal issue collection.
         """
         pass  # pragma: no cover
@@ -244,7 +244,7 @@ class DatasetValidator(BaseValidator):
         - reports a mismatch if the resolved metric's dataset is not one of the parent check's datasets;
         - for each required metric of the resolved metric, reports a mismatch if both metrics have datasets and those datasets differ.
 
-        Parameters:
+        Args:
             node (BaseNode): The node to validate; processing is performed only for AssertionNode instances.
         """
         if not isinstance(node, AssertionNode):
@@ -264,7 +264,7 @@ class DatasetValidator(BaseValidator):
         for symbol in symbols:
             try:
                 metric = self._provider.get_symbol(symbol)
-            except Exception:  # pragma: no cover
+            except (KeyError, AttributeError):  # pragma: no cover
                 # Symbol not found in provider - skip validation for this symbol
                 continue
 

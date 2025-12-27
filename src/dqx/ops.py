@@ -190,7 +190,7 @@ class CustomSQL(OpValueMixin[float], SqlOp[float]):
         """
         Determine whether another object represents the same CustomSQL operation.
 
-        Parameters:
+        Args:
             other: The object to compare against.
 
         Returns:
@@ -262,7 +262,7 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
         """
         Determine whether another object represents the same Minimum operation.
 
-        Parameters:
+        Args:
             other (Any): Object to compare against.
 
         Returns:
@@ -344,7 +344,7 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
         """
         Determine whether another object represents the same Maximum operation.
 
-        Parameters:
+        Args:
             other (Any): Object to compare against.
 
         Returns:
@@ -414,7 +414,7 @@ class Sum(OpValueMixin[float], SqlOp[float]):
         """
         Determine whether another object represents the same Sum operation.
 
-        Parameters:
+        Args:
             other: The object to compare against.
 
         Returns:
@@ -496,7 +496,7 @@ class Variance(OpValueMixin[float], SqlOp[float]):
         """
         Determine equality with another object by comparing the target column.
 
-        Parameters:
+        Args:
             other (Any): Object to compare against.
 
         Returns:
@@ -543,7 +543,7 @@ class First(OpValueMixin[float], SqlOp[float]):
         """
         Create a First operation that captures the target column and optional ordering used to select the first value.
 
-        Parameters:
+        Args:
             column: Name of the column to extract the first value from.
             order_by: Optional column name to sort by before selecting the first value; if None, no explicit ordering is applied.
             parameters: Optional parameters used for customizing generated CTEs and SQL identifiers.
@@ -578,7 +578,7 @@ class First(OpValueMixin[float], SqlOp[float]):
         """
         Determine equality between this First operation and another object.
 
-        Parameters:
+        Args:
             other (Any): Object to compare against.
 
         Returns:
@@ -653,7 +653,7 @@ class NullCount(OpValueMixin[float], SqlOp[float]):
         """
         Compare this NullCount to another object for equality based on the target column.
 
-        Parameters:
+        Args:
             other (Any): Object to compare against.
 
         Returns:
@@ -735,7 +735,7 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
         """
         Determine equality with another NegativeCount by comparing the column attribute.
 
-        Parameters:
+        Args:
             other (Any): Object to compare against.
 
         Returns:
@@ -869,7 +869,7 @@ class DuplicateCount(OpValueMixin[float], SqlOp[float]):
         """
         Determine whether another object is equal to this DuplicateCount based on its columns.
 
-        Parameters:
+        Args:
             other (Any): The object to compare against.
 
         Returns:
@@ -995,7 +995,7 @@ class CountValues(OpValueMixin[float], SqlOp[float]):
         """
         Determine whether another object represents the same CountValues operation.
 
-        Parameters:
+        Args:
             other (Any): Object to compare against.
 
         Returns:

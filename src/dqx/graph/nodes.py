@@ -108,7 +108,7 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
         """
         Create and attach an AssertionNode as a child of this CheckNode.
 
-        Parameters:
+        Args:
                 actual (sp.Expr): Symbolic expression to evaluate.
                 name (str): Human-readable description for the assertion.
                 validator (SymbolicValidator): Function that validates the evaluated expression.
@@ -161,7 +161,7 @@ class AssertionNode(BaseNode["CheckNode"]):
         """
         Create an AssertionNode that encapsulates a symbolic expression, its validator, and assertion metadata.
 
-        Parameters:
+        Args:
             parent: The parent CheckNode that contains this assertion.
             actual: The symbolic expression to evaluate for this assertion.
             name: Human-readable description of the assertion.

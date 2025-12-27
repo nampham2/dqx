@@ -371,7 +371,7 @@ class MetricRegistry:
         """
         Build a human-readable description of circular dependency relationships among the given metrics.
 
-        Parameters:
+        Args:
             remaining_metrics (list[SymbolicMetric]): Metrics involved in the detected cycle (typically the set remaining after a failed topological sort).
 
         Returns:
@@ -531,7 +531,7 @@ class SymbolicMetricBase(ABC, RegistryMixin):
         """
         Remove duplicate SymbolicMetric entries from the registry and index.
 
-        Parameters:
+        Args:
             substitutions (dict[sp.Symbol, sp.Symbol]): Mapping of duplicate symbols to their canonical symbol. Entries listed as keys will be removed from the registry and symbol index.
         """
         if not substitutions:  # pragma: no cover
@@ -884,7 +884,7 @@ class MetricProvider(SymbolicMetricBase):
         """
         Create a metric that counts rows for a specified dataset and lag.
 
-        Parameters:
+        Args:
             lag (int): Day offset applied to the metric (0 means the key's date).
             dataset (str | None): Optional dataset name to bind the metric to; if None the dataset is resolved at evaluation time.
             parameters (dict[str, Any] | None): Optional parameters forwarded to the NumRows metric specification.
@@ -923,7 +923,7 @@ class MetricProvider(SymbolicMetricBase):
         """
         Create a symbolic metric that computes the average of a column.
 
-        Parameters:
+        Args:
             column (str): Name of the column to average.
             lag (int): Day offset to apply when resolving the metric's evaluation date.
             dataset (str | None): Optional dataset name to evaluate the metric against.
@@ -1120,7 +1120,7 @@ class MetricProvider(SymbolicMetricBase):
         Fetches all metrics for the provided execution_id from the database, then for each metric
         returns the cached instance if present; missing entries are added to the cache and returned.
 
-        Parameters:
+        Args:
             execution_id (ExecutionId): Execution identifier to fetch metrics for.
 
         Returns:

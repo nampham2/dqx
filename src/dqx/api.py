@@ -63,9 +63,9 @@ class AssertionDraft:
         """
         Create an AssertionDraft that holds the symbolic expression to be asserted and an optional execution Context.
 
-        Parameters:
-            actual (sp.Expr): The symbolic expression representing the value or predicate to evaluate.
-            context (Context | None): The execution Context used to register the assertion when finalized; may be None for deferred registration.
+        Args:
+            actual: The symbolic expression representing the value or predicate to evaluate.
+            context: The execution Context used to register the assertion when finalized; may be None for deferred registration.
         """
         self._actual = actual
         self._context = context
@@ -83,13 +83,13 @@ class AssertionDraft:
         """
         Create an AssertionReady bound to this expression with the given name and metadata.
 
-        Parameters:
-            name (str): Descriptive name for the assertion (1–255 characters).
-            severity (SeverityLevel): Severity level for the assertion (e.g., "P0", "P1", "P2", "P3").
-            tags (set[str] | frozenset[str] | None): Optional set of tags; tags must contain only alphanumerics, dashes, and underscores.
-            experimental (bool): If True, marks the assertion as proposed/experimental and removable by algorithms.
-            required (bool): If True, marks the assertion as required and not removable by algorithms.
-            cost (dict[str, float] | None): Optional cost dictionary for RL with exactly the keys "fp" and "fn"; values must be numeric and >= 0.
+        Args:
+            name: Descriptive name for the assertion (1–255 characters).
+            severity: Severity level for the assertion (e.g., "P0", "P1", "P2", "P3").
+            tags: Optional set of tags; tags must contain only alphanumerics, dashes, and underscores.
+            experimental: If True, marks the assertion as proposed/experimental and removable by algorithms.
+            required: If True, marks the assertion as required and not removable by algorithms.
+            cost: Optional cost dictionary for RL with exactly the keys "fp" and "fn"; values must be numeric and >= 0.
 
         Returns:
             AssertionReady: A ready-to-use assertion object with assertion methods available.
@@ -160,16 +160,16 @@ class AssertionReady:
         """
         Create an assertion ready to be registered with a named check, carrying its expression, metadata, and optional execution context.
 
-        Parameters:
-            actual (sp.Expr): Symbolic expression representing the assertion target.
-            name (str): Human-readable identifier for the assertion (max 255 chars).
-            severity (SeverityLevel): Severity label, one of "P0", "P1", "P2", "P3".
-            tags (frozenset[str] | None): Optional tags used for profile-based selection.
-            experimental (bool): If True, marks the assertion as algorithm-proposed.
-            required (bool): If True, prevents automated removal of the assertion.
-            cost_fp (float | None): Cost assigned to a false positive for reward calculations.
-            cost_fn (float | None): Cost assigned to a false negative for reward calculations.
-            context (Context | None): Execution context that will own the assertion.
+        Args:
+            actual: Symbolic expression representing the assertion target.
+            name: Human-readable identifier for the assertion (max 255 chars).
+            severity: Severity label, one of "P0", "P1", "P2", "P3".
+            tags: Optional tags used for profile-based selection.
+            experimental: If True, marks the assertion as algorithm-proposed.
+            required: If True, prevents automated removal of the assertion.
+            cost_fp: Cost assigned to a false positive for reward calculations.
+            cost_fn: Cost assigned to a false negative for reward calculations.
+            context: Execution context that will own the assertion.
         """
         self._actual = actual
         self._name = name
@@ -185,9 +185,9 @@ class AssertionReady:
         """
         Create an assertion that the expression is greater than or equal to the specified threshold.
 
-        Parameters:
-            other (float): Threshold value to compare the expression against.
-            tol (float): Comparison tolerance; values within `tol` of `other` are treated as equal.
+        Args:
+            other: Threshold value to compare the expression against.
+            tol: Comparison tolerance; values within `tol` of `other` are treated as equal.
         """
         validator = SymbolicValidator(f"≥ {other}", lambda x: functions.is_geq(x, other, tol))
         self._create_assertion_node(validator)
@@ -211,9 +211,9 @@ class AssertionReady:
         """
         Assert that the expression equals the given value within tolerance.
 
-        Parameters:
-            other (float): Target value to compare the expression against.
-            tol (float): Absolute tolerance for the comparison; defaults to functions.EPSILON.
+        Args:
+            other: Target value to compare the expression against.
+            tol: Absolute tolerance for the comparison; defaults to functions.EPSILON.
         """
         validator = SymbolicValidator(f"= {other}", lambda x: functions.is_eq(x, other, tol))
         self._create_assertion_node(validator)
@@ -222,9 +222,9 @@ class AssertionReady:
         """
         Assert that the expression is not equal to a specified value, allowing for a tolerance.
 
-        Parameters:
-            other (float): The value to compare against.
-            tol (float): Allowed tolerance; values within `tol` of `other` are considered equal.
+        Args:
+            other: The value to compare against.
+            tol: Allowed tolerance; values within `tol` of `other` are considered equal.
         """
         validator = SymbolicValidator(f"≠ {other}", lambda x: functions.is_neq(x, other, tol))
         self._create_assertion_node(validator)
@@ -233,10 +233,10 @@ class AssertionReady:
         """
         Assert that the expression lies within the inclusive interval [lower, upper].
 
-        Parameters:
-            lower (float): Lower bound of the allowed interval.
-            upper (float): Upper bound of the allowed interval.
-            tol (float): Numeric tolerance applied to the comparison; values within `tol` of a boundary are considered inside.
+        Args:
+            lower: Lower bound of the allowed interval.
+            upper: Upper bound of the allowed interval.
+            tol: Numeric tolerance applied to the comparison; values within `tol` of a boundary are considered inside.
 
         Raises:
             ValueError: If `lower` is greater than `upper`.
@@ -258,8 +258,8 @@ class AssertionReady:
         """
         Create an assertion that the expression is greater than zero.
 
-        Parameters:
-            tol (float): Comparison tolerance; values greater than `tol` are considered positive.
+        Args:
+            tol: Comparison tolerance; values greater than `tol` are considered positive.
         """
         validator = SymbolicValidator("> 0", lambda x: functions.is_positive(x, tol))
         self._create_assertion_node(validator)
@@ -291,8 +291,8 @@ class AssertionReady:
 
         If the context is not set, this call is a no-op. If there is no active check, a DQXError is raised.
 
-        Parameters:
-            validator (SymbolicValidator): The validator that defines the assertion to attach.
+        Args:
+            validator: The validator that defines the assertion to attach.
 
         Raises:
             DQXError: If no active check is present in the current context.
@@ -468,14 +468,14 @@ class VerificationSuite:
         """
         Initialize a VerificationSuite that orchestrates and evaluates a set of data quality checks.
 
-        Parameters:
-            checks (Sequence[CheckProducer | DecoratedCheck]): Sequence of check callables to execute; each will be invoked to populate the suite's verification graph.
-            db ("MetricDB"): Storage backend for producing and retrieving metrics used by checks and analysis.
-            name (str): Human-readable name for the suite; must be non-empty.
-            log_level (int | str): Logging level for the suite (default: logging.INFO).
-            data_av_threshold (float): Minimum fraction of available data required to evaluate assertions (default: 0.9).
-            profiles (Sequence[Profile] | None): Optional profiles that alter assertion evaluation behavior.
-            tunables (Sequence["Tunable"] | None): Optional tunable parameters exposed for external agents; names must be unique.
+        Args:
+            checks: Sequence of check callables to execute; each will be invoked to populate the suite's verification graph.
+            db: Storage backend for producing and retrieving metrics used by checks and analysis.
+            name: Human-readable name for the suite; must be non-empty.
+            log_level: Logging level for the suite (default: logging.INFO).
+            data_av_threshold: Minimum fraction of available data required to evaluate assertions (default: 0.9).
+            profiles: Optional profiles that alter assertion evaluation behavior.
+            tunables: Optional tunable parameters exposed for external agents; names must be unique.
 
         Raises:
             DQXError: If no checks are provided, the suite name is empty, or duplicate tunable names are supplied.
@@ -699,8 +699,8 @@ class VerificationSuite:
         """
         Retrieve the current value of a tunable parameter.
 
-        Parameters:
-            name (str): Name of the tunable parameter.
+        Args:
+            name: Name of the tunable parameter.
 
         Returns:
             The current value of the tunable.
@@ -716,11 +716,11 @@ class VerificationSuite:
         """
         Update the value of a tunable and record the change in its history.
 
-        Parameters:
-            name (str): Name of the tunable parameter to update.
-            value (Any): New value to assign to the tunable; must satisfy the tunable's constraints.
-            agent (str): Identifier of who made the change (e.g., "human", "rl_optimizer", "autotuner").
-            reason (str | None): Optional human-readable explanation for the change.
+        Args:
+            name: Name of the tunable parameter to update.
+            value: New value to assign to the tunable; must satisfy the tunable's constraints.
+            agent: Identifier of who made the change (e.g., "human", "rl_optimizer", "autotuner").
+            reason: Optional human-readable explanation for the change.
 
         Raises:
             KeyError: If no tunable with the given name exists.
@@ -734,8 +734,8 @@ class VerificationSuite:
         """
         Return the change history for a named tunable parameter.
 
-        Parameters:
-            name (str): Name of the tunable parameter.
+        Args:
+            name: Name of the tunable parameter.
 
         Returns:
             list[TunableChange]: List of TunableChange records for the specified tunable.
@@ -753,9 +753,9 @@ class VerificationSuite:
 
         Runs each check to add nodes and assertions into the provided Context's graph, then validates the assembled graph using SuiteValidator. If validation reports errors a DQXError is raised; validation warnings are emitted to the logger.
 
-        Parameters:
-            context (Context): Execution context that holds the graph and provider.
-            key (ResultKey): Result key identifying the run (time period/tags) for which the graph is being built.
+        Args:
+            context: Execution context that holds the graph and provider.
+            key: Result key identifying the run (reserved for future use).
 
         Raises:
             DQXError: If the graph validation reports errors.
@@ -791,10 +791,10 @@ class VerificationSuite:
         """
         Run the verification suite against the given data sources and produce evaluation results stored on the suite.
 
-        Parameters:
-            datasources (list[SqlDataSource]): Data sources to analyze.
-            key (ResultKey): Result key that defines the time period and associated tags for this run.
-            enable_plugins (bool): If True, execute registered plugins after evaluation (default True).
+        Args:
+            datasources: Data sources to analyze.
+            key: Result key that defines the time period and associated tags for this run.
+            enable_plugins: If True, execute registered plugins after evaluation (default True).
 
         Raises:
             DQXError: If no data sources are provided or the suite has already been executed.

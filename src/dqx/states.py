@@ -348,7 +348,7 @@ class DuplicateCount(NonMergeable):
         """
         Deserialize msgpack-encoded bytes into a DuplicateCount instance, accepting both legacy and current formats.
 
-        Parameters:
+        Args:
             data (bytes): msgpack-encoded bytes in either the new format (tuple (value, metric_type)) or the old format (single value).
 
         Returns:
@@ -356,7 +356,7 @@ class DuplicateCount(NonMergeable):
         """
         try:
             # Try new format first (tuple)
-            value, metric_type = msgpack.unpackb(data)
+            value, _metric_type = msgpack.unpackb(data)
             return cls(value=value)
         except (ValueError, TypeError):  # pragma: no cover
             # Fall back to old format (single value)

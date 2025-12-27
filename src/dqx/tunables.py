@@ -61,7 +61,7 @@ class Tunable(ABC, Generic[T]):
         """
         Ensure a candidate value is valid for this tunable.
 
-        Parameters:
+        Args:
             value (T): Candidate value to validate.
 
         Raises:
@@ -154,7 +154,7 @@ class TunableFloat(Tunable[float]):
         """
         Ensure the given value lies within the tunable's inclusive bounds.
 
-        Parameters:
+        Args:
             value (float): Candidate value to validate.
 
         Raises:
@@ -231,7 +231,7 @@ class TunablePercent(Tunable[float]):
 
         Raises a ValueError if the provided value is outside [lower_bound, upper_bound]. The error message reports the value and bounds formatted as percentages.
 
-        Parameters:
+        Args:
             value (float): Percentage expressed as a fraction (e.g., 0.25 for 25%).
         """
         if not self.lower_bound <= value <= self.upper_bound:
@@ -248,7 +248,7 @@ class TunablePercent(Tunable[float]):
             A dict with:
             - "name" (str): the tunable's identifier.
             - "type" (str): literal "percent".
-            - "value" (float): current value as a fraction between the tunable's bounds (e.g., 0.0–1.0).
+            - "value" (float): current value as a fraction between the tunable's bounds (e.g., 0.0-1.0).
             - "bounds" (tuple[float, float]): (lower_bound, upper_bound) expressed as fractions.
         """
         return {
@@ -306,7 +306,7 @@ class TunableInt(Tunable[int]):
         """
         Ensure `value` is an integer (not a bool) and falls within the tunable's bounds.
 
-        Parameters:
+        Args:
             value (int): Candidate integer to validate.
 
         Raises:

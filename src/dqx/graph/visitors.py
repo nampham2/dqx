@@ -90,13 +90,15 @@ class DatasetImputationVisitor:
                     )
 
     def _visit_assertion_node(self, node: AssertionNode) -> None:
-        """
-        Validate and impute datasets for SymbolicMetrics referenced by an AssertionNode, propagating datasets to dependent metrics and recording any dataset-related errors.
+        """Validate and impute datasets for metrics referenced by an AssertionNode.
 
-        For the assertion's symbols and their transitive dependencies, ensure each metric's dataset is either present in the parent check's datasets or can be unambiguously imputed; propagate a parent's dataset to child metrics when appropriate and append descriptive error messages to self._errors for dataset mismatches or ambiguous imputations.
+        Processes the assertion's symbols and their transitive dependencies:
+        - Validates that each metric's dataset is present in the parent check's datasets
+        - Propagates a parent's dataset to child metrics when unambiguous
+        - Records descriptive error messages for dataset mismatches or ambiguous imputations
 
-        Parameters:
-            node (AssertionNode): The assertion node whose symbolic metrics and dependencies will be validated and potentially imputed.
+        Args:
+            node: The assertion node whose symbolic metrics will be validated.
         """
         if not self.provider:
             return
@@ -230,8 +232,8 @@ class SymbolDeduplicationVisitor:
         If the node is an AssertionNode, replaces symbols in its `actual` expression
         using the visitor's substitution mapping; the node is modified in place.
 
-        Parameters:
-            node (BaseNode): The node to visit; only AssertionNode instances are modified.
+        Args:
+            node: The node to visit; only AssertionNode instances are modified.
         """
         if isinstance(node, AssertionNode):
             # Apply substitutions to the actual expression
@@ -241,8 +243,8 @@ class SymbolDeduplicationVisitor:
         """
         Asynchronous visitor entry point that delegates to the synchronous `visit` implementation.
 
-        Parameters:
-            node (BaseNode): The node to visit.
+        Args:
+            node: The node to visit.
         """
         self.visit(node)
 

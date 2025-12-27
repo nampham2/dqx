@@ -205,7 +205,7 @@ class Graph:
 
         Visits nodes in depth-first order and awaits the visitor's asynchronous visit method for each node.
 
-        Parameters:
+        Args:
             visitor (NodeVisitor): A visitor whose asynchronous visit method will be awaited once per node.
         """
         stack: list[BaseNode] = [self.root]  # pragma: no cover

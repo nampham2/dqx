@@ -66,7 +66,7 @@ def is_eq(a: float, b: float, tol: float = EPSILON) -> bool:
     """
     Determine whether two floating-point numbers are equal within a specified tolerance.
 
-    Parameters:
+    Args:
         a (float): First value to compare.
         b (float): Second value to compare.
         tol (float): Maximum allowed absolute difference for equality.
@@ -82,7 +82,7 @@ def is_neq(a: float, b: float, tol: float = EPSILON) -> bool:
     """
     Determine whether two floating-point values differ by at least the given tolerance.
 
-    Parameters:
+    Args:
         tol (float): Comparison tolerance; two values are considered different if their absolute difference is greater than or equal to this value.
 
     Returns:
@@ -97,7 +97,7 @@ def within_tol(a: float, b: float, rel_tol: float | None = None, abs_tol: float 
 
     Only one of `rel_tol` or `abs_tol` must be provided. If `abs_tol` is given, the function tests whether |a - b| < abs_tol. If `rel_tol` is given, the function tests whether |(a - b) / b| < rel_tol.
 
-    Parameters:
+    Args:
         a (float): First value to compare.
         b (float): Second value to compare (used as the denominator for relative tolerance).
         rel_tol (float | None): Relative tolerance; comparison uses |(a - b) / b| < rel_tol.
@@ -166,7 +166,7 @@ def is_between(a: float, lower: float, upper: float, tol: float = EPSILON) -> bo
     """
     Determine whether a value lies within the closed interval [lower, upper], using a tolerance for comparisons.
 
-    Parameters:
+    Args:
         a (float): Value to test.
         lower (float): Lower bound of the interval.
         upper (float): Upper bound of the interval.
@@ -195,7 +195,7 @@ class Coalesce(sp.Function):
         """
         Determine the coalesced value from concrete SymPy arguments or signal that evaluation should be deferred.
 
-        Parameters:
+        Args:
             *args (Any): Candidate values to coalesce; evaluated only when all arguments are concrete (have no free symbols).
 
         Returns:
@@ -225,7 +225,7 @@ def coalesce(*args: Any) -> sp.Expr:
     """
     Selects the first argument that is neither None nor NaN.
 
-    Parameters:
+    Args:
         *args (Any): Values to evaluate in order of preference.
 
     Returns:

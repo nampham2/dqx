@@ -47,7 +47,7 @@ class MetadataType(TypeDecorator):
         """
         Convert a Metadata instance (or None) into a JSON-serializable dictionary suitable for DB binding.
 
-        Parameters:
+        Args:
             value (Metadata | None): The metadata to serialize. If None, an empty dict is returned. If already a dict-like value, it is returned unchanged.
             dialect: The DB dialect in use (unused).
 
@@ -64,7 +64,7 @@ class MetadataType(TypeDecorator):
         """
         Reconstruct a Metadata instance from a JSON-decoded dictionary.
 
-        Parameters:
+        Args:
             value (dict[str, Any] | None): Mapping produced from JSON that represents Metadata; if None, an empty Metadata is returned.
 
         Returns:
