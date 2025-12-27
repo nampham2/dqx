@@ -1,0 +1,158 @@
+suite "Book E-Commerce Inventory Quality" {
+    availability_threshold 90%
+
+    # Tunable constants
+    const MIN_INVENTORY_COUNT = 100 tunable [10, 1000]
+    const MAX_PRICE_NULL_RATE = 2% tunable [0%, 10%]
+    const MIN_STOCK_LEVEL = 5 tunable [0, 50]
+    export const PRICE_VOLATILITY_THRESHOLD = 0.15
+
+    # Check 1: Catalog Completeness
+    check "Catalog Completeness" on books {
+        @required
+        assert null_count(isbn) == 0
+            name "books.catalog.isbn_not_null"
+            severity P0
+            tags [completeness, identifier]
+
+        assert null_count(title) == 0
+            name "books.catalog.title_not_null"
+            severity P0
+            tags [completeness]
+
+        assert null_count(author) / num_rows() < 5%
+            name "books.catalog.author_null_rate"
+            severity P1
+            tags [completeness]
+
+        assert null_count(price) / num_rows() < MAX_PRICE_NULL_RATE
+            name "books.catalog.price_null_rate"
+            severity P1
+            tags [completeness, pricing]
+
+        @cost(false_positive=5, false_negative=50)
+        assert null_count(category) / num_rows() < 10%
+            name "books.catalog.category_null_rate"
+            severity P2
+            tags [completeness, classification]
+    }
+
+    # Check 2: Inventory Health
+    check "Inventory Health" on inventory {
+        assert num_rows() >= MIN_INVENTORY_COUNT
+            name "inventory.health.min_catalog_size"
+            severity P1
+            tags [volume]
+
+        assert average(stock_quantity) >= MIN_STOCK_LEVEL
+            name "inventory.health.average_stock"
+            severity P2
+            tags [inventory, stock]
+
+        @experimental
+        assert count_values(stock_quantity, 0) / num_rows() < 20%
+            name "inventory.health.out_of_stock_rate"
+            severity P1
+            tags [inventory, availability]
+
+        assert negative_count(stock_quantity) == 0
+            name "inventory.health.no_negative_stock"
+            severity P0
+            tags [integrity, stock]
+    }
+
+    # Check 3: Pricing Validity
+    check "Pricing Validity" on books {
+        assert minimum(price) > 0
+            name "books.pricing.all_positive"
+            severity P0
+            tags [pricing, validity]
+
+        assert maximum(price) < 10000
+            name "books.pricing.max_reasonable"
+            severity P1
+            tags [pricing, validity]
+
+        assert average(price) between 5 and 500
+            name "books.pricing.average_in_range"
+            severity P2
+            tags [pricing]
+            tolerance 0.1
+
+        assert day_over_day(average(price)) between 0.9 and 1.1
+            name "books.pricing.day_over_day_stability"
+            severity P2
+            tags [pricing, trend]
+    }
+
+    # Check 4: Data Uniqueness
+    check "Data Uniqueness" on books, inventory {
+        assert duplicate_count([isbn]) == 0
+            name "books.uniqueness.isbn_unique"
+            severity P0
+            tags [uniqueness, integrity]
+
+        assert unique_count(category) >= 10
+            name "books.uniqueness.min_categories"
+            severity P2
+            tags [diversity]
+
+        assert unique_count(author) / num_rows() > 0.1
+            name "books.uniqueness.author_diversity"
+            severity P3
+            tags [diversity]
+            sample 5000 rows seed 123
+    }
+
+    # Check 5: Cross-Table Consistency
+    check "Cross-Table Consistency" on books, inventory, orders {
+        assert num_rows(dataset=inventory) == num_rows(dataset=books)
+            name "consistency.inventory_covers_books"
+            severity P1
+            tags [consistency]
+
+        assert first(updated_at, order_by=updated_at) is not None
+            name "consistency.has_update_timestamps"
+            severity P2
+            tags [temporal]
+
+        @required
+        assert sum(quantity, dataset=orders) is positive
+            name "consistency.positive_order_quantities"
+            severity P1
+            tags [validity, orders]
+    }
+
+    # Check 6: Temporal Quality
+    check "Temporal Quality" on books {
+        assert first(publication_date) is not None
+            name "books.temporal.publication_dates_exist"
+            severity P2
+            tags [temporal]
+
+        assert null_count(created_at) == 0
+            name "books.temporal.created_at_not_null"
+            severity P1
+            tags [temporal, audit]
+    }
+
+    # Profiles
+    profile "Back to School" {
+        type holiday
+        from 2024-08-15
+        to 2024-09-15
+
+        scale tag "inventory" by 1.5x
+        scale check "Inventory Health" by 2.0x
+    }
+
+    profile "Black Friday" {
+        type holiday
+        from nth_weekday(november, friday, 4)
+        to nth_weekday(november, friday, 4) + 4
+
+        scale tag "volume" by 3.0x
+        disable assertion "books.pricing.day_over_day_stability" in "Pricing Validity"
+        set tag "pricing" severity P3
+    }
+}

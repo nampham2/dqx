@@ -1,0 +1,183 @@
+suite "Video Streaming Data Quality" {
+    availability_threshold 85%
+
+    # Tunable constants for RL optimization
+    const MIN_DAILY_VIEWS = 50000 tunable [10000, 200000]
+    const MAX_INCOMPLETE_METADATA_RATE = 3% tunable [0%, 10%]
+    const MIN_COMPLETION_RATE = 0.4 tunable [0.2, 0.8]
+    const MAX_BUFFERING_RATE = 5% tunable [1%, 15%]
+    export const ENGAGEMENT_THRESHOLD = 0.6
+
+    # Check 1: Video Catalog Completeness
+    check "Catalog Completeness" on videos {
+        @required
+        assert null_count(video_id) == 0
+            name "videos.catalog.video_id_not_null"
+            severity P0
+            tags [completeness, identifier]
+
+        assert null_count(title) == 0
+            name "videos.catalog.title_not_null"
+            severity P0
+            tags [completeness]
+
+        assert null_count(duration_seconds) / num_rows() < MAX_INCOMPLETE_METADATA_RATE
+            name "videos.catalog.duration_null_rate"
+            severity P1
+            tags [completeness, metadata]
+
+        @cost(false_positive=2, false_negative=20)
+        assert null_count(genre) / num_rows() < 5%
+            name "videos.catalog.genre_null_rate"
+            severity P1
+            tags [completeness, classification]
+
+        assert null_count(release_date) / num_rows() < 10%
+            name "videos.catalog.release_date_null_rate"
+            severity P2
+            tags [completeness, temporal]
+    }
+
+    # Check 2: Viewing Activity Volume
+    check "Viewing Activity" on viewing_sessions {
+        assert num_rows() >= MIN_DAILY_VIEWS
+            name "viewing.activity.min_daily_views"
+            severity P1
+            tags [volume, engagement]
+
+        @experimental
+        assert day_over_day(num_rows()) between 0.6 and 1.8
+            name "viewing.activity.day_over_day"
+            severity P2
+            tags [volume, trend]
+
+        assert stddev(num_rows(), n=7) / average(num_rows(), lag=1) < 0.5
+            name "viewing.activity.weekly_variance"
+            severity P2
+            tags [volume, stability]
+            sample 10% seed 99
+
+        assert unique_count(user_id) / num_rows() > 0.1
+            name "viewing.activity.user_diversity"
+            severity P2
+            tags [engagement, diversity]
+    }
+
+    # Check 3: User Engagement Quality
+    check "User Engagement" on viewing_sessions, users {
+        assert average(watch_duration_seconds) / average(video_duration_seconds) >= MIN_COMPLETION_RATE
+            name "engagement.completion_rate"
+            severity P1
+            tags [engagement, quality]
+            tolerance 0.05
+
+        assert count_values(completed, 1) / num_rows() > 30%
+            name "engagement.video_completion_count"
+            severity P2
+            tags [engagement]
+
+        assert negative_count(watch_duration_seconds) == 0
+            name "engagement.no_negative_duration"
+            severity P0
+            tags [integrity]
+
+        @required
+        assert maximum(watch_duration_seconds) < 86400
+            name "engagement.max_watch_duration"
+            severity P0
+            tags [integrity, validity]
+    }
+
+    # Check 4: Streaming Quality Metrics
+    check "Streaming Quality" on streaming_events {
+        assert count_values(event_type, "buffering") / num_rows() < MAX_BUFFERING_RATE
+            name "streaming.quality.buffering_rate"
+            severity P1
+            tags [quality, performance]
+
+        assert count_values(event_type, "error") / num_rows() < 1%
+            name "streaming.quality.error_rate"
+            severity P0
+            tags [quality, reliability]
+
+        assert average(bitrate_kbps) > 2000
+            name "streaming.quality.average_bitrate"
+            severity P2
+            tags [quality]
+
+        assert minimum(bitrate_kbps) > 500
+            name "streaming.quality.min_bitrate"
+            severity P1
+            tags [quality, performance]
+    }
+
+    # Check 5: Content Integrity
+    check "Content Integrity" on videos, viewing_sessions {
+        assert duplicate_count([video_id], dataset=videos) == 0
+            name "content.integrity.unique_video_ids"
+            severity P0
+            tags [integrity, uniqueness]
+
+        assert duplicate_count([user_id, video_id, start_time], dataset=viewing_sessions) / num_rows(dataset=viewing_sessions) < 0.1%
+            name "content.integrity.no_duplicate_sessions"
+            severity P1
+            tags [integrity]
+
+        assert variance(duration_seconds, dataset=videos) is not None
+            name "content.integrity.duration_variance_exists"
+            severity P3
+            tags [metadata]
+    }
+
+    # Check 6: Cross-Dataset Consistency
+    check "Cross-Dataset Consistency" on videos, viewing_sessions, ratings {
+        assert num_rows(dataset=ratings) / num_rows(dataset=viewing_sessions) between 0.01 and 0.5
+            name "consistency.rating_to_view_ratio"
+            severity P2
+            tags [consistency, engagement]
+
+        assert average(rating, dataset=ratings) between 1 and 5
+            name "consistency.rating_range"
+            severity P1
+            tags [validity]
+
+        assert sum(watch_duration_seconds, dataset=viewing_sessions) is positive
+            name "consistency.positive_total_watch_time"
+            severity P1
+            tags [validity]
+
+        assert first(timestamp, order_by=timestamp, dataset=viewing_sessions) is not None
+            name "consistency.session_timestamps_exist"
+            severity P2
+            tags [temporal]
+    }
+
+    # Profiles for special events
+    profile "New Release Week" {
+        type recurring
+        from today()
+        to today() + 7
+
+        scale tag "volume" by 2.5x
+        scale tag "engagement" by 1.5x
+    }
+
+    profile "Super Bowl Sunday" {
+        type holiday
+        from 2025-02-09
+        to 2025-02-10
+
+        disable check "Viewing Activity"
+        set tag "quality" severity P3
+    }
+
+    profile "Holiday Binge Season" {
+        type holiday
+        from 2024-12-20
+        to 2025-01-05
+
+        scale check "User Engagement" by 2.0x
+        scale tag "volume" by 3.0x
+        disable assertion "viewing.activity.day_over_day" in "Viewing Activity"
+    }
+}

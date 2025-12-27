@@ -37,9 +37,10 @@ condition: comparison
          | "is" keyword -> condition_is
 
 // between_bound is more restrictive than expr - no ambiguity with 'and'
-// Allow simple arithmetic within bounds
+// Allow simple arithmetic within bounds, including negative numbers
 between_bound: between_term (MUL_OP between_term)*
-between_term: NUMBER | PERCENT | ident | call
+between_term: "-" (NUMBER | PERCENT) -> between_term_neg
+            | NUMBER | PERCENT | ident | call
 
 AND: "and"
 

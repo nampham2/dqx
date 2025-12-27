@@ -238,6 +238,10 @@ class DQLTransformer(Transformer):
         # NUMBER/PERCENT tokens are converted to int/float, ident to str
         return Expr(text=str(item))
 
+    def between_term_neg(self, items: list) -> Expr:
+        # Handle negative numbers in between bounds: "-" NUMBER or "-" PERCENT
+        return Expr(text=f"-{items[0]}")
+
     def between_bound(self, items: list) -> Expr:
         # Similar to term - handles between_term (MUL_OP between_term)*
         if len(items) == 1:
