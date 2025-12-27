@@ -125,7 +125,7 @@ date_func: IDENT "(" [date_func_args] ")"
 
 date_func_args: (IDENT | NUMBER) ("," (IDENT | NUMBER))*
 
-rule: disable_rule | scale_rule | downgrade_rule
+rule: disable_rule | scale_rule | set_rule
 
 disable_rule: "disable" disable_target
 
@@ -134,7 +134,7 @@ disable_target: "check" STRING -> disable_check
 
 scale_rule: "scale" selector "by" NUMBER "x"
 
-downgrade_rule: "downgrade" selector "to" SEVERITY
+set_rule: "set" selector "severity" SEVERITY
 
 selector: "check" STRING -> sel_check
         | "tag" STRING -> sel_tag

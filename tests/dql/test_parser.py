@@ -7,8 +7,8 @@ import pytest
 
 from dqx.dql import (
     DisableRule,
-    DowngradeRule,
     ScaleRule,
+    SetSeverityRule,
     Severity,
     Suite,
     parse,
@@ -528,7 +528,7 @@ class TestProfiles:
         assert rule.selector_name == "volume"
         assert rule.multiplier == 2.0
 
-    def test_profile_with_downgrade(self) -> None:
+    def test_profile_with_set_severity(self) -> None:
         source = """
         suite "Test" {
             profile "Holiday" {
@@ -536,16 +536,16 @@ class TestProfiles:
                 from 2024-12-20
                 to 2025-01-05
 
-                downgrade tag "non-critical" to P3
+                set tag "non-critical" severity P3
             }
         }
         """
         result = parse(source)
         rule = result.profiles[0].rules[0]
-        assert isinstance(rule, DowngradeRule)
+        assert isinstance(rule, SetSeverityRule)
         assert rule.selector_type == "tag"
         assert rule.selector_name == "non-critical"
-        assert rule.to_severity == Severity.P3
+        assert rule.severity == Severity.P3
 
     def test_profile_with_date_function(self) -> None:
         source = """
@@ -645,7 +645,7 @@ class TestCompleteExample:
                 to 2025-01-05
 
                 disable check "Volume"
-                downgrade tag "trend" to P3
+                set tag "trend" severity P3
             }
         }
         """

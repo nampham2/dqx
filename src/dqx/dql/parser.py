@@ -17,12 +17,12 @@ from dqx.dql.ast import (
     Const,
     DateExpr,
     DisableRule,
-    DowngradeRule,
     Expr,
     Import,
     Profile,
     Sample,
     ScaleRule,
+    SetSeverityRule,
     Severity,
     SourceLocation,
     Suite,
@@ -468,7 +468,7 @@ class DQLTransformer(Transformer):
 
     # === Rules ===
 
-    def rule(self, items: list) -> DisableRule | ScaleRule | DowngradeRule:
+    def rule(self, items: list) -> DisableRule | ScaleRule | SetSeverityRule:
         return items[0]
 
     def disable_rule(self, items: list) -> DisableRule:
@@ -489,13 +489,13 @@ class DQLTransformer(Transformer):
             multiplier=multiplier,
         )
 
-    def downgrade_rule(self, items: list) -> DowngradeRule:
+    def set_rule(self, items: list) -> SetSeverityRule:
         selector = items[0]
         severity = items[1]
-        return DowngradeRule(
+        return SetSeverityRule(
             selector_type=selector[0],
             selector_name=selector[1],
-            to_severity=severity,
+            severity=severity,
         )
 
     def selector(self, items: list) -> tuple[str, str]:  # pragma: no cover - grammar routes to specific handlers

@@ -131,17 +131,17 @@ class ScaleRule:
 
 
 @dataclass(frozen=True)
-class DowngradeRule:
-    """Downgrade severity for a selector."""
+class SetSeverityRule:
+    """Set severity for a selector."""
 
     selector_type: str  # "check" or "tag"
     selector_name: str
-    to_severity: Severity
+    severity: Severity
     loc: SourceLocation | None = None
 
 
 # Type alias for all rule types
-Rule = DisableRule | ScaleRule | DowngradeRule
+Rule = DisableRule | ScaleRule | SetSeverityRule
 
 
 @dataclass(frozen=True)

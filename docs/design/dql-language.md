@@ -596,10 +596,11 @@ scale check "Revenue" by 1.5x
 
 For `between A and B`, the scaled metric compares against both bounds unchanged.
 
-**Downgrade** changes severity:
+**Set severity** changes the severity level (can raise or lower):
 
 ```dql
-downgrade tag "non-critical" to P3
+set tag "non-critical" severity P3
+set check "Volume" severity P2
 ```
 
 ### Rule Ordering
@@ -770,7 +771,7 @@ suite "E-Commerce Data Quality" {
         to   2025-01-05
 
         disable check "Volume"
-        downgrade tag "trend" to P3
+        set tag "trend" severity P3
     }
 }
 ```
@@ -1561,10 +1562,10 @@ profile_body= "type" IDENT "from" date_expr "to" date_expr rule*
 date_expr   = DATE | date_func | date_expr ("+" | "-") NUMBER
 date_func   = IDENT "(" [date_args] ")"
 date_args   = (IDENT | NUMBER) ("," (IDENT | NUMBER))*
-rule        = disable | scale | downgrade
+rule        = disable | scale | set_severity
 disable     = "disable" ("check" STRING | "assertion" STRING "in" STRING)
 scale       = "scale" selector "by" NUMBER "x"
-downgrade   = "downgrade" selector "to" SEVERITY
+set_severity= "set" selector "severity" SEVERITY
 selector    = "check" STRING | "tag" STRING
 
 (* === Imports === *)
@@ -1593,7 +1594,7 @@ COMMENT     = '#' [^\n]*                  (* Python-style comments *)
 
 ### Reserved Words
 
-The following are reserved: `suite`, `check`, `assert`, `on`, `from`, `to`, `by`, `in`, `and`, `is`, `between`, `profile`, `type`, `const`, `import`, `export`, `as`, `name`, `severity`, `tags`, `tolerance`, `scale`, `disable`, `downgrade`, `sample`, `seed`, `rows`, `lag`, `dataset`, `order_by`, `n`.
+The following are reserved: `suite`, `check`, `assert`, `on`, `from`, `to`, `by`, `in`, `and`, `is`, `between`, `profile`, `type`, `const`, `import`, `export`, `as`, `name`, `severity`, `tags`, `tolerance`, `scale`, `disable`, `set`, `sample`, `seed`, `rows`, `lag`, `dataset`, `order_by`, `n`.
 
 Use backticks to escape column or dataset names that conflict:
 
