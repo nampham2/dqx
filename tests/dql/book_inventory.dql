@@ -136,6 +136,40 @@ suite "Book E-Commerce Inventory Quality" {
             tags [temporal, audit]
     }
 
+    # Check 7: Complex Math Expressions (sympy test)
+    check "Complex Expressions" on books {
+        # Nested math functions: sqrt, abs, log, exp
+        assert sqrt(variance(price)) / average(price) < 0.5
+            name "books.complex.coefficient_of_variation"
+            severity P3
+            tags [math, experimental]
+
+        # Multiple nested functions with arithmetic
+        assert abs(log(average(price) + 1) - log(average(price, lag=1) + 1)) < 0.1
+            name "books.complex.log_price_stability"
+            severity P3
+            tags [math, experimental]
+
+        # Combining exp with ratios
+        @experimental
+        assert exp(null_count(isbn) / num_rows()) < 1.01
+            name "books.complex.exp_null_rate"
+            severity P3
+            tags [math, experimental]
+
+        # Complex nested expression with coalesce
+        assert sqrt(abs(coalesce(variance(price), 0))) < 100
+            name "books.complex.sqrt_abs_coalesce"
+            severity P3
+            tags [math, experimental]
+
+        # Arithmetic chain with multiple metrics
+        assert (sum(price) / num_rows()) * (1 - null_count(price) / num_rows()) > 0
+            name "books.complex.weighted_average"
+            severity P3
+            tags [math, experimental]
+    }
+
     # Profiles
     profile "Back to School" {
         type holiday

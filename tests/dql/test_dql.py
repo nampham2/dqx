@@ -300,6 +300,43 @@ class TestBookInventoryDQL:
         ]
         assert len(order_by_assertions) >= 1
 
+    def test_complex_sympy_expressions(self, inventory_dql: str) -> None:
+        """Test complex sympy math expressions parse correctly."""
+        result = parse(inventory_dql)
+        complex_check = next(c for c in result.checks if c.name == "Complex Expressions")
+
+        assert len(complex_check.assertions) >= 5
+        assert complex_check.datasets == ("books",)
+
+        # Verify each complex expression parses
+        expr_texts = [a.expr.text for a in complex_check.assertions]
+
+        # sqrt(variance(price)) / average(price)
+        assert any("sqrt" in e and "variance" in e for e in expr_texts)
+
+        # abs(log(...) - log(...))
+        assert any("abs" in e and "log" in e for e in expr_texts)
+
+        # exp(null_count(isbn) / num_rows())
+        assert any("exp" in e and "null_count" in e for e in expr_texts)
+
+        # sqrt(abs(coalesce(variance(price), 0)))
+        assert any("coalesce" in e for e in expr_texts)
+
+        # Check @experimental annotation on exp assertion
+        exp_assertion = next(a for a in complex_check.assertions if "exp" in a.expr.text)
+        assert any(ann.name == "experimental" for ann in exp_assertion.annotations)
+
+        # All should have P3 severity for experimental math
+        assert all(a.severity.value == "P3" for a in complex_check.assertions)
+
+        # All should have math tag
+        all_tags: set[str] = set()
+        for a in complex_check.assertions:
+            all_tags.update(a.tags)
+        assert "math" in all_tags
+        assert "experimental" in all_tags
+
     def test_profiles_with_date_functions(self, inventory_dql: str) -> None:
         """Test profiles with date function expressions."""
         result = parse(inventory_dql)
