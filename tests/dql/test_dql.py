@@ -710,3 +710,120 @@ class TestAllDQLScenariosIntegration:
 
         # Expect at least 10 different metrics
         assert len(all_metrics) >= 10, f"Expected at least 10 different metrics, got {len(all_metrics)}"
+
+
+class TestBookOrdersDQLWithImport:
+    """Test book orders DQL that imports from book_inventory.dql."""
+
+    @pytest.fixture
+    def orders_dql(self) -> str:
+        return Path(__file__).parent.joinpath("book_orders.dql").read_text()
+
+    def test_suite_metadata(self, orders_dql: str) -> None:
+        """Test suite-level metadata."""
+        result = parse(orders_dql)
+        assert result.name == "Book Order Processing Quality"
+        assert result.availability_threshold == 0.92
+
+    def test_import_statement(self, orders_dql: str) -> None:
+        """Test import statement is parsed correctly."""
+        result = parse(orders_dql)
+        assert len(result.imports) == 1
+        assert result.imports[0].path == "book_inventory.dql"
+        assert result.imports[0].alias is None
+        assert result.imports[0].names is None
+
+    def test_check_count(self, orders_dql: str) -> None:
+        """Test minimum check count."""
+        result = parse(orders_dql)
+        assert len(result.checks) >= 5
+
+    def test_uses_imported_constant(self, orders_dql: str) -> None:
+        """Test that assertion references imported PRICE_VOLATILITY_THRESHOLD constant."""
+        result = parse(orders_dql)
+        pricing = next(c for c in result.checks if c.name == "Order Pricing")
+
+        # Find assertion that uses the imported constant in threshold
+        imported_const_assertions = [
+            a for a in pricing.assertions if a.threshold and "PRICE_VOLATILITY_THRESHOLD" in a.threshold.text
+        ]
+        assert len(imported_const_assertions) >= 1
+
+    def test_local_constants(self, orders_dql: str) -> None:
+        """Test local constants are defined correctly."""
+        result = parse(orders_dql)
+
+        # Should have local constants plus imported ones don't count in constants list
+        local_constants = {c.name for c in result.constants}
+        assert "MIN_DAILY_ORDERS" in local_constants
+        assert "MAX_REFUND_RATE" in local_constants
+        assert "ORDER_VALUE_THRESHOLD" in local_constants
+
+        # Check tunable
+        min_orders = next(c for c in result.constants if c.name == "MIN_DAILY_ORDERS")
+        assert min_orders.tunable is True
+
+        # Check export
+        order_value = next(c for c in result.constants if c.name == "ORDER_VALUE_THRESHOLD")
+        assert order_value.export is True
+
+    def test_order_completeness_check(self, orders_dql: str) -> None:
+        """Test order completeness check."""
+        result = parse(orders_dql)
+        completeness = next(c for c in result.checks if c.name == "Order Completeness")
+
+        assert completeness.datasets == ("orders",)
+        assert len(completeness.assertions) >= 4
+
+        # Check @required annotation
+        required = [a for a in completeness.assertions if any(ann.name == "required" for ann in a.annotations)]
+        assert len(required) >= 1
+
+    def test_order_volume_experimental(self, orders_dql: str) -> None:
+        """Test experimental annotation in order volume check."""
+        result = parse(orders_dql)
+        volume = next(c for c in result.checks if c.name == "Order Volume")
+
+        experimental = [a for a in volume.assertions if any(ann.name == "experimental" for ann in a.annotations)]
+        assert len(experimental) >= 1
+
+    def test_order_integrity_sampling(self, orders_dql: str) -> None:
+        """Test sampling in order integrity check."""
+        result = parse(orders_dql)
+        integrity = next(c for c in result.checks if c.name == "Order Integrity")
+
+        sampled = [a for a in integrity.assertions if a.sample is not None]
+        assert len(sampled) >= 1
+        sample = sampled[0].sample
+        assert sample is not None
+        assert sample.seed == 42
+
+    def test_cross_dataset_check(self, orders_dql: str) -> None:
+        """Test cross-dataset check with orders and books."""
+        result = parse(orders_dql)
+        consistency = next(c for c in result.checks if c.name == "Order-Book Consistency")
+
+        assert len(consistency.datasets) == 2
+        assert "orders" in consistency.datasets
+        assert "books" in consistency.datasets
+
+        # Check @cost annotation
+        cost_assertions = [a for a in consistency.assertions if any(ann.name == "cost" for ann in a.annotations)]
+        assert len(cost_assertions) >= 1
+
+    def test_profile(self, orders_dql: str) -> None:
+        """Test profile definition."""
+        result = parse(orders_dql)
+        assert len(result.profiles) >= 1
+
+        holiday = next(p for p in result.profiles if p.name == "Holiday Shopping")
+        assert holiday.profile_type == "holiday"
+
+        scale_rules = [r for r in holiday.rules if isinstance(r, ScaleRule)]
+        assert len(scale_rules) >= 2
+
+    def test_total_assertions(self, orders_dql: str) -> None:
+        """Test total assertion count."""
+        result = parse(orders_dql)
+        total = sum(len(c.assertions) for c in result.checks)
+        assert total >= 14
