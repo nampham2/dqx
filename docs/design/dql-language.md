@@ -178,27 +178,13 @@ check "Critical" on orders {
 
 | Constraint | Behavior |
 |------------|----------|
-| `@required` | API rejects `remove_assertion()` calls |
+| `@required` | Critical assertion that must always run |
 | `severity P0` | Implied required unless explicitly `@experimental` |
-| Non-tunable threshold | Threshold cannot be loosened (no `tunable` keyword) |
+| Non-tunable threshold | Threshold cannot be modified (no `tunable` keyword) |
 
-**Constraint enforcement in API:**
+**Constraint enforcement:** Tunable constants can only be adjusted within their declared bounds. Non-tunable thresholds and `@required` assertions represent fixed business logic that algorithms cannot modify.
 
-```python
-def remove_assertion(self, name: str):
-    assertion = self.suite.get_assertion(name)
-
-    # Safety checks
-    if assertion.has_annotation("required"):
-        raise ConstraintError(f"Cannot remove @required assertion: {name}")
-    if assertion.severity == "P0" and not assertion.has_annotation("experimental"):
-        raise ConstraintError(f"Cannot remove P0 assertion: {name}")
-
-    # Allowed: remove experimental or low-severity assertions
-    self.suite.remove_assertion(name)
-```
-
-**Design principle:** Algorithms can only remove what they added (`@experimental`) or what humans explicitly marked as removable. Critical business logic stays protected.
+**Design principle:** Algorithms can only tune what humans explicitly marked as tunable. Critical business logic stays protected.
 
 ### Conditions
 
@@ -844,20 +830,15 @@ DQL tracks changes in a separate history file to support algorithmic optimizatio
 
 ```jsonl
 {"ts": "2024-12-01T10:00:00Z", "action": "set_param", "param": "NULL_THRESHOLD", "old": 0.10, "new": 0.05, "agent": "rl_optimizer", "episode": 42}
-{"ts": "2024-12-15T14:30:00Z", "action": "add_assertion", "name": "orders.volume.tax_stability", "agent": "rl_optimizer", "episode": 87}
-{"ts": "2024-12-20T09:00:00Z", "action": "remove_assertion", "name": "orders.legacy.row_count", "agent": "human", "reason": "obsolete"}
-{"ts": "2024-12-22T11:15:00Z", "action": "promote", "name": "orders.volume.tax_stability", "from": "experimental", "agent": "human"}
+{"ts": "2024-12-15T14:30:00Z", "action": "set_param", "param": "MIN_ORDERS", "old": 1000, "new": 800, "agent": "autotuner", "reason": "seasonal adjustment"}
+{"ts": "2024-12-20T09:00:00Z", "action": "set_param", "param": "TOLERANCE", "old": 0.001, "new": 0.002, "agent": "human", "reason": "reduce false positives"}
 ```
 
 ### History Actions
 
 | Action | Description | Fields |
 |--------|-------------|--------|
-| `set_param` | Tunable constant changed | `param`, `old`, `new` |
-| `add_assertion` | New assertion added | `name`, `check` |
-| `remove_assertion` | Assertion removed | `name`, `reason` |
-| `promote` | Experimental → production | `name`, `from` |
-| `demote` | Production → experimental | `name`, `reason` |
+| `set_param` | Tunable constant changed | `param`, `old`, `new`, `agent`, `reason` |
 
 ### Agent Field
 
@@ -994,19 +975,17 @@ DQL provides a programmatic API for reinforcement learning agents to optimize da
 
 1. Read tunable parameters and their bounds
 2. Modify thresholds within bounds
-3. Add/remove experimental assertions
-4. Run checks and observe outcomes
-5. Compute rewards from results and costs
-6. Log changes to history
+3. Run checks and observe outcomes
+4. Compute rewards from results and costs
+5. Log changes to history
 
 **Action Space:**
 
-The RL agent operates on a hybrid action space:
+The RL agent operates on a continuous, bounded action space derived from tunable constants:
 
 | Component | Type | Description |
 |-----------|------|-------------|
 | **Threshold adjustments** | Continuous, bounded | One dimension per `tunable` constant |
-| **Policy exploration** | Discrete | `add_assertion`, `remove_assertion`, `promote`, `no_op` |
 
 ```python
 # Continuous action space derived from tunable constants
@@ -1024,7 +1003,7 @@ action = {
 }
 ```
 
-For pure threshold optimization, use bounded continuous control (PPO, SAC). For policy exploration with add/remove, use hybrid action space or hierarchical RL.
+For threshold optimization, use bounded continuous control algorithms (PPO, SAC).
 
 **Example DQL with tunable thresholds and costs:**
 
@@ -1112,48 +1091,26 @@ class DQThresholdAgent:
                     "name": r.name,
                     "passed": r.passed,
                     "value": r.metric_value,
-                    "cost": self.suite.get_cost(r.name),
                 }
                 for r in results.assertions
             ]
         }
 
     def compute_reward(self, results: dict, ground_truth: dict = None) -> float:
-        """Compute reward from results and @cost annotations."""
+        """Compute reward from results.
+
+        Simple reward: +1 for correct predictions, -1 for incorrect.
+        Can be extended to use @cost annotations when available.
+        """
         reward = 0.0
         for a in results["assertions"]:
-            cost = a["cost"]  # {"false_positive": N, "false_negative": M}
             if ground_truth and a["name"] in ground_truth:
                 actual_issue = ground_truth[a["name"]]
-                if not a["passed"] and not actual_issue:
-                    reward -= cost["false_positive"]  # Alert fatigue
-                elif a["passed"] and actual_issue:
-                    reward -= cost["false_negative"]  # Missed problem
+                if a["passed"] == (not actual_issue):
+                    reward += 1.0  # Correct prediction
+                else:
+                    reward -= 1.0  # Incorrect prediction
         return reward
-
-    def add_experimental(self, name: str, check: str, assertion: str):
-        """Propose new assertion for exploration."""
-        self.suite.add_assertion(name, check, assertion, experimental=True)
-        self.history.log(
-            {
-                "action": "add_assertion",
-                "name": name,
-                "agent": "rl_optimizer",
-                "episode": self.episode,
-            }
-        )
-
-    def remove_assertion(self, name: str, reason: str):
-        """Remove underperforming assertion."""
-        self.suite.remove_assertion(name)
-        self.history.log(
-            {
-                "action": "remove_assertion",
-                "name": name,
-                "reason": reason,
-                "agent": "rl_optimizer",
-            }
-        )
 
     def save(self):
         """Persist changes to DQL file and history."""
@@ -1197,11 +1154,8 @@ for episode in range(1000):
 | `suite.get_tunable_params()` | List parameters with bounds for action space |
 | `suite.set_param(name, value)` | Modify threshold (validates bounds) |
 | `suite.get_param(name)` | Get current value of a parameter |
-| `suite.get_assertion(name)` | Get assertion by name (for inspection/validation) |
+| `suite.get_param_history(name)` | Get change history for a parameter |
 | `suite.run(db, date)` | Execute checks, return structured results |
-| `suite.get_cost(name)` | Get `@cost` annotation for reward computation |
-| `suite.add_assertion(...)` | Add experimental assertion |
-| `suite.remove_assertion(name)` | Remove assertion (respects `@required` constraint) |
 | `suite.save()` | Persist changes back to `.dql` file |
 | `History.log(entry)` | Append to `.dql.history` file |
 
@@ -1788,12 +1742,7 @@ The following features are specified in this design but **require implementation
 | Feature | Description | Priority |
 |---------|-------------|----------|
 | `Suite.load(path)` | Parse DQL into manipulable Suite object | High |
-| `suite.get_assertion(name)` | Retrieve assertion by name | Medium |
-| `suite.add_assertion(...)` | Add experimental assertion | Medium |
-| `suite.remove_assertion(name)` | Remove assertion (respects `@required`) | Medium |
-| `suite.get_cost(name)` | Get `@cost` annotation values | Medium |
 | `suite.save()` | Persist changes back to `.dql` file | Medium |
-| Safety constraints | P0 implied required, `@required` enforcement | Medium |
 
 #### History & Auditing
 
