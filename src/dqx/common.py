@@ -139,6 +139,10 @@ class AssertionResult:
         expression: Full validation expression (e.g., "average(price) > 0")
         tags: Tags from the ResultKey (e.g., {"env": "prod"})
         assertion_tags: Tags assigned to the assertion for profile-based selection
+        experimental: Whether this assertion is algorithm-proposed (for RL agents)
+        required: Whether this assertion cannot be removed by algorithms
+        cost_fp: Cost of false positive (alert fatigue) for RL reward computation
+        cost_fn: Cost of false negative (missed issue) for RL reward computation
     """
 
     yyyy_mm_dd: datetime.date
@@ -151,6 +155,10 @@ class AssertionResult:
     expression: str | None = None
     tags: Tags = field(default_factory=dict)
     assertion_tags: frozenset[str] = field(default_factory=frozenset)
+    experimental: bool = False
+    required: bool = False
+    cost_fp: float | None = None
+    cost_fn: float | None = None
 
 
 @dataclass
@@ -188,12 +196,22 @@ class SqlDataSource(Protocol):
 
     @property
     def name(self) -> str:
-        """Get the name of this data source."""
+        """
+        Human-readable identifier for the data source.
+
+        Returns:
+            str: The data source's name.
+        """
         ...
 
     @property
-    def skip_dates(self) -> set[datetime.date]:
-        """Dates to exclude from metric calculations for this dataset."""
+    def skip_dates(self) -> set[datetime.date]:  # pragma: no cover
+        """
+        Dates to exclude from metric calculations for this dataset.
+
+        Returns:
+            A set of datetime.date objects that should be excluded from metric calculations.
+        """
         return set()
 
     def cte(self, nominal_date: datetime.date, parameters: Parameters | None = None) -> str:

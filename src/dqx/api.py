@@ -31,6 +31,7 @@ from dqx.graph.traversal import Graph
 from dqx.plugins import PluginExecutionContext, PluginManager
 from dqx.profiles import Profile
 from dqx.provider import MetricProvider, SymbolicMetric
+from dqx.tunables import Tunable, TunableChange
 from dqx.timer import Registry
 from dqx.validator import SuiteValidator
 
@@ -60,33 +61,41 @@ class AssertionDraft:
 
     def __init__(self, actual: sp.Expr, context: Context | None = None) -> None:
         """
-        Initialize assertion draft.
+        Create an AssertionDraft that holds the symbolic expression to be asserted and an optional execution Context.
 
         Args:
-            actual: The symbolic expression to evaluate
-            context: The Context instance (needed to create assertion nodes)
+            actual: The symbolic expression representing the value or predicate to evaluate.
+            context: The execution Context used to register the assertion when finalized; may be None for deferred registration.
         """
         self._actual = actual
         self._context = context
 
     def where(
-        self, *, name: str, severity: SeverityLevel = "P1", tags: frozenset[str] | set[str] | None = None
+        self,
+        *,
+        name: str,
+        severity: SeverityLevel = "P1",
+        tags: frozenset[str] | set[str] | None = None,
+        experimental: bool = False,
+        required: bool = False,
+        cost: dict[str, float] | None = None,
     ) -> AssertionReady:
         """
-        Provide a descriptive name for this assertion.
+        Create an AssertionReady bound to this expression with the given name and metadata.
 
         Args:
-            name: Required description of what this assertion validates
-            severity: Severity level (P0, P1, P2, P3). Defaults to "P1".
-                     All assertions must have a severity level.
-            tags: Optional set of tags for profile-based assertion selection.
-                  Tags must contain only alphanumerics, dashes, and underscores.
+            name: Descriptive name for the assertion (1–255 characters).
+            severity: Severity level for the assertion (e.g., "P0", "P1", "P2", "P3").
+            tags: Optional set of tags; tags must contain only alphanumerics, dashes, and underscores.
+            experimental: If True, marks the assertion as proposed/experimental and removable by algorithms.
+            required: If True, marks the assertion as required and not removable by algorithms.
+            cost: Optional cost dictionary for RL with exactly the keys "fp" and "fn"; values must be numeric and >= 0.
 
         Returns:
-            AssertionReady instance with all assertion methods available
+            AssertionReady: A ready-to-use assertion object with assertion methods available.
 
         Raises:
-            ValueError: If name is empty or too long, or if tags are invalid
+            ValueError: If name is empty or longer than 255 characters, if tags are invalid, or if cost is not a dict with numeric, non-negative "fp" and "fn" values.
         """
         if not name or not name.strip():
             raise ValueError("Assertion name cannot be empty")
@@ -95,8 +104,36 @@ class AssertionDraft:
 
         validated_tags = validate_tags(tags)
 
+        # Validate cost if provided
+        cost_fp = None
+        cost_fn = None
+        if cost is not None:
+            if not isinstance(cost, dict):
+                raise ValueError("cost must be a dict with 'fp' and 'fn' keys")
+            if set(cost.keys()) != {"fp", "fn"}:
+                raise ValueError("cost must have exactly 'fp' and 'fn' keys")
+            if (
+                not isinstance(cost["fp"], (int, float))
+                or isinstance(cost["fp"], bool)
+                or not isinstance(cost["fn"], (int, float))
+                or isinstance(cost["fn"], bool)
+            ):
+                raise ValueError("cost values must be numeric (int or float)")
+            if cost["fp"] < 0 or cost["fn"] < 0:
+                raise ValueError("cost values must be non-negative")
+            cost_fp = cost["fp"]
+            cost_fn = cost["fn"]
+
         return AssertionReady(
-            actual=self._actual, name=name.strip(), severity=severity, tags=validated_tags, context=self._context
+            actual=self._actual,
+            name=name.strip(),
+            severity=severity,
+            tags=validated_tags,
+            experimental=experimental,
+            required=required,
+            cost_fp=cost_fp,
+            cost_fn=cost_fn,
+            context=self._context,
         )
 
 
@@ -114,26 +151,44 @@ class AssertionReady:
         name: str,
         severity: SeverityLevel = "P1",
         tags: frozenset[str] | None = None,
+        experimental: bool = False,
+        required: bool = False,
+        cost_fp: float | None = None,
+        cost_fn: float | None = None,
         context: Context | None = None,
     ) -> None:
         """
-        Initialize ready assertion.
+        Create an assertion ready to be registered with a named check, carrying its expression, metadata, and optional execution context.
 
         Args:
-            actual: The symbolic expression to evaluate
-            name: Required description of the assertion
-            severity: Severity level (P0, P1, P2, P3). Defaults to "P1".
-            tags: Optional set of tags for profile-based assertion selection.
-            context: The Context instance
+            actual: Symbolic expression representing the assertion target.
+            name: Human-readable identifier for the assertion (max 255 chars).
+            severity: Severity label, one of "P0", "P1", "P2", "P3".
+            tags: Optional tags used for profile-based selection.
+            experimental: If True, marks the assertion as algorithm-proposed.
+            required: If True, prevents automated removal of the assertion.
+            cost_fp: Cost assigned to a false positive for reward calculations.
+            cost_fn: Cost assigned to a false negative for reward calculations.
+            context: Execution context that will own the assertion.
         """
         self._actual = actual
         self._name = name
         self._severity = severity
         self._tags = tags
+        self._experimental = experimental
+        self._required = required
+        self._cost_fp = cost_fp
+        self._cost_fn = cost_fn
         self._context = context
 
     def is_geq(self, other: float, tol: float = functions.EPSILON) -> None:
-        """Assert that the expression is greater than or equal to the given value."""
+        """
+        Create an assertion that the expression is greater than or equal to the specified threshold.
+
+        Args:
+            other: Threshold value to compare the expression against.
+            tol: Comparison tolerance; values within `tol` of `other` are treated as equal.
+        """
         validator = SymbolicValidator(f"≥ {other}", lambda x: functions.is_geq(x, other, tol))
         self._create_assertion_node(validator)
 
@@ -153,12 +208,39 @@ class AssertionReady:
         self._create_assertion_node(validator)
 
     def is_eq(self, other: float, tol: float = functions.EPSILON) -> None:
-        """Assert that the expression equals the given value within tolerance."""
+        """
+        Assert that the expression equals the given value within tolerance.
+
+        Args:
+            other: Target value to compare the expression against.
+            tol: Absolute tolerance for the comparison; defaults to functions.EPSILON.
+        """
         validator = SymbolicValidator(f"= {other}", lambda x: functions.is_eq(x, other, tol))
         self._create_assertion_node(validator)
 
+    def is_neq(self, other: float, tol: float = functions.EPSILON) -> None:
+        """
+        Assert that the expression is not equal to a specified value, allowing for a tolerance.
+
+        Args:
+            other: The value to compare against.
+            tol: Allowed tolerance; values within `tol` of `other` are considered equal.
+        """
+        validator = SymbolicValidator(f"≠ {other}", lambda x: functions.is_neq(x, other, tol))
+        self._create_assertion_node(validator)
+
     def is_between(self, lower: float, upper: float, tol: float = functions.EPSILON) -> None:
-        """Assert that the expression is between two values (inclusive)."""
+        """
+        Assert that the expression lies within the inclusive interval [lower, upper].
+
+        Args:
+            lower: Lower bound of the allowed interval.
+            upper: Upper bound of the allowed interval.
+            tol: Numeric tolerance applied to the comparison; values within `tol` of a boundary are considered inside.
+
+        Raises:
+            ValueError: If `lower` is greater than `upper`.
+        """
         if lower > upper:
             raise ValueError(
                 f"Invalid range: lower bound ({lower}) must be less than or equal to upper bound ({upper})"
@@ -173,17 +255,48 @@ class AssertionReady:
         self._create_assertion_node(validator)
 
     def is_positive(self, tol: float = functions.EPSILON) -> None:
-        """Assert that the expression is positive."""
+        """
+        Create an assertion that the expression is greater than zero.
+
+        Args:
+            tol: Comparison tolerance; values greater than `tol` are considered positive.
+        """
         validator = SymbolicValidator("> 0", lambda x: functions.is_positive(x, tol))
         self._create_assertion_node(validator)
 
+    def is_none(self) -> None:
+        """
+        Create an assertion that the expression is None.
+        """
+        validator = SymbolicValidator("is None", lambda x: x is None)
+        self._create_assertion_node(validator)
+
+    def is_not_none(self) -> None:
+        """Assert that the expression does not evaluate to None."""
+        validator = SymbolicValidator("is not None", lambda x: x is not None)
+        self._create_assertion_node(validator)
+
     def noop(self) -> None:
-        """Assert that does nothing - only collects the metric value."""
+        """
+        Create an assertion that records the metric for the current check without performing any validation.
+
+        This assertion collects the underlying metric value but does not evaluate or change the check's pass/fail status.
+        """
         validator = SymbolicValidator("", lambda x: True)
         self._create_assertion_node(validator)
 
     def _create_assertion_node(self, validator: SymbolicValidator) -> None:
-        """Create a new assertion node and attach it to the current check."""
+        """
+        Attach the given SymbolicValidator as a new assertion node to the currently active check.
+
+        If the context is not set, this call is a no-op. If there is no active check, a DQXError is raised.
+
+        Args:
+            validator: The validator that defines the assertion to attach.
+
+        Raises:
+            DQXError: If no active check is present in the current context.
+        """
         if self._context is None:
             return
 
@@ -200,6 +313,10 @@ class AssertionReady:
             name=self._name,  # Always has a name now!
             severity=self._severity,
             tags=self._tags,
+            experimental=self._experimental,
+            required=self._required,
+            cost_fp=self._cost_fp,
+            cost_fn=self._cost_fn,
             validator=validator,
         )
 
@@ -346,19 +463,22 @@ class VerificationSuite:
         log_level: int | str = logging.INFO,
         data_av_threshold: float = 0.9,
         profiles: Sequence[Profile] | None = None,
+        tunables: Sequence["Tunable"] | None = None,
     ) -> None:
         """
-        Initialize the verification suite.
+        Initialize a VerificationSuite that orchestrates and evaluates a set of data quality checks.
 
         Args:
-            checks: Sequence of check functions to execute
-            db: Database for storing and retrieving metrics
-            name: Human-readable name for the suite
-            data_av_threshold: Minimum data availability to evaluate assertions (default: 0.9)
-            profiles: Optional sequence of profiles for modifying assertion behavior
+            checks: Sequence of check callables to execute; each will be invoked to populate the suite's verification graph.
+            db: Storage backend for producing and retrieving metrics used by checks and analysis.
+            name: Human-readable name for the suite; must be non-empty.
+            log_level: Logging level for the suite (default: logging.INFO).
+            data_av_threshold: Minimum fraction of available data required to evaluate assertions (default: 0.9).
+            profiles: Optional profiles that alter assertion evaluation behavior.
+            tunables: Optional tunable parameters exposed for external agents; names must be unique.
 
         Raises:
-            DQXError: If no checks provided or name is empty
+            DQXError: If no checks are provided, the suite name is empty, or duplicate tunable names are supplied.
         """
         # Setting up the logger
         setup_logger(level=log_level)
@@ -404,6 +524,14 @@ class VerificationSuite:
         # Store profiles for evaluation
         self._profiles: list[Profile] = list(profiles) if profiles else []
 
+        # Store tunables for RL agent integration
+        self._tunables: dict[str, Tunable] = {}
+        if tunables:
+            for t in tunables:
+                if t.name in self._tunables:
+                    raise DQXError(f"Duplicate tunable name: {t.name}")
+                self._tunables[t.name] = t
+
     @property
     def execution_id(self) -> str:
         """
@@ -446,16 +574,16 @@ class VerificationSuite:
     @property
     def analysis_reports(self) -> AnalysisReport:
         """
-        Access the analysis reports generated by the suite.
+        Access the analysis report generated by the suite.
 
-        This property provides read-only access to the analysis reports
-        generated for each datasource after the suite has been run.
+        This property provides read-only access to the analysis report
+        generated after the suite has been run.
 
         Returns:
-            dict[str, AnalysisReport]: Mapping of datasource names to their analysis reports
+            AnalysisReport: The analysis report containing metric values and symbol evaluations.
 
         Raises:
-            DQXError: If accessed before the suite has been run
+            DQXError: If accessed before the suite has been run.
         """
         self.assert_is_evaluated()
         return self._analysis_reports
@@ -475,17 +603,19 @@ class VerificationSuite:
     @property
     def metrics_stats(self) -> "MetricStats":
         """
-        Get the cached metrics statistics.
+        Retrieve cached metrics statistics for the suite.
 
         Returns:
-            MetricStats instance containing total and expired metric counts
+            MetricStats: Total and expired metric counts.
 
         Raises:
-            DQXError: If accessed before the suite has been run
+            DQXError: If the suite has not been evaluated or metrics stats are unavailable.
         """
         self.assert_is_evaluated()
         if self._metrics_stats is None:
-            raise DQXError("Metrics stats not available. This should not happen after successful run().")
+            raise DQXError(
+                "Metrics stats not available. This should not happen after successful run()."
+            )  # pragma: no cover
         return self._metrics_stats
 
     @property
@@ -503,19 +633,16 @@ class VerificationSuite:
     @property
     def key(self) -> ResultKey:
         """
-        Return the ResultKey used during the last run() call.
-
-        The ResultKey stores information about the time period and tags used
-        during the verification suite execution.
+        Get the ResultKey produced by the last successful run of the suite.
 
         Returns:
-            ResultKey instance used during the last run() call
+            ResultKey: The ResultKey for the most recent run.
 
         Raises:
-            DQXError: If called before run() has been executed successfully
+            DQXError: If the suite has not been run yet and no ResultKey is available.
         """
         if self._key is None:
-            raise DQXError("No ResultKey available. This should not happen after successful run().")
+            raise DQXError("No ResultKey available. This should not happen after successful run().")  # pragma: no cover
         return self._key
 
     @property
@@ -551,26 +678,87 @@ class VerificationSuite:
         if not self._is_evaluated:
             raise DQXError("Verification suite has not been executed yet!")
 
-    def build_graph(self, context: Context, key: ResultKey) -> None:
-        """
-        Build the dependency graph by executing all checks without running analysis.
+    # -------------------------------------------------------------------------
+    # Tunable API for RL agent integration
+    # -------------------------------------------------------------------------
 
-        This method:
-        1. Executes all check functions to populate the graph with assertions
-        2. Validates the graph structure for errors or warnings
-        3. Raises DQXError if validation fails
+    def get_tunable_params(self) -> list[dict[str, Any]]:
+        """
+        List all tunable parameters available for the suite's reinforcement-learning action space.
+
+        Returns:
+            list[dict[str, Any]]: A list of dictionaries where each dictionary describes a tunable and includes keys such as:
+                - "name": the tunable's identifier
+                - "type": the tunable's data or semantic type (e.g., "percent", "int", "categorical")
+                - "value": the current value
+                - "bounds" or "choices": numeric bounds as a (min, max) tuple for continuous tunables or an iterable of allowed choices for categorical tunables
+        """
+        return [t.to_dict() for t in self._tunables.values()]
+
+    def get_param(self, name: str) -> Any:
+        """
+        Retrieve the current value of a tunable parameter.
 
         Args:
-            context: The execution context containing the graph
-            key: The result key defining the time period and tags
+            name: Name of the tunable parameter.
+
+        Returns:
+            The current value of the tunable.
 
         Raises:
-            DQXError: If validation fails or duplicate checks are found
+            KeyError: If a tunable with the given name does not exist.
+        """
+        if name not in self._tunables:
+            raise KeyError(f"Tunable '{name}' not found. Available: {list(self._tunables.keys())}")
+        return self._tunables[name].value
 
-        Example:
-            >>> suite = VerificationSuite(checks, db, "My Suite")
-            >>> key = ResultKey(date.today(), {"env": "prod"})
-            >>> suite.build_graph(suite._context, key)
+    def set_param(self, name: str, value: Any, agent: str = "human", reason: str | None = None) -> None:
+        """
+        Update the value of a tunable and record the change in its history.
+
+        Args:
+            name: Name of the tunable parameter to update.
+            value: New value to assign to the tunable; must satisfy the tunable's constraints.
+            agent: Identifier of who made the change (e.g., "human", "rl_optimizer", "autotuner").
+            reason: Optional human-readable explanation for the change.
+
+        Raises:
+            KeyError: If no tunable with the given name exists.
+            ValueError: If the provided value violates the tunable's validation rules or bounds.
+        """
+        if name not in self._tunables:
+            raise KeyError(f"Tunable '{name}' not found. Available: {list(self._tunables.keys())}")
+        self._tunables[name].set(value, agent=agent, reason=reason)
+
+    def get_param_history(self, name: str) -> list[TunableChange]:
+        """
+        Return the change history for a named tunable parameter.
+
+        Args:
+            name: Name of the tunable parameter.
+
+        Returns:
+            list[TunableChange]: List of TunableChange records for the specified tunable.
+
+        Raises:
+            KeyError: If a tunable with the given name does not exist.
+        """
+        if name not in self._tunables:
+            raise KeyError(f"Tunable '{name}' not found. Available: {list(self._tunables.keys())}")
+        return self._tunables[name].history
+
+    def build_graph(self, context: Context, key: ResultKey) -> None:
+        """
+        Populate the execution graph by running all registered checks and validate it.
+
+        Runs each check to add nodes and assertions into the provided Context's graph, then validates the assembled graph using SuiteValidator. If validation reports errors a DQXError is raised; validation warnings are emitted to the logger.
+
+        Args:
+            context: Execution context that holds the graph and provider.
+            key: Result key identifying the run (reserved for future use).
+
+        Raises:
+            DQXError: If the graph validation reports errors.
         """
         # Execute all checks to collect assertions
         for check in self._checks:
@@ -601,18 +789,15 @@ class VerificationSuite:
 
     def run(self, datasources: list[SqlDataSource], key: ResultKey, *, enable_plugins: bool = True) -> None:
         """
-        Execute the verification suite against the provided data sources.
+        Run the verification suite against the given data sources and produce evaluation results stored on the suite.
 
         Args:
-            datasources: List of data sources to analyze
-            key: Result key defining the time period and tags
-            enable_plugins: Whether to execute plugins after validation (default True)
-
-        Returns:
-            Context containing the execution results
+            datasources: Data sources to analyze.
+            key: Result key that defines the time period and associated tags for this run.
+            enable_plugins: If True, execute registered plugins after evaluation (default True).
 
         Raises:
-            DQXError: If no data sources provided or suite already executed
+            DQXError: If no data sources are provided or the suite has already been executed.
         """
 
         # Prevent multiple runs
@@ -660,7 +845,7 @@ class VerificationSuite:
         )
 
         # Cleanup expired metrics before analysis
-        if self._metrics_stats.expired_metrics > 0:
+        if self._metrics_stats.expired_metrics > 0:  # pragma: no cover
             logger.info("Cleaning up expired metrics...")
             self.cleanup_expired_metrics()
 
@@ -682,34 +867,15 @@ class VerificationSuite:
 
     def collect_results(self) -> list[AssertionResult]:
         """
-        Collect all assertion results after suite execution.
+        Collect all assertion results produced by the most recent run of the suite.
 
-        This method traverses the evaluation graph and extracts results from
-        all assertions, converting them into AssertionResult objects suitable
-        for persistence or reporting. The ResultKey used during run() is
-        automatically applied to all results.
-
-        Results are cached after the first call, so subsequent calls return
-        the same object reference for efficiency.
+        Traverses the suite's evaluation graph and returns a list of AssertionResult objects—one per assertion—using the ResultKey from the last run. The returned list is cached and subsequent calls return the same list object.
 
         Returns:
-            List of AssertionResult instances, one for each assertion in the suite.
-            Results are returned in graph traversal order (breadth-first).
+            List[AssertionResult]: AssertionResult instances for each assertion in graph traversal order.
 
         Raises:
-            DQXError: If called before run() has been executed successfully.
-
-        Example:
-            >>> suite = VerificationSuite(checks, db, "My Suite")
-            >>> datasources = [DuckRelationDataSource.from_arrow(data, "my_data")]
-            >>> suite.run(datasources, key)
-            >>> results = suite.collect_results()  # No key needed!
-            >>> for r in results:
-            ...     print(f"{r.check}/{r.assertion}: {r.status}")
-            ...     if r.status == "FAILED":
-            ...         failures = r.value.failure()
-            ...         for f in failures:
-            ...             print(f"  Error: {f.error_message}")
+            DQXError: If the suite has not been evaluated (run) yet.
         """
         # Only collect results after evaluation
         self.assert_is_evaluated()
@@ -740,6 +906,10 @@ class VerificationSuite:
                 expression=f"{assertion.actual} {assertion.validator.name}",
                 tags=key.tags,
                 assertion_tags=assertion.tags,
+                experimental=assertion.experimental,
+                required=assertion.required,
+                cost_fp=assertion.cost_fp,
+                cost_fn=assertion.cost_fn,
             )
             results.append(result)
 

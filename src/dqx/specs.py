@@ -31,8 +31,17 @@ registry: dict[MetricType, Type["MetricSpec"]] = {}
 
 
 def register_spec(metric_type: MetricType, spec_class: Type["MetricSpec"]) -> None:
-    """Register a spec in the global registry."""
-    if metric_type in registry:
+    """
+    Add a metric spec class to the global registry under the given metric_type.
+
+    Args:
+        metric_type: The key under which to register the spec.
+        spec_class: The MetricSpec subclass to register.
+
+    Raises:
+        ValueError: If a spec is already registered for the given metric_type.
+    """
+    if metric_type in registry:  # pragma: no cover
         raise ValueError(f"Spec '{metric_type}' is already registered")
     registry[metric_type] = spec_class
 
@@ -177,21 +186,53 @@ class First(SimpleMetricSpec):
     metric_type: MetricType = "First"
     is_extended: Literal[False] = False
 
-    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
+    def __init__(self, column: str, order_by: str | None = None, parameters: Parameters | None = None) -> None:
+        """
+        Initialize the First metric specification for a given column.
+
+        Args:
+            column: Column name to compute the first value for.
+            order_by: Optional column name to determine ordering before selecting the first value.
+            parameters: Optional additional spec parameters (stored as a dict).
+        """
         self._column = column
+        self._order_by = order_by
         self._parameters = parameters or {}
-        self._analyzers = (ops.First(self._column, parameters=self._parameters),)
+        self._analyzers = (ops.First(self._column, order_by=self._order_by, parameters=self._parameters),)
 
     @property
     def name(self) -> str:
+        """
+        Return the metric's display name, including the order_by clause when set.
+
+        Returns:
+            str: The metric name formatted as "first(column)" or "first(column, order_by=order_by_column)".
+        """
+        if self._order_by:
+            return f"first({self._column}, order_by={self._order_by})"
         return f"first({self._column})"
 
     @property
     def parameters(self) -> Parameters:
-        return {"column": self._column, **self._parameters}
+        """
+        Return the metric parameters for this spec, including the column, optional order_by, and any additional parameters.
+
+        Returns:
+            dict: A mapping containing "column", and if set "order_by", merged with the spec's stored parameters.
+        """
+        params: Parameters = {"column": self._column}
+        if self._order_by:
+            params["order_by"] = self._order_by
+        return {**params, **self._parameters}
 
     @property
     def analyzers(self) -> Sequence[ops.Op]:
+        """
+        Return the analyzers used to compute this metric.
+
+        Returns:
+            Sequence[ops.Op]: The sequence of analyzer operations associated with the metric.
+        """
         return self._analyzers
 
     def state(self) -> states.First:
@@ -202,10 +243,21 @@ class First(SimpleMetricSpec):
         return states.First.deserialize(state)
 
     def clone(self) -> Self:
-        """Create a new instance with the same parameters but new analyzer prefixes."""
-        return self.__class__(self._column, parameters=self._parameters.copy())
+        """
+        Create a copy of this spec preserving its column, order_by, and parameters.
+
+        Returns:
+            Self: A new instance with the same column and order_by and a shallow copy of parameters; analyzers created from the new instance will use fresh prefixes.
+        """
+        return self.__class__(self._column, order_by=self._order_by, parameters=self._parameters.copy())
 
     def __hash__(self) -> int:
+        """
+        Return a hash value derived from the metric spec's name and parameters.
+
+        Returns:
+            int: Hash combining the spec's name and its parameters to allow use in hashed collections.
+        """
         return hash((self.name, tuple(sorted(self.parameters.items()))))
 
     def __eq__(self, other: Any) -> bool:

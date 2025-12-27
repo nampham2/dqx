@@ -120,3 +120,70 @@ def test_is_between() -> None:
     assert functions.is_between(3, -5, 5) is True
     assert functions.is_between(-6, -5, 5) is False
     assert functions.is_between(6, -5, 5) is False
+
+
+def test_is_neq() -> None:
+    """Test is_neq function - not equal comparison."""
+    # Basic inequality
+    assert functions.is_neq(1.0, 2.0) is True
+    assert functions.is_neq(2.0, 1.0) is True
+
+    # Equal values should return False
+    assert functions.is_neq(1.0, 1.0) is False
+
+    # Within tolerance should be considered equal (return False)
+    assert functions.is_neq(1.0, 1.0 + functions.EPSILON * 0.5) is False
+
+    # Outside tolerance should be considered not equal (return True)
+    assert functions.is_neq(1.0, 1.0 + functions.EPSILON * 2) is True
+
+    # Custom tolerance
+    assert functions.is_neq(1.0, 1.05, tol=0.1) is False  # Within 0.1 tolerance
+    assert functions.is_neq(1.0, 1.15, tol=0.1) is True  # Outside 0.1 tolerance
+
+
+def test_coalesce() -> None:
+    """Test coalesce function - returns first non-None value."""
+    import sympy as sp
+
+    # Basic usage with concrete values
+    result = functions.coalesce(5, 0)
+    assert float(result) == 5
+
+    # First value is concrete
+    result = functions.coalesce(10, 20, 30)
+    assert float(result) == 10
+
+    # With sympy numbers
+    result = functions.coalesce(sp.Integer(42), sp.Integer(0))
+    assert float(result) == 42
+
+    # Zero is a valid non-None value
+    result = functions.coalesce(0, 10)
+    assert float(result) == 0
+
+    # With symbols - should remain unevaluated
+    x = sp.Symbol("x")
+    result = functions.coalesce(x, 0)
+    assert result.has(x)  # Contains the symbol
+
+    # None is skipped to return first valid value
+    result = functions.coalesce(None, 5)
+    assert float(result) == 5
+
+    result = functions.coalesce(None, None, 10)
+    assert float(result) == 10
+
+    # All None/NaN values should return NaN
+    result = functions.coalesce(None, None)
+    assert result == sp.S.NaN
+
+    result = functions.coalesce(sp.S.NaN, None)
+    assert result == sp.S.NaN
+
+    result = functions.coalesce(None, sp.S.NaN, None)
+    assert result == sp.S.NaN
+
+    # Error on empty args
+    with pytest.raises(DQXError, match="coalesce requires at least one argument"):
+        functions.coalesce()

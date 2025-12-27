@@ -279,8 +279,52 @@ class TestMetricProvider:
         assert isinstance(registered.metric_spec, specs.First)
         assert registered.metric_spec.parameters["column"] == column
 
+    def test_first_with_order_by(self, provider: MetricProvider) -> None:
+        """Test first() method with order_by parameter."""
+        column = "value"
+        order_by = "timestamp"
+
+        result = provider.first(column, order_by=order_by)
+
+        assert isinstance(result, sp.Symbol)
+        registered = provider.get_symbol(result)
+        assert registered.name == "first(value, order_by=timestamp)"
+        assert registered.lag == 0
+        assert registered.dataset is None
+        assert isinstance(registered.metric_spec, specs.First)
+        assert registered.metric_spec.parameters["column"] == column
+        assert registered.metric_spec.parameters["order_by"] == order_by
+
+    def test_first_with_order_by_and_lag(self, provider: MetricProvider) -> None:
+        """Test first() method with order_by and lag parameters."""
+        column = "value"
+        order_by = "timestamp"
+        lag = 3
+        dataset = "orders"
+
+        result = provider.first(column, lag=lag, dataset=dataset, order_by=order_by)
+
+        assert isinstance(result, sp.Symbol)
+        registered = provider.get_symbol(result)
+        assert registered.name == "first(value, order_by=timestamp)"
+        assert registered.lag == lag
+        assert registered.dataset == dataset
+        assert isinstance(registered.metric_spec, specs.First)
+        assert registered.metric_spec.parameters["column"] == column
+        assert registered.metric_spec.parameters["order_by"] == order_by
+
+    def test_first_without_order_by_has_no_order_by_in_params(self, provider: MetricProvider) -> None:
+        """Test first() without order_by doesn't have order_by in parameters."""
+        result = provider.first("value")
+        registered = provider.get_symbol(result)
+        assert "order_by" not in registered.metric_spec.parameters
+
     def test_average(self, provider: MetricProvider) -> None:
-        """Test average() method."""
+        """
+        Verifies that MetricProvider.average registers an Average metric and records the correct properties.
+
+        Asserts that the returned value is a Symbol, that the registered metric has name "average(test_column)", lag 2, dataset "sales", and a metric_spec of type specs.Average.
+        """
         column = "test_column"
         lag = 2
         dataset = "sales"
@@ -1142,3 +1186,17 @@ class TestExtendedMetricProviderProperties:
         assert provider.get_symbol(dod).dataset is None
         assert provider.get_symbol(wow).dataset is None
         assert provider.get_symbol(stddev).dataset is None
+
+
+class TestMetricProviderCache:
+    """Tests for MetricProvider cache methods."""
+
+    def test_flush_cache_returns_count(self) -> None:
+        """Test flush_cache returns number of flushed entries."""
+        db = InMemoryMetricDB()
+        provider = MetricProvider(db, "test-exec", data_av_threshold=0.8)
+
+        # flush_cache should return an integer (0 if nothing to flush)
+        count = provider.flush_cache()
+        assert isinstance(count, int)
+        assert count >= 0

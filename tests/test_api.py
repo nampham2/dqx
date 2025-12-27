@@ -2,6 +2,7 @@ import datetime
 
 import pytest
 import sympy as sp
+from returns.result import Success
 
 from dqx.api import Context, MetricProvider, VerificationSuite, check
 from dqx.common import DQXError, ResultKey
@@ -693,6 +694,430 @@ def test_assertion_tags_via_where() -> None:
     assert untagged.tags == frozenset()
 
 
+def test_experimental_annotation_via_where() -> None:
+    """Experimental annotation can be specified via the where() method."""
+    db = InMemoryMetricDB()
+    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+    @check(name="Test Check")
+    def test_check(mp: MetricProvider, ctx: Context) -> None:
+        """
+        Registers two assertions: one marked experimental and one production, both checking their metric is greater than zero.
+
+        The first assertion targets symbol "x" and is annotated experimental=True; the second targets symbol "y" and uses the default (production) annotation.
+        """
+        ctx.assert_that(sp.Symbol("x")).where(
+            name="Experimental assertion",
+            experimental=True,
+        ).is_gt(0)
+
+        ctx.assert_that(sp.Symbol("y")).where(
+            name="Production assertion",
+        ).is_gt(0)
+
+    # Build the graph
+    root = context._graph.root
+    check_node = root.add_check("Test Check")
+    with context.check_context(check_node):
+        test_check(context._provider, context)
+
+    # Get assertions
+    assertions = list(context._graph.assertions())
+    assert len(assertions) == 2
+
+    experimental = next(a for a in assertions if a.name == "Experimental assertion")
+    production = next(a for a in assertions if a.name == "Production assertion")
+
+    assert experimental.experimental is True
+    assert production.experimental is False
+
+
+def test_experimental_annotation_in_assertion_result() -> None:
+    """Experimental annotation should be included in AssertionResult."""
+    from dqx.common import AssertionResult
+
+    # Check that AssertionResult has experimental field with default False
+    result = AssertionResult(
+        yyyy_mm_dd=datetime.date.today(),
+        suite="test",
+        check="test_check",
+        assertion="test_assertion",
+        severity="P1",
+        status="PASSED",
+        metric=Success(1.0),
+    )
+    assert result.experimental is False
+
+    # Check that experimental can be set to True
+    result_experimental = AssertionResult(
+        yyyy_mm_dd=datetime.date.today(),
+        suite="test",
+        check="test_check",
+        assertion="test_assertion",
+        severity="P1",
+        status="PASSED",
+        metric=Success(1.0),
+        experimental=True,
+    )
+    assert result_experimental.experimental is True
+
+
+def test_required_annotation_via_where() -> None:
+    """Required annotation can be specified via the where() method."""
+    db = InMemoryMetricDB()
+    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+    @check(name="Test Check")
+    def test_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(sp.Symbol("x")).where(
+            name="Required assertion",
+            required=True,
+        ).is_gt(0)
+
+        ctx.assert_that(sp.Symbol("y")).where(
+            name="Non-required assertion",
+        ).is_gt(0)
+
+    # Build the graph
+    root = context._graph.root
+    check_node = root.add_check("Test Check")
+    with context.check_context(check_node):
+        test_check(context._provider, context)
+
+    # Get assertions
+    assertions = list(context._graph.assertions())
+    assert len(assertions) == 2
+
+    required = next(a for a in assertions if a.name == "Required assertion")
+    non_required = next(a for a in assertions if a.name == "Non-required assertion")
+
+    assert required.required is True
+    assert non_required.required is False
+
+
+def test_cost_annotation_via_where() -> None:
+    """Cost annotation can be specified via the where() method."""
+    db = InMemoryMetricDB()
+    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+    @check(name="Test Check")
+    def test_check(mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(sp.Symbol("x")).where(
+            name="Assertion with cost",
+            cost={"fp": 1.0, "fn": 100.0},
+        ).is_gt(0)
+
+        ctx.assert_that(sp.Symbol("y")).where(
+            name="Assertion without cost",
+        ).is_gt(0)
+
+    # Build the graph
+    root = context._graph.root
+    check_node = root.add_check("Test Check")
+    with context.check_context(check_node):
+        test_check(context._provider, context)
+
+    # Get assertions
+    assertions = list(context._graph.assertions())
+    assert len(assertions) == 2
+
+    with_cost = next(a for a in assertions if a.name == "Assertion with cost")
+    without_cost = next(a for a in assertions if a.name == "Assertion without cost")
+
+    assert with_cost.cost_fp == 1.0
+    assert with_cost.cost_fn == 100.0
+    assert without_cost.cost_fp is None
+    assert without_cost.cost_fn is None
+
+
+def test_cost_validation_requires_dict() -> None:
+    """
+    Verifies that specifying a non-dict cost in an assertion raises a ValueError.
+
+    This test ensures where(..., cost=...) requires a dict containing 'fp' and 'fn'.
+
+    Raises:
+        ValueError: if cost is not a dict with 'fp' and 'fn' keys.
+    """
+    db = InMemoryMetricDB()
+    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+    # Not a dict (tuple)
+    with pytest.raises(ValueError, match="cost must be a dict with 'fp' and 'fn' keys"):
+        context.assert_that(sp.Symbol("x")).where(
+            name="Test",
+            cost=(1.0, 100.0),  # type: ignore[arg-type]
+        )
+
+
+def test_cost_validation_requires_both_fp_and_fn() -> None:
+    """Cost must have exactly 'fp' and 'fn' keys."""
+    db = InMemoryMetricDB()
+    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+    # Missing fn
+    with pytest.raises(ValueError, match="must have exactly 'fp' and 'fn' keys"):
+        context.assert_that(sp.Symbol("x")).where(
+            name="Test",
+            cost={"fp": 1.0},
+        )
+
+    # Extra key
+    with pytest.raises(ValueError, match="must have exactly 'fp' and 'fn' keys"):
+        context.assert_that(sp.Symbol("x")).where(
+            name="Test",
+            cost={"fp": 1.0, "fn": 2.0, "extra": 3.0},
+        )
+
+
+def test_cost_validation_numeric() -> None:
+    """Cost values must be numeric."""
+    db = InMemoryMetricDB()
+    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+    # String values
+    with pytest.raises(ValueError, match="cost values must be numeric"):
+        context.assert_that(sp.Symbol("x")).where(
+            name="Test",
+            cost={"fp": "high", "fn": 100.0},  # type: ignore[dict-item]
+        )
+
+
+def test_cost_validation_non_negative() -> None:
+    """Cost values must be non-negative."""
+    db = InMemoryMetricDB()
+    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+    # Negative fp
+    with pytest.raises(ValueError, match="cost values must be non-negative"):
+        context.assert_that(sp.Symbol("x")).where(
+            name="Test",
+            cost={"fp": -1.0, "fn": 100.0},
+        )
+
+    # Negative fn
+    with pytest.raises(ValueError, match="cost values must be non-negative"):
+        context.assert_that(sp.Symbol("x")).where(
+            name="Test",
+            cost={"fp": 1.0, "fn": -100.0},
+        )
+
+
+def test_required_and_cost_in_assertion_result() -> None:
+    """Required and cost annotations should be included in AssertionResult."""
+    from dqx.common import AssertionResult
+
+    # Check defaults
+    result = AssertionResult(
+        yyyy_mm_dd=datetime.date.today(),
+        suite="test",
+        check="test_check",
+        assertion="test_assertion",
+        severity="P1",
+        status="PASSED",
+        metric=Success(1.0),
+    )
+    assert result.required is False
+    assert result.cost_fp is None
+    assert result.cost_fn is None
+
+    # Check with values set
+    result_with_annotations = AssertionResult(
+        yyyy_mm_dd=datetime.date.today(),
+        suite="test",
+        check="test_check",
+        assertion="test_assertion",
+        severity="P0",
+        status="PASSED",
+        metric=Success(1.0),
+        required=True,
+        cost_fp=5.0,
+        cost_fn=200.0,
+    )
+    assert result_with_annotations.required is True
+    assert result_with_annotations.cost_fp == 5.0
+    assert result_with_annotations.cost_fn == 200.0
+
+
+class TestNewAssertionMethods:
+    """Tests for new assertion methods: is_neq, is_none, is_not_none."""
+
+    def test_assertion_ready_has_is_neq(self) -> None:
+        """AssertionReady should have is_neq method."""
+        from dqx.api import AssertionReady
+
+        expr = sp.Symbol("x")
+        ready = AssertionReady(actual=expr, name="Test assertion", context=None)
+        assert hasattr(ready, "is_neq")
+
+    def test_assertion_ready_has_is_none(self) -> None:
+        """AssertionReady should have is_none method."""
+        from dqx.api import AssertionReady
+
+        expr = sp.Symbol("x")
+        ready = AssertionReady(actual=expr, name="Test assertion", context=None)
+        assert hasattr(ready, "is_none")
+
+    def test_assertion_ready_has_is_not_none(self) -> None:
+        """AssertionReady should have is_not_none method."""
+        from dqx.api import AssertionReady
+
+        expr = sp.Symbol("x")
+        ready = AssertionReady(actual=expr, name="Test assertion", context=None)
+        assert hasattr(ready, "is_not_none")
+
+    def test_is_neq_assertion_workflow(self) -> None:
+        """Test is_neq assertion in complete workflow."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        @check(name="Not Equal Check")
+        def neq_check(mp: MetricProvider, ctx: Context) -> None:
+            """
+            Create two "not equal" assertions for metrics 'x' and 'y' and verify the current check contains two children with the expected names.
+
+            This function registers an assertion that `x` is not equal to 0 (named "X is not zero") and an assertion that `y` is not equal to 100 (named "Y is not 100"), then asserts that the context's current check exists and has exactly those two child assertions in order.
+            """
+            ctx.assert_that(sp.Symbol("x")).where(name="X is not zero").is_neq(0)
+            ctx.assert_that(sp.Symbol("y")).where(name="Y is not 100").is_neq(100)
+
+            assert ctx.current_check is not None
+            assert len(ctx.current_check.children) == 2
+            assert ctx.current_check.children[0].name == "X is not zero"
+            assert ctx.current_check.children[1].name == "Y is not 100"
+
+        suite = VerificationSuite([neq_check], db, "test")
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+        suite.build_graph(context, key=key)
+
+    def test_is_neq_validator_description(self) -> None:
+        """Test is_neq creates correct validator description."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        @check(name="Validator Check")
+        def val_check(mp: MetricProvider, ctx: Context) -> None:
+            ctx.assert_that(sp.Symbol("x")).where(name="Test neq").is_neq(42)
+
+            assert ctx.current_check is not None
+            assertion = ctx.current_check.children[0]
+            assert "\u2260 42" in assertion.validator.name  # ≠ symbol
+
+        suite = VerificationSuite([val_check], db, "test")
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+        suite.build_graph(context, key=key)
+
+    def test_is_none_assertion_workflow(self) -> None:
+        """Test is_none assertion in complete workflow."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        @check(name="None Check")
+        def none_check(mp: MetricProvider, ctx: Context) -> None:
+            """
+            Create a verification check that asserts the metric `x` is None and validate the resulting check node.
+
+            This registers an assertion via the provided Context: it converts an assertion draft for `x` into a ready assertion named "X is None", executes the `is_none()` assertion, and then verifies that `ctx.current_check` exists, contains exactly one child, and that the child's name equals "X is None".
+
+            Parameters:
+                mp (MetricProvider): Provider used to register or resolve metrics (unused by this helper but required by test harness).
+                ctx (Context): Execution context in which the check and assertion are created and validated.
+            """
+            ctx.assert_that(sp.Symbol("x")).where(name="X is None").is_none()
+
+            assert ctx.current_check is not None
+            assert len(ctx.current_check.children) == 1
+            assert ctx.current_check.children[0].name == "X is None"
+
+        suite = VerificationSuite([none_check], db, "test")
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+        suite.build_graph(context, key=key)
+
+    def test_is_none_validator_description(self) -> None:
+        """Test is_none creates correct validator description."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        @check(name="Validator Check")
+        def val_check(mp: MetricProvider, ctx: Context) -> None:
+            """
+            Create an 'is None' assertion named "Test none" for symbol "x" in the provided context and verify the created assertion's validator name contains "is None".
+
+            This function registers the assertion via ctx.assert_that(...).where(...).is_none(), then inspects ctx.current_check to ensure a child assertion was created and that its validator description includes the text "is None".
+            """
+            ctx.assert_that(sp.Symbol("x")).where(name="Test none").is_none()
+
+            assert ctx.current_check is not None
+            assertion = ctx.current_check.children[0]
+            assert "is None" in assertion.validator.name
+
+        suite = VerificationSuite([val_check], db, "test")
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+        suite.build_graph(context, key=key)
+
+    def test_is_not_none_assertion_workflow(self) -> None:
+        """Test is_not_none assertion in complete workflow."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        @check(name="Not None Check")
+        def not_none_check(mp: MetricProvider, ctx: Context) -> None:
+            ctx.assert_that(sp.Symbol("x")).where(name="X is not None").is_not_none()
+
+            assert ctx.current_check is not None
+            assert len(ctx.current_check.children) == 1
+            assert ctx.current_check.children[0].name == "X is not None"
+
+        suite = VerificationSuite([not_none_check], db, "test")
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+        suite.build_graph(context, key=key)
+
+    def test_is_not_none_validator_description(self) -> None:
+        """Test is_not_none creates correct validator description."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        @check(name="Validator Check")
+        def val_check(mp: MetricProvider, ctx: Context) -> None:
+            ctx.assert_that(sp.Symbol("x")).where(name="Test not none").is_not_none()
+
+            assert ctx.current_check is not None
+            assertion = ctx.current_check.children[0]
+            assert "is not None" in assertion.validator.name
+
+        suite = VerificationSuite([val_check], db, "test")
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+        suite.build_graph(context, key=key)
+
+    def test_is_neq_with_tolerance(self) -> None:
+        """Test is_neq with custom tolerance."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        @check(name="Tolerance Check")
+        def tol_check(mp: MetricProvider, ctx: Context) -> None:
+            # Default tolerance
+            """
+            Create two "not equal" assertions on symbols using default and custom tolerance.
+
+            This registers an assertion named "Default tol" that checks symbol `x` is not equal to 0 using the provider's default tolerance, and an assertion named "Custom tol" that checks symbol `y` is not equal to 0 using a tolerance of 0.1. After registration, the current check is expected to contain exactly two child assertions.
+
+            Parameters:
+                mp (MetricProvider): Metric provider used to resolve metrics (not modified).
+                ctx (Context): Assertion context where checks are created and stored.
+            """
+            ctx.assert_that(sp.Symbol("x")).where(name="Default tol").is_neq(0)
+            # Custom tolerance
+            ctx.assert_that(sp.Symbol("y")).where(name="Custom tol").is_neq(0, tol=0.1)
+
+            assert ctx.current_check is not None
+            assert len(ctx.current_check.children) == 2
+
+        suite = VerificationSuite([tol_check], db, "test")
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+        suite.build_graph(context, key=key)
+
+
 class TestTagValidation:
     """Tests for tag validation."""
 
@@ -753,3 +1178,83 @@ class TestTagValidation:
 
         with pytest.raises(ValueError, match="alphanumerics, dashes, and underscores"):
             context.assert_that(sp.Symbol("x")).where(name="Test", tags={"invalid tag"})
+
+
+class TestVerificationSuiteValidation:
+    """Tests for VerificationSuite validation errors."""
+
+    def test_empty_checks_raises_error(self) -> None:
+        """Test that empty checks list raises DQXError."""
+        db = InMemoryMetricDB()
+        with pytest.raises(DQXError, match="At least one check must be provided"):
+            VerificationSuite([], db, "Test Suite")
+
+    def test_empty_name_raises_error(self) -> None:
+        """Test that empty name raises DQXError."""
+        db = InMemoryMetricDB()
+
+        @check(name="Test Check")
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
+            ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+
+        with pytest.raises(DQXError, match="Suite name cannot be empty"):
+            VerificationSuite([test_check], db, "")
+
+        with pytest.raises(DQXError, match="Suite name cannot be empty"):
+            VerificationSuite([test_check], db, "   ")
+
+    def test_empty_datasources_raises_error(self) -> None:
+        """
+        Verify that running a VerificationSuite with no data sources raises a DQXError.
+
+        Asserts that calling `VerificationSuite.run()` with an empty list of data sources raises `DQXError` with message containing "No data sources provided".
+        """
+        db = InMemoryMetricDB()
+
+        @check(name="Test Check")
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
+            ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+
+        suite = VerificationSuite([test_check], db, "Test Suite")
+        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
+
+        with pytest.raises(DQXError, match="No data sources provided"):
+            suite.run([], key)
+
+
+class TestContextPendingMetrics:
+    """Tests for Context.pending_metrics filtering."""
+
+    def test_pending_metrics_all(self) -> None:
+        """Test pending_metrics returns all metrics when no dataset specified."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        # Register metrics directly via provider
+        context.provider.num_rows(dataset="dataset1")
+        context.provider.average("price", dataset="dataset2")
+        context.provider.sum("amount", dataset="dataset1")
+
+        # Get all metrics
+        all_metrics = context.pending_metrics()
+        assert len(all_metrics) == 3
+
+    def test_pending_metrics_filtered_by_dataset(self) -> None:
+        """Test pending_metrics filters by dataset."""
+        db = InMemoryMetricDB()
+        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+        # Register metrics directly via provider
+        context.provider.num_rows(dataset="dataset1")
+        context.provider.average("price", dataset="dataset2")
+        context.provider.sum("amount", dataset="dataset1")
+
+        # Get metrics for dataset1 only
+        dataset1_metrics = context.pending_metrics(dataset="dataset1")
+        assert len(dataset1_metrics) == 2
+        assert all(m.dataset == "dataset1" for m in dataset1_metrics)
+
+        # Get metrics for dataset2 only
+        dataset2_metrics = context.pending_metrics(dataset="dataset2")
+        assert len(dataset2_metrics) == 1
+        assert all(m.dataset == "dataset2" for m in dataset2_metrics)

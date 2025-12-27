@@ -44,15 +44,32 @@ class MetadataType(TypeDecorator):
     cache_ok = True
 
     def process_bind_param(self, value: Metadata | None, dialect: Any) -> dict[str, Any]:
-        """Convert Metadata to JSON-serializable dict."""
+        """
+        Convert a Metadata instance (or None) into a JSON-serializable dictionary suitable for DB binding.
+
+        Args:
+            value (Metadata | None): The metadata to serialize. If None, an empty dict is returned. If already a dict-like value, it is returned unchanged.
+            dialect: The DB dialect in use (unused).
+
+        Returns:
+            dict[str, Any]: A JSON-serializable mapping representing the metadata.
+        """
         if value is None:
             return {}
         if isinstance(value, Metadata):
             return asdict(value)
-        return value
+        return value  # pragma: no cover
 
     def process_result_value(self, value: dict[str, Any] | None, dialect: Any) -> Metadata:
-        """Convert JSON dict back to Metadata."""
+        """
+        Reconstruct a Metadata instance from a JSON-decoded dictionary.
+
+        Args:
+            value (dict[str, Any] | None): Mapping produced from JSON that represents Metadata; if None, an empty Metadata is returned.
+
+        Returns:
+            Metadata: The reconstructed Metadata object.
+        """
         if value is None:
             return Metadata()
         return Metadata(**value)

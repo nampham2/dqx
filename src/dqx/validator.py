@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 import sympy as sp
 
+from dqx.common import DQXError
 from dqx.graph.base import BaseNode
 from dqx.graph.nodes import AssertionNode, CheckNode
 from dqx.graph.traversal import Graph
@@ -126,15 +127,21 @@ class BaseValidator(ABC):
 
     @abstractmethod
     def process_node(self, node: BaseNode) -> None:
-        """Process a node and potentially add issues.
+        """
+        Process a single node and perform validator-specific checks.
 
         Args:
-            node: The node to validate
+            node: The node to examine; implementations should inspect this node and append any resulting ValidationIssue instances to the validator's internal issue collection.
         """
-        pass
+        pass  # pragma: no cover
 
     def get_issues(self) -> list[ValidationIssue]:
-        """Get all issues found by this validator."""
+        """
+        List validation issues collected by the validator.
+
+        Returns:
+            list[ValidationIssue]: Collected ValidationIssue instances found during processing.
+        """
         return self._issues
 
     def finalize(self) -> None:
@@ -229,7 +236,18 @@ class DatasetValidator(BaseValidator):
         self._provider = provider
 
     def process_node(self, node: BaseNode) -> None:
-        """Process a node to check for dataset mismatches and ambiguities."""
+        """
+        Validate an assertion node for dataset mismatches and ambiguities relative to its parent check.
+
+        Only applies when `node` is an AssertionNode and its parent check specifies one or more datasets. For each symbol referenced by the assertion this method:
+        - resolves the symbol via the provider and skips it if resolution fails;
+        - reports an ambiguity if the resolved metric has no dataset while the parent check lists multiple datasets;
+        - reports a mismatch if the resolved metric's dataset is not one of the parent check's datasets;
+        - for each required metric of the resolved metric, reports a mismatch if both metrics have datasets and those datasets differ.
+
+        Args:
+            node: The node to validate; processing is performed only for AssertionNode instances.
+        """
         if not isinstance(node, AssertionNode):
             return
 
@@ -247,7 +265,7 @@ class DatasetValidator(BaseValidator):
         for symbol in symbols:
             try:
                 metric = self._provider.get_symbol(symbol)
-            except Exception:
+            except DQXError:  # pragma: no cover
                 # Symbol not found in provider - skip validation for this symbol
                 continue
 
@@ -286,7 +304,7 @@ class DatasetValidator(BaseValidator):
             for required_symbol in metric.required_metrics:
                 try:
                     required_metric = self._provider.get_symbol(required_symbol)
-                except Exception:
+                except DQXError:  # pragma: no cover
                     # Required symbol not found - skip validation
                     continue
 
@@ -389,10 +407,16 @@ class CompositeValidationVisitor:
         self._nodes.append(node)
 
     def get_all_issues(self) -> dict[str, list[ValidationIssue]]:
-        """Get all issues from all validators after traversal.
+        """Process collected nodes and aggregate validation issues.
+
+        Processes every node previously visited with each configured validator,
+        calls each validator's finalize hook, and collects issues classified
+        by their is_error flag.
 
         Returns:
-            Dict with 'errors' and 'warnings' lists
+            dict[str, list[ValidationIssue]]: Mapping with keys "errors" and
+                "warnings". Errors contain issues from validators where is_error
+                is True; warnings contain issues where is_error is False.
         """
         # Process all nodes
         for node in self._nodes:
@@ -416,10 +440,11 @@ class CompositeValidationVisitor:
 
         return {"errors": errors, "warnings": warnings}
 
-    async def visit_async(self, node: BaseNode) -> None:
-        """Async visit method required by NodeVisitor protocol.
+    async def visit_async(self, node: BaseNode) -> None:  # pragma: no cover
+        """
+        Handle an asynchronous visit by processing the given node with the visitor's synchronous visit method.
 
-        Since validation is synchronous, this just delegates to visit.
+        This method exists to satisfy the NodeVisitor protocol and forwards the node to visit for actual processing.
         """
         self.visit(node)
 

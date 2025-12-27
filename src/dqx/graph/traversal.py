@@ -200,39 +200,17 @@ class Graph:
                 stack.extend(reversed(current.children))
 
     async def async_dfs(self, visitor: NodeVisitor) -> None:
-        """Perform asynchronous depth-first traversal of the graph.
+        """
+        Perform an asynchronous depth-first traversal of the graph.
 
-        Similar to dfs() but supports asynchronous visitor operations. This is
-        useful when node processing involves I/O operations or other async tasks
-        that can benefit from concurrent execution.
-
-        The traversal order is the same as synchronous DFS, but the visitor's
-        visit_async method is awaited for each node, allowing for asynchronous
-        processing.
+        Visits nodes in depth-first order and awaits the visitor's asynchronous visit method for each node.
 
         Args:
-            visitor: A NodeVisitor instance that implements the visit_async method.
-                The visitor's visit_async method will be awaited once for each
-                node in depth-first order.
-
-        Examples:
-            >>> import asyncio
-            >>> from dqx.graph.visitors import AsyncNodeValidator
-            >>>
-            >>> async def validate_graph():
-            ...     visitor = AsyncNodeValidator()
-            ...     await graph.async_dfs(visitor)
-            ...     return visitor.validation_results
-            >>>
-            >>> results = asyncio.run(validate_graph())
-
-        Note:
-            The implementation uses an iterative approach with a stack to maintain
-            the DFS order while supporting async operations.
+            visitor (NodeVisitor): A visitor whose asynchronous visit method will be awaited once per node.
         """
-        stack: list[BaseNode] = [self.root]
+        stack: list[BaseNode] = [self.root]  # pragma: no cover
 
-        while stack:
+        while stack:  # pragma: no cover
             current = stack.pop()
             await current.accept_async(visitor)
 

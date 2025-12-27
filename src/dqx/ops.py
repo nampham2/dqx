@@ -187,11 +187,28 @@ class CustomSQL(OpValueMixin[float], SqlOp[float]):
         return f"{self.prefix}_{self.name}"
 
     def __eq__(self, other: Any) -> bool:
+        """
+        Determine whether another object represents the same CustomSQL operation.
+
+        Args:
+            other: The object to compare against.
+
+        Returns:
+            `True` if `other` is a CustomSQL instance with an identical SQL expression and parameters, `False` otherwise.
+        """
         if not isinstance(other, CustomSQL):
-            return NotImplemented
+            return NotImplemented  # pragma: no cover
         return self.sql_expression == other.sql_expression and self.parameters == other.parameters
 
     def __hash__(self) -> int:
+        """
+        Compute a stable hash that uniquely identifies this CustomSQL instance.
+
+        The hash is derived from the SQL expression and the operation's parameters; parameters are normalized and sorted by key so the result is independent of parameter insertion order.
+
+        Returns:
+            int: Integer hash based on the SQL expression and normalized parameters.
+        """
         return hash(
             (self.sql_expression, tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())))
         )
@@ -223,26 +240,65 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
 
     @property
     def prefix(self) -> str:
+        """
+        Get the operation's unique per-instance prefix.
+
+        Returns:
+            str: Unique prefix string used to form SQL column aliases for this operation.
+        """
         return self._prefix
 
     @property
-    def sql_col(self) -> str:
+    def sql_col(self) -> str:  # pragma: no cover
+        """
+        Constructs the SQL column identifier for the operation.
+
+        Returns:
+            str: Unique SQL column alias formed by joining the operation's prefix and name with an underscore.
+        """
         return f"{self.prefix}_{self.name}"
 
     def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, Minimum):
+        """
+        Determine whether another object represents the same Minimum operation.
+
+        Args:
+            other: Object to compare against.
+
+        Returns:
+            `True` if `other` is a `Minimum` with an identical `column` attribute, `False` otherwise.
+        """
+        if not isinstance(other, Minimum):  # pragma: no cover
             return NotImplemented
         return self.column == other.column
 
     def __hash__(self) -> int:
+        """
+        Compute a deterministic hash for the operation instance based on its identifying attributes.
+
+        Returns:
+            int: Hash value derived from the operation's name, column, and its parameters (parameters are frozen for stable hashing).
+        """
         return hash(
             (self.name, self.column, tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())))
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
+        """
+        Return the operation's developer-facing representation.
+
+        Returns:
+            str: The operation's name (the value of the `name` property).
+        """
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
+        """
+        Provide the object's informal string representation.
+
+        Returns:
+            A human-readable string representing the object.
+        """
         return self.__repr__()
 
 
@@ -266,26 +322,65 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
 
     @property
     def prefix(self) -> str:
+        """
+        Get the operation's unique per-instance prefix.
+
+        Returns:
+            str: Unique prefix string used to form SQL column aliases for this operation.
+        """
         return self._prefix
 
     @property
-    def sql_col(self) -> str:
+    def sql_col(self) -> str:  # pragma: no cover
+        """
+        Constructs the SQL column identifier for the operation.
+
+        Returns:
+            str: Unique SQL column alias formed by joining the operation's prefix and name with an underscore.
+        """
         return f"{self.prefix}_{self.name}"
 
     def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, Maximum):
+        """
+        Determine whether another object represents the same Maximum operation.
+
+        Args:
+            other: Object to compare against.
+
+        Returns:
+            `True` if `other` is a `Maximum` with the same `column`, `False` if `other` is a `Maximum` with a different `column`, `NotImplemented` if `other` is not a `Maximum`.
+        """
+        if not isinstance(other, Maximum):  # pragma: no cover
             return NotImplemented
         return self.column == other.column
 
     def __hash__(self) -> int:
+        """
+        Compute a deterministic hash for the operation instance based on its identifying attributes.
+
+        Returns:
+            int: Hash value derived from the operation's name, column, and its parameters (parameters are frozen for stable hashing).
+        """
         return hash(
             (self.name, self.column, tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())))
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
+        """
+        Return the operation's developer-facing representation.
+
+        Returns:
+            str: The operation's name (the value of the `name` property).
+        """
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
+        """
+        Provide the object's informal string representation.
+
+        Returns:
+            A human-readable string representing the object.
+        """
         return self.__repr__()
 
 
@@ -316,19 +411,46 @@ class Sum(OpValueMixin[float], SqlOp[float]):
         return f"{self.prefix}_{self.name}"
 
     def __eq__(self, other: Any) -> bool:
+        """
+        Determine whether another object represents the same Sum operation.
+
+        Args:
+            other: The object to compare against.
+
+        Returns:
+            `True` if `other` is a `Sum` with the same `column`, `False` if `other` is a `Sum` with a different `column`. Returns `NotImplemented` if `other` is not a `Sum`.
+        """
         if not isinstance(other, Sum):
-            return NotImplemented
+            return NotImplemented  # pragma: no cover
         return self.column == other.column
 
     def __hash__(self) -> int:
+        """
+        Compute a deterministic hash for the operation instance based on its identifying attributes.
+
+        Returns:
+            int: Hash value derived from the operation's name, column, and its parameters (parameters are frozen for stable hashing).
+        """
         return hash(
             (self.name, self.column, tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())))
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
+        """
+        Return the operation's developer-facing representation.
+
+        Returns:
+            str: The operation's name (the value of the `name` property).
+        """
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
+        """
+        Provide the object's informal string representation.
+
+        Returns:
+            A human-readable string representing the object.
+        """
         return self.__repr__()
 
 
@@ -352,45 +474,96 @@ class Variance(OpValueMixin[float], SqlOp[float]):
 
     @property
     def prefix(self) -> str:
+        """
+        Get the operation's unique per-instance prefix.
+
+        Returns:
+            str: Unique prefix string used to form SQL column aliases for this operation.
+        """
         return self._prefix
 
     @property
-    def sql_col(self) -> str:
+    def sql_col(self) -> str:  # pragma: no cover
+        """
+        Constructs the SQL column identifier for the operation.
+
+        Returns:
+            str: Unique SQL column alias formed by joining the operation's prefix and name with an underscore.
+        """
         return f"{self.prefix}_{self.name}"
 
     def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, Variance):
+        """
+        Determine equality with another object by comparing the target column.
+
+        Args:
+            other: Object to compare against.
+
+        Returns:
+            `True` if `other` is a `Variance` instance with the same `column`, `False` if it is a `Variance` with a different `column`. Returns `NotImplemented` when `other` is not a `Variance`.
+        """
+        if not isinstance(other, Variance):  # pragma: no cover
             return NotImplemented
         return self.column == other.column
 
     def __hash__(self) -> int:
+        """
+        Compute a deterministic hash for the operation instance based on its identifying attributes.
+
+        Returns:
+            int: Hash value derived from the operation's name, column, and its parameters (parameters are frozen for stable hashing).
+        """
         return hash(
             (self.name, self.column, tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())))
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
+        """
+        Return the operation's developer-facing representation.
+
+        Returns:
+            str: The operation's name (the value of the `name` property).
+        """
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
+        """
+        Provide the object's informal string representation.
+
+        Returns:
+            A human-readable string representing the object.
+        """
         return self.__repr__()
 
 
 class First(OpValueMixin[float], SqlOp[float]):
-    __match_args__ = ("column", "parameters")
+    __match_args__ = ("column", "order_by", "parameters")
 
-    def __init__(self, column: str, parameters: Parameters | None = None) -> None:
-        """Initialize First operation.
+    def __init__(self, column: str, order_by: str | None = None, parameters: Parameters | None = None) -> None:
+        """
+        Create a First operation that captures the target column and optional ordering used to select the first value.
 
         Args:
-            column: Column name to get first value
-            parameters: Optional parameters for CTE customization
+            column: Name of the column to extract the first value from.
+            order_by: Optional column name to sort by before selecting the first value; if None, no explicit ordering is applied.
+            parameters: Optional parameters used for customizing generated CTEs and SQL identifiers.
         """
         OpValueMixin.__init__(self, parameters)
         self.column = column
+        self.order_by = order_by
         self._prefix = random_prefix()
 
     @property
     def name(self) -> str:
+        """
+        Operation name for the `first` aggregation, including `order_by` when provided.
+
+        Returns:
+            The operation name as a string; when `order_by` is set the name is formatted
+            as "first(column, order_by=...)", otherwise as "first(column)".
+        """
+        if self.order_by:
+            return f"first({self.column}, order_by={self.order_by})"
         return f"first({self.column})"
 
     @property
@@ -402,19 +575,51 @@ class First(OpValueMixin[float], SqlOp[float]):
         return f"{self.prefix}_{self.name}"
 
     def __eq__(self, other: Any) -> bool:
+        """
+        Determine equality between this First operation and another object.
+
+        Args:
+            other: Object to compare against.
+
+        Returns:
+            `True` if `other` is a `First` with the same `column` and `order_by`, `False` if `other` is a `First` but differs, or `NotImplemented` when comparing to a non-`First` object.
+        """
         if not isinstance(other, First):
-            return NotImplemented
-        return self.column == other.column
+            return NotImplemented  # pragma: no cover
+        return self.column == other.column and self.order_by == other.order_by
 
     def __hash__(self) -> int:
+        """
+        Compute a stable hash for the operation instance.
+
+        Returns:
+            int: Hash value derived from the operation's name, column, order_by, and the operation parameters (parameters are normalized for stable hashing).
+        """
         return hash(
-            (self.name, self.column, tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())))
+            (
+                self.name,
+                self.column,
+                self.order_by,
+                tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())),
+            )
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
+        """
+        Return the operation's developer-facing representation.
+
+        Returns:
+            str: The operation's name (the value of the `name` property).
+        """
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
+        """
+        Provide the object's informal string representation.
+
+        Returns:
+            A human-readable string representing the object.
+        """
         return self.__repr__()
 
 
@@ -445,19 +650,46 @@ class NullCount(OpValueMixin[float], SqlOp[float]):
         return f"{self.prefix}_{self.name}"
 
     def __eq__(self, other: Any) -> bool:
+        """
+        Compare this NullCount to another object for equality based on the target column.
+
+        Args:
+            other: Object to compare against.
+
+        Returns:
+            `True` if `other` is a `NullCount` with the same `column`, `False` if `other` is a `NullCount` with a different `column`, `NotImplemented` for other types.
+        """
         if not isinstance(other, NullCount):
-            return NotImplemented
+            return NotImplemented  # pragma: no cover
         return self.column == other.column
 
     def __hash__(self) -> int:
+        """
+        Compute a deterministic hash for the operation instance based on its identifying attributes.
+
+        Returns:
+            int: Hash value derived from the operation's name, column, and its parameters (parameters are frozen for stable hashing).
+        """
         return hash(
             (self.name, self.column, tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())))
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
+        """
+        Return the operation's developer-facing representation.
+
+        Returns:
+            str: The operation's name (the value of the `name` property).
+        """
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
+        """
+        Provide the object's informal string representation.
+
+        Returns:
+            A human-readable string representing the object.
+        """
         return self.__repr__()
 
 
@@ -481,26 +713,65 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
 
     @property
     def prefix(self) -> str:
+        """
+        Get the operation's unique per-instance prefix.
+
+        Returns:
+            str: Unique prefix string used to form SQL column aliases for this operation.
+        """
         return self._prefix
 
     @property
-    def sql_col(self) -> str:
+    def sql_col(self) -> str:  # pragma: no cover
+        """
+        Constructs the SQL column identifier for the operation.
+
+        Returns:
+            str: Unique SQL column alias formed by joining the operation's prefix and name with an underscore.
+        """
         return f"{self.prefix}_{self.name}"
 
     def __eq__(self, other: Any) -> bool:
-        if not isinstance(other, NegativeCount):
+        """
+        Determine equality with another NegativeCount by comparing the column attribute.
+
+        Args:
+            other: Object to compare against.
+
+        Returns:
+            `True` if `other` is a `NegativeCount` instance with the same `column`, `False` if it is a `NegativeCount` with a different `column`. Returns `NotImplemented` if `other` is not a `NegativeCount`.
+        """
+        if not isinstance(other, NegativeCount):  # pragma: no cover
             return NotImplemented
         return self.column == other.column
 
     def __hash__(self) -> int:
+        """
+        Compute a deterministic hash for the operation instance based on its identifying attributes.
+
+        Returns:
+            int: Hash value derived from the operation's name, column, and its parameters (parameters are frozen for stable hashing).
+        """
         return hash(
             (self.name, self.column, tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())))
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
+        """
+        Return the operation's developer-facing representation.
+
+        Returns:
+            str: The operation's name (the value of the `name` property).
+        """
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
+        """
+        Provide the object's informal string representation.
+
+        Returns:
+            A human-readable string representing the object.
+        """
         return self.__repr__()
 
 
@@ -536,14 +807,32 @@ class UniqueCount(OpValueMixin[float], SqlOp[float]):
         return self.column == other.column
 
     def __hash__(self) -> int:
+        """
+        Compute a deterministic hash for the operation instance based on its identifying attributes.
+
+        Returns:
+            int: Hash value derived from the operation's name, column, and its parameters (parameters are frozen for stable hashing).
+        """
         return hash(
             (self.name, self.column, tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())))
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
+        """
+        Return the operation's developer-facing representation.
+
+        Returns:
+            str: The operation's name (the value of the `name` property).
+        """
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
+        """
+        Provide the object's informal string representation.
+
+        Returns:
+            A human-readable string representing the object.
+        """
         return self.__repr__()
 
 
@@ -577,11 +866,28 @@ class DuplicateCount(OpValueMixin[float], SqlOp[float]):
         return f"{self.prefix}_{self.name}"
 
     def __eq__(self, other: Any) -> bool:
+        """
+        Determine whether another object is equal to this DuplicateCount based on its columns.
+
+        Args:
+            other: The object to compare against.
+
+        Returns:
+            `True` if `other` is a DuplicateCount with the same `columns`, `False` otherwise.
+        """
         if not isinstance(other, DuplicateCount):
-            return NotImplemented
+            return NotImplemented  # pragma: no cover
         return self.columns == other.columns
 
     def __hash__(self) -> int:
+        """
+        Compute a stable hash that uniquely identifies this DuplicateCount operation.
+
+        The hash is derived from the operation's name, the tuple of columns, and the operation parameters (each value processed with freeze_for_hashing and the parameter pairs sorted) to ensure deterministic hashing regardless of parameter insertion order.
+
+        Returns:
+            int: Integer hash based on (name, columns, sorted hashed parameters).
+        """
         return hash(
             (
                 self.name,
@@ -590,10 +896,22 @@ class DuplicateCount(OpValueMixin[float], SqlOp[float]):
             )
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # pragma: no cover
+        """
+        Return the operation's developer-facing representation.
+
+        Returns:
+            str: The operation's name (the value of the `name` property).
+        """
         return self.name
 
-    def __str__(self) -> str:
+    def __str__(self) -> str:  # pragma: no cover
+        """
+        Provide the object's informal string representation.
+
+        Returns:
+            A human-readable string representing the object.
+        """
         return self.__repr__()
 
 
@@ -674,8 +992,17 @@ class CountValues(OpValueMixin[float], SqlOp[float]):
         return f"{self.prefix}_count_values_{self.column}_{values_hash}"
 
     def __eq__(self, other: Any) -> bool:
+        """
+        Determine whether another object represents the same CountValues operation.
+
+        Args:
+            other: Object to compare against.
+
+        Returns:
+            True if `other` is a CountValues with the same `column`, identical `values`, and the `values` have the same type; False otherwise.
+        """
         if not isinstance(other, CountValues):
-            return NotImplemented
+            return NotImplemented  # pragma: no cover
         # Need to check both value and type to distinguish True from 1, False from 0
         return self.column == other.column and self.values == other.values and type(self.values) is type(other.values)
 

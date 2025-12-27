@@ -100,23 +100,39 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
         validator: SymbolicValidator,
         severity: SeverityLevel = "P1",
         tags: frozenset[str] | None = None,
+        experimental: bool = False,
+        required: bool = False,
+        cost_fp: float | None = None,
+        cost_fn: float | None = None,
     ) -> AssertionNode:
-        """Factory method to create and add an assertion node.
-
-        This ensures the assertion has the correct parent type.
+        """
+        Create and attach an AssertionNode as a child of this CheckNode.
 
         Args:
-            actual: The symbolic expression to evaluate
-            name: Optional human-readable description
-            validator: Validation function
-            severity: Severity level for failures
-            tags: Optional frozenset of tags for assertion selection
+                actual (sp.Expr): Symbolic expression to evaluate.
+                name (str): Human-readable description for the assertion.
+                validator (SymbolicValidator): Function that validates the evaluated expression.
+                severity (SeverityLevel): Severity level to assign on failure (default "P1").
+                tags (frozenset[str] | None): Tags used for selecting or grouping assertions.
+                experimental (bool): Mark the assertion as algorithm-proposed (default False).
+                required (bool): Mark the assertion as non-removable by algorithms (default False).
+                cost_fp (float | None): Cost assigned to a false positive for reward computations.
+                cost_fn (float | None): Cost assigned to a false negative for reward computations.
 
         Returns:
-            The newly created AssertionNode
+                AssertionNode: The newly created and attached assertion node.
         """
         assertion = AssertionNode(
-            parent=self, actual=actual, name=name, validator=validator, severity=severity, tags=tags
+            parent=self,
+            actual=actual,
+            name=name,
+            validator=validator,
+            severity=severity,
+            tags=tags,
+            experimental=experimental,
+            required=required,
+            cost_fp=cost_fp,
+            cost_fn=cost_fn,
         )
         self.add_child(assertion)
         return assertion
@@ -137,16 +153,25 @@ class AssertionNode(BaseNode["CheckNode"]):
         validator: SymbolicValidator,
         severity: SeverityLevel = "P1",
         tags: frozenset[str] | None = None,
+        experimental: bool = False,
+        required: bool = False,
+        cost_fp: float | None = None,
+        cost_fn: float | None = None,
     ) -> None:
-        """Initialize an assertion node.
+        """
+        Create an AssertionNode that encapsulates a symbolic expression, its validator, and assertion metadata.
 
         Args:
-            parent: The CheckNode parent (required)
-            actual: The symbolic expression to evaluate
-            name: Optional human-readable description
-            validator: Validation function
-            severity: Severity level for failures
-            tags: Optional frozenset of tags for assertion selection
+            parent: The parent CheckNode that contains this assertion.
+            actual: The symbolic expression to evaluate for this assertion.
+            name: Human-readable description of the assertion.
+            validator: Function that validates the evaluated metric against expectations.
+            severity: Severity level to assign when the assertion fails.
+            tags: Optional set of tags used to select or group assertions.
+            experimental: If True, marks the assertion as proposed by automated algorithms.
+            required: If True, marks the assertion as non-removable by automated algorithms.
+            cost_fp: Optional cost to attribute to false positives (used for reward/cost calculations).
+            cost_fn: Optional cost to attribute to false negatives (used for reward/cost calculations).
         """
         super().__init__(parent)
         self.actual = actual
@@ -154,6 +179,10 @@ class AssertionNode(BaseNode["CheckNode"]):
         self.severity = severity
         self.validator = validator
         self.tags: frozenset[str] = tags or frozenset()
+        self.experimental = experimental
+        self.required = required
+        self.cost_fp = cost_fp
+        self.cost_fn = cost_fn
         # Stores the computed metric result
         self._metric: Result[float, list[EvaluationFailure]]
         # Stores whether the assertion passes validation

@@ -161,6 +161,55 @@ class TestFirst:
         first = specs.First("test_col")
         assert str(first) == "first(test_col)"
 
+    def test_order_by_parameter(self) -> None:
+        """Test First with order_by parameter."""
+        first = specs.First("value", order_by="timestamp")
+        assert first.name == "first(value, order_by=timestamp)"
+        assert first.parameters == {"column": "value", "order_by": "timestamp"}
+
+    def test_order_by_none_by_default(self) -> None:
+        """Test First without order_by has no order_by in parameters."""
+        first = specs.First("value")
+        assert "order_by" not in first.parameters
+        assert first.name == "first(value)"
+
+    def test_order_by_equality(self) -> None:
+        """Test equality considers order_by."""
+        first1 = specs.First("value", order_by="timestamp")
+        first2 = specs.First("value", order_by="timestamp")
+        first3 = specs.First("value", order_by="price")
+        first4 = specs.First("value")  # No order_by
+
+        assert first1 == first2
+        assert first1 != first3  # Different order_by
+        assert first1 != first4  # One has order_by, other doesn't
+
+    def test_order_by_hash(self) -> None:
+        """Test hash considers order_by."""
+        first1 = specs.First("value", order_by="timestamp")
+        first2 = specs.First("value", order_by="timestamp")
+        first3 = specs.First("value", order_by="price")
+
+        assert hash(first1) == hash(first2)
+        assert hash(first1) != hash(first3)
+
+    def test_order_by_clone(self) -> None:
+        """Test clone preserves order_by."""
+        first = specs.First("value", order_by="timestamp")
+        cloned = first.clone()
+
+        assert cloned.name == first.name
+        assert cloned.parameters == first.parameters
+        assert cloned is not first  # Different instance
+
+    def test_order_by_analyzer(self) -> None:
+        """Test order_by is passed to the analyzer."""
+        first = specs.First("value", order_by="timestamp")
+        analyzer = first.analyzers[0]
+
+        assert isinstance(analyzer, ops.First)
+        assert analyzer.order_by == "timestamp"
+
 
 class TestAverage:
     """Test Average metric spec"""

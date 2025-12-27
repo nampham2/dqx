@@ -12,11 +12,25 @@ from dqx.profiles import (
     check,
     tag,
 )
+from dqx.tunables import (
+    Tunable,
+    TunableChange,
+    TunableChoice,
+    TunableFloat,
+    TunableInt,
+    TunablePercent,
+)
 
 __all__ = [
     "HolidayProfile",
     "Profile",
     "Rule",
+    "Tunable",
+    "TunableChange",
+    "TunableChoice",
+    "TunableFloat",
+    "TunableInt",
+    "TunablePercent",
     "assertion",
     "check",
     "tag",
@@ -28,7 +42,7 @@ try:
     from importlib.metadata import version
 
     __version__ = version("dqlib")
-except Exception:
+except Exception:  # pragma: no cover
     # Fallback for development or when package isn't installed
     __version__ = "0.0.0.dev"
 

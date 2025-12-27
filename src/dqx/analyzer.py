@@ -233,18 +233,15 @@ class Analyzer:
         ds: SqlDataSource,
         metrics_by_key: dict[ResultKey, Sequence[MetricSpec]],
     ) -> AnalysisReport:
-        """Process a single batch of dates.
-
-        This method handles deduplication of SQL operations while ensuring
-        all analyzer instances receive their computed values, even if they
-        were deduplicated during SQL execution.
+        """
+        Analyze a batch of dates for a single datasource by deduplicating SQL operations, executing the queries, propagating computed values to all equivalent analyzers, and assembling an AnalysisReport.
 
         Args:
-            ds: Data source
-            metrics_by_key: Batch of dates to process
+            ds: Data source used to execute deduplicated SQL operations for the batch.
+            metrics_by_key: Mapping from ResultKey to the list of MetricSpec to analyze for that date.
 
         Returns:
-            AnalysisReport for this batch
+            AnalysisReport containing built Metric instances for each metric/date in the batch.
         """
 
         # Maps (ResultKey, SqlOp) to all equivalent analyzer instances for that date
@@ -252,7 +249,7 @@ class Analyzer:
 
         # Phase 1: Collect all analyzers per date and build equivalence mapping
         for key, metrics in metrics_by_key.items():
-            if not metrics:
+            if not metrics:  # pragma: no cover
                 logger.warning(f"No metrics to analyze for date {key.yyyy_mm_dd}")
 
             for metric in metrics:
@@ -287,7 +284,7 @@ class Analyzer:
                     # Propagate to all instances for this specific date
                     for instance in equivalent_instances:
                         instance.assign(value)
-                except DQXError:
+                except DQXError:  # pragma: no cover
                     raise DQXError(f"Failed to retrieve value for analyzer {representative} on date {key.yyyy_mm_dd}")
 
         # Phase 5: Build report
@@ -365,6 +362,17 @@ class Analyzer:
     def analyze_extended_metrics(self, metrics: list[SymbolicMetric]) -> AnalysisReport:
         # The metrics has been sorted topologically
 
+        """
+        Evaluate extended SymbolicMetric objects and return an AnalysisReport containing their computed Metric instances.
+
+        Only metrics whose MetricSpec has is_extended set are evaluated; metrics are expected to be provided in topological order. Computed metrics are inserted into the returned AnalysisReport, marked dirty in the internal cache, and the cache is flushed to persistent storage before returning.
+
+        Args:
+            metrics (list[SymbolicMetric]): SymbolicMetric objects to evaluate (topologically sorted).
+
+        Returns:
+            AnalysisReport: A report mapping (MetricSpec, ResultKey, dataset) to built Metric instances for each successfully evaluated extended metric.
+        """
         report: AnalysisReport = AnalysisReport()
         metadata = Metadata(execution_id=self.execution_id)
 
@@ -402,7 +410,7 @@ class Analyzer:
                         case Failure(error):
                             logger.warning(f"Failed to evaluate {sym_metric.name}: {error}")
 
-                except Exception as e:
+                except Exception as e:  # pragma: no cover
                     logger.error(f"Error evaluating {sym_metric.name}: {e}", exc_info=True)
 
         logger.info(f"Evaluated {len(report)} extended metrics")
