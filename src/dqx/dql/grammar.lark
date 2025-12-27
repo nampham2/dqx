@@ -1,0 +1,170 @@
+// DQL Grammar for Lark Parser
+// Based on the EBNF spec in docs/design/dql-language.md
+
+// === Top-level ===
+start: suite
+
+suite: "suite" STRING "{" suite_body "}"
+
+suite_body: (metadata | const | check | profile | import_stmt)*
+
+metadata: "availability_threshold" PERCENT
+
+// === Constants ===
+const: [EXPORT] "const" IDENT "=" expr [tunable]
+
+EXPORT: "export"
+
+tunable: "tunable" "[" expr "," expr "]"
+
+// === Checks and Assertions ===
+check: "check" STRING "on" datasets "{" check_body "}"
+
+datasets: ident ("," ident)*
+
+check_body: annotated_assertion+
+
+annotated_assertion: annotation* "assert" expr condition modifiers*
+
+annotation: "@" IDENT ["(" ann_args ")"]
+
+ann_args: ann_arg ("," ann_arg)*
+
+ann_arg: IDENT "=" (NUMBER | STRING)
+
+condition: comparison
+         | "between" between_bound AND between_bound -> condition_between
+         | "is" keyword -> condition_is
+
+// between_bound is more restrictive than expr - no ambiguity with 'and'
+// Allow simple arithmetic within bounds
+between_bound: between_term (MUL_OP between_term)*
+between_term: NUMBER | PERCENT | ident | call
+
+AND: "and"
+
+comparison: COMP_OP expr
+
+COMP_OP: "<" | "<=" | ">" | ">=" | "==" | "!="
+
+keyword: "positive" -> kw_positive
+       | "negative" -> kw_negative
+       | "None" -> kw_none
+       | "not" "None" -> kw_not_none
+
+modifiers: name_mod
+         | tolerance_mod
+         | severity_mod
+         | tags_mod
+         | sample_mod
+
+name_mod: "name" STRING
+
+tolerance_mod: TOLERANCE_KW NUMBER
+
+TOLERANCE_KW: "tolerance" | "+/-" | "±"
+
+severity_mod: "severity" SEVERITY
+
+tags_mod: "tags" "[" IDENT ("," IDENT)* "]"
+
+sample_mod: "sample" sample_value ["seed" NUMBER]
+
+sample_value: PERCENT -> sample_percent
+            | NUMBER "rows" -> sample_rows
+
+// === Expressions ===
+// We keep expressions relatively simple here; complex metric expressions
+// will be parsed as strings and handled by sympy later
+
+expr: term (ADD_OP term)*
+
+term: factor (MUL_OP factor)*
+
+ADD_OP: "+" | "-"
+MUL_OP: "*" | "/"
+
+factor: "-" factor -> neg
+      | NUMBER
+      | PERCENT
+      | call
+      | "(" expr ")"
+      | ident
+      | "None" -> none_literal
+      | STRING
+
+call: qualified_ident "(" [args] ")"
+
+args: arg ("," arg)*
+
+// Named args use specific keywords to avoid ambiguity with expressions
+arg: named_arg
+   | list_arg
+   | expr
+
+named_arg: "lag" NUMBER -> arg_lag
+         | "dataset" ident -> arg_dataset
+         | "order_by" ident -> arg_order_by
+
+list_arg: "[" ident ("," ident)* "]"
+
+qualified_ident: IDENT ("." IDENT)*
+
+// === Profiles ===
+profile: "profile" STRING "{" profile_body "}"
+
+profile_body: "type" IDENT "from" date_expr "to" date_expr rule*
+
+date_expr: DATE
+         | date_func
+         | date_expr "+" NUMBER -> date_add
+         | date_expr "-" NUMBER -> date_sub
+
+date_func: IDENT "(" [date_func_args] ")"
+
+date_func_args: (IDENT | NUMBER) ("," (IDENT | NUMBER))*
+
+rule: disable_rule | scale_rule | downgrade_rule
+
+disable_rule: "disable" disable_target
+
+disable_target: "check" STRING -> disable_check
+              | "assertion" STRING "in" STRING -> disable_assertion
+
+scale_rule: "scale" selector "by" NUMBER "x"
+
+downgrade_rule: "downgrade" selector "to" SEVERITY
+
+selector: "check" STRING -> sel_check
+        | "tag" STRING -> sel_tag
+
+// === Imports ===
+import_stmt: "import" STRING ["as" IDENT] -> import_simple
+           | "import" "{" import_names "}" "from" STRING -> import_selective
+
+import_names: IDENT ("," IDENT)*
+
+// === Identifiers (with backtick escaping) ===
+ident: IDENT | ESCAPED_IDENT
+
+ESCAPED_IDENT: "`" /[^`]+/ "`"
+
+// === Tokens ===
+STRING: "\"" /(?:[^"\\]|\\.)*/ "\""
+
+NUMBER: /[0-9]+(\.[0-9]+)?/
+
+PERCENT: /[0-9]+(\.[0-9]+)?%/
+
+DATE: /[0-9]{4}-[0-9]{2}-[0-9]{2}/
+
+SEVERITY: "P0" | "P1" | "P2" | "P3"
+
+IDENT: /[a-zA-Z_][a-zA-Z0-9_]*/
+
+// === Comments and Whitespace ===
+COMMENT: /#[^\n]*/
+
+%import common.WS
+%ignore WS
+%ignore COMMENT
