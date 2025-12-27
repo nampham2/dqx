@@ -357,10 +357,11 @@ class TestVideoStreamingDQL:
         return Path(__file__).parent.joinpath("video_streaming.dql").read_text()
 
     def test_suite_metadata(self, streaming_dql: str) -> None:
-        """Test suite metadata."""
+        """Test suite metadata with default availability_threshold."""
         result = parse(streaming_dql)
         assert result.name == "Video Streaming Data Quality"
-        assert result.availability_threshold == 0.85
+        # availability_threshold not specified, should be None (defaults to 90% at runtime)
+        assert result.availability_threshold is None
 
     def test_tunable_count(self, streaming_dql: str) -> None:
         """Test tunable constants for RL."""

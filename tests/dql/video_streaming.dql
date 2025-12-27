@@ -1,6 +1,4 @@
 suite "Video Streaming Data Quality" {
-    availability_threshold 85%
-
     # Tunable constants for RL optimization
     const MIN_DAILY_VIEWS = 50000 tunable [10000, 200000]
     const MAX_INCOMPLETE_METADATA_RATE = 3% tunable [0%, 10%]
