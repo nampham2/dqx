@@ -31,6 +31,7 @@ from dqx.graph.traversal import Graph
 from dqx.plugins import PluginExecutionContext, PluginManager
 from dqx.profiles import Profile
 from dqx.provider import MetricProvider, SymbolicMetric
+from dqx.tunables import Tunable, TunableChange
 from dqx.timer import Registry
 from dqx.validator import SuiteValidator
 
@@ -410,6 +411,7 @@ class VerificationSuite:
         log_level: int | str = logging.INFO,
         data_av_threshold: float = 0.9,
         profiles: Sequence[Profile] | None = None,
+        tunables: Sequence["Tunable"] | None = None,
     ) -> None:
         """
         Initialize the verification suite.
@@ -420,6 +422,7 @@ class VerificationSuite:
             name: Human-readable name for the suite
             data_av_threshold: Minimum data availability to evaluate assertions (default: 0.9)
             profiles: Optional sequence of profiles for modifying assertion behavior
+            tunables: Optional sequence of tunable constants for RL agent integration
 
         Raises:
             DQXError: If no checks provided or name is empty
@@ -467,6 +470,14 @@ class VerificationSuite:
 
         # Store profiles for evaluation
         self._profiles: list[Profile] = list(profiles) if profiles else []
+
+        # Store tunables for RL agent integration
+        self._tunables: dict[str, Tunable] = {}
+        if tunables:
+            for t in tunables:
+                if t.name in self._tunables:
+                    raise DQXError(f"Duplicate tunable name: {t.name}")
+                self._tunables[t.name] = t
 
     @property
     def execution_id(self) -> str:
@@ -616,6 +627,75 @@ class VerificationSuite:
         """
         if not self._is_evaluated:
             raise DQXError("Verification suite has not been executed yet!")
+
+    # -------------------------------------------------------------------------
+    # Tunable API for RL agent integration
+    # -------------------------------------------------------------------------
+
+    def get_tunable_params(self) -> list[dict[str, Any]]:
+        """
+        Get all tunable parameters for RL action space.
+
+        Returns:
+            List of dicts with name, type, value, and bounds/choices for each tunable.
+
+        Example:
+            >>> params = suite.get_tunable_params()
+            >>> # [{"name": "THRESHOLD", "type": "percent", "value": 0.05, "bounds": (0.0, 0.2)}]
+        """
+        return [t.to_dict() for t in self._tunables.values()]
+
+    def get_param(self, name: str) -> Any:
+        """
+        Get current value of a tunable parameter.
+
+        Args:
+            name: Name of the tunable parameter
+
+        Returns:
+            Current value of the tunable
+
+        Raises:
+            KeyError: If tunable with given name doesn't exist
+        """
+        if name not in self._tunables:
+            raise KeyError(f"Tunable '{name}' not found. Available: {list(self._tunables.keys())}")
+        return self._tunables[name].value
+
+    def set_param(self, name: str, value: Any, agent: str = "human", reason: str | None = None) -> None:
+        """
+        Set value of a tunable parameter with validation and history tracking.
+
+        Args:
+            name: Name of the tunable parameter
+            value: New value to set (must be within bounds)
+            agent: Who made the change ("human", "rl_optimizer", "autotuner")
+            reason: Optional explanation for the change
+
+        Raises:
+            KeyError: If tunable with given name doesn't exist
+            ValueError: If value is outside bounds or invalid type
+        """
+        if name not in self._tunables:
+            raise KeyError(f"Tunable '{name}' not found. Available: {list(self._tunables.keys())}")
+        self._tunables[name].set(value, agent=agent, reason=reason)
+
+    def get_param_history(self, name: str) -> list[TunableChange]:
+        """
+        Get change history for a tunable parameter.
+
+        Args:
+            name: Name of the tunable parameter
+
+        Returns:
+            List of TunableChange records
+
+        Raises:
+            KeyError: If tunable with given name doesn't exist
+        """
+        if name not in self._tunables:
+            raise KeyError(f"Tunable '{name}' not found. Available: {list(self._tunables.keys())}")
+        return self._tunables[name].history
 
     def build_graph(self, context: Context, key: ResultKey) -> None:
         """

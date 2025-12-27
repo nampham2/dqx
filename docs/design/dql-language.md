@@ -374,6 +374,67 @@ const VARIANCE_LIMIT = 0.5 tunable [0.1, 1.0]    # Decimal bounds
 - Non-tunable constants are fixed and cannot be changed programmatically
 - Bounds are inclusive: `[0%, 20%]` allows values from 0% to 20%
 
+#### Python Tunable API
+
+Tunables are implemented as an extensible type hierarchy in `dqx/tunables.py`:
+
+```python
+from dqx.tunables import TunableFloat, TunablePercent, TunableInt, TunableChoice
+
+# Define tunables with type-specific validation
+NULL_THRESHOLD = TunablePercent("NULL_THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+MIN_ORDERS = TunableInt("MIN_ORDERS", value=1000, bounds=(100, 10000))
+TOLERANCE = TunableFloat("TOLERANCE", value=0.001, bounds=(0.0001, 0.01))
+AGG_METHOD = TunableChoice(
+    "AGG_METHOD", value="mean", choices=("mean", "median", "max")
+)
+
+# Register with suite at construction
+suite = VerificationSuite(
+    checks=[completeness_check],
+    db=db,
+    name="Orders",
+    tunables=[NULL_THRESHOLD, MIN_ORDERS, TOLERANCE, AGG_METHOD],
+)
+
+
+# Use in assertions
+@check(name="Completeness")
+def completeness_check(mp: MetricProvider, ctx: Context):
+    ctx.assert_that(mp.null_count("email") / mp.num_rows()).where(
+        name="Email null rate"
+    ).is_lt(
+        NULL_THRESHOLD.value
+    )  # .value gets current value
+```
+
+**Tunable Types:**
+
+| Type | Description | Example |
+|------|-------------|---------|
+| `TunableFloat` | Bounded float | `TunableFloat("X", value=0.5, bounds=(0.0, 1.0))` |
+| `TunablePercent` | Percentage (0-1 internally) | `TunablePercent("X", value=0.05, bounds=(0.0, 0.20))` |
+| `TunableInt` | Bounded integer | `TunableInt("X", value=100, bounds=(10, 1000))` |
+| `TunableChoice` | Categorical | `TunableChoice("X", value="a", choices=("a", "b", "c"))` |
+
+**RL Agent API:**
+
+```python
+# Get all tunable parameters for action space
+params = suite.get_tunable_params()
+# [
+#   {"name": "NULL_THRESHOLD", "type": "percent", "value": 0.05, "bounds": (0.0, 0.20)},
+#   {"name": "MIN_ORDERS", "type": "int", "value": 1000, "bounds": (100, 10000)},
+# ]
+
+# Modify with validation and history tracking
+suite.set_param("NULL_THRESHOLD", 0.03, agent="rl_optimizer", reason="Episode 42")
+
+# View change history
+history = suite.get_param_history("NULL_THRESHOLD")
+# [TunableChange(timestamp=..., old_value=0.05, new_value=0.03, agent="rl_optimizer", ...)]
+```
+
 ### Percentage Semantics
 
 Percentage literals convert to decimals: `5%` becomes `0.05`.

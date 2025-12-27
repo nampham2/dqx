@@ -12,11 +12,25 @@ from dqx.profiles import (
     check,
     tag,
 )
+from dqx.tunables import (
+    Tunable,
+    TunableChange,
+    TunableChoice,
+    TunableFloat,
+    TunableInt,
+    TunablePercent,
+)
 
 __all__ = [
     "HolidayProfile",
     "Profile",
     "Rule",
+    "Tunable",
+    "TunableChange",
+    "TunableChoice",
+    "TunableFloat",
+    "TunableInt",
+    "TunablePercent",
     "assertion",
     "check",
     "tag",
