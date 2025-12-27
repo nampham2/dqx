@@ -303,7 +303,7 @@ class DatasetValidator(BaseValidator):
             for required_symbol in metric.required_metrics:
                 try:
                     required_metric = self._provider.get_symbol(required_symbol)
-                except Exception:  # pragma: no cover
+                except (KeyError, AttributeError):  # pragma: no cover
                     # Required symbol not found - skip validation
                     continue
 
@@ -406,13 +406,16 @@ class CompositeValidationVisitor:
         self._nodes.append(node)
 
     def get_all_issues(self) -> dict[str, list[ValidationIssue]]:
-        """
-        Process collected nodes with each validator, run validator finalizers, and aggregate all validation issues into error and warning groups.
+        """Process collected nodes and aggregate validation issues.
 
-        Processes every node previously visited by this visitor with each configured validator, calls each validator's finalize hook, and then collects issues from validators classified by their `is_error` flag.
+        Processes every node previously visited with each configured validator,
+        calls each validator's finalize hook, and collects issues classified
+        by their is_error flag.
 
         Returns:
-            dict[str, list[ValidationIssue]]: Mapping with keys "errors" and "warnings". "errors" contains issues from validators where `is_error` is True; "warnings" contains issues from validators where `is_error` is False.
+            dict[str, list[ValidationIssue]]: Mapping with keys "errors" and
+                "warnings". Errors contain issues from validators where is_error
+                is True; warnings contain issues where is_error is False.
         """
         # Process all nodes
         for node in self._nodes:
