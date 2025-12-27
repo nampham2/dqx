@@ -1,0 +1,123 @@
+suite "Book Order Processing Quality" {
+    availability_threshold 92%
+
+    # Import shared threshold from book_inventory.dql
+    import "book_inventory.dql"
+
+    # Local constants
+    const MIN_DAILY_ORDERS = 500 tunable [100, 5000]
+    const MAX_REFUND_RATE = 10% tunable [5%, 25%]
+    export const ORDER_VALUE_THRESHOLD = 15.0
+
+    # Check 1: Order Completeness
+    check "Order Completeness" on orders {
+        @required
+        assert null_count(order_id) == 0
+            name "orders.completeness.order_id_not_null"
+            severity P0
+            tags [completeness, identifier]
+
+        assert null_count(customer_id) == 0
+            name "orders.completeness.customer_id_not_null"
+            severity P0
+            tags [completeness]
+
+        assert null_count(isbn) / num_rows() < 1%
+            name "orders.completeness.isbn_null_rate"
+            severity P1
+            tags [completeness]
+
+        assert null_count(order_date) == 0
+            name "orders.completeness.order_date_not_null"
+            severity P0
+            tags [completeness, temporal]
+    }
+
+    # Check 2: Order Volume
+    check "Order Volume" on orders {
+        assert num_rows() >= MIN_DAILY_ORDERS
+            name "orders.volume.min_daily_orders"
+            severity P1
+            tags [volume]
+
+        @experimental
+        assert day_over_day(num_rows()) between 0.5 and 2.0
+            name "orders.volume.day_over_day"
+            severity P2
+            tags [volume, trend]
+
+        assert unique_count(customer_id) / num_rows() > 0.3
+            name "orders.volume.customer_diversity"
+            severity P2
+            tags [volume, diversity]
+    }
+
+    # Check 3: Order Pricing - uses imported PRICE_VOLATILITY_THRESHOLD
+    check "Order Pricing" on orders {
+        assert minimum(unit_price) > 0
+            name "orders.pricing.positive_prices"
+            severity P0
+            tags [pricing, validity]
+
+        assert average(unit_price) between 5 and 200
+            name "orders.pricing.average_in_range"
+            severity P1
+            tags [pricing]
+
+        # Use imported constant from book_inventory.dql
+        assert abs(day_over_day(average(unit_price))) < PRICE_VOLATILITY_THRESHOLD
+            name "orders.pricing.price_stability"
+            severity P2
+            tags [pricing, trend]
+
+        assert sum(total_amount) is positive
+            name "orders.pricing.positive_revenue"
+            severity P0
+            tags [pricing, revenue]
+    }
+
+    # Check 4: Order Integrity
+    check "Order Integrity" on orders {
+        assert duplicate_count([order_id]) == 0
+            name "orders.integrity.unique_order_ids"
+            severity P0
+            tags [integrity, uniqueness]
+
+        assert negative_count(quantity) == 0
+            name "orders.integrity.no_negative_quantities"
+            severity P0
+            tags [integrity]
+
+        assert negative_count(total_amount) / num_rows() < MAX_REFUND_RATE
+            name "orders.integrity.refund_rate"
+            severity P1
+            tags [integrity, refunds]
+            sample 10% seed 42
+    }
+
+    # Check 5: Cross-Dataset with Books
+    check "Order-Book Consistency" on orders, books {
+        @cost(false_positive=5, false_negative=100)
+        assert unique_count(isbn, dataset=orders) <= unique_count(isbn, dataset=books)
+            name "orders.consistency.valid_isbns"
+            severity P1
+            tags [consistency, referential]
+
+        assert average(unit_price, dataset=orders) / average(price, dataset=books) between 0.8 and 1.5
+            name "orders.consistency.price_alignment"
+            severity P2
+            tags [consistency, pricing]
+            tolerance 0.1
+    }
+
+    # Profile for holiday shopping
+    profile "Holiday Shopping" {
+        type holiday
+        from 2024-11-25
+        to 2025-01-05
+
+        scale tag "volume" by 3.0x
+        scale check "Order Volume" by 2.5x
+        set tag "trend" severity P3
+    }
+}

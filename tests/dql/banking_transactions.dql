@@ -1,0 +1,128 @@
+suite "Banking Transaction Data Quality" {
+    availability_threshold 95%
+
+    # Tunable constants for RL agent optimization
+    const MAX_NULL_RATE = 1% tunable [0%, 5%]
+    const MIN_DAILY_TRANSACTIONS = 10000 tunable [1000, 50000]
+    const MAX_NEGATIVE_BALANCE_RATE = 0.1% tunable [0%, 1%]
+    const MAX_DUPLICATE_RATE = 0.01% tunable [0%, 0.1%]
+    export const AMOUNT_VARIANCE_THRESHOLD = 0.3
+
+    # Check 1: Data Completeness
+    check "Completeness" on transactions {
+        @required
+        assert null_count(transaction_id) == 0
+            name "transactions.completeness.transaction_id_not_null"
+            severity P0
+            tags [completeness, critical]
+
+        assert null_count(account_id) / num_rows() < MAX_NULL_RATE
+            name "transactions.completeness.account_id_null_rate"
+            severity P0
+            tags [completeness]
+
+        assert null_count(amount) == 0
+            name "transactions.completeness.amount_not_null"
+            severity P0
+
+        @cost(false_positive=1, false_negative=100)
+        assert null_count(timestamp) / num_rows() < MAX_NULL_RATE
+            name "transactions.completeness.timestamp_null_rate"
+            severity P1
+            tags [completeness, temporal]
+    }
+
+    # Check 2: Data Volume
+    check "Volume" on transactions {
+        assert num_rows() >= MIN_DAILY_TRANSACTIONS
+            name "transactions.volume.min_rows"
+            severity P1
+            tags [volume]
+
+        @experimental
+        assert day_over_day(num_rows()) between 0.7 and 1.5
+            name "transactions.volume.day_over_day"
+            severity P2
+            tags [volume, trend]
+
+        assert stddev(num_rows(), n=7) / average(num_rows(), lag=1) < AMOUNT_VARIANCE_THRESHOLD
+            name "transactions.volume.weekly_variance"
+            severity P2
+            tags [volume, stability]
+    }
+
+    # Check 3: Data Integrity
+    check "Integrity" on transactions {
+        assert duplicate_count([transaction_id]) == 0
+            name "transactions.integrity.unique_transaction_id"
+            severity P0
+            tags [integrity, uniqueness]
+
+        assert duplicate_count([transaction_id, timestamp]) / num_rows() < MAX_DUPLICATE_RATE
+            name "transactions.integrity.duplicate_rate"
+            severity P1
+            tags [integrity]
+            sample 10% seed 42
+
+        assert negative_count(amount) / num_rows() < 5%
+            name "transactions.integrity.negative_amount_rate"
+            severity P2
+            tags [integrity, amounts]
+    }
+
+    # Check 4: Financial Validity
+    check "Financial Validity" on transactions, accounts {
+        assert average(amount) between -10000 and 10000
+            name "transactions.validity.average_amount_range"
+            severity P1
+            tags [validity, amounts]
+
+        assert maximum(amount) < 1000000
+            name "transactions.validity.max_amount"
+            severity P0
+            tags [validity, fraud]
+
+        assert minimum(amount) > -500000
+            name "transactions.validity.min_amount"
+            severity P0
+            tags [validity, fraud]
+
+        assert sum(amount, dataset=transactions) is not None
+            name "transactions.validity.sum_exists"
+            severity P1
+    }
+
+    # Check 5: Cross-Dataset Reconciliation
+    check "Reconciliation" on transactions, settlements {
+        assert num_rows(dataset=settlements) / num_rows(dataset=transactions) between 0.95 and 1.05
+            name "reconciliation.settlement_transaction_ratio"
+            severity P1
+            tags [reconciliation]
+            tolerance 0.02
+
+        @required
+        assert abs(sum(amount, dataset=transactions) - sum(amount, dataset=settlements)) < 1000
+            name "reconciliation.amount_balance"
+            severity P0
+            tags [reconciliation, critical]
+    }
+
+    # Profiles for special periods
+    profile "End of Month" {
+        type recurring
+        from last_day_of_month() - 3
+        to last_day_of_month()
+
+        scale tag "volume" by 2.0x
+        set tag "trend" severity P3
+    }
+
+    profile "Holiday Season" {
+        type holiday
+        from 2024-12-20
+        to 2025-01-05
+
+        disable check "Volume"
+        scale tag "reconciliation" by 1.5x
+    }
+}
