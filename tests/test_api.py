@@ -830,8 +830,6 @@ def test_cost_validation_requires_dict() -> None:
     db = InMemoryMetricDB()
     context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
-    import pytest
-
     # Not a dict (tuple)
     with pytest.raises(ValueError, match="cost must be a dict with 'fp' and 'fn' keys"):
         context.assert_that(sp.Symbol("x")).where(
@@ -844,8 +842,6 @@ def test_cost_validation_requires_both_fp_and_fn() -> None:
     """Cost must have exactly 'fp' and 'fn' keys."""
     db = InMemoryMetricDB()
     context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
-
-    import pytest
 
     # Missing fn
     with pytest.raises(ValueError, match="must have exactly 'fp' and 'fn' keys"):
@@ -862,12 +858,23 @@ def test_cost_validation_requires_both_fp_and_fn() -> None:
         )
 
 
+def test_cost_validation_numeric() -> None:
+    """Cost values must be numeric."""
+    db = InMemoryMetricDB()
+    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+    # String values
+    with pytest.raises(ValueError, match="cost values must be numeric"):
+        context.assert_that(sp.Symbol("x")).where(
+            name="Test",
+            cost={"fp": "high", "fn": 100.0},  # type: ignore[dict-item]
+        )
+
+
 def test_cost_validation_non_negative() -> None:
     """Cost values must be non-negative."""
     db = InMemoryMetricDB()
     context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
-
-    import pytest
 
     # Negative fp
     with pytest.raises(ValueError, match="cost values must be non-negative"):
