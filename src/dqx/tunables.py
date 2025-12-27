@@ -48,18 +48,13 @@ class Tunable(ABC, Generic[T]):
 
     Attributes:
         name: Unique identifier for the tunable
-        _value: Current value (use .value property to access)
-        _history: List of changes made to this tunable
+        value: Current value
+        history: List of changes made to this tunable
     """
 
     name: str
-    _value: T
-    _history: list[TunableChange] = field(default_factory=list, repr=False)
-
-    @property
-    def value(self) -> T:
-        """Get current value."""
-        return self._value
+    value: T
+    history: list[TunableChange] = field(default_factory=list, repr=False)
 
     @abstractmethod
     def validate(self, value: T) -> None:
@@ -83,9 +78,9 @@ class Tunable(ABC, Generic[T]):
             ValueError: If value fails validation
         """
         self.validate(value)
-        old = self._value
-        self._value = value
-        self._history.append(
+        old = self.value
+        self.value = value
+        self.history.append(
             TunableChange(
                 timestamp=datetime.datetime.now(datetime.UTC),
                 old_value=old,
@@ -94,11 +89,6 @@ class Tunable(ABC, Generic[T]):
                 reason=reason,
             )
         )
-
-    @property
-    def history(self) -> list[TunableChange]:
-        """Get copy of change history."""
-        return self._history.copy()
 
 
 @dataclass
@@ -114,14 +104,24 @@ class TunableFloat(Tunable[float]):
 
     bounds: tuple[float, float] = (0.0, 1.0)
 
+    @property
+    def lower_bound(self) -> float:
+        """Lower bound of the valid range."""
+        return self.bounds[0]
+
+    @property
+    def upper_bound(self) -> float:
+        """Upper bound of the valid range."""
+        return self.bounds[1]
+
     def __post_init__(self) -> None:
-        if self.bounds[0] > self.bounds[1]:
-            raise ValueError(f"Invalid bounds: min ({self.bounds[0]}) > max ({self.bounds[1]})")
-        self.validate(self._value)
+        if self.lower_bound > self.upper_bound:
+            raise ValueError(f"Invalid bounds: min ({self.lower_bound}) > max ({self.upper_bound})")
+        self.validate(self.value)
 
     def validate(self, value: float) -> None:
         """Validate value is within bounds."""
-        if not self.bounds[0] <= value <= self.bounds[1]:
+        if not self.lower_bound <= value <= self.upper_bound:
             raise ValueError(f"{self.name}: value {value} outside bounds {self.bounds}")
 
     def to_dict(self) -> dict[str, Any]:
@@ -129,7 +129,7 @@ class TunableFloat(Tunable[float]):
         return {
             "name": self.name,
             "type": "float",
-            "value": self._value,
+            "value": self.value,
             "bounds": self.bounds,
         }
 
@@ -147,17 +147,27 @@ class TunablePercent(Tunable[float]):
 
     bounds: tuple[float, float] = (0.0, 1.0)
 
+    @property
+    def lower_bound(self) -> float:
+        """Lower bound of the valid range."""
+        return self.bounds[0]
+
+    @property
+    def upper_bound(self) -> float:
+        """Upper bound of the valid range."""
+        return self.bounds[1]
+
     def __post_init__(self) -> None:
-        if self.bounds[0] > self.bounds[1]:
-            raise ValueError(f"Invalid bounds: min ({self.bounds[0]}) > max ({self.bounds[1]})")
-        self.validate(self._value)
+        if self.lower_bound > self.upper_bound:
+            raise ValueError(f"Invalid bounds: min ({self.lower_bound}) > max ({self.upper_bound})")
+        self.validate(self.value)
 
     def validate(self, value: float) -> None:
         """Validate value is within bounds."""
-        if not self.bounds[0] <= value <= self.bounds[1]:
+        if not self.lower_bound <= value <= self.upper_bound:
             raise ValueError(
                 f"{self.name}: value {value * 100:.1f}% outside bounds "
-                f"[{self.bounds[0] * 100:.1f}%, {self.bounds[1] * 100:.1f}%]"
+                f"[{self.lower_bound * 100:.1f}%, {self.upper_bound * 100:.1f}%]"
             )
 
     def to_dict(self) -> dict[str, Any]:
@@ -165,7 +175,7 @@ class TunablePercent(Tunable[float]):
         return {
             "name": self.name,
             "type": "percent",
-            "value": self._value,
+            "value": self.value,
             "bounds": self.bounds,
         }
 
@@ -183,16 +193,26 @@ class TunableInt(Tunable[int]):
 
     bounds: tuple[int, int] = (0, 100)
 
+    @property
+    def lower_bound(self) -> int:
+        """Lower bound of the valid range."""
+        return self.bounds[0]
+
+    @property
+    def upper_bound(self) -> int:
+        """Upper bound of the valid range."""
+        return self.bounds[1]
+
     def __post_init__(self) -> None:
-        if self.bounds[0] > self.bounds[1]:
-            raise ValueError(f"Invalid bounds: min ({self.bounds[0]}) > max ({self.bounds[1]})")
-        self.validate(self._value)
+        if self.lower_bound > self.upper_bound:
+            raise ValueError(f"Invalid bounds: min ({self.lower_bound}) > max ({self.upper_bound})")
+        self.validate(self.value)
 
     def validate(self, value: int) -> None:
         """Validate value is an integer within bounds."""
         if not isinstance(value, int) or isinstance(value, bool):
             raise TypeError(f"{self.name}: value must be int, got {type(value).__name__}")
-        if not self.bounds[0] <= value <= self.bounds[1]:
+        if not self.lower_bound <= value <= self.upper_bound:
             raise ValueError(f"{self.name}: value {value} outside bounds {self.bounds}")
 
     def to_dict(self) -> dict[str, Any]:
@@ -200,7 +220,7 @@ class TunableInt(Tunable[int]):
         return {
             "name": self.name,
             "type": "int",
-            "value": self._value,
+            "value": self.value,
             "bounds": self.bounds,
         }
 
@@ -221,7 +241,7 @@ class TunableChoice(Tunable[str]):
     def __post_init__(self) -> None:
         if not self.choices:
             raise ValueError(f"{self.name}: choices cannot be empty")
-        self.validate(self._value)
+        self.validate(self.value)
 
     def validate(self, value: str) -> None:
         """Validate value is one of the allowed choices."""
@@ -233,6 +253,6 @@ class TunableChoice(Tunable[str]):
         return {
             "name": self.name,
             "type": "choice",
-            "value": self._value,
+            "value": self.value,
             "choices": self.choices,
         }
