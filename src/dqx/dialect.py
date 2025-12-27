@@ -118,19 +118,20 @@ def _build_query_with_values(
     value_formatter: Callable[[list[ops.SqlOp]], str],
     data_source: "SqlDataSource | None" = None,
 ) -> str:
-    """Build batch query with custom value formatting.
-
-    Args:
-        dialect: The dialect instance to use for SQL translation
-        cte_data: List of BatchCTEData objects
-        value_formatter: Function that formats ops into a value expression (MAP, STRUCT, etc.)
-        data_source: Optional data source for parameter-aware CTE generation
-
+    """
+    Build a complete SQL query combining CTE declarations with per-date SELECTs whose metric values are formatted by the provided value_formatter.
+    
+    Parameters:
+        dialect (Dialect): Dialect used to translate SQL operations.
+        cte_data (list[BatchCTEData]): Per-date CTE data and associated operations.
+        value_formatter (Callable[[list[ops.SqlOp]], str]): Function that takes a list of SqlOp for a metrics CTE and returns a SQL expression representing those values (e.g., MAP, STRUCT, ARRAY of STRUCTs).
+        data_source (SqlDataSource | None): Optional data source used to generate parameterized source CTE SQL.
+    
     Returns:
-        Complete SQL query with CTEs and formatted values
-
+        str: A full SQL string containing a WITH clause of source/metrics CTEs followed by a UNION ALL of per-date SELECT statements (each selecting the date and the formatted values).
+    
     Raises:
-        ValueError: If no CTE data provided or no metrics to compute
+        ValueError: If no metrics are available to compute. A ValueError may also propagate from _build_cte_parts if no CTE data is provided.
     """
     cte_parts, metrics_info = _build_cte_parts(dialect, cte_data, data_source)
 

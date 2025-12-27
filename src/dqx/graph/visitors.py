@@ -90,17 +90,13 @@ class DatasetImputationVisitor:
                     )
 
     def _visit_assertion_node(self, node: AssertionNode) -> None:
-        """Process SymbolicMetrics in an AssertionNode and their dependencies.
-
-        For each symbol in the assertion expression and all their transitive
-        dependencies:
-        1. Get its SymbolicMetric from the provider
-        2. Validate dataset consistency
-        3. Impute dataset if needed
-        4. Propagate datasets to children and validate consistency
-
-        Args:
-            node: The AssertionNode to process
+        """
+        Validate and impute datasets for SymbolicMetrics referenced by an AssertionNode, propagating datasets to dependent metrics and recording any dataset-related errors.
+        
+        For the assertion's symbols and their transitive dependencies, ensure each metric's dataset is either present in the parent check's datasets or can be unambiguously imputed; propagate a parent's dataset to child metrics when appropriate and append descriptive error messages to self._errors for dataset mismatches or ambiguous imputations.
+        
+        Parameters:
+            node (AssertionNode): The assertion node whose symbolic metrics and dependencies will be validated and potentially imputed.
         """
         if not self.provider:
             return
@@ -228,19 +224,25 @@ class SymbolDeduplicationVisitor:
         self._substitutions = substitutions
 
     def visit(self, node: BaseNode) -> None:
-        """Visit a node and apply symbol deduplication if it's an AssertionNode.
-
-        Args:
-            node: The node to visit
+        """
+        Apply canonical symbol substitutions to an AssertionNode's actual expression.
+        
+        If the node is an AssertionNode, replaces symbols in its `actual` expression
+        using the visitor's substitution mapping; the node is modified in place.
+        
+        Parameters:
+            node (BaseNode): The node to visit; only AssertionNode instances are modified.
         """
         if isinstance(node, AssertionNode):
             # Apply substitutions to the actual expression
             node.actual = node.actual.subs(self._substitutions)
 
     async def visit_async(self, node: BaseNode) -> None:  # pragma: no cover
-        """Async visit method required by visitor protocol.
-
-        Since deduplication is synchronous, this just delegates to visit.
+        """
+        Asynchronous visitor entry point that delegates to the synchronous `visit` implementation.
+        
+        Parameters:
+            node (BaseNode): The node to visit.
         """
         self.visit(node)
 

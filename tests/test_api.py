@@ -701,6 +701,11 @@ def test_experimental_annotation_via_where() -> None:
 
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
+        """
+        Registers two assertions: one marked experimental and one production, both checking their metric is greater than zero.
+        
+        The first assertion targets symbol "x" and is annotated experimental=True; the second targets symbol "y" and uses the default (production) annotation.
+        """
         ctx.assert_that(sp.Symbol("x")).where(
             name="Experimental assertion",
             experimental=True,
@@ -826,7 +831,14 @@ def test_cost_annotation_via_where() -> None:
 
 
 def test_cost_validation_requires_dict() -> None:
-    """Cost must be a dict."""
+    """
+    Verifies that specifying a non-dict cost in an assertion raises a ValueError.
+    
+    This test ensures where(..., cost=...) requires a dict containing 'fp' and 'fn'.
+    
+    Raises:
+        ValueError: if cost is not a dict with 'fp' and 'fn' keys.
+    """
     db = InMemoryMetricDB()
     context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
@@ -961,6 +973,11 @@ class TestNewAssertionMethods:
 
         @check(name="Not Equal Check")
         def neq_check(mp: MetricProvider, ctx: Context) -> None:
+            """
+            Create two "not equal" assertions for metrics 'x' and 'y' and verify the current check contains two children with the expected names.
+            
+            This function registers an assertion that `x` is not equal to 0 (named "X is not zero") and an assertion that `y` is not equal to 100 (named "Y is not 100"), then asserts that the context's current check exists and has exactly those two child assertions in order.
+            """
             ctx.assert_that(sp.Symbol("x")).where(name="X is not zero").is_neq(0)
             ctx.assert_that(sp.Symbol("y")).where(name="Y is not 100").is_neq(100)
 
@@ -997,6 +1014,15 @@ class TestNewAssertionMethods:
 
         @check(name="None Check")
         def none_check(mp: MetricProvider, ctx: Context) -> None:
+            """
+            Create a verification check that asserts the metric `x` is None and validate the resulting check node.
+            
+            This registers an assertion via the provided Context: it converts an assertion draft for `x` into a ready assertion named "X is None", executes the `is_none()` assertion, and then verifies that `ctx.current_check` exists, contains exactly one child, and that the child's name equals "X is None".
+            
+            Parameters:
+                mp (MetricProvider): Provider used to register or resolve metrics (unused by this helper but required by test harness).
+                ctx (Context): Execution context in which the check and assertion are created and validated.
+            """
             ctx.assert_that(sp.Symbol("x")).where(name="X is None").is_none()
 
             assert ctx.current_check is not None
@@ -1014,6 +1040,11 @@ class TestNewAssertionMethods:
 
         @check(name="Validator Check")
         def val_check(mp: MetricProvider, ctx: Context) -> None:
+            """
+            Create an 'is None' assertion named "Test none" for symbol "x" in the provided context and verify the created assertion's validator name contains "is None".
+            
+            This function registers the assertion via ctx.assert_that(...).where(...).is_none(), then inspects ctx.current_check to ensure a child assertion was created and that its validator description includes the text "is None".
+            """
             ctx.assert_that(sp.Symbol("x")).where(name="Test none").is_none()
 
             assert ctx.current_check is not None
@@ -1066,6 +1097,15 @@ class TestNewAssertionMethods:
         @check(name="Tolerance Check")
         def tol_check(mp: MetricProvider, ctx: Context) -> None:
             # Default tolerance
+            """
+            Create two "not equal" assertions on symbols using default and custom tolerance.
+            
+            This registers an assertion named "Default tol" that checks symbol `x` is not equal to 0 using the provider's default tolerance, and an assertion named "Custom tol" that checks symbol `y` is not equal to 0 using a tolerance of 0.1. After registration, the current check is expected to contain exactly two child assertions.
+            
+            Parameters:
+                mp (MetricProvider): Metric provider used to resolve metrics (not modified).
+                ctx (Context): Assertion context where checks are created and stored.
+            """
             ctx.assert_that(sp.Symbol("x")).where(name="Default tol").is_neq(0)
             # Custom tolerance
             ctx.assert_that(sp.Symbol("y")).where(name="Custom tol").is_neq(0, tol=0.1)
@@ -1164,7 +1204,11 @@ class TestVerificationSuiteValidation:
             VerificationSuite([test_check], db, "   ")
 
     def test_empty_datasources_raises_error(self) -> None:
-        """Test that empty datasources raises DQXError."""
+        """
+        Verify that running a VerificationSuite with no data sources raises a DQXError.
+        
+        Asserts that calling `VerificationSuite.run()` with an empty list of data sources raises `DQXError` with message containing "No data sources provided".
+        """
         db = InMemoryMetricDB()
 
         @check(name="Test Check")

@@ -233,18 +233,15 @@ class Analyzer:
         ds: SqlDataSource,
         metrics_by_key: dict[ResultKey, Sequence[MetricSpec]],
     ) -> AnalysisReport:
-        """Process a single batch of dates.
-
-        This method handles deduplication of SQL operations while ensuring
-        all analyzer instances receive their computed values, even if they
-        were deduplicated during SQL execution.
-
-        Args:
-            ds: Data source
-            metrics_by_key: Batch of dates to process
-
+        """
+        Analyze a batch of dates for a single datasource by deduplicating SQL operations, executing the queries, propagating computed values to all equivalent analyzers, and assembling an AnalysisReport.
+        
+        Parameters:
+            ds: Data source used to execute deduplicated SQL operations for the batch.
+            metrics_by_key: Mapping from ResultKey to the list of MetricSpec to analyze for that date.
+        
         Returns:
-            AnalysisReport for this batch
+            AnalysisReport containing built Metric instances for each metric/date in the batch.
         """
 
         # Maps (ResultKey, SqlOp) to all equivalent analyzer instances for that date
@@ -365,6 +362,17 @@ class Analyzer:
     def analyze_extended_metrics(self, metrics: list[SymbolicMetric]) -> AnalysisReport:
         # The metrics has been sorted topologically
 
+        """
+        Evaluate extended SymbolicMetric objects and return an AnalysisReport containing their computed Metric instances.
+        
+        Only metrics whose MetricSpec has is_extended set are evaluated; metrics are expected to be provided in topological order. Computed metrics are inserted into the returned AnalysisReport, marked dirty in the internal cache, and the cache is flushed to persistent storage before returning.
+        
+        Parameters:
+            metrics (list[SymbolicMetric]): SymbolicMetric objects to evaluate (topologically sorted).
+        
+        Returns:
+            AnalysisReport: A report mapping (MetricSpec, ResultKey, dataset) to built Metric instances for each successfully evaluated extended metric.
+        """
         report: AnalysisReport = AnalysisReport()
         metadata = Metadata(execution_id=self.execution_id)
 

@@ -64,12 +64,15 @@ def is_lt(a: float, b: float, tol: float = EPSILON) -> bool:
 
 def is_eq(a: float, b: float, tol: float = EPSILON) -> bool:
     """
-    Check if two floating-point numbers are approximately equal.
-    Args:
-        a (float): The first floating-point number.
-        b (float): The second floating-point number.
+    Determine whether two floating-point numbers are equal within a specified tolerance.
+    
+    Parameters:
+        a (float): First value to compare.
+        b (float): Second value to compare.
+        tol (float): Maximum allowed absolute difference for equality.
+    
     Returns:
-        bool: True if the absolute difference between `a` and `b` is less than EPSILON, False otherwise.
+        True if the absolute difference between `a` and `b` is less than `tol`, False otherwise.
     """
 
     return abs(a - b) < tol
@@ -77,27 +80,34 @@ def is_eq(a: float, b: float, tol: float = EPSILON) -> bool:
 
 def is_neq(a: float, b: float, tol: float = EPSILON) -> bool:
     """
-    Check if two floating-point numbers are not equal (outside tolerance).
-    Args:
-        a (float): The first floating-point number.
-        b (float): The second floating-point number.
-        tol (float): Tolerance for comparison.
+    Determine whether two floating-point values differ by at least the given tolerance.
+    
+    Parameters:
+        tol (float): Comparison tolerance; two values are considered different if their absolute difference is greater than or equal to this value.
+    
     Returns:
-        bool: True if the absolute difference between `a` and `b` is >= tolerance, False otherwise.
+        bool: True if the absolute difference between a and b is greater than or equal to tol, False otherwise.
     """
     return abs(a - b) >= tol
 
 
 def within_tol(a: float, b: float, rel_tol: float | None = None, abs_tol: float | None = None) -> bool:
     """
-    Check if the absolute difference between two floating-point numbers is within a given tolerance.
-    Args:
-        a (float): The first floating-point number.
-        b (float): The second floating-point number.
-        rel_tol (float): The relative tolerance within which the two numbers are considered equal.
-        abs_tol (float): The absolute tolerance within which the two numbers are considered equal.
+    Determine whether two floats differ by less than a specified tolerance.
+    
+    Only one of `rel_tol` or `abs_tol` must be provided. If `abs_tol` is given, the function tests whether |a - b| < abs_tol. If `rel_tol` is given, the function tests whether |(a - b) / b| < rel_tol.
+    
+    Parameters:
+        a (float): First value to compare.
+        b (float): Second value to compare (used as the denominator for relative tolerance).
+        rel_tol (float | None): Relative tolerance; comparison uses |(a - b) / b| < rel_tol.
+        abs_tol (float | None): Absolute tolerance; comparison uses |a - b| < abs_tol.
+    
     Returns:
-        bool: True if the absolute difference between `a` and `b` is less than `tol`, False otherwise.
+        bool: `true` if the difference between `a` and `b` is within the specified tolerance, `false` otherwise.
+    
+    Raises:
+        DQXError: If neither `rel_tol` nor `abs_tol` is provided, or if both are provided.
     """
 
     if rel_tol is None and abs_tol is None:
@@ -154,16 +164,16 @@ def is_negative(a: float, tol: float = EPSILON) -> bool:
 
 def is_between(a: float, lower: float, upper: float, tol: float = EPSILON) -> bool:
     """
-    Check if a value is between two bounds (inclusive).
-
-    Args:
-        a: The value to check.
-        lower: The lower bound.
-        upper: The upper bound.
-        tol: Tolerance for floating-point comparisons (applies to both bounds).
-
+    Determine whether a value lies within the closed interval [lower, upper], using a tolerance for comparisons.
+    
+    Parameters:
+        a (float): Value to test.
+        lower (float): Lower bound of the interval.
+        upper (float): Upper bound of the interval.
+        tol (float): Tolerance applied to both bound comparisons.
+    
     Returns:
-        bool: True if lower ≤ a ≤ upper (within tolerance), False otherwise.
+        bool: `true` if `lower <= a <= upper` within `tol`, `false` otherwise.
     """
     return is_geq(a, lower, tol) and is_leq(a, upper, tol)
 
@@ -182,10 +192,17 @@ class Coalesce(sp.Function):
 
     @classmethod
     def eval(cls, *args: Any) -> sp.Expr | None:
-        """Evaluate coalesce during sympy simplification.
-
-        Returns the first non-None argument if all arguments are concrete values.
-        Returns None (unevaluated) if any argument contains free symbols.
+        """
+        Determine the coalesced value from concrete SymPy arguments or signal that evaluation should be deferred.
+        
+        Parameters:
+            *args (Any): Candidate values to coalesce; evaluated only when all arguments are concrete (have no free symbols).
+        
+        Returns:
+            sp.Expr | None: The first argument that is not `None` and not `NaN` when all arguments are concrete; `sp.S.NaN` if every argument is `None` or `NaN`; `None` to indicate the expression must remain unevaluated because at least one argument contains free symbols.
+        
+        Raises:
+            DQXError: If called with no arguments.
         """
         if not args:
             raise DQXError("coalesce requires at least one argument")
@@ -206,18 +223,12 @@ class Coalesce(sp.Function):
 
 def coalesce(*args: Any) -> sp.Expr:
     """
-    Return the first non-None/non-NaN value from the arguments.
-
-    This is a convenience wrapper around the Coalesce sympy function.
-    If all arguments are None/NaN, returns NaN.
-
-    Args:
-        *args: Values to check, in order of preference.
-
+    Selects the first argument that is neither None nor NaN.
+    
+    Parameters:
+        *args (Any): Values to evaluate in order of preference.
+    
     Returns:
-        Sympy expression representing the coalesce operation.
-
-    Example:
-        coalesce(average(price), 0)  # Use 0 if average is None/NaN
+        sp.Expr: A sympy expression equal to the first argument that is not None and not NaN, or NaN if no such argument exists.
     """
     return Coalesce(*args)
