@@ -29,13 +29,12 @@ dql run suite.dql --connection databricks://... --date 2024-12-25
 
 ## Structure
 
-A DQL file contains one suite. A suite contains checks, profiles, constants, and macros.
+A DQL file contains one suite. A suite contains checks, profiles, and constants.
 
 ```
 suite
 ├── metadata (name, threshold)
 ├── constants
-├── macros
 ├── checks
 │   └── assertions
 └── profiles
@@ -117,6 +116,46 @@ ASCII tolerance alternatives: `tolerance 0.05` or `+/- 0.05` (Unicode `±` also 
 | `severity` | No | P0, P1, P2, or P3 (default: P1) |
 | `tolerance` | No | Margin for `==` comparisons (expands to range check) |
 | `tags` | No | Labels for profile targeting |
+| `sample` | No | Sample data before computing metric |
+
+### Sampling
+
+For large datasets, sample data before computing metrics:
+
+```dql
+assert average(price) > 0 sample 10%
+    name "Price positive (10% sample)"
+
+assert average(price) > 0 sample 10000 rows
+    name "Price positive (10k rows)"
+```
+
+With seed for reproducibility:
+
+```dql
+assert average(price) > 0 sample 10% seed 42
+    name "Price positive (reproducible)"
+```
+
+| Syntax | Meaning |
+|--------|---------|
+| `sample N%` | Random sample of N percent of rows |
+| `sample N rows` | Random sample of N rows |
+| `seed M` | Random seed for reproducibility |
+
+**Database compatibility:**
+
+| Database | Method |
+|----------|--------|
+| DuckDB | `USING SAMPLE N%` |
+| Databricks | `TABLESAMPLE (N PERCENT)` |
+| PostgreSQL | `TABLESAMPLE BERNOULLI(N)` |
+| BigQuery | `WHERE RAND() < N/100` |
+
+**Semantics:**
+- Sampling applies to the entire metric expression
+- Without `seed`, results are non-deterministic across runs
+- Row-based sampling (`N rows`) uses reservoir sampling for exact counts
 
 ### Assertion Naming Convention
 
@@ -250,7 +289,7 @@ sql("SUM(amount) / COUNT(*)")
 **`sql()` limitations:**
 
 - **No validation** — The interpreter cannot verify column names, syntax, or types
-- **No interpolation** — Constants and macro parameters cannot be inserted into SQL strings (prevents SQL injection)
+- **No interpolation** — Constants cannot be inserted into SQL strings (prevents SQL injection)
 - **Dialect-specific** — SQL syntax varies across databases; DQL does not translate
 
 ```dql
@@ -260,10 +299,9 @@ assert sum(amount) / num_rows() > 10
 # Escape hatch: no validation
 assert sql("SUM(amount) / COUNT(*)") > 10
 
-# ERROR: interpolation not allowed in sql() — parser rejects this
-macro bad_sql(col) {
-    assert sql("SUM({col})") > 0  # Parse error: interpolation in sql() not permitted
-}
+# ERROR: interpolation not allowed in sql()
+const MY_COL = "amount"
+assert sql("SUM({MY_COL})") > 0  # Parse error: interpolation in sql() not permitted
 ```
 
 Use built-in metrics when possible; reserve `sql()` for expressions DQL cannot represent.
@@ -459,84 +497,6 @@ Use `coalesce` to provide defaults:
 assert coalesce(average(price), 0) >= 0
 ```
 
-## Macros
-
-Macros generate repeated patterns. Define a macro with parameters:
-
-```dql
-macro null_check(column, threshold) {
-    assert null_count({column}) / num_rows() < {threshold}
-        name "{column} null rate"
-}
-```
-
-Apply with `use`:
-
-```dql
-check "Completeness" on orders {
-    use null_check(email, 5%)
-    use null_check(phone, 10%)
-    use null_check(address, 15%)
-}
-```
-
-The interpreter expands macros before execution.
-
-### Variadic Macros
-
-Accept multiple arguments with `...`:
-
-```dql
-macro completeness(columns...) {
-    for col in columns {
-        assert null_count({col}) == 0
-            name "{col} not null"
-    }
-}
-
-check "Completeness" on orders {
-    use completeness(customer_id, email, amount)
-}
-```
-
-### Macro Semantics
-
-**Scoping:** Macros use lexical scoping. Parameters shadow outer constants.
-
-```dql
-const THRESHOLD = 5%
-
-macro check_rate(THRESHOLD) {           # Parameter shadows constant
-    assert error_rate() < {THRESHOLD}   # Uses parameter, not constant
-}
-```
-
-**Recursion:** Macros cannot call themselves. The interpreter rejects recursive definitions.
-
-**Hygiene:** Macro-generated assertion logic is duplicated, but names are not auto-suffixed. If you call `use null_check(email, 5%)` twice, both produce `name "email null rate"`. The interpreter warns on duplicate names. Use unique parameters or omit names to let the interpreter generate them:
-
-```dql
-macro null_check(column, threshold) {
-    assert null_count({column}) / num_rows() < {threshold}
-    # No explicit name — interpreter generates unique ID
-}
-```
-
-**Order:** Macros must be defined before use. Forward references are errors.
-
-**Nesting:** Macros can call other macros:
-
-```dql
-macro base_check(col) {
-    assert null_count({col}) == 0
-}
-
-macro extended_check(col) {
-    use base_check({col})
-    assert unique_count({col}) == num_rows()
-}
-```
-
 ## Profiles
 
 Profiles modify assertion behavior during specific periods. Define profiles at suite level.
@@ -677,22 +637,20 @@ profile "Black Friday" { from 2024-11-29 to 2024-12-02 scale tag "volume" by 2.0
 Split large configurations across files with imports:
 
 ```dql
-# common/null_checks.dql
-export macro null_check(column, threshold) {
-    assert null_count({column}) / num_rows() < {threshold}
-}
-
+# common/thresholds.dql
 export const STANDARD_NULL_THRESHOLD = 5%
+export const MIN_ORDERS = 1000
 ```
 
 Import in another file:
 
 ```dql
-import "common/null_checks.dql"
+import "common/thresholds.dql"
 
 suite "Orders" {
     check "Completeness" on orders {
-        use null_check(email, STANDARD_NULL_THRESHOLD)
+        assert null_count(email) / num_rows() < STANDARD_NULL_THRESHOLD
+            name "Email null rate"
     }
 }
 ```
@@ -700,17 +658,18 @@ suite "Orders" {
 Selective imports:
 
 ```dql
-import { null_check } from "common/null_checks.dql"
+import { STANDARD_NULL_THRESHOLD } from "common/thresholds.dql"
 ```
 
 Aliased imports:
 
 ```dql
-import "common/null_checks.dql" as checks
+import "common/thresholds.dql" as t
 
 suite "Orders" {
     check "Test" on orders {
-        use checks.null_check(email, 5%)
+        assert null_count(email) / num_rows() < t.STANDARD_NULL_THRESHOLD
+            name "Email null rate"
     }
 }
 ```
@@ -751,18 +710,16 @@ suite "E-Commerce Data Quality" {
     const MAX_NULL_RATE = 5%
     const MIN_ORDERS = 1000
 
-    macro null_rate(column) {
-        assert null_count({column}) / num_rows() < MAX_NULL_RATE
-            name "{column} null rate below threshold"
-    }
-
     check "Completeness" on orders {
         assert null_count(customer_id) == 0
             name "No null customer IDs"
             severity P0
 
-        use null_rate(email)
-        use null_rate(phone)
+        assert null_count(email) / num_rows() < MAX_NULL_RATE
+            name "Email null rate below threshold"
+
+        assert null_count(phone) / num_rows() < MAX_NULL_RATE
+            name "Phone null rate below threshold"
     }
 
     check "Volume" on orders {
@@ -1468,7 +1425,6 @@ class Interpreter:
         self.target_date = target_date
         self.provider = MetricProvider(db)
         self.constants: dict[str, Any] = {}
-        self.macros: dict[str, MacroNode] = {}
 
     def eval_metric_expr(self, expr_str: str) -> sp.Expr:
         """Parse metric expression using sympy."""
@@ -1484,11 +1440,9 @@ class Interpreter:
         suite = VerificationSuite(ast.name, db=self.db)
         suite.data_av_threshold = ast.threshold
 
-        # Register constants and macros
+        # Register constants
         for const in ast.constants:
             self.constants[const.name] = self.eval_expr(const.value)
-        for macro in ast.macros:
-            self.macros[macro.name] = macro
 
         # Build checks
         for check_node in ast.checks:
@@ -1562,22 +1516,17 @@ warning[W001]: assertion has no name
 ```ebnf
 (* === Top-level === *)
 suite       = "suite" STRING "{" suite_body "}"
-suite_body  = (metadata | const | macro | check | profile | import)*
+suite_body  = (metadata | const | check | profile | import)*
 
 metadata    = "availability_threshold" PERCENT
 
-(* === Constants and Macros === *)
+(* === Constants === *)
 const       = ["export"] "const" IDENT "=" expr [tunable]
 tunable     = "tunable" "[" expr "," expr "]"
-macro       = ["export"] "macro" IDENT "(" params ")" "{" macro_body "}"
-params      = IDENT ("," IDENT)* ["..."]
-macro_body  = (assertion | use | for_loop)+
-for_loop    = "for" IDENT "in" IDENT "{" (assertion | use)+ "}"
 
 (* === Checks and Assertions === *)
-check       = "check" STRING "on" datasets "{" (annotation | assertion | use)+ "}"
+check       = "check" STRING "on" datasets "{" (annotation | assertion)+ "}"
 datasets    = ident ("," ident)*
-use         = "use" qualified_ident "(" [args] ")"
 
 annotation  = "@" IDENT ["(" ann_args ")"]
 ann_args    = IDENT "=" expr ("," IDENT "=" expr)*
@@ -1586,11 +1535,12 @@ assertion   = [annotation*] "assert" expr condition modifiers*
 condition   = comparison | "between" expr "and" expr | "is" keyword
 comparison  = ("<" | "<=" | ">" | ">=" | "==" | "!=") expr
 keyword     = "positive" | "negative" | "None" | "not" "None"
-modifiers   = name | tolerance | severity | tags
+modifiers   = name | tolerance | severity | tags | sample
 name        = "name" STRING
 tolerance   = ("tolerance" | "+/-" | "±") NUMBER
 severity    = "severity" SEVERITY
 tags        = "tags" "[" IDENT ("," IDENT)* "]"
+sample      = "sample" (PERCENT | NUMBER "rows") ["seed" NUMBER]
 
 (* === Expressions === *)
 expr        = ["-"] term (("+"|"-") term)*
@@ -1630,7 +1580,7 @@ COMMENT     = '#' [^\n]*                  (* Python-style comments *)
 
 ### Reserved Words
 
-The following are reserved: `suite`, `check`, `assert`, `on`, `from`, `to`, `by`, `in`, `and`, `is`, `between`, `profile`, `type`, `macro`, `const`, `use`, `for`, `import`, `export`, `as`, `name`, `severity`, `tags`, `tolerance`, `scale`, `disable`, `downgrade`.
+The following are reserved: `suite`, `check`, `assert`, `on`, `from`, `to`, `by`, `in`, `and`, `is`, `between`, `profile`, `type`, `const`, `import`, `export`, `as`, `name`, `severity`, `tags`, `tolerance`, `scale`, `disable`, `downgrade`, `sample`, `seed`, `rows`.
 
 Use backticks to escape column or dataset names that conflict:
 
@@ -1673,10 +1623,6 @@ The interpreter validates before running:
 - Type mismatches
 
 Errors surface immediately with source location.
-
-### Macro Expansion
-
-Macros expand before execution. The interpreter sees only concrete assertions. This simplifies debugging: no macro indirection at runtime.
 
 ## Implementation Status
 
@@ -1731,9 +1677,9 @@ The following features are specified in this design but **require implementation
 |---------|-------------|----------|
 | Lexer/Tokenizer | Tokenize DQL source into tokens | High |
 | Parser | Parse tokens into AST nodes | High |
-| AST Nodes | Suite, Check, Assertion, Profile, Macro, etc. | High |
+| AST Nodes | Suite, Check, Assertion, Profile, etc. | High |
 | Interpreter | Execute AST against DQX runtime | High |
-| Macro expansion | Expand macros before execution | Medium |
+| Sampling | `sample N%` / `sample N rows` with optional `seed` | Medium |
 | Import system | `import`, `export`, path resolution | Medium |
 | CLI (`dql run`, `dql check`) | Command-line interface | Medium |
 
