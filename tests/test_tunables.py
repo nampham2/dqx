@@ -69,7 +69,7 @@ class TestTunablePercent:
     def test_validation_error_message_shows_percentage(self) -> None:
         """Error message shows percentages for readability."""
         t = TunablePercent("x", value=0.05, bounds=(0.0, 0.10))
-        with pytest.raises(ValueError, match="15.0%.*outside bounds.*0.0%.*10.0%"):
+        with pytest.raises(ValueError, match=r"15\.0%.*outside bounds.*0\.0%.*10\.0%"):
             t.set(0.15)
 
     def test_to_dict(self) -> None:
