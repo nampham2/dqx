@@ -1758,6 +1758,15 @@ The following features from this design are **already implemented** in the DQX c
 | `@required` | Prevent removal by algorithms | ✅ `required` param in `api.py` AssertionDraft.where() |
 | `@cost(fp, fn)` | False positive/negative costs for RL reward | ✅ `cost={"fp": N, "fn": M}` param in `api.py` AssertionDraft.where() |
 
+#### Tunable Constants
+
+| Feature | Description | Location |
+|---------|-------------|----------|
+| `tunable` constants | Bounded parameters for RL optimization | ✅ `TunableFloat`, `TunablePercent`, `TunableInt`, `TunableChoice` in `tunables.py` |
+| `suite.get_tunable_params()` | List tunable params with bounds | ✅ `VerificationSuite.get_tunable_params()` in `api.py` |
+| `suite.set_param(name, value)` | Modify threshold within bounds | ✅ `VerificationSuite.set_param()` in `api.py` |
+| `suite.get_param_history(name)` | Get change history for tunable | ✅ `VerificationSuite.get_param_history()` in `api.py` |
+
 ### Not Yet Implemented ❌
 
 The following features are specified in this design but **require implementation**:
@@ -1778,10 +1787,7 @@ The following features are specified in this design but **require implementation
 
 | Feature | Description | Priority |
 |---------|-------------|----------|
-| `tunable` constants | `const X = 5% tunable [0%, 20%]` with bounds | High |
 | `Suite.load(path)` | Parse DQL into manipulable Suite object | High |
-| `suite.get_tunable_params()` | List tunable params with bounds | High |
-| `suite.set_param(name, value)` | Modify threshold within bounds | High |
 | `suite.get_assertion(name)` | Retrieve assertion by name | Medium |
 | `suite.add_assertion(...)` | Add experimental assertion | Medium |
 | `suite.remove_assertion(name)` | Remove assertion (respects `@required`) | Medium |
