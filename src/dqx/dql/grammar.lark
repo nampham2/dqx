@@ -97,15 +97,15 @@ call: qualified_ident "(" [args] ")"
 
 args: arg ("," arg)*
 
-// Named args use specific keywords to avoid ambiguity with expressions
+// Named args use keyword=value syntax (Pythonic)
 arg: named_arg
    | list_arg
    | expr
 
-named_arg: "lag" NUMBER -> arg_lag
-         | "dataset" ident -> arg_dataset
-         | "order_by" ident -> arg_order_by
-         | "n" NUMBER -> arg_n
+named_arg: "lag" "=" NUMBER -> arg_lag
+         | "dataset" "=" ident -> arg_dataset
+         | "order_by" "=" ident -> arg_order_by
+         | "n" "=" NUMBER -> arg_n
 
 list_arg: "[" ident ("," ident)* "]"
 

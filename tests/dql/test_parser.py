@@ -353,26 +353,26 @@ class TestExpressions:
         source = """
         suite "Test" {
             check "Test" on t {
-                assert average(price, lag 1) > 0
+                assert average(price, lag=1) > 0
             }
         }
         """
         result = parse(source)
         assertion = result.checks[0].assertions[0]
-        assert "lag 1" in assertion.expr.text
+        assert "lag=1" in assertion.expr.text
 
     def test_function_with_dataset(self) -> None:
         source = """
         suite "Test" {
             check "Test" on orders, returns {
-                assert num_rows(dataset returns) / num_rows(dataset orders) < 0.15
+                assert num_rows(dataset=returns) / num_rows(dataset=orders) < 0.15
             }
         }
         """
         result = parse(source)
         assertion = result.checks[0].assertions[0]
-        assert "dataset returns" in assertion.expr.text
-        assert "dataset orders" in assertion.expr.text
+        assert "dataset=returns" in assertion.expr.text
+        assert "dataset=orders" in assertion.expr.text
 
     def test_nested_function_calls(self) -> None:
         source = """
@@ -784,7 +784,7 @@ class TestCoverageEdgeCases:
         source = """
         suite "Test" {
             check "Test" on t {
-                assert first(timestamp, order_by price) is not None
+                assert first(timestamp, order_by=price) is not None
             }
         }
         """
@@ -988,12 +988,12 @@ class TestAdditionalEdgeCases:
         source = """
         suite "Test" {
             check "Test" on t {
-                assert average(price, lag 7) > 0
+                assert average(price, lag=7) > 0
             }
         }
         """
         result = parse(source)
-        assert "lag 7" in result.checks[0].assertions[0].expr.text
+        assert "lag=7" in result.checks[0].assertions[0].expr.text
 
     def test_condition_comparison_passthrough(self) -> None:
         """Cover condition returning comparison - line 232."""
@@ -1089,9 +1089,9 @@ class TestAdditionalEdgeCases:
         source = """
         suite "Test" {
             check "Test" on t {
-                assert stddev(average(price), n 7) < 0.5
+                assert stddev(average(price), n=7) < 0.5
             }
         }
         """
         result = parse(source)
-        assert "n 7" in result.checks[0].assertions[0].expr.text
+        assert "n=7" in result.checks[0].assertions[0].expr.text

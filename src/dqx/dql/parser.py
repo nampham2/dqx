@@ -205,16 +205,16 @@ class DQLTransformer(Transformer):
         return items[0]
 
     def arg_lag(self, items: list) -> str:
-        return f"lag {items[0]}"
+        return f"lag={items[0]}"
 
     def arg_dataset(self, items: list) -> str:
-        return f"dataset {items[0]}"
+        return f"dataset={items[0]}"
 
     def arg_order_by(self, items: list) -> str:
-        return f"order_by {items[0]}"
+        return f"order_by={items[0]}"
 
     def arg_n(self, items: list) -> str:
-        return f"n {items[0]}"
+        return f"n={items[0]}"
 
     def list_arg(self, items: list) -> list:
         return list(items)

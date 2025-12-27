@@ -73,7 +73,7 @@ Target multiple datasets:
 
 ```dql
 check "Cross-Dataset" on orders, returns {
-    assert num_rows(dataset returns) / num_rows(dataset orders) < 15%
+    assert num_rows(dataset=returns) / num_rows(dataset=orders) < 15%
 }
 ```
 
@@ -102,7 +102,7 @@ assert average(price) > 0
 With tolerance for floating-point comparison:
 
 ```dql
-assert average(price) / average(price, lag 1) == 1.0 tolerance 0.05
+assert average(price) / average(price, lag=1) == 1.0 tolerance 0.05
     name "Ratio near 1.0"
 ```
 
@@ -273,7 +273,7 @@ duplicate_count([id, date]) # Count of duplicate combinations
 ```dql
 count_values(status, "pending")  # Rows where status == "pending"
 first(timestamp)                 # First value by row order
-first(timestamp, order_by price) # First value ordered by price
+first(timestamp, order_by=price) # First value ordered by price
 ```
 
 `first()` returns the first value in storage order unless `order_by` specifies a column.
@@ -311,8 +311,8 @@ Use built-in metrics when possible; reserve `sql()` for expressions DQL cannot r
 Metrics accept optional parameters:
 
 ```dql
-average(price, lag 1)           # Yesterday's average
-average(price, dataset orders)  # Specific dataset
+average(price, lag=1)           # Yesterday's average
+average(price, dataset=orders)  # Specific dataset
 ```
 
 | Parameter | Description |
@@ -743,7 +743,7 @@ suite "E-Commerce Data Quality" {
     }
 
     check "Cross-Dataset" on orders, returns {
-        assert num_rows(dataset returns) / num_rows(dataset orders) < 15%
+        assert num_rows(dataset=returns) / num_rows(dataset=orders) < 15%
             name "Return rate below 15%"
     }
 
@@ -1552,7 +1552,7 @@ factor      = "-" factor | NUMBER | PERCENT | call | "(" expr ")" | ident | "Non
 call        = qualified_ident "(" [args] ")"
 args        = arg ("," arg)*
 arg         = named_arg | list_arg | expr
-named_arg   = "lag" NUMBER | "dataset" ident | "order_by" ident | "n" NUMBER
+named_arg   = "lag" "=" NUMBER | "dataset" "=" ident | "order_by" "=" ident | "n" "=" NUMBER
 list_arg    = "[" ident ("," ident)* "]"
 qualified_ident = IDENT ("." IDENT)*
 
@@ -1741,7 +1741,7 @@ The following features are specified in this design but **require implementation
 | Feature | Description | Example |
 |---------|-------------|---------|
 | **Statistical bounds** | Anomaly detection via z-score | `assert average(price) within 3 stddev` |
-| **Referential integrity** | Foreign key validation | `assert values(order_id) in values(id, dataset orders)` |
+| **Referential integrity** | Foreign key validation | `assert values(order_id) in values(id, dataset=orders)` |
 | **Distribution checks** | Categorical distribution matching | `assert distribution(status) matches {...}` |
 | **Percentile metrics** | P50, P95, P99 calculations | `assert percentile(latency, 0.99) < 500` |
 | **LSP server** | IDE autocomplete and diagnostics | — |
