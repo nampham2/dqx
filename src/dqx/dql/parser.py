@@ -213,6 +213,9 @@ class DQLTransformer(Transformer):
     def arg_order_by(self, items: list) -> str:
         return f"order_by {items[0]}"
 
+    def arg_n(self, items: list) -> str:
+        return f"n {items[0]}"
+
     def list_arg(self, items: list) -> list:
         return list(items)
 

@@ -1083,3 +1083,15 @@ class TestAdditionalEdgeCases:
         """
         result = parse(source)
         assert "today()" in str(result.profiles[0].from_date.value)
+
+    def test_n_parameter(self) -> None:
+        """Test 'n' parameter for stddev() and similar functions."""
+        source = """
+        suite "Test" {
+            check "Test" on t {
+                assert stddev(average(price), n 7) < 0.5
+            }
+        }
+        """
+        result = parse(source)
+        assert "n 7" in result.checks[0].assertions[0].expr.text

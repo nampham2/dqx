@@ -1525,15 +1525,17 @@ const       = ["export"] "const" IDENT "=" expr [tunable]
 tunable     = "tunable" "[" expr "," expr "]"
 
 (* === Checks and Assertions === *)
-check       = "check" STRING "on" datasets "{" (annotation | assertion)+ "}"
+check       = "check" STRING "on" datasets "{" assertion+ "}"
 datasets    = ident ("," ident)*
 
 annotation  = "@" IDENT ["(" ann_args ")"]
-ann_args    = IDENT "=" expr ("," IDENT "=" expr)*
+ann_args    = IDENT "=" (NUMBER | STRING) ("," IDENT "=" (NUMBER | STRING))*
 
-assertion   = [annotation*] "assert" expr condition modifiers*
-condition   = comparison | "between" expr "and" expr | "is" keyword
+assertion   = annotation* "assert" expr condition modifiers*
+condition   = comparison | "between" bound "and" bound | "is" keyword
 comparison  = ("<" | "<=" | ">" | ">=" | "==" | "!=") expr
+bound       = bound_term (("*"|"/") bound_term)*   (* restricted to avoid 'and' ambiguity *)
+bound_term  = NUMBER | PERCENT | ident | call
 keyword     = "positive" | "negative" | "None" | "not" "None"
 modifiers   = name | tolerance | severity | tags | sample
 name        = "name" STRING
@@ -1543,19 +1545,22 @@ tags        = "tags" "[" IDENT ("," IDENT)* "]"
 sample      = "sample" (PERCENT | NUMBER "rows") ["seed" NUMBER]
 
 (* === Expressions === *)
-expr        = ["-"] term (("+"|"-") term)*
+expr        = term (("+"|"-") term)*
 term        = factor (("*"|"/") factor)*
-factor      = NUMBER | PERCENT | call | "(" expr ")" | ident | "None"
+factor      = "-" factor | NUMBER | PERCENT | call | "(" expr ")" | ident | "None" | STRING
 call        = qualified_ident "(" [args] ")"
 args        = arg ("," arg)*
-arg         = expr | IDENT expr | "[" ident ("," ident)* "]"
+arg         = named_arg | list_arg | expr
+named_arg   = "lag" NUMBER | "dataset" ident | "order_by" ident | "n" NUMBER
+list_arg    = "[" ident ("," ident)* "]"
 qualified_ident = IDENT ("." IDENT)*
 
 (* === Profiles === *)
 profile     = "profile" STRING "{" profile_body "}"
 profile_body= "type" IDENT "from" date_expr "to" date_expr rule*
 date_expr   = DATE | date_func | date_expr ("+" | "-") NUMBER
-date_func   = IDENT "(" [args] ")"
+date_func   = IDENT "(" [date_args] ")"
+date_args   = (IDENT | NUMBER) ("," (IDENT | NUMBER))*
 rule        = disable | scale | downgrade
 disable     = "disable" ("check" STRING | "assertion" STRING "in" STRING)
 scale       = "scale" selector "by" NUMBER "x"
@@ -1578,9 +1583,17 @@ ident       = IDENT | '`' [^`]+ '`'           (* backticks escape reserved words
 COMMENT     = '#' [^\n]*                  (* Python-style comments *)
 ```
 
+### Grammar Notes
+
+**Named arguments:** Function arguments use specific keywords (`lag`, `dataset`, `order_by`, `n`) rather than arbitrary identifiers to avoid parser ambiguity.
+
+**Between bounds:** The `between A and B` condition restricts bounds to simple expressions (numbers, percentages, identifiers, function calls, and `*`/`/` operators). Full arithmetic with `+`/`-` would conflict with the `and` keyword. Use parenthesized comparisons for complex bounds: `>= (A + B)`.
+
+**Annotation values:** Annotation arguments accept only NUMBER or STRING values, not full expressions.
+
 ### Reserved Words
 
-The following are reserved: `suite`, `check`, `assert`, `on`, `from`, `to`, `by`, `in`, `and`, `is`, `between`, `profile`, `type`, `const`, `import`, `export`, `as`, `name`, `severity`, `tags`, `tolerance`, `scale`, `disable`, `downgrade`, `sample`, `seed`, `rows`.
+The following are reserved: `suite`, `check`, `assert`, `on`, `from`, `to`, `by`, `in`, `and`, `is`, `between`, `profile`, `type`, `const`, `import`, `export`, `as`, `name`, `severity`, `tags`, `tolerance`, `scale`, `disable`, `downgrade`, `sample`, `seed`, `rows`, `lag`, `dataset`, `order_by`, `n`.
 
 Use backticks to escape column or dataset names that conflict:
 
