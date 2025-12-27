@@ -265,7 +265,11 @@ class TestVerificationSuiteTunables:
             suite.get_param("UNKNOWN")
 
     def test_set_param(self) -> None:
-        """Can set param value."""
+        """
+        Verifies that a tunable parameter can be updated via a VerificationSuite and its new value retrieved.
+        
+        Creates a VerificationSuite with a TunablePercent, calls set_param to change the parameter (including agent and reason), and asserts get_param returns the updated value.
+        """
         from dqx.api import VerificationSuite, check
         from dqx.orm.repositories import InMemoryMetricDB
 
@@ -336,7 +340,12 @@ class TestVerificationSuiteTunables:
         assert history[1].new_value == 0.15
 
     def test_duplicate_tunable_name_raises(self) -> None:
-        """Raises error if duplicate tunable names provided."""
+        """
+        Verifies that constructing a VerificationSuite with two tunables that share the same name raises an error.
+        
+        Raises:
+            DQXError: with message "Duplicate tunable name" when duplicate tunable names are provided to VerificationSuite.
+        """
         from dqx.api import VerificationSuite, check
         from dqx.common import DQXError
         from dqx.orm.repositories import InMemoryMetricDB

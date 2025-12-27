@@ -122,6 +122,12 @@ def _create_lazy_extended_fn(
 
 class MetricRegistry:
     def __init__(self) -> None:
+        """
+        Initialize a new MetricRegistry instance.
+        
+        Sets up internal storage for registered SymbolicMetric objects, a mapping from symbols to metrics,
+        a counter for generating unique symbol names, and a lock to make symbol generation thread-safe.
+        """
         self._metrics: list[SymbolicMetric] = []
         self._symbol_index: SymbolIndex = {}
 
@@ -130,6 +136,12 @@ class MetricRegistry:
 
     @property
     def symbolic_metrics(self) -> Iterable[SymbolicMetric]:  # pragma: no cover
+        """
+        Provide an iterable view of the registered symbolic metrics in their current order.
+        
+        Returns:
+            Iterable[SymbolicMetric]: An iterable of the registry's SymbolicMetric objects, ordered by their insertion/current internal ordering.
+        """
         return self._metrics
 
     @property
@@ -356,7 +368,15 @@ class MetricRegistry:
                 logger.warning(f"Low data availability ratio for {sm.symbol}: {sm.data_av_ratio:.2f}")
 
     def _find_cycle_details(self, remaining_metrics: list[SymbolicMetric]) -> str:
-        """Generate helpful error message about circular dependencies."""
+        """
+        Build a human-readable description of circular dependency relationships among the given metrics.
+        
+        Parameters:
+            remaining_metrics (list[SymbolicMetric]): Metrics involved in the detected cycle (typically the set remaining after a failed topological sort).
+        
+        Returns:
+            str: Newline-separated lines describing, for each metric in the cycle, which other symbols it depends on; if no internal dependencies are found, returns a message indicating metrics depend on symbols not present in the registry.
+        """
         cycle_symbols = {sm.symbol for sm in remaining_metrics}
         details = []
 
@@ -386,7 +406,15 @@ class MetricRegistry:
 class RegistryMixin:
     @property
     def registry(self) -> MetricRegistry:  # pragma: no cover
-        """Access to metric registry."""
+        """
+        Access the provider's MetricRegistry.
+        
+        Returns:
+            MetricRegistry: The registry instance that holds registered symbolic metrics.
+        
+        Raises:
+            NotImplementedError: If the subclass does not implement this property.
+        """
         raise NotImplementedError("Subclasses must implement registry property.")
 
     @property
@@ -500,10 +528,11 @@ class SymbolicMetricBase(ABC, RegistryMixin):
                 sym_metric.required_metrics = [substitutions.get(req, req) for req in sym_metric.required_metrics]
 
     def prune_duplicate_symbols(self, substitutions: dict[sp.Symbol, sp.Symbol]) -> None:
-        """Remove duplicate symbols from registry.
-
-        Args:
-            substitutions: Map from duplicate symbols to canonical symbols
+        """
+        Remove duplicate SymbolicMetric entries from the registry and index.
+        
+        Parameters:
+            substitutions (dict[sp.Symbol, sp.Symbol]): Mapping of duplicate symbols to their canonical symbol. Entries listed as keys will be removed from the registry and symbol index.
         """
         if not substitutions:  # pragma: no cover
             return
@@ -739,15 +768,23 @@ class MetricProvider(SymbolicMetricBase):
         self._cache.clear()
 
     def flush_cache(self) -> int:
-        """Flush dirty cache entries to DB.
-
+        """
+        Flush dirty cache entries to the database.
+        
         Returns:
-            Number of metrics flushed
+            int: Number of metrics written back to the database.
         """
         return self._cache.write_back()
 
     def get_cache_stats(self) -> dict[str, int]:  # pragma: no cover
-        """Get cache statistics."""
+        """
+        Return basic statistics about the internal metric cache.
+        
+        Returns:
+            stats (dict[str, int]): Mapping containing:
+                - "total_cached": number of entries currently stored in the cache.
+                - "dirty_count": number of cached entries marked as dirty (needing persistence).
+        """
         return {"total_cached": len(self._cache._cache), "dirty_count": self._cache.get_dirty_count()}
 
     def create_metric(
@@ -844,7 +881,17 @@ class MetricProvider(SymbolicMetricBase):
         return sym
 
     def num_rows(self, lag: int = 0, dataset: str | None = None, parameters: dict[str, Any] | None = None) -> sp.Symbol:
-        """Create metric counting number of rows."""
+        """
+        Create a metric that counts rows for a specified dataset and lag.
+        
+        Parameters:
+            lag (int): Day offset applied to the metric (0 means the key's date).
+            dataset (str | None): Optional dataset name to bind the metric to; if None the dataset is resolved at evaluation time.
+            parameters (dict[str, Any] | None): Optional parameters forwarded to the NumRows metric specification.
+        
+        Returns:
+            sp.Symbol: Symbol representing the registered NumRows metric.
+        """
         return self.metric(specs.NumRows(parameters=parameters), lag, dataset)
 
     def first(
@@ -873,7 +920,18 @@ class MetricProvider(SymbolicMetricBase):
     def average(
         self, column: str, lag: int = 0, dataset: str | None = None, parameters: dict[str, Any] | None = None
     ) -> sp.Symbol:
-        """Create metric calculating average of column."""
+        """
+        Create a symbolic metric that computes the average of a column.
+        
+        Parameters:
+            column (str): Name of the column to average.
+            lag (int): Day offset to apply when resolving the metric's evaluation date.
+            dataset (str | None): Optional dataset name to evaluate the metric against.
+            parameters (dict[str, Any] | None): Optional additional query parameters (filters or execution-time options) passed to the underlying metric spec.
+        
+        Returns:
+            The symbol representing the registered average metric.
+        """
         return self.metric(specs.Average(column, parameters=parameters), lag, dataset)
 
     def minimum(
@@ -1011,7 +1069,14 @@ class MetricProvider(SymbolicMetricBase):
     def get_metric(
         self, metric_spec: MetricSpec, result_key: ResultKey, dataset: str, execution_id: ExecutionId
     ) -> Result[Metric, str]:
-        """Get metric from cache or database."""
+        """
+        Retrieve a persisted metric matching the given spec, result key, dataset, and execution.
+        
+        Checks the provider cache first and falls back to the database; returns a success result containing the matching Metric when found, or a failure result with an explanatory message when not found.
+        
+        Returns:
+            Result[Metric, str]: `Success(Metric)` containing the matching metric if found, `Failure(str)` with an explanatory message otherwise.
+        """
         # Try cache first
         cache_result = self._cache.get((metric_spec, result_key, dataset, execution_id))
         match cache_result:
@@ -1049,7 +1114,19 @@ class MetricProvider(SymbolicMetricBase):
         self._cache.put(metrics)
 
     def get_metrics_by_execution_id(self, execution_id: ExecutionId) -> list[Metric]:
-        """Get all metrics for execution ID using cache."""
+        """
+        Retrieve metrics for a given execution id, preferring cached entries when available.
+        
+        Fetches all metrics for the provided execution_id from the database, then for each metric
+        returns the cached instance if present; missing entries are added to the cache and returned.
+        
+        Parameters:
+            execution_id (ExecutionId): Execution identifier to fetch metrics for.
+        
+        Returns:
+            list[Metric]: List of Metric objects — cached instances when available, otherwise the
+            metrics loaded from the database (which are added to the cache).
+        """
         # First check if we can get all metrics from cache
         # This is a simple implementation - in production you might want
         # to track which execution_ids are fully cached

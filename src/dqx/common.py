@@ -196,12 +196,22 @@ class SqlDataSource(Protocol):
 
     @property
     def name(self) -> str:
-        """Get the name of this data source."""
+        """
+        Human-readable identifier for the data source.
+        
+        Returns:
+            name (str): The data source's name.
+        """
         ...
 
     @property
     def skip_dates(self) -> set[datetime.date]:  # pragma: no cover
-        """Dates to exclude from metric calculations for this dataset."""
+        """
+        Dates to exclude from metric calculations for this dataset.
+        
+        Returns:
+            A set of datetime.date objects that should be excluded from metric calculations.
+        """
         return set()
 
     def cte(self, nominal_date: datetime.date, parameters: Parameters | None = None) -> str:
