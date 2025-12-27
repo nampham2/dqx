@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 import sympy as sp
 
+from dqx.common import DQXError
 from dqx.graph.base import BaseNode
 from dqx.graph.nodes import AssertionNode, CheckNode
 from dqx.graph.traversal import Graph
@@ -264,7 +265,7 @@ class DatasetValidator(BaseValidator):
         for symbol in symbols:
             try:
                 metric = self._provider.get_symbol(symbol)
-            except (KeyError, AttributeError):  # pragma: no cover
+            except DQXError:  # pragma: no cover
                 # Symbol not found in provider - skip validation for this symbol
                 continue
 
@@ -303,7 +304,7 @@ class DatasetValidator(BaseValidator):
             for required_symbol in metric.required_metrics:
                 try:
                     required_metric = self._provider.get_symbol(required_symbol)
-                except (KeyError, AttributeError):  # pragma: no cover
+                except DQXError:  # pragma: no cover
                     # Required symbol not found - skip validation
                     continue
 

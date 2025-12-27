@@ -167,6 +167,13 @@ def test_coalesce() -> None:
     result = functions.coalesce(x, 0)
     assert result.has(x)  # Contains the symbol
 
+    # None is skipped to return first valid value
+    result = functions.coalesce(None, 5)
+    assert float(result) == 5
+
+    result = functions.coalesce(None, None, 10)
+    assert float(result) == 10
+
     # All None/NaN values should return NaN
     result = functions.coalesce(None, None)
     assert result == sp.S.NaN
