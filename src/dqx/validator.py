@@ -130,7 +130,7 @@ class BaseValidator(ABC):
         Process a single node and perform validator-specific checks.
 
         Args:
-            node (BaseNode): The node to examine; implementations should inspect this node and append any resulting ValidationIssue instances to the validator's internal issue collection.
+            node: The node to examine; implementations should inspect this node and append any resulting ValidationIssue instances to the validator's internal issue collection.
         """
         pass  # pragma: no cover
 
@@ -139,7 +139,7 @@ class BaseValidator(ABC):
         List validation issues collected by the validator.
 
         Returns:
-            issues (list[ValidationIssue]): Collected ValidationIssue instances found during processing.
+            list[ValidationIssue]: Collected ValidationIssue instances found during processing.
         """
         return self._issues
 
@@ -245,7 +245,7 @@ class DatasetValidator(BaseValidator):
         - for each required metric of the resolved metric, reports a mismatch if both metrics have datasets and those datasets differ.
 
         Args:
-            node (BaseNode): The node to validate; processing is performed only for AssertionNode instances.
+            node: The node to validate; processing is performed only for AssertionNode instances.
         """
         if not isinstance(node, AssertionNode):
             return

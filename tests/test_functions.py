@@ -167,6 +167,16 @@ def test_coalesce() -> None:
     result = functions.coalesce(x, 0)
     assert result.has(x)  # Contains the symbol
 
+    # All None/NaN values should return NaN
+    result = functions.coalesce(None, None)
+    assert result == sp.S.NaN
+
+    result = functions.coalesce(sp.S.NaN, None)
+    assert result == sp.S.NaN
+
+    result = functions.coalesce(None, sp.S.NaN, None)
+    assert result == sp.S.NaN
+
     # Error on empty args
     with pytest.raises(DQXError, match="coalesce requires at least one argument"):
         functions.coalesce()

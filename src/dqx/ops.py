@@ -244,7 +244,7 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
         Get the operation's unique per-instance prefix.
 
         Returns:
-            prefix (str): Unique prefix string used to form SQL column aliases for this operation.
+            str: Unique prefix string used to form SQL column aliases for this operation.
         """
         return self._prefix
 
@@ -254,7 +254,7 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
         Constructs the SQL column identifier for the operation.
 
         Returns:
-            sql_col (str): Unique SQL column alias formed by joining the operation's prefix and name with an underscore.
+            str: Unique SQL column alias formed by joining the operation's prefix and name with an underscore.
         """
         return f"{self.prefix}_{self.name}"
 
@@ -263,10 +263,10 @@ class Minimum(OpValueMixin[float], SqlOp[float]):
         Determine whether another object represents the same Minimum operation.
 
         Args:
-            other (Any): Object to compare against.
+            other: Object to compare against.
 
         Returns:
-            `true` if `other` is a `Minimum` with an identical `column` attribute, `false` otherwise.
+            `True` if `other` is a `Minimum` with an identical `column` attribute, `False` otherwise.
         """
         if not isinstance(other, Minimum):  # pragma: no cover
             return NotImplemented
@@ -326,7 +326,7 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
         Get the operation's unique per-instance prefix.
 
         Returns:
-            prefix (str): Unique prefix string used to form SQL column aliases for this operation.
+            str: Unique prefix string used to form SQL column aliases for this operation.
         """
         return self._prefix
 
@@ -336,7 +336,7 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
         Constructs the SQL column identifier for the operation.
 
         Returns:
-            sql_col (str): Unique SQL column alias formed by joining the operation's prefix and name with an underscore.
+            str: Unique SQL column alias formed by joining the operation's prefix and name with an underscore.
         """
         return f"{self.prefix}_{self.name}"
 
@@ -345,7 +345,7 @@ class Maximum(OpValueMixin[float], SqlOp[float]):
         Determine whether another object represents the same Maximum operation.
 
         Args:
-            other (Any): Object to compare against.
+            other: Object to compare against.
 
         Returns:
             `True` if `other` is a `Maximum` with the same `column`, `False` if `other` is a `Maximum` with a different `column`, `NotImplemented` if `other` is not a `Maximum`.
@@ -478,7 +478,7 @@ class Variance(OpValueMixin[float], SqlOp[float]):
         Get the operation's unique per-instance prefix.
 
         Returns:
-            prefix (str): Unique prefix string used to form SQL column aliases for this operation.
+            str: Unique prefix string used to form SQL column aliases for this operation.
         """
         return self._prefix
 
@@ -488,7 +488,7 @@ class Variance(OpValueMixin[float], SqlOp[float]):
         Constructs the SQL column identifier for the operation.
 
         Returns:
-            sql_col (str): Unique SQL column alias formed by joining the operation's prefix and name with an underscore.
+            str: Unique SQL column alias formed by joining the operation's prefix and name with an underscore.
         """
         return f"{self.prefix}_{self.name}"
 
@@ -497,7 +497,7 @@ class Variance(OpValueMixin[float], SqlOp[float]):
         Determine equality with another object by comparing the target column.
 
         Args:
-            other (Any): Object to compare against.
+            other: Object to compare against.
 
         Returns:
             `True` if `other` is a `Variance` instance with the same `column`, `False` if it is a `Variance` with a different `column`. Returns `NotImplemented` when `other` is not a `Variance`.
@@ -579,7 +579,7 @@ class First(OpValueMixin[float], SqlOp[float]):
         Determine equality between this First operation and another object.
 
         Args:
-            other (Any): Object to compare against.
+            other: Object to compare against.
 
         Returns:
             `True` if `other` is a `First` with the same `column` and `order_by`, `False` if `other` is a `First` but differs, or `NotImplemented` when comparing to a non-`First` object.
@@ -654,7 +654,7 @@ class NullCount(OpValueMixin[float], SqlOp[float]):
         Compare this NullCount to another object for equality based on the target column.
 
         Args:
-            other (Any): Object to compare against.
+            other: Object to compare against.
 
         Returns:
             `True` if `other` is a `NullCount` with the same `column`, `False` if `other` is a `NullCount` with a different `column`, `NotImplemented` for other types.
@@ -717,7 +717,7 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
         Get the operation's unique per-instance prefix.
 
         Returns:
-            prefix (str): Unique prefix string used to form SQL column aliases for this operation.
+            str: Unique prefix string used to form SQL column aliases for this operation.
         """
         return self._prefix
 
@@ -727,7 +727,7 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
         Constructs the SQL column identifier for the operation.
 
         Returns:
-            sql_col (str): Unique SQL column alias formed by joining the operation's prefix and name with an underscore.
+            str: Unique SQL column alias formed by joining the operation's prefix and name with an underscore.
         """
         return f"{self.prefix}_{self.name}"
 
@@ -736,10 +736,10 @@ class NegativeCount(OpValueMixin[float], SqlOp[float]):
         Determine equality with another NegativeCount by comparing the column attribute.
 
         Args:
-            other (Any): Object to compare against.
+            other: Object to compare against.
 
         Returns:
-            True if `other` is a `NegativeCount` instance with the same `column`, `False` if it is a `NegativeCount` with a different `column`. Returns `NotImplemented` if `other` is not a `NegativeCount`.
+            `True` if `other` is a `NegativeCount` instance with the same `column`, `False` if it is a `NegativeCount` with a different `column`. Returns `NotImplemented` if `other` is not a `NegativeCount`.
         """
         if not isinstance(other, NegativeCount):  # pragma: no cover
             return NotImplemented
@@ -870,10 +870,10 @@ class DuplicateCount(OpValueMixin[float], SqlOp[float]):
         Determine whether another object is equal to this DuplicateCount based on its columns.
 
         Args:
-            other (Any): The object to compare against.
+            other: The object to compare against.
 
         Returns:
-            True if `other` is a DuplicateCount with the same `columns`, `False` otherwise.
+            `True` if `other` is a DuplicateCount with the same `columns`, `False` otherwise.
         """
         if not isinstance(other, DuplicateCount):
             return NotImplemented  # pragma: no cover
@@ -996,7 +996,7 @@ class CountValues(OpValueMixin[float], SqlOp[float]):
         Determine whether another object represents the same CountValues operation.
 
         Args:
-            other (Any): Object to compare against.
+            other: Object to compare against.
 
         Returns:
             True if `other` is a CountValues with the same `column`, identical `values`, and the `values` have the same type; False otherwise.

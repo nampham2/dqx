@@ -136,7 +136,7 @@ class TunableFloat(Tunable[float]):
         Get the upper bound of the valid range.
 
         Returns:
-            upper (float): The upper bound value from `bounds`.
+            float: The upper bound value from `bounds`.
         """
         return self.bounds[1]
 
@@ -155,7 +155,7 @@ class TunableFloat(Tunable[float]):
         Ensure the given value lies within the tunable's inclusive bounds.
 
         Args:
-            value (float): Candidate value to validate.
+            value: Candidate value to validate.
 
         Raises:
             ValueError: If `value` is less than `lower_bound` or greater than `upper_bound`.
@@ -211,7 +211,7 @@ class TunablePercent(Tunable[float]):
         Get the upper bound of the valid range.
 
         Returns:
-            upper (float): The upper bound value from `bounds`.
+            float: The upper bound value from `bounds`.
         """
         return self.bounds[1]
 
@@ -232,7 +232,7 @@ class TunablePercent(Tunable[float]):
         Raises a ValueError if the provided value is outside [lower_bound, upper_bound]. The error message reports the value and bounds formatted as percentages.
 
         Args:
-            value (float): Percentage expressed as a fraction (e.g., 0.25 for 25%).
+            value: Percentage expressed as a fraction (e.g., 0.25 for 25%).
         """
         if not self.lower_bound <= value <= self.upper_bound:
             raise ValueError(
@@ -288,7 +288,7 @@ class TunableInt(Tunable[int]):
         Get the inclusive upper bound of the valid range.
 
         Returns:
-            upper_bound (int): The inclusive upper bound value from the tunable's bounds tuple.
+            int: The inclusive upper bound value from the tunable's bounds tuple.
         """
         return self.bounds[1]
 

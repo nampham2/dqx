@@ -200,7 +200,7 @@ class SqlDataSource(Protocol):
         Human-readable identifier for the data source.
 
         Returns:
-            name (str): The data source's name.
+            str: The data source's name.
         """
         ...
 
