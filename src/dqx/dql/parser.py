@@ -31,7 +31,7 @@ from dqx.dql.errors import DQLSyntaxError
 
 # Load grammar from file
 _GRAMMAR_PATH = Path(__file__).parent / "grammar.lark"
-if not _GRAMMAR_PATH.exists():
+if not _GRAMMAR_PATH.exists():  # pragma: no cover
     raise FileNotFoundError(f"DQL grammar file not found: {_GRAMMAR_PATH}")
 _GRAMMAR = _GRAMMAR_PATH.read_text(encoding="utf-8")
 
