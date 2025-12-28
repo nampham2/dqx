@@ -73,7 +73,7 @@ Target multiple datasets:
 
 ```dql
 check "Cross-Dataset" on orders, returns {
-    assert num_rows(dataset returns) / num_rows(dataset orders) < 15%
+    assert num_rows(dataset=returns) / num_rows(dataset=orders) < 15%
 }
 ```
 
@@ -102,7 +102,7 @@ assert average(price) > 0
 With tolerance for floating-point comparison:
 
 ```dql
-assert average(price) / average(price, lag 1) == 1.0 tolerance 0.05
+assert average(price) / average(price, lag=1) == 1.0 tolerance 0.05
     name "Ratio near 1.0"
 ```
 
@@ -273,7 +273,7 @@ duplicate_count([id, date]) # Count of duplicate combinations
 ```dql
 count_values(status, "pending")  # Rows where status == "pending"
 first(timestamp)                 # First value by row order
-first(timestamp, order_by price) # First value ordered by price
+first(timestamp, order_by=price) # First value ordered by price
 ```
 
 `first()` returns the first value in storage order unless `order_by` specifies a column.
@@ -311,8 +311,8 @@ Use built-in metrics when possible; reserve `sql()` for expressions DQL cannot r
 Metrics accept optional parameters:
 
 ```dql
-average(price, lag 1)           # Yesterday's average
-average(price, dataset orders)  # Specific dataset
+average(price, lag=1)           # Yesterday's average
+average(price, dataset=orders)  # Specific dataset
 ```
 
 | Parameter | Description |
@@ -596,10 +596,11 @@ scale check "Revenue" by 1.5x
 
 For `between A and B`, the scaled metric compares against both bounds unchanged.
 
-**Downgrade** changes severity:
+**Set severity** changes the severity level (can raise or lower):
 
 ```dql
-downgrade tag "non-critical" to P3
+set tag "non-critical" severity P3
+set check "Volume" severity P2
 ```
 
 ### Rule Ordering
@@ -742,7 +743,7 @@ suite "E-Commerce Data Quality" {
     }
 
     check "Cross-Dataset" on orders, returns {
-        assert num_rows(dataset returns) / num_rows(dataset orders) < 15%
+        assert num_rows(dataset=returns) / num_rows(dataset=orders) < 15%
             name "Return rate below 15%"
     }
 
@@ -770,7 +771,7 @@ suite "E-Commerce Data Quality" {
         to   2025-01-05
 
         disable check "Volume"
-        downgrade tag "trend" to P3
+        set tag "trend" severity P3
     }
 }
 ```
@@ -1525,15 +1526,17 @@ const       = ["export"] "const" IDENT "=" expr [tunable]
 tunable     = "tunable" "[" expr "," expr "]"
 
 (* === Checks and Assertions === *)
-check       = "check" STRING "on" datasets "{" (annotation | assertion)+ "}"
+check       = "check" STRING "on" datasets "{" assertion+ "}"
 datasets    = ident ("," ident)*
 
 annotation  = "@" IDENT ["(" ann_args ")"]
-ann_args    = IDENT "=" expr ("," IDENT "=" expr)*
+ann_args    = IDENT "=" (NUMBER | STRING) ("," IDENT "=" (NUMBER | STRING))*
 
-assertion   = [annotation*] "assert" expr condition modifiers*
-condition   = comparison | "between" expr "and" expr | "is" keyword
+assertion   = annotation* "assert" expr condition modifiers*
+condition   = comparison | "between" bound "and" bound | "is" keyword
 comparison  = ("<" | "<=" | ">" | ">=" | "==" | "!=") expr
+bound       = bound_term (("*"|"/") bound_term)*   (* restricted to avoid 'and' ambiguity *)
+bound_term  = NUMBER | PERCENT | ident | call
 keyword     = "positive" | "negative" | "None" | "not" "None"
 modifiers   = name | tolerance | severity | tags | sample
 name        = "name" STRING
@@ -1543,23 +1546,26 @@ tags        = "tags" "[" IDENT ("," IDENT)* "]"
 sample      = "sample" (PERCENT | NUMBER "rows") ["seed" NUMBER]
 
 (* === Expressions === *)
-expr        = ["-"] term (("+"|"-") term)*
+expr        = term (("+"|"-") term)*
 term        = factor (("*"|"/") factor)*
-factor      = NUMBER | PERCENT | call | "(" expr ")" | ident | "None"
+factor      = "-" factor | NUMBER | PERCENT | call | "(" expr ")" | ident | "None" | STRING
 call        = qualified_ident "(" [args] ")"
 args        = arg ("," arg)*
-arg         = expr | IDENT expr | "[" ident ("," ident)* "]"
+arg         = named_arg | list_arg | expr
+named_arg   = "lag" "=" NUMBER | "dataset" "=" ident | "order_by" "=" ident | "n" "=" NUMBER
+list_arg    = "[" ident ("," ident)* "]"
 qualified_ident = IDENT ("." IDENT)*
 
 (* === Profiles === *)
 profile     = "profile" STRING "{" profile_body "}"
 profile_body= "type" IDENT "from" date_expr "to" date_expr rule*
 date_expr   = DATE | date_func | date_expr ("+" | "-") NUMBER
-date_func   = IDENT "(" [args] ")"
-rule        = disable | scale | downgrade
+date_func   = IDENT "(" [date_args] ")"
+date_args   = (IDENT | NUMBER) ("," (IDENT | NUMBER))*
+rule        = disable | scale | set_severity
 disable     = "disable" ("check" STRING | "assertion" STRING "in" STRING)
 scale       = "scale" selector "by" NUMBER "x"
-downgrade   = "downgrade" selector "to" SEVERITY
+set_severity= "set" selector "severity" SEVERITY
 selector    = "check" STRING | "tag" STRING
 
 (* === Imports === *)
@@ -1578,9 +1584,17 @@ ident       = IDENT | '`' [^`]+ '`'           (* backticks escape reserved words
 COMMENT     = '#' [^\n]*                  (* Python-style comments *)
 ```
 
+### Grammar Notes
+
+**Named arguments:** Function arguments use specific keywords (`lag`, `dataset`, `order_by`, `n`) rather than arbitrary identifiers to avoid parser ambiguity.
+
+**Between bounds:** The `between A and B` condition restricts bounds to simple expressions (numbers, percentages, identifiers, function calls, and `*`/`/` operators). Full arithmetic with `+`/`-` would conflict with the `and` keyword. Use parenthesized comparisons for complex bounds: `>= (A + B)`.
+
+**Annotation values:** Annotation arguments accept only NUMBER or STRING values, not full expressions.
+
 ### Reserved Words
 
-The following are reserved: `suite`, `check`, `assert`, `on`, `from`, `to`, `by`, `in`, `and`, `is`, `between`, `profile`, `type`, `const`, `import`, `export`, `as`, `name`, `severity`, `tags`, `tolerance`, `scale`, `disable`, `downgrade`, `sample`, `seed`, `rows`.
+The following are reserved: `suite`, `check`, `assert`, `on`, `from`, `to`, `by`, `in`, `and`, `is`, `between`, `profile`, `type`, `const`, `import`, `export`, `as`, `name`, `severity`, `tags`, `tolerance`, `scale`, `disable`, `set`, `sample`, `seed`, `rows`, `lag`, `dataset`, `order_by`, `n`.
 
 Use backticks to escape column or dataset names that conflict:
 
@@ -1727,7 +1741,7 @@ The following features are specified in this design but **require implementation
 | Feature | Description | Example |
 |---------|-------------|---------|
 | **Statistical bounds** | Anomaly detection via z-score | `assert average(price) within 3 stddev` |
-| **Referential integrity** | Foreign key validation | `assert values(order_id) in values(id, dataset orders)` |
+| **Referential integrity** | Foreign key validation | `assert values(order_id) in values(id, dataset=orders)` |
 | **Distribution checks** | Categorical distribution matching | `assert distribution(status) matches {...}` |
 | **Percentile metrics** | P50, P95, P99 calculations | `assert percentile(latency, 0.99) < 500` |
 | **LSP server** | IDE autocomplete and diagnostics | — |
