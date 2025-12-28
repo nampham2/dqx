@@ -1,6 +1,6 @@
 """DQL error classes with source location support."""
 
-from dataclasses import dataclass
+from enum import StrEnum
 
 from dqx.dql.ast import SourceLocation
 
@@ -48,7 +48,8 @@ class DQLSyntaxError(DQLError):
             parts.append("   |")
             parts.append(f"{self.loc.line:>3} | {self.source_line}")
             if self.loc.column > 0:
-                pointer = " " * (self.loc.column + 5) + "^"
+                # column is 1-based, so use (column - 1) + 5 = column + 4
+                pointer = " " * (self.loc.column + 4) + "^"
                 parts.append(f"   | {pointer}")
 
         # Suggestion
@@ -70,8 +71,7 @@ class DQLImportError(DQLError):
     pass
 
 
-@dataclass
-class ErrorCode:
+class ErrorCode(StrEnum):
     """Standard error codes for DQL errors."""
 
     E001 = "E001"  # Unknown metric

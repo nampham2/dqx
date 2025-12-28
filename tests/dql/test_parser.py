@@ -744,7 +744,7 @@ class TestCoverageEdgeCases:
     """Tests for edge cases to achieve 100% coverage."""
 
     def test_negation_expression(self) -> None:
-        """Cover neg() - line 179."""
+        """Cover negation expression parsing."""
         source = """
         suite "Test" {
             check "Test" on t {
@@ -756,7 +756,7 @@ class TestCoverageEdgeCases:
         assert "-" in result.checks[0].assertions[0].expr.text
 
     def test_none_literal(self) -> None:
-        """Cover none_literal() - line 182."""
+        """Cover None literal parsing."""
         source = """
         suite "Test" {
             check "Test" on t {
@@ -780,7 +780,7 @@ class TestCoverageEdgeCases:
         assert "[id, date]" in result.checks[0].assertions[0].expr.text
 
     def test_order_by_arg(self) -> None:
-        """Cover arg_order_by() - line 219."""
+        """Cover order_by argument parsing."""
         source = """
         suite "Test" {
             check "Test" on t {
@@ -792,7 +792,7 @@ class TestCoverageEdgeCases:
         assert "order_by" in result.checks[0].assertions[0].expr.text
 
     def test_date_func_no_args(self) -> None:
-        """Cover date_func with no args - line 458."""
+        """Cover date function with no arguments."""
         source = """
         suite "Test" {
             profile "Month End" {
@@ -919,14 +919,14 @@ class TestErrorFormatting:
         assert "Test error" in str(error)
 
     def test_dql_syntax_error_without_location(self) -> None:
-        """Cover DQLSyntaxError._format_message without loc - line 44."""
+        """Cover DQLSyntaxError formatting without location."""
         from dqx.dql.errors import DQLSyntaxError
 
         error = DQLSyntaxError("Test syntax error", loc=None)
         assert "error: Test syntax error" in str(error)
 
     def test_dql_error_without_location(self) -> None:
-        """Cover DQLError._format_message without loc - line 19."""
+        """Cover DQLError formatting without location."""
         from dqx.dql.errors import DQLError
 
         error = DQLError("Test error", loc=None)
@@ -953,7 +953,7 @@ class TestAdditionalEdgeCases:
         assert "500" in assertion.threshold_upper.text
 
     def test_between_term_with_identifier(self) -> None:
-        """Cover between_term with ident - line 245."""
+        """Cover between bounds with identifier constants."""
         source = """
         suite "Test" {
             check "Test" on t {
@@ -969,7 +969,7 @@ class TestAdditionalEdgeCases:
         assert "MAX_VAL" in assertion.threshold_upper.text
 
     def test_sample_value_rule(self) -> None:
-        """Cover sample_value - line 310."""
+        """Cover sample value with row count."""
         source = """
         suite "Test" {
             check "Test" on t {
@@ -984,7 +984,7 @@ class TestAdditionalEdgeCases:
         assert sample.is_percentage is False
 
     def test_named_arg_passthrough(self) -> None:
-        """Cover named_arg - line 210."""
+        """Cover named argument parsing."""
         source = """
         suite "Test" {
             check "Test" on t {
@@ -996,7 +996,7 @@ class TestAdditionalEdgeCases:
         assert "lag=7" in result.checks[0].assertions[0].expr.text
 
     def test_condition_comparison_passthrough(self) -> None:
-        """Cover condition returning comparison - line 232."""
+        """Cover condition with comparison operators."""
         source = """
         suite "Test" {
             check "Test" on t {
@@ -1009,7 +1009,7 @@ class TestAdditionalEdgeCases:
         assert assertion.condition == "!="
 
     def test_make_loc_no_meta(self) -> None:
-        """Cover _make_loc returning None - line 55."""
+        """Cover _make_loc when tree has no meta."""
         from dqx.dql.parser import _make_loc
 
         class FakeTree:
@@ -1025,7 +1025,7 @@ class TestAdditionalEdgeCases:
         assert result is None
 
     def test_date_expr_string_fallback(self) -> None:
-        """Cover date_expr string fallback - line 451."""
+        """Cover date expression with function call."""
         # This is covered by the date function tests
         source = """
         suite "Test" {
@@ -1041,7 +1041,7 @@ class TestAdditionalEdgeCases:
         assert result.profiles[0].from_date is not None
 
     def test_factor_with_parenthesized_expr(self) -> None:
-        """Cover factor with parenthesized expression - line 176."""
+        """Cover parenthesized expression parsing."""
         source = """
         suite "Test" {
             check "Test" on t {
@@ -1054,7 +1054,7 @@ class TestAdditionalEdgeCases:
         assert "sum(a)" in result.checks[0].assertions[0].expr.text
 
     def test_between_with_function_call_bounds(self) -> None:
-        """Cover between_term returning Expr from function call - line 234."""
+        """Cover between bounds with function calls."""
         source = """
         suite "Test" {
             check "Test" on t {
@@ -1071,7 +1071,7 @@ class TestAdditionalEdgeCases:
         assert "max_val()" in assertion.threshold_upper.text
 
     def test_date_func_no_args_direct(self) -> None:
-        """Cover date_func with no args returning empty parens - line 449."""
+        """Cover date function returning value with empty parens."""
         source = """
         suite "Test" {
             profile "End of Month" {

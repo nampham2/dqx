@@ -31,7 +31,9 @@ from dqx.dql.errors import DQLSyntaxError
 
 # Load grammar from file
 _GRAMMAR_PATH = Path(__file__).parent / "grammar.lark"
-_GRAMMAR = _GRAMMAR_PATH.read_text()
+if not _GRAMMAR_PATH.exists():
+    raise FileNotFoundError(f"DQL grammar file not found: {_GRAMMAR_PATH}")
+_GRAMMAR = _GRAMMAR_PATH.read_text(encoding="utf-8")
 
 # Create parser instance (cached)
 _parser = Lark(
@@ -597,6 +599,8 @@ class DQLTransformer(Transformer):
         )
 
     def start(self, items: list) -> Suite:
+        # Clear any stale annotations (defensive)
+        self._pending_annotations = []
         return items[0]
 
 
@@ -653,5 +657,5 @@ def parse_file(path: str | Path) -> Suite:
         FileNotFoundError: If the file doesn't exist
     """
     path = Path(path)
-    source = path.read_text()
+    source = path.read_text(encoding="utf-8")
     return parse(source, filename=str(path))
