@@ -222,7 +222,7 @@ class Analyzer:
 
     @property
     def db(self) -> MetricDB:
-        return self.provider._db
+        return self.provider.db
 
     @property
     def cache(self) -> MetricCache:

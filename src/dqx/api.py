@@ -801,7 +801,7 @@ class VerificationSuite:
         # Preserve the db reference from the old context's provider
         self._context = Context(
             suite=self._name,
-            db=self._context.provider._db,
+            db=self._context.provider.db,
             execution_id=self._execution_id,
             data_av_threshold=self._data_av_threshold,
         )
@@ -910,7 +910,7 @@ class VerificationSuite:
         self._context.provider.registry.calculate_data_av_ratios(datasources_dict, key)
 
         # Collect metrics stats and cleanup expired metrics BEFORE analysis
-        self._metrics_stats = self.provider._db.get_metrics_stats()
+        self._metrics_stats = self.provider.db.get_metrics_stats()
         logger.info(
             f"Metrics stats: {self._metrics_stats.expired_metrics} expired "
             f"out of {self._metrics_stats.total_metrics} total"
@@ -1095,7 +1095,7 @@ class VerificationSuite:
             duration_ms=duration_ms,
             results=self.collect_results(),
             symbols=self.provider.collect_symbols(self.key),
-            trace=self.metric_trace(self.provider._db),
+            trace=self.metric_trace(self.provider.db),
             metrics_stats=self.metrics_stats,
             cache_stats=self.provider.cache.get_stats(),
         )
@@ -1117,7 +1117,7 @@ class VerificationSuite:
             >>> suite.cleanup_expired_metrics()
             >>> print("Expired metrics deleted")
         """
-        self.provider._db.delete_expired_metrics()
+        self.provider.db.delete_expired_metrics()
 
 
 def _create_check(
