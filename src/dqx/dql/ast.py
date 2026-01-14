@@ -3,10 +3,11 @@
 All nodes are immutable dataclasses with optional source location tracking.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
-from typing import Union
 
 
 class Severity(Enum):
@@ -46,7 +47,7 @@ class Expr:
 class DateExpr:
     """A date expression - either a literal date or a function call."""
 
-    value: Union[date, str]  # date literal or expression string like "nth_weekday(...)"
+    value: date | str  # date literal or expression string like "nth_weekday(...)"
     offset: int = 0  # day offset (+/- N)
     loc: SourceLocation | None = None
 
@@ -56,7 +57,7 @@ class Annotation:
     """An annotation like @experimental, @required, or @cost(fp=1, fn=100)."""
 
     name: str
-    args: dict[str, Union[int, float, str]] = field(default_factory=dict)
+    args: dict[str, int | float | str] = field(default_factory=dict)
     loc: SourceLocation | None = None
 
 
@@ -99,14 +100,12 @@ class Check:
 
 
 @dataclass(frozen=True)
-class Const:
-    """A constant declaration."""
+class Tunable:
+    """A tunable constant declaration with required bounds."""
 
     name: str
     value: Expr
-    tunable: bool = False
-    bounds: tuple[Expr, Expr] | None = None  # (min, max) for tunable
-    export: bool = False
+    bounds: tuple[Expr, Expr]  # Required: (min, max)
     loc: SourceLocation | None = None
 
 
@@ -157,23 +156,12 @@ class Profile:
 
 
 @dataclass(frozen=True)
-class Import:
-    """An import statement."""
-
-    path: str
-    alias: str | None = None  # For "import X as Y"
-    names: tuple[str, ...] | None = None  # For "import { A, B } from X"
-    loc: SourceLocation | None = None
-
-
-@dataclass(frozen=True)
 class Suite:
     """The root AST node representing a DQL suite."""
 
     name: str
     checks: tuple[Check, ...] = ()
     profiles: tuple[Profile, ...] = ()
-    constants: tuple[Const, ...] = ()
-    imports: tuple[Import, ...] = ()
+    tunables: tuple[Tunable, ...] = ()
     availability_threshold: float | None = None  # e.g., 0.8 for 80%
     loc: SourceLocation | None = None

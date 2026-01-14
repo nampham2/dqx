@@ -1,5 +1,7 @@
 """Tests for complex DQL scenarios - Banking, Book E-Commerce, and Video Streaming."""
 
+from __future__ import annotations
+
 from pathlib import Path
 
 import pytest
@@ -29,21 +31,15 @@ class TestBankingTransactionsDQL:
     def test_tunable_constants(self, banking_dql: str) -> None:
         """Test tunable constants with bounds for RL optimization."""
         result = parse(banking_dql)
-        assert len(result.constants) == 5
+        assert len(result.tunables) == 5
 
-        # Find tunable constants
-        tunables = [c for c in result.constants if c.tunable]
-        assert len(tunables) == 4
+        # All tunables should have bounds
+        for tunable in result.tunables:
+            assert tunable.bounds is not None
 
         # Check MAX_NULL_RATE tunable
-        max_null = next(c for c in result.constants if c.name == "MAX_NULL_RATE")
-        assert max_null.tunable is True
+        max_null = next(c for c in result.tunables if c.name == "MAX_NULL_RATE")
         assert max_null.bounds is not None
-
-        # Check exported constant
-        exported = next(c for c in result.constants if c.name == "AMOUNT_VARIANCE_THRESHOLD")
-        assert exported.export is True
-        assert exported.tunable is False
 
     def test_check_count(self, banking_dql: str) -> None:
         """Test that at least 5 checks are defined."""
@@ -385,8 +381,7 @@ class TestVideoStreamingDQL:
     def test_tunable_count(self, streaming_dql: str) -> None:
         """Test tunable constants for RL."""
         result = parse(streaming_dql)
-        tunables = [c for c in result.constants if c.tunable]
-        assert len(tunables) >= 4
+        assert len(result.tunables) >= 5
 
     def test_check_count(self, streaming_dql: str) -> None:
         """Test minimum check count."""
@@ -543,7 +538,6 @@ class TestAllDQLScenariosIntegration:
         """Test comprehensive feature coverage across all suites."""
         all_features = {
             "tunable_constants": False,
-            "export_constants": False,
             "required_annotation": False,
             "experimental_annotation": False,
             "cost_annotation": False,
@@ -566,12 +560,9 @@ class TestAllDQLScenariosIntegration:
         for dql in all_dqls:
             result = parse(dql)
 
-            # Check constants
-            for const in result.constants:
-                if const.tunable:
-                    all_features["tunable_constants"] = True
-                if const.export:
-                    all_features["export_constants"] = True
+            # Check tunables
+            if result.tunables:
+                all_features["tunable_constants"] = True
 
             # Check assertions
             for check in result.checks:
@@ -742,47 +733,24 @@ class TestBookOrdersDQLWithImport:
         assert result.name == "Book Order Processing Quality"
         assert result.availability_threshold == 0.92
 
-    def test_import_statement(self, orders_dql: str) -> None:
-        """Test import statement is parsed correctly."""
-        result = parse(orders_dql)
-        assert len(result.imports) == 1
-        assert result.imports[0].path == "book_inventory.dql"
-        assert result.imports[0].alias is None
-        assert result.imports[0].names is None
-
     def test_check_count(self, orders_dql: str) -> None:
         """Test minimum check count."""
         result = parse(orders_dql)
         assert len(result.checks) >= 5
 
-    def test_uses_imported_constant(self, orders_dql: str) -> None:
-        """Test that assertion references imported PRICE_VOLATILITY_THRESHOLD constant."""
-        result = parse(orders_dql)
-        pricing = next(c for c in result.checks if c.name == "Order Pricing")
-
-        # Find assertion that uses the imported constant in threshold
-        imported_const_assertions = [
-            a for a in pricing.assertions if a.threshold and "PRICE_VOLATILITY_THRESHOLD" in a.threshold.text
-        ]
-        assert len(imported_const_assertions) >= 1
-
-    def test_local_constants(self, orders_dql: str) -> None:
-        """Test local constants are defined correctly."""
+    def test_local_tunables(self, orders_dql: str) -> None:
+        """Test local tunables are defined correctly."""
         result = parse(orders_dql)
 
-        # Should have local constants plus imported ones don't count in constants list
-        local_constants = {c.name for c in result.constants}
-        assert "MIN_DAILY_ORDERS" in local_constants
-        assert "MAX_REFUND_RATE" in local_constants
-        assert "ORDER_VALUE_THRESHOLD" in local_constants
+        # Should have local tunables
+        local_tunables = {c.name for c in result.tunables}
+        assert "MIN_DAILY_ORDERS" in local_tunables
+        assert "MAX_REFUND_RATE" in local_tunables
+        assert "ORDER_VALUE_THRESHOLD" in local_tunables
 
-        # Check tunable
-        min_orders = next(c for c in result.constants if c.name == "MIN_DAILY_ORDERS")
-        assert min_orders.tunable is True
-
-        # Check export
-        order_value = next(c for c in result.constants if c.name == "ORDER_VALUE_THRESHOLD")
-        assert order_value.export is True
+        # All tunables should have bounds
+        min_orders = next(c for c in result.tunables if c.name == "MIN_DAILY_ORDERS")
+        assert min_orders.bounds is not None
 
     def test_order_completeness_check(self, orders_dql: str) -> None:
         """Test order completeness check."""

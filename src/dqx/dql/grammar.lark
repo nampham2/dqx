@@ -6,16 +6,12 @@ start: suite
 
 suite: "suite" STRING "{" suite_body "}"
 
-suite_body: (metadata | const | check | profile | import_stmt)*
+suite_body: (metadata | tunable | check | profile)*
 
 metadata: "availability_threshold" PERCENT
 
-// === Constants ===
-const: [EXPORT] "const" IDENT "=" expr [tunable]
-
-EXPORT: "export"
-
-tunable: "tunable" "[" expr "," expr "]"
+// === Tunables ===
+tunable: "tunable" IDENT "=" expr "bounds" "[" expr "," expr "]"
 
 // === Checks and Assertions ===
 check: "check" STRING "on" datasets "{" check_body "}"
@@ -136,12 +132,6 @@ set_rule: "set" selector "severity" SEVERITY
 
 selector: "check" STRING -> sel_check
         | "tag" STRING -> sel_tag
-
-// === Imports ===
-import_stmt: "import" STRING ["as" IDENT] -> import_simple
-           | "import" "{" import_names "}" "from" STRING -> import_selective
-
-import_names: IDENT ("," IDENT)*
 
 // === Identifiers (with backtick escaping) ===
 ident: IDENT | ESCAPED_IDENT
