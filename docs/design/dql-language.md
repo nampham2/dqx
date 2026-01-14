@@ -299,9 +299,10 @@ assert sum(amount) / num_rows() > 10
 # Escape hatch: no validation
 assert sql("SUM(amount) / COUNT(*)") > 10
 
-# ERROR: interpolation not allowed in sql()
-tunable MY_COL = "amount" bounds ["amount", "revenue"]  # Hypothetical: DQL does not support string interpolation
-assert sql("SUM({MY_COL})") > 0  # Parse error: interpolation in sql() not permitted
+# ERROR: This example shows unsupported syntax for illustration
+# DQL does not support string interpolation in sql() functions
+tunable MY_COL = "amount" bounds ["amount", "revenue"]  # ERROR: String interpolation not supported
+assert sql("SUM({MY_COL})") > 0  # ERROR: Interpolation in sql() not permitted
 ```
 
 Use built-in metrics when possible; reserve `sql()` for expressions DQL cannot represent.
@@ -389,7 +390,7 @@ tunable <NAME> = <value> bounds [<min>, <max>]
 
 | Element | Required | Description |
 |---------|----------|-------------|
-| `tunable` | Yes | Keyword to declare a tunable constant |
+| `tunable` | Yes | Keyword to declare a tunable parameter |
 | `<NAME>` | Yes | Identifier for the tunable (uppercase convention) |
 | `<value>` | Yes | Initial/default value |
 | `bounds` | Yes | Keyword introducing the bounds specification |
@@ -743,7 +744,7 @@ DQL tracks changes in a separate history file to support algorithmic optimizatio
 
 | Action | Description | Fields |
 |--------|-------------|--------|
-| `set_param` | Tunable constant changed | `param`, `old`, `new`, `agent`, `reason` |
+| `set_param` | Tunable parameter changed | `param`, `old`, `new`, `agent`, `reason` |
 
 ### Agent Field
 
@@ -886,14 +887,14 @@ DQL provides a programmatic API for reinforcement learning agents to optimize da
 
 **Action Space:**
 
-The RL agent operates on a continuous, bounded action space derived from tunable constants:
+The RL agent operates on a continuous, bounded action space derived from tunable parameters:
 
 | Component | Type | Description |
 |-----------|------|-------------|
-| **Threshold adjustments** | Continuous, bounded | One dimension per `tunable` constant |
+| **Threshold adjustments** | Continuous, bounded | One dimension per `tunable` parameter |
 
 ```python
-# Continuous action space derived from tunable constants
+# Continuous action space derived from tunable parameters
 action_space = {
     "NULL_THRESHOLD": (0.0, 0.20),  # from tunable [0%, 20%]
     "MIN_ORDERS": (100, 10000),  # from tunable [100, 10000]

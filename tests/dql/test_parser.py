@@ -392,6 +392,9 @@ class TestTunables:
         tunable = result.tunables[0]
         assert tunable.name == "MAX_NULL_RATE"
         assert tunable.bounds is not None
+        assert "0.05" in tunable.value.text
+        assert "0.0" in tunable.bounds[0].text
+        assert "0.2" in tunable.bounds[1].text
 
     def test_percent_tunable(self) -> None:
         source = """
@@ -402,6 +405,8 @@ class TestTunables:
         result = parse(source)
         tunable = result.tunables[0]
         assert "0.05" in tunable.value.text
+        assert "0.0" in tunable.bounds[0].text
+        assert "0.2" in tunable.bounds[1].text
 
     def test_tunable_with_bounds(self) -> None:
         source = """
@@ -413,6 +418,8 @@ class TestTunables:
         tunable = result.tunables[0]
         assert tunable.bounds is not None
         assert len(tunable.bounds) == 2
+        assert "0.0" in tunable.bounds[0].text
+        assert "0.2" in tunable.bounds[1].text
 
 
 class TestProfiles:

@@ -559,7 +559,7 @@ class TestAllDQLScenariosIntegration:
             result = parse(dql)
 
             # Check tunables
-            for tunable in result.tunables:
+            if result.tunables:
                 all_features["tunable_constants"] = True
 
             # Check assertions

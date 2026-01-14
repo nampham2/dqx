@@ -3,10 +3,11 @@
 All nodes are immutable dataclasses with optional source location tracking.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
-from typing import Union
 
 
 class Severity(Enum):
@@ -46,7 +47,7 @@ class Expr:
 class DateExpr:
     """A date expression - either a literal date or a function call."""
 
-    value: Union[date, str]  # date literal or expression string like "nth_weekday(...)"
+    value: date | str  # date literal or expression string like "nth_weekday(...)"
     offset: int = 0  # day offset (+/- N)
     loc: SourceLocation | None = None
 
@@ -56,7 +57,7 @@ class Annotation:
     """An annotation like @experimental, @required, or @cost(fp=1, fn=100)."""
 
     name: str
-    args: dict[str, Union[int, float, str]] = field(default_factory=dict)
+    args: dict[str, int | float | str] = field(default_factory=dict)
     loc: SourceLocation | None = None
 
 
