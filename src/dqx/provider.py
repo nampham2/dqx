@@ -754,6 +754,11 @@ class MetricProvider(SymbolicMetricBase):
         return self._execution_id
 
     @property
+    def db(self) -> MetricDB:
+        """Access to the metric database."""
+        return self._db
+
+    @property
     def cache(self) -> MetricCache:
         """Access to the metric cache."""
         return self._cache
