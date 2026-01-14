@@ -191,46 +191,10 @@ class TestAssertions:
         assertion = result.checks[0].assertions[0]
         assert assertion.tags == ("volume", "critical")
 
-    def test_assertion_with_sample_percent(self) -> None:
-        source = """
-        suite "Test" {
-            check "Test" on t {
-                assert average(price) > 0 sample 10%
-            }
-        }
-        """
-        result = parse(source)
-        assertion = result.checks[0].assertions[0]
-        assert assertion.sample is not None
-        assert assertion.sample.value == 0.1
-        assert assertion.sample.is_percentage is True
-
-    def test_assertion_with_sample_rows(self) -> None:
-        source = """
-        suite "Test" {
-            check "Test" on t {
-                assert average(price) > 0 sample 10000 rows
-            }
-        }
-        """
-        result = parse(source)
-        assertion = result.checks[0].assertions[0]
-        assert assertion.sample is not None
-        assert assertion.sample.value == 10000
-        assert assertion.sample.is_percentage is False
-
-    def test_assertion_with_sample_and_seed(self) -> None:
-        source = """
-        suite "Test" {
-            check "Test" on t {
-                assert average(price) > 0 sample 10% seed 42
-            }
-        }
-        """
-        result = parse(source)
-        assertion = result.checks[0].assertions[0]
-        assert assertion.sample is not None
-        assert assertion.sample.seed == 42
+    # Sampling support removed - no longer part of DQL spec
+    # def test_assertion_with_sample_percent(self) -> None:
+    # def test_assertion_with_sample_rows(self) -> None:
+    # def test_assertion_with_sample_and_seed(self) -> None:
 
     def test_assertion_all_modifiers(self) -> None:
         source = """
@@ -904,20 +868,8 @@ class TestAdditionalEdgeCases:
         assert "MIN_VAL" in assertion.threshold.text
         assert "MAX_VAL" in assertion.threshold_upper.text
 
-    def test_sample_value_rule(self) -> None:
-        """Cover sample value with row count."""
-        source = """
-        suite "Test" {
-            check "Test" on t {
-                assert average(price) > 0 sample 1000 rows
-            }
-        }
-        """
-        result = parse(source)
-        sample = result.checks[0].assertions[0].sample
-        assert sample is not None
-        assert sample.value == 1000
-        assert sample.is_percentage is False
+    # Sampling support removed - no longer part of DQL spec
+    # def test_sample_value_rule(self) -> None:
 
     def test_named_arg_passthrough(self) -> None:
         """Cover named argument parsing."""

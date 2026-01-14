@@ -51,7 +51,6 @@ modifiers: name_mod
          | tolerance_mod
          | severity_mod
          | tags_mod
-         | sample_mod
 
 name_mod: "name" STRING
 
@@ -62,11 +61,6 @@ TOLERANCE_KW: "tolerance" | "+/-" | "±"
 severity_mod: "severity" SEVERITY
 
 tags_mod: "tags" "[" IDENT ("," IDENT)* "]"
-
-sample_mod: "sample" sample_value ["seed" NUMBER]
-
-sample_value: PERCENT -> sample_percent
-            | NUMBER "rows" -> sample_rows
 
 // === Expressions ===
 // We keep expressions relatively simple here; complex metric expressions

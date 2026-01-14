@@ -19,6 +19,7 @@ from dqx.dql.ast import (
     Tunable,
 )
 from dqx.dql.errors import DQLError, DQLSyntaxError
+from dqx.dql.interpreter import AssertionResult, Interpreter, SuiteResults
 from dqx.dql.parser import parse, parse_file
 
 __all__ = [
@@ -39,6 +40,10 @@ __all__ = [
     # Parser
     "parse",
     "parse_file",
+    # Interpreter
+    "Interpreter",
+    "SuiteResults",
+    "AssertionResult",
     # Errors
     "DQLError",
     "DQLSyntaxError",

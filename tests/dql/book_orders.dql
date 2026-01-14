@@ -90,7 +90,6 @@ suite "Book Order Processing Quality" {
             name "orders.integrity.refund_rate"
             severity P1
             tags [integrity, refunds]
-            sample 10% seed 42
     }
 
     # Check 5: Cross-Dataset with Books
