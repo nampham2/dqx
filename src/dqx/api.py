@@ -449,10 +449,30 @@ class VerificationSuite:
     of metrics, symbols, and analyzers required to evaluate those assertions.
 
     Example:
+        Basic usage (single run):
+
         >>> db = MetricDB()
         >>> suite = VerificationSuite([my_check], db, "My Suite")
         >>> datasource = DuckRelationDataSource.from_arrow(data, "dataset")
         >>> result = suite.run([datasource], key)
+
+        Advanced usage with tunables and reset (for AI agents):
+
+        >>> from dqx.tunables import TunablePercent
+        >>> threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.50))
+        >>> suite = VerificationSuite([my_check], db, "My Suite", tunables=[threshold])
+        >>>
+        >>> # Run 1
+        >>> suite.run([datasource], key)
+        >>> results = suite.collect_results()
+        >>>
+        >>> # Adjust threshold based on results
+        >>> suite.set_param("THRESHOLD", 0.30, agent="rl_optimizer", reason="Tuning iteration")
+        >>> suite.reset()  # Clear state for next run
+        >>>
+        >>> # Run 2 with new threshold
+        >>> suite.run([datasource], key)
+        >>> updated_results = suite.collect_results()
     """
 
     def __init__(
@@ -747,6 +767,55 @@ class VerificationSuite:
             raise KeyError(f"Tunable '{name}' not found. Available: {list(self._tunables.keys())}")
         return self._tunables[name].history
 
+    def reset(self) -> None:
+        """
+        Reset the verification suite to allow running it again with modified tunables.
+
+        This method clears all execution state (results, analysis reports, graph) while
+        preserving the suite configuration and tunable values. Each reset generates a
+        new execution_id to distinguish tuning iterations in the metrics database.
+
+        Primary use case: AI agents tuning threshold parameters via Tunables.
+
+        Example:
+            >>> suite = VerificationSuite(checks, db, "My Suite", tunables=[threshold])
+            >>> suite.run([datasource], key)
+            >>> result1 = suite.collect_results()[0].status  # "FAILED"
+            >>>
+            >>> # Tune threshold and try again
+            >>> suite.set_param("THRESHOLD", 0.30, agent="rl_optimizer")
+            >>> suite.reset()
+            >>> suite.run([datasource], key)
+            >>> result2 = suite.collect_results()[0].status  # "PASSED"
+
+        Note:
+            - Generates a new execution_id for the next run
+            - Preserves tunables, profiles, checks, and suite name
+            - Clears cached results, analysis reports, and dependency graph
+            - Clears plugin manager (will be lazy-loaded on next use)
+        """
+        # Generate new execution_id for the next run
+        self._execution_id = str(uuid.uuid4())
+
+        # Create fresh context with new execution_id
+        # Preserve the db reference from the old context's provider
+        self._context = Context(
+            suite=self._name,
+            db=self._context.provider._db,
+            execution_id=self._execution_id,
+            data_av_threshold=self._data_av_threshold,
+        )
+
+        # Clear execution state
+        self._is_evaluated = False
+        self._key = None
+        self._cached_results = None
+        self._analysis_reports = None  # type: ignore[assignment]
+        self._metrics_stats = None
+
+        # Clear plugin manager (will be lazy-loaded on next use)
+        self._plugin_manager = None
+
     def build_graph(self, context: Context, key: ResultKey) -> None:
         """
         Populate the execution graph by running all registered checks and validate it.
@@ -802,7 +871,10 @@ class VerificationSuite:
 
         # Prevent multiple runs
         if self.is_evaluated:
-            raise DQXError("Verification suite has already been executed. Create a new suite instance to run again.")
+            raise DQXError(
+                "Verification suite has already been executed. "
+                "Call reset() to clear state and run again, or create a new suite instance."
+            )
 
         # Validate the datasources
         if not datasources:
