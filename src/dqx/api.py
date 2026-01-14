@@ -266,24 +266,12 @@ class AssertionReady:
 
     def is_zero(self, tol: float = functions.EPSILON) -> None:
         """
-        Create an assertion that the expression equals zero.
+        Create an assertion that the expression equals 0.
 
         Args:
             tol: Comparison tolerance; values with absolute value less than `tol` are considered zero.
         """
         validator = SymbolicValidator("== 0", lambda x: functions.is_zero(x, tol))
-        self._create_assertion_node(validator)
-
-    def is_none(self) -> None:
-        """
-        Create an assertion that the expression is None.
-        """
-        validator = SymbolicValidator("is None", lambda x: x is None)
-        self._create_assertion_node(validator)
-
-    def is_not_none(self) -> None:
-        """Assert that the expression does not evaluate to None."""
-        validator = SymbolicValidator("is not None", lambda x: x is not None)
         self._create_assertion_node(validator)
 
     def noop(self) -> None:

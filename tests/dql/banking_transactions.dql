@@ -87,8 +87,8 @@ suite "Banking Transaction Data Quality" {
             severity P0
             tags [validity, fraud]
 
-        assert sum(amount, dataset=transactions) is not None
-            name "transactions.validity.sum_exists"
+        assert num_rows(dataset=transactions) is positive
+            name "transactions.validity.has_transactions"
             severity P1
     }
 

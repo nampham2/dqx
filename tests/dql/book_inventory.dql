@@ -111,8 +111,8 @@ suite "Book E-Commerce Inventory Quality" {
             severity P1
             tags [consistency]
 
-        assert first(updated_at, order_by=updated_at) is not None
-            name "consistency.has_update_timestamps"
+        assert num_rows(dataset=inventory) is positive
+            name "consistency.has_inventory_records"
             severity P2
             tags [temporal]
 
@@ -125,8 +125,8 @@ suite "Book E-Commerce Inventory Quality" {
 
     # Check 6: Temporal Quality
     check "Temporal Quality" on books {
-        assert first(publication_date) is not None
-            name "books.temporal.publication_dates_exist"
+        assert null_count(publication_date) == 0
+            name "books.temporal.publication_dates_complete"
             severity P2
             tags [temporal]
 

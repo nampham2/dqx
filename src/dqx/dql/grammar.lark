@@ -50,8 +50,6 @@ COMP_OP: "<" | "<=" | ">" | ">=" | "==" | "!="
 
 keyword: "positive" -> kw_positive
        | "negative" -> kw_negative
-       | "None" -> kw_none
-       | "not" "None" -> kw_not_none
 
 modifiers: name_mod
          | tolerance_mod
@@ -91,7 +89,6 @@ factor: "-" factor -> neg
       | call
       | "(" expr ")"
       | ident
-      | "None" -> none_literal
       | STRING
 
 call: qualified_ident "(" [args] ")"

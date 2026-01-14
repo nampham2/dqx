@@ -940,7 +940,7 @@ def test_required_and_cost_in_assertion_result() -> None:
 
 
 class TestNewAssertionMethods:
-    """Tests for new assertion methods: is_neq, is_none, is_not_none."""
+    """Tests for new assertion methods: is_neq."""
 
     def test_assertion_ready_has_is_neq(self) -> None:
         """AssertionReady should have is_neq method."""
@@ -949,22 +949,6 @@ class TestNewAssertionMethods:
         expr = sp.Symbol("x")
         ready = AssertionReady(actual=expr, name="Test assertion", context=None)
         assert hasattr(ready, "is_neq")
-
-    def test_assertion_ready_has_is_none(self) -> None:
-        """AssertionReady should have is_none method."""
-        from dqx.api import AssertionReady
-
-        expr = sp.Symbol("x")
-        ready = AssertionReady(actual=expr, name="Test assertion", context=None)
-        assert hasattr(ready, "is_none")
-
-    def test_assertion_ready_has_is_not_none(self) -> None:
-        """AssertionReady should have is_not_none method."""
-        from dqx.api import AssertionReady
-
-        expr = sp.Symbol("x")
-        ready = AssertionReady(actual=expr, name="Test assertion", context=None)
-        assert hasattr(ready, "is_not_none")
 
     def test_is_neq_assertion_workflow(self) -> None:
         """Test is_neq assertion in complete workflow."""
@@ -1002,88 +986,6 @@ class TestNewAssertionMethods:
             assert ctx.current_check is not None
             assertion = ctx.current_check.children[0]
             assert "\u2260 42" in assertion.validator.name  # ≠ symbol
-
-        suite = VerificationSuite([val_check], db, "test")
-        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-        suite.build_graph(context, key=key)
-
-    def test_is_none_assertion_workflow(self) -> None:
-        """Test is_none assertion in complete workflow."""
-        db = InMemoryMetricDB()
-        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
-
-        @check(name="None Check")
-        def none_check(mp: MetricProvider, ctx: Context) -> None:
-            """
-            Create a verification check that asserts the metric `x` is None and validate the resulting check node.
-
-            This registers an assertion via the provided Context: it converts an assertion draft for `x` into a ready assertion named "X is None", executes the `is_none()` assertion, and then verifies that `ctx.current_check` exists, contains exactly one child, and that the child's name equals "X is None".
-
-            Parameters:
-                mp (MetricProvider): Provider used to register or resolve metrics (unused by this helper but required by test harness).
-                ctx (Context): Execution context in which the check and assertion are created and validated.
-            """
-            ctx.assert_that(sp.Symbol("x")).where(name="X is None").is_none()
-
-            assert ctx.current_check is not None
-            assert len(ctx.current_check.children) == 1
-            assert ctx.current_check.children[0].name == "X is None"
-
-        suite = VerificationSuite([none_check], db, "test")
-        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-        suite.build_graph(context, key=key)
-
-    def test_is_none_validator_description(self) -> None:
-        """Test is_none creates correct validator description."""
-        db = InMemoryMetricDB()
-        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
-
-        @check(name="Validator Check")
-        def val_check(mp: MetricProvider, ctx: Context) -> None:
-            """
-            Create an 'is None' assertion named "Test none" for symbol "x" in the provided context and verify the created assertion's validator name contains "is None".
-
-            This function registers the assertion via ctx.assert_that(...).where(...).is_none(), then inspects ctx.current_check to ensure a child assertion was created and that its validator description includes the text "is None".
-            """
-            ctx.assert_that(sp.Symbol("x")).where(name="Test none").is_none()
-
-            assert ctx.current_check is not None
-            assertion = ctx.current_check.children[0]
-            assert "is None" in assertion.validator.name
-
-        suite = VerificationSuite([val_check], db, "test")
-        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-        suite.build_graph(context, key=key)
-
-    def test_is_not_none_assertion_workflow(self) -> None:
-        """Test is_not_none assertion in complete workflow."""
-        db = InMemoryMetricDB()
-        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
-
-        @check(name="Not None Check")
-        def not_none_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(sp.Symbol("x")).where(name="X is not None").is_not_none()
-
-            assert ctx.current_check is not None
-            assert len(ctx.current_check.children) == 1
-            assert ctx.current_check.children[0].name == "X is not None"
-
-        suite = VerificationSuite([not_none_check], db, "test")
-        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-        suite.build_graph(context, key=key)
-
-    def test_is_not_none_validator_description(self) -> None:
-        """Test is_not_none creates correct validator description."""
-        db = InMemoryMetricDB()
-        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
-
-        @check(name="Validator Check")
-        def val_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(sp.Symbol("x")).where(name="Test not none").is_not_none()
-
-            assert ctx.current_check is not None
-            assertion = ctx.current_check.children[0]
-            assert "is not None" in assertion.validator.name
 
         suite = VerificationSuite([val_check], db, "test")
         key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})

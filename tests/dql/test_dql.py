@@ -147,14 +147,6 @@ class TestBankingTransactionsDQL:
         between_assertions = [a for a in volume.assertions if a.condition == "between"]
         assert len(between_assertions) >= 1
 
-    def test_is_not_none_condition(self, banking_dql: str) -> None:
-        """Test 'is not None' condition."""
-        result = parse(banking_dql)
-        financial = next(c for c in result.checks if c.name == "Financial Validity")
-
-        not_none_assertions = [a for a in financial.assertions if a.keyword == "not None"]
-        assert len(not_none_assertions) >= 1
-
     def test_duplicate_count_with_list(self, banking_dql: str) -> None:
         """Test duplicate_count with list of columns."""
         result = parse(banking_dql)
@@ -289,16 +281,6 @@ class TestBookInventoryDQL:
 
         positive_assertions = [a for a in consistency.assertions if a.keyword == "positive"]
         assert len(positive_assertions) >= 1
-
-    def test_is_not_none_with_order_by(self, inventory_dql: str) -> None:
-        """Test 'is not None' with order_by parameter."""
-        result = parse(inventory_dql)
-        consistency = next(c for c in result.checks if c.name == "Cross-Table Consistency")
-
-        order_by_assertions = [
-            a for a in consistency.assertions if "order_by=" in a.expr.text and a.keyword == "not None"
-        ]
-        assert len(order_by_assertions) >= 1
 
     def test_complex_sympy_expressions(self, inventory_dql: str) -> None:
         """Test complex sympy math expressions parse correctly."""
@@ -570,7 +552,6 @@ class TestAllDQLScenariosIntegration:
             "tolerance": False,
             "between_condition": False,
             "is_positive": False,
-            "is_not_none": False,
             "lag_parameter": False,
             "n_parameter": False,
             "order_by_parameter": False,
@@ -617,8 +598,6 @@ class TestAllDQLScenariosIntegration:
 
                     if assertion.keyword == "positive":
                         all_features["is_positive"] = True
-                    if assertion.keyword == "not None":
-                        all_features["is_not_none"] = True
 
                     expr_text = assertion.expr.text
                     if "lag=" in expr_text:

@@ -272,15 +272,48 @@ bin/               # Development scripts
 
 Use Conventional Commits format (enforced by pre-commit hook):
 
+### Format
 ```
-feat: add support for Snowflake dialect
-fix: resolve type inference issue in analyzer
-docs: update API reference for MetricProvider
-test: add coverage for edge cases in parser
-refactor: simplify graph traversal algorithm
+<type>(<scope>): <subject>
+
+<body>
+
+<footer>
 ```
 
-**Types:** feat, fix, docs, test, refactor, perf, build, ci, chore
+### Examples
+```
+feat(analyzer): add query optimization for large datasets
+fix(evaluator): resolve type inference issue
+docs(api): update API reference for MetricProvider
+test(parser): add coverage for edge cases
+refactor(graph): simplify traversal algorithm
+perf(analyzer): optimize SQL generation
+```
+
+### Commit Types
+- **feat**: A new feature
+- **fix**: A bug fix
+- **docs**: Documentation only changes
+- **style**: Code formatting changes (no logic changes)
+- **refactor**: Code changes that neither fix bugs nor add features
+- **perf**: Performance improvements
+- **test**: Adding or updating tests
+- **build**: Changes to build system or dependencies
+- **ci**: Changes to CI configuration
+- **chore**: Other changes (maintenance, etc.)
+- **revert**: Reverts a previous commit
+
+### Scopes (optional)
+- analyzer, api, graph, evaluator, provider, specs, validator
+- display, orm, extensions, common, dialect, functions
+- models, ops, states, utils, dql
+
+### Rules
+- Subject line: max 72 characters, imperative mood ("add" not "added")
+- Body: optional, provide context and motivation
+- Footer: optional, reference issues (e.g., "Closes #123")
+- Breaking changes: use "BREAKING CHANGE:" in footer or commit body
 
 ## Version Management
 

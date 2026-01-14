@@ -121,8 +121,8 @@ suite "Video Streaming Data Quality" {
             severity P1
             tags [integrity]
 
-        assert variance(duration_seconds, dataset=videos) is not None
-            name "content.integrity.duration_variance_exists"
+        assert variance(duration_seconds, dataset=videos) > 0
+            name "content.integrity.duration_has_variance"
             severity P3
             tags [metadata]
     }
@@ -144,8 +144,8 @@ suite "Video Streaming Data Quality" {
             severity P1
             tags [validity]
 
-        assert first(timestamp, order_by=timestamp, dataset=viewing_sessions) is not None
-            name "consistency.session_timestamps_exist"
+        assert first(timestamp, order_by=timestamp, dataset=viewing_sessions) > 0
+            name "consistency.first_session_timestamp"
             severity P2
             tags [temporal]
     }
