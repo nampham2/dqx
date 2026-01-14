@@ -34,7 +34,7 @@ class TestBasicExecution:
         # Execute
         db = InMemoryMetricDB()
         interp = Interpreter(db=db)
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
 
         # Verify
         assert results.suite_name == "Test Suite"
@@ -61,7 +61,7 @@ class TestBasicExecution:
         # Execute
         db = InMemoryMetricDB()
         interp = Interpreter(db=db)
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
 
         # Verify
         assert not results.all_passed()
@@ -86,7 +86,7 @@ class TestBasicExecution:
         interp = Interpreter(db=db)
 
         with pytest.raises(DQLError, match=r"Missing datasources.*customers"):
-            interp.run_string(dql, datasources, date.today())
+            interp.run(dql, datasources, date.today())
 
 
 class TestComparisonOperators:
@@ -106,7 +106,7 @@ class TestComparisonOperators:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_between_condition(self) -> None:
@@ -123,7 +123,7 @@ class TestComparisonOperators:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_is_positive(self) -> None:
@@ -140,7 +140,7 @@ class TestComparisonOperators:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
 
@@ -180,7 +180,7 @@ class TestTunables:
         datasources = {"orders": DuckRelationDataSource.from_arrow(data, "orders")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
 
         # Should pass: 1/10 = 10%, but wait, actually 1/10 = 0.1 = 10% which is > 0.05
         # So this should fail
@@ -214,7 +214,7 @@ class TestDateFunctions:
         interp = Interpreter(db=InMemoryMetricDB())
 
         # Test on Thanksgiving 2024 (Nov 28)
-        results = interp.run_string(dql, datasources, date(2024, 11, 28))
+        results = interp.run(dql, datasources, date(2024, 11, 28))
         assert results.all_passed()
 
     def test_last_day_of_month(self) -> None:
@@ -241,11 +241,11 @@ class TestDateFunctions:
         interp = Interpreter(db=InMemoryMetricDB())
 
         # Test on last day of January
-        results = interp.run_string(dql, datasources, date(2024, 1, 31))
+        results = interp.run(dql, datasources, date(2024, 1, 31))
         assert results.all_passed()
 
         # Test on last day of February (leap year)
-        results = interp.run_string(dql, datasources, date(2024, 2, 29))
+        results = interp.run(dql, datasources, date(2024, 2, 29))
         assert results.all_passed()
 
     def test_month_day_function(self) -> None:
@@ -272,7 +272,7 @@ class TestDateFunctions:
         interp = Interpreter(db=InMemoryMetricDB())
 
         # On Christmas, the check should be scaled (3 * 2.0 = 6 > 0)
-        results = interp.run_string(dql, datasources, date(2024, 12, 25))
+        results = interp.run(dql, datasources, date(2024, 12, 25))
         # Profile active and scaling applied
         assert results.all_passed()
 
@@ -300,7 +300,7 @@ class TestDateFunctions:
         interp = Interpreter(db=InMemoryMetricDB())
 
         # Test 3 days after Thanksgiving (Sunday after)
-        results = interp.run_string(dql, datasources, date(2024, 12, 1))
+        results = interp.run(dql, datasources, date(2024, 12, 1))
         assert results.all_passed()
 
 
@@ -330,7 +330,7 @@ class TestProfiles:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date(2024, 12, 25))
+        results = interp.run(dql, datasources, date(2024, 12, 25))
         assert results.all_passed()
 
     def test_profile_disable_rule(self) -> None:
@@ -355,7 +355,7 @@ class TestProfiles:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date(2024, 12, 25))
+        results = interp.run(dql, datasources, date(2024, 12, 25))
 
         # Check was disabled, no results
         assert len(results.assertions) == 0
@@ -386,7 +386,7 @@ class TestProfiles:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date(2024, 12, 25))
+        results = interp.run(dql, datasources, date(2024, 12, 25))
 
         # Volume check disabled, Quality check runs
         assert len(results.assertions) == 1
@@ -416,7 +416,7 @@ class TestProfiles:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date(2024, 12, 25))
+        results = interp.run(dql, datasources, date(2024, 12, 25))
 
         # Severity should be overridden to P3
         assert results.assertions[0].severity == "P3"
@@ -451,7 +451,7 @@ class TestProfiles:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date(2024, 11, 29))
+        results = interp.run(dql, datasources, date(2024, 11, 29))
         assert results.all_passed()
 
 
@@ -473,7 +473,7 @@ class TestAnnotations:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_required_annotation(self) -> None:
@@ -491,7 +491,7 @@ class TestAnnotations:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_cost_annotation(self) -> None:
@@ -509,7 +509,7 @@ class TestAnnotations:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
 
@@ -530,7 +530,7 @@ class TestAllOperators:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_lt_operator(self) -> None:
@@ -547,7 +547,7 @@ class TestAllOperators:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_lte_operator(self) -> None:
@@ -564,7 +564,7 @@ class TestAllOperators:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_eq_operator(self) -> None:
@@ -581,7 +581,7 @@ class TestAllOperators:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_eq_with_tolerance(self) -> None:
@@ -598,7 +598,7 @@ class TestAllOperators:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_neq_operator(self) -> None:
@@ -615,7 +615,7 @@ class TestAllOperators:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_is_negative(self) -> None:
@@ -632,7 +632,7 @@ class TestAllOperators:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
 
@@ -662,7 +662,7 @@ class TestErrorHandling:
         interp = Interpreter(db=InMemoryMetricDB())
 
         with pytest.raises(DQLError, match="Unknown date function"):
-            interp.run_string(dql, datasources, date(2024, 12, 25))
+            interp.run(dql, datasources, date(2024, 12, 25))
 
     def test_invalid_month_name(self) -> None:
         """Test error for unknown month name."""
@@ -687,7 +687,7 @@ class TestErrorHandling:
         interp = Interpreter(db=InMemoryMetricDB())
 
         with pytest.raises(DQLError, match="Unknown month name"):
-            interp.run_string(dql, datasources, date(2024, 12, 25))
+            interp.run(dql, datasources, date(2024, 12, 25))
 
     def test_invalid_weekday_name(self) -> None:
         """Test error for unknown weekday name."""
@@ -712,7 +712,7 @@ class TestErrorHandling:
         interp = Interpreter(db=InMemoryMetricDB())
 
         with pytest.raises(DQLError, match="Unknown weekday name"):
-            interp.run_string(dql, datasources, date(2024, 12, 25))
+            interp.run(dql, datasources, date(2024, 12, 25))
 
     def test_invalid_nth_weekday(self) -> None:
         """Test error for nth weekday that doesn't exist."""
@@ -738,7 +738,7 @@ class TestErrorHandling:
 
         # February 2024 doesn't have a 5th Monday
         with pytest.raises(DQLError, match="No 5th monday"):
-            interp.run_string(dql, datasources, date(2024, 2, 29))
+            interp.run(dql, datasources, date(2024, 2, 29))
 
     def test_nth_weekday_wrong_arg_count(self) -> None:
         """Test error for wrong number of arguments to nth_weekday."""
@@ -763,7 +763,7 @@ class TestErrorHandling:
         interp = Interpreter(db=InMemoryMetricDB())
 
         with pytest.raises(DQLError, match=r"nth_weekday requires 3 arguments.*got 2"):
-            interp.run_string(dql, datasources, date(2024, 12, 25))
+            interp.run(dql, datasources, date(2024, 12, 25))
 
     def test_nth_weekday_non_integer_n(self) -> None:
         """Test error for non-integer n in nth_weekday."""
@@ -788,7 +788,7 @@ class TestErrorHandling:
         interp = Interpreter(db=InMemoryMetricDB())
 
         with pytest.raises(DQLError, match=r"nth_weekday 'n' must be an integer"):
-            interp.run_string(dql, datasources, date(2024, 12, 25))
+            interp.run(dql, datasources, date(2024, 12, 25))
 
     def test_month_day_non_integer(self) -> None:
         """Test error for non-integer day in month(day) function."""
@@ -813,7 +813,7 @@ class TestErrorHandling:
         interp = Interpreter(db=InMemoryMetricDB())
 
         with pytest.raises(DQLError, match=r"Invalid day argument for december"):
-            interp.run_string(dql, datasources, date(2024, 12, 25))
+            interp.run(dql, datasources, date(2024, 12, 25))
 
     def test_month_day_invalid_date(self) -> None:
         """Test error for invalid date like february(31)."""
@@ -838,10 +838,10 @@ class TestErrorHandling:
         interp = Interpreter(db=InMemoryMetricDB())
 
         with pytest.raises(DQLError, match=r"Invalid date: february\(31\)"):
-            interp.run_string(dql, datasources, date(2024, 12, 25))
+            interp.run(dql, datasources, date(2024, 12, 25))
 
     def test_run_file(self, tmp_path: Path) -> None:
-        """Test run_file method."""
+        """Test run method with Path input."""
         dql_content = """
         suite "Test" {
             check "Test" on t {
@@ -859,7 +859,7 @@ class TestErrorHandling:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_file(str(dql_file), datasources, date.today())
+        results = interp.run(dql_file, datasources, date.today())
 
         assert results.all_passed()
 
@@ -879,7 +879,7 @@ class TestErrorHandling:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_invalid_date_function_format(self) -> None:
@@ -906,7 +906,7 @@ class TestErrorHandling:
 
         # Parser should catch malformed syntax before interpreter runs
         with pytest.raises(DQLError):
-            interp.run_string(dql, datasources, date(2024, 12, 25))
+            interp.run(dql, datasources, date(2024, 12, 25))
 
     def test_profile_disable_assertion(self) -> None:
         """Test profile can disable specific assertion."""
@@ -932,7 +932,7 @@ class TestErrorHandling:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date(2024, 12, 25))
+        results = interp.run(dql, datasources, date(2024, 12, 25))
 
         # min_rows disabled, only has_rows runs
         assert len(results.assertions) == 1
@@ -960,7 +960,7 @@ class TestErrorHandling:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date(2024, 12, 25))
+        results = interp.run(dql, datasources, date(2024, 12, 25))
         assert results.all_passed()
 
     def test_profile_set_severity_by_check(self) -> None:
@@ -985,7 +985,7 @@ class TestErrorHandling:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date(2024, 12, 25))
+        results = interp.run(dql, datasources, date(2024, 12, 25))
 
         assert results.assertions[0].severity == "P3"
 
@@ -1005,7 +1005,7 @@ class TestErrorHandling:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_float_tunable(self) -> None:
@@ -1024,7 +1024,7 @@ class TestErrorHandling:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
 
@@ -1048,7 +1048,7 @@ class TestAdditionalCoverage:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
 
         # Test passes property (line 98)
         assert len(results.passes) == 1
@@ -1069,7 +1069,7 @@ class TestAdditionalCoverage:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert not results.all_passed()
 
     def test_profile_disable_assertion_no_check_match(self) -> None:
@@ -1097,7 +1097,7 @@ class TestAdditionalCoverage:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date(2024, 12, 25))
+        results = interp.run(dql, datasources, date(2024, 12, 25))
 
         # min_rows NOT disabled because check name doesn't match ("Quality" != "Volume")
         # So the assertion runs and fails
@@ -1127,7 +1127,7 @@ class TestAdditionalCoverage:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
 
         # Use passes property
         passed = results.passes
@@ -1154,7 +1154,7 @@ class TestAdditionalCoverage:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_percentage_tunable_bound(self) -> None:
@@ -1174,5 +1174,5 @@ class TestAdditionalCoverage:
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()

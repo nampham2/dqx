@@ -30,7 +30,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_maximum_metric(self) -> None:
@@ -47,7 +47,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_unique_count_metric(self) -> None:
@@ -64,7 +64,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_first_metric(self) -> None:
@@ -82,7 +82,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     # ===== Section 2: Sympy Math Functions =====
@@ -101,7 +101,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_sqrt_function(self) -> None:
@@ -119,7 +119,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_log_function(self) -> None:
@@ -137,7 +137,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_exp_function(self) -> None:
@@ -155,7 +155,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_min_function(self) -> None:
@@ -173,7 +173,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_max_function(self) -> None:
@@ -191,7 +191,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     # ===== Section 3: Complex Expressions =====
@@ -211,7 +211,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_metric_multiplication(self) -> None:
@@ -229,7 +229,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_standard_deviation_calculation(self) -> None:
@@ -247,7 +247,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_percent_change_calculation(self) -> None:
@@ -266,7 +266,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_null_rate_with_division(self) -> None:
@@ -284,7 +284,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_nested_math_functions(self) -> None:
@@ -302,7 +302,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_multi_metric_comparison(self) -> None:
@@ -320,7 +320,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_min_with_three_metrics(self) -> None:
@@ -338,7 +338,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_complex_null_handling(self) -> None:
@@ -356,7 +356,7 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
 
     def test_ratio_of_aggregates(self) -> None:
@@ -374,5 +374,5 @@ class TestSymbolicMetrics:
         datasources = {"dataset": DuckRelationDataSource.from_arrow(data, "dataset")}
 
         interp = Interpreter(db=InMemoryMetricDB())
-        results = interp.run_string(dql, datasources, date.today())
+        results = interp.run(dql, datasources, date.today())
         assert results.all_passed()

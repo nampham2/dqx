@@ -8,7 +8,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, overload
 
 import sympy as sp
 
@@ -109,7 +109,7 @@ class Interpreter:
         >>> db = InMemoryMetricDB()
         >>> datasources = {"orders": DuckDBDataSource(...)}
         >>> interp = Interpreter(db=db)
-        >>> results = interp.run_file("suite.dql", datasources, date.today())
+        >>> results = interp.run(Path("suite.dql"), datasources, date.today())
         >>> print(f"Passed: {len(results.passes)}, Failed: {len(results.failures)}")
     """
 
@@ -125,9 +125,10 @@ class Interpreter:
         self.current_check_name: str | None = None
         self.datasources: dict[str, SqlDataSource] = {}
 
-    def run_file(
+    @overload
+    def run(
         self,
-        path: str | Path,
+        source: Path,
         datasources: Mapping[str, SqlDataSource],
         date: date,
         tags: set[str] | None = None,
@@ -135,7 +136,7 @@ class Interpreter:
         """Parse and execute a DQL file.
 
         Args:
-            path: Path to .dql file
+            source: Path to .dql file
             datasources: Dataset name -> datasource mapping
             date: Execution date for ResultKey
             tags: Optional tags for ResultKey
@@ -146,22 +147,68 @@ class Interpreter:
         Raises:
             DQLError: Parse error, validation error, execution error, or missing datasources
         """
-        suite_ast = parse_file(path)
-        return self._execute(suite_ast, datasources, date, tags)
+        ...
 
-    def run_string(
+    @overload
+    def run(
         self,
         source: str,
         datasources: Mapping[str, SqlDataSource],
         date: date,
         tags: set[str] | None = None,
+        *,
         filename: str | None = None,
     ) -> SuiteResults:
         """Parse and execute DQL source code.
 
-        Same as run_file but accepts source string directly.
+        Args:
+            source: DQL source code string
+            datasources: Dataset name -> datasource mapping
+            date: Execution date for ResultKey
+            tags: Optional tags for ResultKey
+            filename: Optional filename for error messages
+
+        Returns:
+            SuiteResults with all assertion outcomes
+
+        Raises:
+            DQLError: Parse error, validation error, execution error, or missing datasources
         """
-        suite_ast = parse(source, filename=filename)
+        ...
+
+    def run(
+        self,
+        source: str | Path,
+        datasources: Mapping[str, SqlDataSource],
+        date: date,
+        tags: set[str] | None = None,
+        *,
+        filename: str | None = None,
+    ) -> SuiteResults:
+        """Parse and execute DQL from file or string.
+
+        Dispatches to appropriate parser based on source type:
+        - Path objects are parsed as DQL files
+        - Strings are parsed as DQL source code
+
+        Args:
+            source: Path to .dql file, or DQL source code string
+            datasources: Dataset name -> datasource mapping
+            date: Execution date for ResultKey
+            tags: Optional tags for ResultKey
+            filename: Optional filename for error messages (only used when source is str)
+
+        Returns:
+            SuiteResults with all assertion outcomes
+
+        Raises:
+            DQLError: Parse error, validation error, execution error, or missing datasources
+        """
+        if isinstance(source, Path):
+            suite_ast = parse_file(source)
+        else:
+            suite_ast = parse(source, filename=filename)
+
         return self._execute(suite_ast, datasources, date, tags)
 
     def _execute(
