@@ -144,8 +144,7 @@ class Interpreter:
             SuiteResults with all assertion outcomes
 
         Raises:
-            DQLError: Parse error, validation error, or execution error
-            KeyError: Dataset referenced in DQL not provided in datasources
+            DQLError: Parse error, validation error, execution error, or missing datasources
         """
         suite_ast = parse_file(path)
         return self._execute(suite_ast, datasources, date, tags)
@@ -273,7 +272,7 @@ class Interpreter:
             # Parser validates numeric literals
             raise DQLError(f"Cannot evaluate expression: {text}", loc=expr.loc) from None
 
-    def _build_check(self, check_ast: Check, tunables: list[TunableFloat | TunablePercent | TunableInt]) -> Callable:
+    def _build_check(self, check_ast: Check, _tunables: list[TunableFloat | TunablePercent | TunableInt]) -> Callable:
         """Convert DQL Check AST to Python check function."""
         check_name = check_ast.name
         assertions = check_ast.assertions
