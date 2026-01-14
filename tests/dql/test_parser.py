@@ -1,5 +1,7 @@
 """Tests for DQL parser."""
 
+from __future__ import annotations
+
 from datetime import date
 from pathlib import Path
 
@@ -391,7 +393,6 @@ class TestTunables:
         assert len(result.tunables) == 1
         tunable = result.tunables[0]
         assert tunable.name == "MAX_NULL_RATE"
-        assert tunable.bounds is not None
         assert "0.05" in tunable.value.text
         assert "0.0" in tunable.bounds[0].text
         assert "0.2" in tunable.bounds[1].text

@@ -1,5 +1,7 @@
 """Tests for complex DQL scenarios - Banking, Book E-Commerce, and Video Streaming."""
 
+from __future__ import annotations
+
 from pathlib import Path
 
 import pytest
