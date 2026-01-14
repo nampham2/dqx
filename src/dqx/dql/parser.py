@@ -14,11 +14,9 @@ from dqx.dql.ast import (
     Annotation,
     Assertion,
     Check,
-    Const,
     DateExpr,
     DisableRule,
     Expr,
-    Import,
     Profile,
     Sample,
     ScaleRule,
@@ -26,6 +24,7 @@ from dqx.dql.ast import (
     Severity,
     SourceLocation,
     Suite,
+    Tunable,
 )
 from dqx.dql.errors import DQLSyntaxError
 
@@ -395,38 +394,24 @@ class DQLTransformer(Transformer):
 
     # === Constants ===
 
-    def tunable(self, items: list) -> tuple[Expr, Expr]:
-        return (items[0], items[1])
-
-    def EXPORT(self, token: Any) -> str:
-        return "export"
+    # === Tunables ===
 
     @v_args(tree=True)
-    def const(self, tree: Any) -> Const:
+    def tunable(self, tree: Any) -> Tunable:
         # Filter out None values from optional elements
         items = [x for x in tree.children if x is not None]
 
-        export = False
-
-        # Check for 'export' keyword (now a token)
-        if items and items[0] == "export":
-            export = True
-            items = items[1:]
-
-        # Now items should be: [name, value] or [name, value, bounds]
+        # items should be: [name, value, min_bound, max_bound]
+        # Grammar: "tunable" IDENT "=" expr "bounds" "[" expr "," expr "]"
         name = items[0]
         value = items[1]
+        min_bound = items[2]
+        max_bound = items[3]
 
-        bounds = None
-        if len(items) > 2:
-            bounds = items[2]
-
-        return Const(
+        return Tunable(
             name=name,
             value=value,
-            tunable=bounds is not None,
-            bounds=bounds,
-            export=export,
+            bounds=(min_bound, max_bound),
             loc=self._loc(tree),
         )
 
@@ -526,25 +511,6 @@ class DQLTransformer(Transformer):
             loc=self._loc(tree),
         )
 
-    # === Imports ===
-
-    @v_args(tree=True)
-    def import_simple(self, tree: Any) -> Import:
-        items = tree.children
-        path = items[0]
-        alias = items[1] if len(items) > 1 else None
-        return Import(path=path, alias=alias, loc=self._loc(tree))
-
-    @v_args(tree=True)
-    def import_selective(self, tree: Any) -> Import:
-        items = tree.children
-        names = items[0]
-        path = items[1]
-        return Import(path=path, names=names, loc=self._loc(tree))
-
-    def import_names(self, items: list) -> tuple[str, ...]:
-        return tuple(items)
-
     # === Metadata ===
 
     def metadata(self, items: list) -> dict:
@@ -556,8 +522,7 @@ class DQLTransformer(Transformer):
         result: dict[str, Any] = {
             "checks": [],
             "profiles": [],
-            "constants": [],
-            "imports": [],
+            "tunables": [],
             "availability_threshold": None,
         }
         for item in items:
@@ -565,10 +530,8 @@ class DQLTransformer(Transformer):
                 result["checks"].append(item)
             elif isinstance(item, Profile):
                 result["profiles"].append(item)
-            elif isinstance(item, Const):
-                result["constants"].append(item)
-            elif isinstance(item, Import):
-                result["imports"].append(item)
+            elif isinstance(item, Tunable):
+                result["tunables"].append(item)
             elif isinstance(item, dict):
                 if "availability_threshold" in item:
                     result["availability_threshold"] = item["availability_threshold"]
@@ -583,8 +546,7 @@ class DQLTransformer(Transformer):
             name=name,
             checks=tuple(body["checks"]),
             profiles=tuple(body["profiles"]),
-            constants=tuple(body["constants"]),
-            imports=tuple(body["imports"]),
+            tunables=tuple(body["tunables"]),
             availability_threshold=body["availability_threshold"],
             loc=self._loc(tree),
         )

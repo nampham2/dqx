@@ -1,10 +1,10 @@
 suite "Video Streaming Data Quality" {
     # Tunable constants for RL optimization
-    const MIN_DAILY_VIEWS = 50000 tunable [10000, 200000]
-    const MAX_INCOMPLETE_METADATA_RATE = 3% tunable [0%, 10%]
-    const MIN_COMPLETION_RATE = 0.4 tunable [0.2, 0.8]
-    const MAX_BUFFERING_RATE = 5% tunable [1%, 15%]
-    export const ENGAGEMENT_THRESHOLD = 0.6
+    tunable MIN_DAILY_VIEWS = 50000 bounds [10000, 200000]
+    tunable MAX_INCOMPLETE_METADATA_RATE = 3% bounds [0%, 10%]
+    tunable MIN_COMPLETION_RATE = 0.4 bounds [0.2, 0.8]
+    tunable MAX_BUFFERING_RATE = 5% bounds [1%, 15%]
+    tunable ENGAGEMENT_THRESHOLD = 0.6 bounds [0.0, 1.0]
 
     # Check 1: Video Catalog Completeness
     check "Catalog Completeness" on videos {

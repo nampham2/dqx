@@ -300,7 +300,7 @@ assert sum(amount) / num_rows() > 10
 assert sql("SUM(amount) / COUNT(*)") > 10
 
 # ERROR: interpolation not allowed in sql()
-const MY_COL = "amount"
+tunable MY_COL = "amount" bounds ["amount", "revenue"]  # Hypothetical: DQL does not support string interpolation
 assert sql("SUM({MY_COL})") > 0  # Parse error: interpolation in sql() not permitted
 ```
 
@@ -362,14 +362,17 @@ coalesce(sum(cost), sum(revenue), 0)  # First non-None
 
 Supported: `coalesce(expr, expr, ...)`.
 
-## Constants
+## Tunables
 
-Constants define reusable values. Declare them at suite level:
+Tunables define reusable values with explicit bounds for algorithmic optimization. All tunables require bounds specification to enable RL-based threshold tuning.
+
+Declare tunables at suite level:
 
 ```dql
 suite "Orders" {
-    const NULL_THRESHOLD = 5%
-    const MIN_ORDERS = 1000
+    tunable NULL_THRESHOLD = 5% bounds [0%, 20%]
+    tunable MIN_ORDERS = 1000 bounds [100, 10000]
+    tunable VARIANCE_LIMIT = 0.5 bounds [0.1, 1.0]
 
     check "Completeness" on orders {
         assert null_count(email) / num_rows() < NULL_THRESHOLD
@@ -378,25 +381,38 @@ suite "Orders" {
 }
 ```
 
-### Tunable Constants
-
-Mark constants as tunable to enable algorithmic optimization (e.g., RL-based threshold tuning):
+### Syntax
 
 ```dql
-const NULL_THRESHOLD = 5% tunable [0%, 20%]      # Algorithm can adjust within bounds
-const MIN_ORDERS = 1000 tunable [100, 10000]     # Integer bounds
-const VARIANCE_LIMIT = 0.5 tunable [0.1, 1.0]    # Decimal bounds
+tunable <NAME> = <value> bounds [<min>, <max>]
 ```
 
 | Element | Required | Description |
 |---------|----------|-------------|
-| `tunable` | No | Marks constant for algorithmic adjustment |
-| `[min, max]` | Yes (if tunable) | Valid range for optimization |
+| `tunable` | Yes | Keyword to declare a tunable constant |
+| `<NAME>` | Yes | Identifier for the tunable (uppercase convention) |
+| `<value>` | Yes | Initial/default value |
+| `bounds` | Yes | Keyword introducing the bounds specification |
+| `[<min>, <max>]` | Yes | Valid range for optimization (inclusive) |
 
 **Semantics:**
-- Algorithms can modify tunable constants within bounds
-- Non-tunable constants are fixed and cannot be changed programmatically
+- Algorithms can modify tunables within their declared bounds
+- Bounds are always required - no implicit or unbounded tunables
 - Bounds are inclusive: `[0%, 20%]` allows values from 0% to 20%
+- Initial value must be within the specified bounds
+
+**Examples:**
+
+```dql
+# Percentage tunables
+tunable MAX_NULL_RATE = 5% bounds [0%, 20%]
+
+# Integer tunables
+tunable MIN_DAILY_ORDERS = 1000 bounds [100, 10000]
+
+# Decimal tunables
+tunable VARIANCE_THRESHOLD = 0.3 bounds [0.0, 1.0]
+```
 
 #### Python Tunable API
 
@@ -633,83 +649,14 @@ profile "Black Friday" { from 2024-11-29 to 2024-12-02 scale tag "volume" by 2.0
 
 **Warning:** Overlapping profiles with compounding multipliers can produce unexpected results. The interpreter logs active profiles and combined multipliers for debugging.
 
-## Imports
-
-Split large configurations across files with imports:
-
-```dql
-# common/thresholds.dql
-export const STANDARD_NULL_THRESHOLD = 5%
-export const MIN_ORDERS = 1000
-```
-
-Import in another file:
-
-```dql
-import "common/thresholds.dql"
-
-suite "Orders" {
-    check "Completeness" on orders {
-        assert null_count(email) / num_rows() < STANDARD_NULL_THRESHOLD
-            name "Email null rate"
-    }
-}
-```
-
-Selective imports:
-
-```dql
-import { STANDARD_NULL_THRESHOLD } from "common/thresholds.dql"
-```
-
-Aliased imports:
-
-```dql
-import "common/thresholds.dql" as t
-
-suite "Orders" {
-    check "Test" on orders {
-        assert null_count(email) / num_rows() < t.STANDARD_NULL_THRESHOLD
-            name "Email null rate"
-    }
-}
-```
-
-### Path Resolution
-
-Import paths resolve in order:
-
-1. **Relative to importing file** — `./utils.dql` or `../common/checks.dql`
-2. **Relative to project root** — `common/null_checks.dql` (no leading `./`)
-3. **DQL_PATH directories** — Colon-separated list of search directories
-
-```bash
-export DQL_PATH="/shared/dql-libs:/team/common"
-dql run suite.dql
-```
-
-### Import Cycles
-
-Circular imports are detected and rejected:
-
-```dql
-# a.dql
-import "b.dql"   # Error: circular import detected: a.dql → b.dql → a.dql
-
-# b.dql
-import "a.dql"
-```
-
-The interpreter builds a dependency graph before execution and fails fast if cycles exist.
-
 ## Complete Example
 
 ```dql
 suite "E-Commerce Data Quality" {
     availability_threshold 80%
 
-    const MAX_NULL_RATE = 5%
-    const MIN_ORDERS = 1000
+    tunable MAX_NULL_RATE = 5% bounds [0%, 20%]
+    tunable MIN_ORDERS = 1000 bounds [100, 10000]
 
     check "Completeness" on orders {
         assert null_count(customer_id) == 0
@@ -967,9 +914,9 @@ For threshold optimization, use bounded continuous control algorithms (PPO, SAC)
 
 ```dql
 suite "Orders" {
-    const NULL_THRESHOLD = 5% tunable [0%, 20%]
-    const MIN_ORDERS = 1000 tunable [100, 10000]
-    const DOD_LIMIT = 0.5 tunable [0.1, 1.0]
+    tunable NULL_THRESHOLD = 5% bounds [0%, 20%]
+    tunable MIN_ORDERS = 1000 bounds [100, 10000]
+    tunable DOD_LIMIT = 0.5 bounds [0.1, 1.0]
 
     check "Completeness" on orders {
         @cost(false_positive=1, false_negative=50)
@@ -1441,9 +1388,9 @@ class Interpreter:
         suite = VerificationSuite(ast.name, db=self.db)
         suite.data_av_threshold = ast.threshold
 
-        # Register constants
-        for const in ast.constants:
-            self.constants[const.name] = self.eval_expr(const.value)
+        # Register tunables
+        for tunable in ast.tunables:
+            self.tunables[tunable.name] = self.eval_expr(tunable.value)
 
         # Build checks
         for check_node in ast.checks:
@@ -1517,13 +1464,12 @@ warning[W001]: assertion has no name
 ```ebnf
 (* === Top-level === *)
 suite       = "suite" STRING "{" suite_body "}"
-suite_body  = (metadata | const | check | profile | import)*
+suite_body  = (metadata | tunable | check | profile)*
 
 metadata    = "availability_threshold" PERCENT
 
-(* === Constants === *)
-const       = ["export"] "const" IDENT "=" expr [tunable]
-tunable     = "tunable" "[" expr "," expr "]"
+(* === Tunables === *)
+tunable     = "tunable" IDENT "=" expr "bounds" "[" expr "," expr "]"
 
 (* === Checks and Assertions === *)
 check       = "check" STRING "on" datasets "{" assertion+ "}"
@@ -1568,10 +1514,6 @@ scale       = "scale" selector "by" NUMBER "x"
 set_severity= "set" selector "severity" SEVERITY
 selector    = "check" STRING | "tag" STRING
 
-(* === Imports === *)
-import      = "import" STRING ["as" IDENT]
-            | "import" "{" IDENT ("," IDENT)* "}" "from" STRING
-
 (* === Tokens === *)
 STRING      = '"' (ESC | [^"\\])* '"'
 ESC         = '\\' ["\\nrt]           (* \" \\ \n \r \t *)
@@ -1594,7 +1536,7 @@ COMMENT     = '#' [^\n]*                  (* Python-style comments *)
 
 ### Reserved Words
 
-The following are reserved: `suite`, `check`, `assert`, `on`, `from`, `to`, `by`, `in`, `and`, `is`, `between`, `profile`, `type`, `const`, `import`, `export`, `as`, `name`, `severity`, `tags`, `tolerance`, `scale`, `disable`, `set`, `sample`, `seed`, `rows`, `lag`, `dataset`, `order_by`, `n`.
+The following are reserved: `suite`, `check`, `assert`, `on`, `from`, `to`, `by`, `in`, `and`, `is`, `between`, `profile`, `type`, `tunable`, `bounds`, `name`, `severity`, `tags`, `tolerance`, `scale`, `disable`, `set`, `sample`, `seed`, `rows`, `lag`, `dataset`, `order_by`, `n`.
 
 Use backticks to escape column or dataset names that conflict:
 

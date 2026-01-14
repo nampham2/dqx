@@ -1,13 +1,10 @@
 suite "Book Order Processing Quality" {
     availability_threshold 92%
 
-    # Import shared threshold from book_inventory.dql
-    import "book_inventory.dql"
-
-    # Local constants
-    const MIN_DAILY_ORDERS = 500 tunable [100, 5000]
-    const MAX_REFUND_RATE = 10% tunable [5%, 25%]
-    export const ORDER_VALUE_THRESHOLD = 15.0
+    # Local tunables
+    tunable MIN_DAILY_ORDERS = 500 bounds [100, 5000]
+    tunable MAX_REFUND_RATE = 10% bounds [5%, 25%]
+    tunable ORDER_VALUE_THRESHOLD = 15.0 bounds [5.0, 50.0]
 
     # Check 1: Order Completeness
     check "Order Completeness" on orders {

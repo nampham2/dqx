@@ -99,14 +99,12 @@ class Check:
 
 
 @dataclass(frozen=True)
-class Const:
-    """A constant declaration."""
+class Tunable:
+    """A tunable constant declaration with required bounds."""
 
     name: str
     value: Expr
-    tunable: bool = False
-    bounds: tuple[Expr, Expr] | None = None  # (min, max) for tunable
-    export: bool = False
+    bounds: tuple[Expr, Expr]  # Required: (min, max)
     loc: SourceLocation | None = None
 
 
@@ -157,23 +155,12 @@ class Profile:
 
 
 @dataclass(frozen=True)
-class Import:
-    """An import statement."""
-
-    path: str
-    alias: str | None = None  # For "import X as Y"
-    names: tuple[str, ...] | None = None  # For "import { A, B } from X"
-    loc: SourceLocation | None = None
-
-
-@dataclass(frozen=True)
 class Suite:
     """The root AST node representing a DQL suite."""
 
     name: str
     checks: tuple[Check, ...] = ()
     profiles: tuple[Profile, ...] = ()
-    constants: tuple[Const, ...] = ()
-    imports: tuple[Import, ...] = ()
+    tunables: tuple[Tunable, ...] = ()
     availability_threshold: float | None = None  # e.g., 0.8 for 80%
     loc: SourceLocation | None = None

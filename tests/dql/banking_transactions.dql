@@ -2,11 +2,11 @@ suite "Banking Transaction Data Quality" {
     availability_threshold 95%
 
     # Tunable constants for RL agent optimization
-    const MAX_NULL_RATE = 1% tunable [0%, 5%]
-    const MIN_DAILY_TRANSACTIONS = 10000 tunable [1000, 50000]
-    const MAX_NEGATIVE_BALANCE_RATE = 0.1% tunable [0%, 1%]
-    const MAX_DUPLICATE_RATE = 0.01% tunable [0%, 0.1%]
-    export const AMOUNT_VARIANCE_THRESHOLD = 0.3
+    tunable MAX_NULL_RATE = 1% bounds [0%, 5%]
+    tunable MIN_DAILY_TRANSACTIONS = 10000 bounds [1000, 50000]
+    tunable MAX_NEGATIVE_BALANCE_RATE = 0.1% bounds [0%, 1%]
+    tunable MAX_DUPLICATE_RATE = 0.01% bounds [0%, 0.1%]
+    tunable AMOUNT_VARIANCE_THRESHOLD = 0.3 bounds [0.0, 1.0]
 
     # Check 1: Data Completeness
     check "Completeness" on transactions {

@@ -2,10 +2,10 @@ suite "Book E-Commerce Inventory Quality" {
     availability_threshold 90%
 
     # Tunable constants
-    const MIN_INVENTORY_COUNT = 100 tunable [10, 1000]
-    const MAX_PRICE_NULL_RATE = 2% tunable [0%, 10%]
-    const MIN_STOCK_LEVEL = 5 tunable [0, 50]
-    export const PRICE_VOLATILITY_THRESHOLD = 0.15
+    tunable MIN_INVENTORY_COUNT = 100 bounds [10, 1000]
+    tunable MAX_PRICE_NULL_RATE = 2% bounds [0%, 10%]
+    tunable MIN_STOCK_LEVEL = 5 bounds [0, 50]
+    tunable PRICE_VOLATILITY_THRESHOLD = 0.15 bounds [0.0, 1.0]
 
     # Check 1: Catalog Completeness
     check "Catalog Completeness" on books {

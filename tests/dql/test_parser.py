@@ -29,7 +29,7 @@ class TestBasicSuite:
         assert result.name == "Test Suite"
         assert result.checks == ()
         assert result.profiles == ()
-        assert result.constants == ()
+        assert result.tunables == ()
 
     def test_suite_with_availability_threshold(self) -> None:
         source = """
@@ -378,51 +378,41 @@ class TestExpressions:
         assert "0.05" in assertion.threshold.text
 
 
-class TestConstants:
-    """Test constant parsing."""
+class TestTunables:
+    """Test tunable parsing."""
 
-    def test_simple_constant(self) -> None:
+    def test_simple_tunable(self) -> None:
         source = """
         suite "Test" {
-            const MAX_NULL_RATE = 0.05
+            tunable MAX_NULL_RATE = 0.05 bounds [0.0, 0.2]
         }
         """
         result = parse(source)
-        assert len(result.constants) == 1
-        const = result.constants[0]
-        assert const.name == "MAX_NULL_RATE"
-        assert const.tunable is False
+        assert len(result.tunables) == 1
+        tunable = result.tunables[0]
+        assert tunable.name == "MAX_NULL_RATE"
+        assert tunable.bounds is not None
 
-    def test_percent_constant(self) -> None:
+    def test_percent_tunable(self) -> None:
         source = """
         suite "Test" {
-            const MAX_NULL_RATE = 5%
+            tunable MAX_NULL_RATE = 5% bounds [0%, 20%]
         }
         """
         result = parse(source)
-        const = result.constants[0]
-        assert "0.05" in const.value.text
+        tunable = result.tunables[0]
+        assert "0.05" in tunable.value.text
 
-    def test_tunable_constant(self) -> None:
+    def test_tunable_with_bounds(self) -> None:
         source = """
         suite "Test" {
-            const NULL_THRESHOLD = 5% tunable [0%, 20%]
+            tunable NULL_THRESHOLD = 5% bounds [0%, 20%]
         }
         """
         result = parse(source)
-        const = result.constants[0]
-        assert const.tunable is True
-        assert const.bounds is not None
-
-    def test_export_constant(self) -> None:
-        source = """
-        suite "Test" {
-            export const THRESHOLD = 0.05
-        }
-        """
-        result = parse(source)
-        const = result.constants[0]
-        assert const.export is True
+        tunable = result.tunables[0]
+        assert tunable.bounds is not None
+        assert len(tunable.bounds) == 2
 
 
 class TestProfiles:
@@ -539,44 +529,6 @@ class TestProfiles:
         assert profile.to_date.offset == 3
 
 
-class TestImports:
-    """Test import parsing."""
-
-    def test_simple_import(self) -> None:
-        source = """
-        suite "Test" {
-            import "common/thresholds.dql"
-        }
-        """
-        result = parse(source)
-        assert len(result.imports) == 1
-        imp = result.imports[0]
-        assert imp.path == "common/thresholds.dql"
-        assert imp.alias is None
-        assert imp.names is None
-
-    def test_import_with_alias(self) -> None:
-        source = """
-        suite "Test" {
-            import "common/thresholds.dql" as t
-        }
-        """
-        result = parse(source)
-        imp = result.imports[0]
-        assert imp.alias == "t"
-
-    def test_selective_import(self) -> None:
-        source = """
-        suite "Test" {
-            import { MAX_NULL_RATE, MIN_ORDERS } from "common/thresholds.dql"
-        }
-        """
-        result = parse(source)
-        imp = result.imports[0]
-        assert imp.names == ("MAX_NULL_RATE", "MIN_ORDERS")
-        assert imp.path == "common/thresholds.dql"
-
-
 class TestCompleteExample:
     """Test parsing the complete example from the spec."""
 
@@ -585,8 +537,8 @@ class TestCompleteExample:
         suite "E-Commerce Data Quality" {
             availability_threshold 80%
 
-            const MAX_NULL_RATE = 5%
-            const MIN_ORDERS = 1000
+            tunable MAX_NULL_RATE = 5% bounds [0%, 20%]
+            tunable MIN_ORDERS = 1000 bounds [100, 10000]
 
             check "Completeness" on orders {
                 assert null_count(customer_id) == 0
@@ -630,7 +582,7 @@ class TestCompleteExample:
         # Suite level
         assert result.name == "E-Commerce Data Quality"
         assert result.availability_threshold == 0.8
-        assert len(result.constants) == 2
+        assert len(result.tunables) == 2
         assert len(result.checks) == 2
         assert len(result.profiles) == 2
 
