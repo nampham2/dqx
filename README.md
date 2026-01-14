@@ -6,7 +6,7 @@ Data quality as code. Works with your warehouse, scales with your needs.
 [![codecov](https://codecov.io/gh/nampham2/dqx/branch/main/graph/badge.svg)](https://codecov.io/gh/nampham2/dqx)
 [![Documentation Status](https://readthedocs.org/projects/dqx/badge/?version=latest)](https://dqx.readthedocs.io/en/latest/?badge=latest)
 [![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/nampham2/dqx?utm_source=oss&utm_medium=github&utm_campaign=nampham2%2Fdqx&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://coderabbit.ai)
-[![Python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
 ## Why DQX?
@@ -239,10 +239,13 @@ suite = VerificationSuite(checks, db, "My Suite", profiles=[christmas])
 | Assertion | Description | Example |
 |-----------|-------------|---------|
 | `is_eq(value, tol)` | Equals with tolerance | `.is_eq(100, tol=0.01)` |
+| `is_neq(value, tol)` | Not equals with tolerance | `.is_neq(100, tol=0.01)` |
 | `is_between(min, max)` | In range (inclusive) | `.is_between(0, 100)` |
 | `is_positive()` | Greater than zero | `.is_positive()` |
 | `is_zero()` | Equals zero | `.is_zero()` |
 | `is_negative()` | Less than zero | `.is_negative()` |
+| `is_none()` | Equals None | `.is_none()` |
+| `is_not_none()` | Not equals None | `.is_not_none()` |
 | `is_gt(val)` / `is_geq(val)` | Greater than (or equal) | `.is_gt(0.95)` |
 | `is_lt(val)` / `is_leq(val)` | Less than (or equal) | `.is_lt(0.05)` |
 | `noop()` | No validation (collect only) | `.noop()` |

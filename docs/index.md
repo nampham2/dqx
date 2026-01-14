@@ -217,10 +217,13 @@ def enforce_slas(mp: MetricProvider, ctx: Context) -> None:
 | Assertion | Description | Example |
 |-----------|-------------|---------|
 | `is_eq(value, tol)` | Equals with tolerance | `.is_eq(100, tol=0.01)` |
+| `is_neq(value, tol)` | Not equals with tolerance | `.is_neq(100, tol=0.01)` |
 | `is_between(min, max)` | In range (inclusive) | `.is_between(0, 100)` |
 | `is_positive()` | Greater than zero | `.is_positive()` |
 | `is_zero()` | Equals zero | `.is_zero()` |
 | `is_negative()` | Less than zero | `.is_negative()` |
+| `is_none()` | Equals None | `.is_none()` |
+| `is_not_none()` | Not equals None | `.is_not_none()` |
 | `is_gt(val)` / `is_geq(val)` | Greater than (or equal) | `.is_gt(0.95)` |
 | `is_lt(val)` / `is_leq(val)` | Less than (or equal) | `.is_lt(0.05)` |
 | `noop()` | No validation (collect only) | `.noop()` |

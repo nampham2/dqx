@@ -108,6 +108,7 @@ DQX uses SQL as its computation backend instead of distributed frameworks like S
 | Method | Description |
 |--------|-------------|
 | `is_eq` | Assert equals with tolerance |
+| `is_neq` | Assert not equal to |
 | `is_gt` | Assert greater than |
 | `is_lt` | Assert less than |
 | `is_geq` | Assert greater than or equal to |
@@ -116,4 +117,6 @@ DQX uses SQL as its computation backend instead of distributed frameworks like S
 | `is_positive` | Assert value > 0 |
 | `is_negative` | Assert value < 0 |
 | `is_zero` | Assert value is effectively zero |
+| `is_none` | Assert value is None |
+| `is_not_none` | Assert value is not None |
 | `within_tol` | Assert within relative or absolute tolerance |
