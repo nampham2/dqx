@@ -192,7 +192,7 @@ def enforce_slas(mp: MetricProvider, ctx: Context) -> None:
 Adjust validation behavior during specific periods:
 
 ```python
-from dqx.profiles import HolidayProfile, tag
+from dqx.profiles import HolidayProfile, tag, check
 
 christmas = HolidayProfile(
     name="Christmas 2024",
@@ -244,8 +244,6 @@ suite = VerificationSuite(checks, db, "My Suite", profiles=[christmas])
 | `is_positive()` | Greater than zero | `.is_positive()` |
 | `is_zero()` | Equals zero | `.is_zero()` |
 | `is_negative()` | Less than zero | `.is_negative()` |
-| `is_none()` | Equals None | `.is_none()` |
-| `is_not_none()` | Not equals None | `.is_not_none()` |
 | `is_gt(val)` / `is_geq(val)` | Greater than (or equal) | `.is_gt(0.95)` |
 | `is_lt(val)` / `is_leq(val)` | Less than (or equal) | `.is_lt(0.05)` |
 | `noop()` | No validation (collect only) | `.noop()` |
