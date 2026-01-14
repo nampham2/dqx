@@ -53,7 +53,6 @@ suite "Video Streaming Data Quality" {
             name "viewing.activity.weekly_variance"
             severity P2
             tags [volume, stability]
-            sample 10% seed 99
 
         assert unique_count(user_id) / num_rows() > 0.1
             name "viewing.activity.user_diversity"

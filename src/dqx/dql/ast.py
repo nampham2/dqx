@@ -62,16 +62,6 @@ class Annotation:
 
 
 @dataclass(frozen=True)
-class Sample:
-    """Sampling configuration for an assertion."""
-
-    value: float  # percentage (0-1) or row count
-    is_percentage: bool = True
-    seed: int | None = None
-    loc: SourceLocation | None = None
-
-
-@dataclass(frozen=True)
 class Assertion:
     """An assertion within a check."""
 
@@ -84,7 +74,6 @@ class Assertion:
     severity: Severity = Severity.P1
     tolerance: float | None = None
     tags: tuple[str, ...] = ()
-    sample: Sample | None = None
     annotations: tuple[Annotation, ...] = ()
     loc: SourceLocation | None = None
 

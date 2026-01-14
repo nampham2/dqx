@@ -62,7 +62,6 @@ suite "Banking Transaction Data Quality" {
             name "transactions.integrity.duplicate_rate"
             severity P1
             tags [integrity]
-            sample 10% seed 42
 
         assert negative_count(amount) / num_rows() < 5%
             name "transactions.integrity.negative_amount_rate"

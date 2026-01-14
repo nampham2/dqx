@@ -101,7 +101,6 @@ suite "Book E-Commerce Inventory Quality" {
             name "books.uniqueness.author_diversity"
             severity P3
             tags [diversity]
-            sample 5000 rows seed 123
     }
 
     # Check 5: Cross-Table Consistency

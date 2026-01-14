@@ -18,7 +18,6 @@ from dqx.dql.ast import (
     DisableRule,
     Expr,
     Profile,
-    Sample,
     ScaleRule,
     SetSeverityRule,
     Severity,
@@ -285,25 +284,6 @@ class DQLTransformer(Transformer):
     def tags_mod(self, items: list) -> dict:
         return {"tags": tuple(items)}
 
-    def sample_mod(self, items: list) -> dict:
-        sample = items[0]
-        if len(items) > 1:
-            sample = Sample(
-                value=sample.value,
-                is_percentage=sample.is_percentage,
-                seed=items[1],
-            )
-        return {"sample": sample}
-
-    def sample_value(self, items: list) -> Sample:  # pragma: no cover - grammar routes to specific handlers
-        return items[0]
-
-    def sample_percent(self, items: list) -> Sample:
-        return Sample(value=items[0], is_percentage=True)
-
-    def sample_rows(self, items: list) -> Sample:
-        return Sample(value=items[0], is_percentage=False)
-
     # === Annotations ===
 
     def annotation(self, items: list) -> Annotation:
@@ -365,7 +345,6 @@ class DQLTransformer(Transformer):
             severity=modifiers.get("severity", Severity.P1),
             tolerance=modifiers.get("tolerance"),
             tags=modifiers.get("tags", ()),
-            sample=modifiers.get("sample"),
             annotations=annotations,
             loc=self._loc(tree),
         )

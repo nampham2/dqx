@@ -67,18 +67,8 @@ class TestBankingTransactionsDQL:
         assert "false_positive" in cost_ann.args
         assert "false_negative" in cost_ann.args
 
-    def test_integrity_check_with_sampling(self, banking_dql: str) -> None:
-        """Test integrity check includes sampling configuration."""
-        result = parse(banking_dql)
-        integrity = next(c for c in result.checks if c.name == "Integrity")
-
-        sampled_assertions = [a for a in integrity.assertions if a.sample is not None]
-        assert len(sampled_assertions) >= 1
-
-        sample = sampled_assertions[0].sample
-        assert sample is not None
-        assert sample.is_percentage is True
-        assert sample.seed == 42
+    # Sampling support removed - no longer part of DQL spec
+    # def test_integrity_check_with_sampling(self, banking_dql: str) -> None:
 
     def test_multi_dataset_check(self, banking_dql: str) -> None:
         """Test checks spanning multiple datasets."""
@@ -247,18 +237,8 @@ class TestBookInventoryDQL:
         between_assertions = [a for a in pricing.assertions if a.condition == "between"]
         assert len(between_assertions) >= 1
 
-    def test_sample_with_rows(self, inventory_dql: str) -> None:
-        """Test sampling by row count."""
-        result = parse(inventory_dql)
-        uniqueness = next(c for c in result.checks if c.name == "Data Uniqueness")
-
-        sampled = [a for a in uniqueness.assertions if a.sample is not None]
-        assert len(sampled) >= 1
-        sample = sampled[0].sample
-        assert sample is not None
-        assert sample.is_percentage is False
-        assert sample.value == 5000
-        assert sample.seed == 123
+    # Sampling support removed - no longer part of DQL spec
+    # def test_sample_with_rows(self, inventory_dql: str) -> None:
 
     def test_cross_table_consistency(self, inventory_dql: str) -> None:
         """Test cross-table consistency check."""
@@ -541,8 +521,9 @@ class TestAllDQLScenariosIntegration:
             "required_annotation": False,
             "experimental_annotation": False,
             "cost_annotation": False,
-            "sample_percent": False,
-            "sample_rows": False,
+            # Sampling removed from DQL spec
+            # "sample_percent": False,
+            # "sample_rows": False,
             "tolerance": False,
             "between_condition": False,
             "is_positive": False,
@@ -575,11 +556,12 @@ class TestAllDQLScenariosIntegration:
                         if ann.name == "cost":
                             all_features["cost_annotation"] = True
 
-                    if assertion.sample:
-                        if assertion.sample.is_percentage:
-                            all_features["sample_percent"] = True
-                        else:
-                            all_features["sample_rows"] = True
+                    # Sampling removed from DQL spec
+                    # if assertion.sample:
+                    #     if assertion.sample.is_percentage:
+                    #         all_features["sample_percent"] = True
+                    #     else:
+                    #         all_features["sample_rows"] = True
 
                     if assertion.tolerance:
                         all_features["tolerance"] = True
@@ -772,16 +754,8 @@ class TestBookOrdersDQLWithImport:
         experimental = [a for a in volume.assertions if any(ann.name == "experimental" for ann in a.annotations)]
         assert len(experimental) >= 1
 
-    def test_order_integrity_sampling(self, orders_dql: str) -> None:
-        """Test sampling in order integrity check."""
-        result = parse(orders_dql)
-        integrity = next(c for c in result.checks if c.name == "Order Integrity")
-
-        sampled = [a for a in integrity.assertions if a.sample is not None]
-        assert len(sampled) >= 1
-        sample = sampled[0].sample
-        assert sample is not None
-        assert sample.seed == 42
+    # Sampling support removed - no longer part of DQL spec
+    # def test_order_integrity_sampling(self, orders_dql: str) -> None:
 
     def test_cross_dataset_check(self, orders_dql: str) -> None:
         """Test cross-dataset check with orders and books."""
