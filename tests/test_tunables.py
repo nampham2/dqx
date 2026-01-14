@@ -429,3 +429,73 @@ class TestTunableIntValidation:
         t = TunableInt("x", value=50, bounds=(0, 100))
         with pytest.raises(ValueError, match="outside bounds"):
             t.set(150)
+
+
+class TestTunableRuntimeBehavior:
+    """Tests that verify tunables actually affect assertion behavior at runtime."""
+
+    def test_set_param_changes_assertion_threshold_at_runtime(self) -> None:
+        """Verify that set_param actually changes the threshold used in running checks."""
+        import datetime as dt
+
+        from dqx.api import VerificationSuite, check
+        from dqx.common import Context, ResultKey
+        from dqx.orm.repositories import InMemoryMetricDB
+        from dqx.provider import MetricProvider
+        from tests.fixtures.data_fixtures import CommercialDataSource
+
+        # Create a tunable threshold
+        null_threshold = TunablePercent("NULL_THRESHOLD", value=0.05, bounds=(0.0, 0.50))
+
+        # Create a check that uses the tunable
+        @check(name="Null Rate Check", datasets=["orders"])
+        def null_rate_check(mp: MetricProvider, ctx: Context) -> None:
+            null_rate = mp.null_count("delivered") / mp.num_rows()
+            ctx.assert_that(null_rate).where(name="null_rate_assertion").is_lt(null_threshold.value)
+
+        # Set up test data with ~26% null rate
+        ds = CommercialDataSource(
+            start_date=dt.date(2025, 1, 1),
+            end_date=dt.date(2025, 1, 31),
+            name="orders",
+            records_per_day=30,
+            seed=1050,
+        )
+
+        key = ResultKey(yyyy_mm_dd=dt.date(2025, 1, 15), tags={})
+
+        # Run with initial threshold (5%) - should FAIL (null rate ~26% > 5%)
+        db1 = InMemoryMetricDB()
+        suite1 = VerificationSuite(
+            checks=[null_rate_check],
+            db=db1,
+            name="Test Suite",
+            tunables=[null_threshold],
+        )
+        suite1.run([ds], key)
+        result1 = suite1.collect_results()
+        initial_status = result1[0].status
+
+        # Change threshold to 30% (more lenient)
+        suite1.set_param("NULL_THRESHOLD", 0.30, agent="test", reason="integration test")
+
+        # Verify the tunable was updated
+        assert null_threshold.value == 0.30, f"Tunable should be 0.30, got {null_threshold.value}"
+
+        # Run again with same data - should PASS (null rate ~26% < 30%)
+        # Create new suite instance with updated tunable
+        db2 = InMemoryMetricDB()
+        suite2 = VerificationSuite(
+            checks=[null_rate_check],
+            db=db2,
+            name="Test Suite",
+            tunables=[null_threshold],
+        )
+        suite2.run([ds], key)
+        result2 = suite2.collect_results()
+        updated_status = result2[0].status
+
+        # Verify the threshold change affected the assertion result
+        assert initial_status == "FAILED", "Initial check should fail with 5% threshold"
+        assert updated_status == "PASSED", "Updated check should pass with 30% threshold"
+        assert suite1.get_param("NULL_THRESHOLD") == 0.30
