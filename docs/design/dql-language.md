@@ -29,12 +29,12 @@ dql run suite.dql --connection databricks://... --date 2024-12-25
 
 ## Structure
 
-A DQL file contains one suite. A suite contains checks, profiles, and constants.
+A DQL file contains one suite. A suite contains checks, profiles, and tunables.
 
 ```
 suite
 ├── metadata (name, threshold)
-├── constants
+├── tunables
 ├── checks
 │   └── assertions
 └── profiles
@@ -1373,7 +1373,7 @@ class Interpreter:
         self.db = db
         self.target_date = target_date
         self.provider = MetricProvider(db)
-        self.constants: dict[str, Any] = {}
+        self.tunables: dict[str, Any] = {}
 
     def eval_metric_expr(self, expr_str: str) -> sp.Expr:
         """Parse metric expression using sympy."""
@@ -1637,7 +1637,6 @@ The following features are specified in this design but **require implementation
 | AST Nodes | Suite, Check, Assertion, Profile, etc. | High |
 | Interpreter | Execute AST against DQX runtime | High |
 | Sampling | `sample N%` / `sample N rows` with optional `seed` | Medium |
-| Import system | `import`, `export`, path resolution | Medium |
 | CLI (`dql run`, `dql check`) | Command-line interface | Medium |
 
 #### RL Agent Integration

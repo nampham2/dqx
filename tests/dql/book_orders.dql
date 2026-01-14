@@ -5,6 +5,7 @@ suite "Book Order Processing Quality" {
     tunable MIN_DAILY_ORDERS = 500 bounds [100, 5000]
     tunable MAX_REFUND_RATE = 10% bounds [5%, 25%]
     tunable ORDER_VALUE_THRESHOLD = 15.0 bounds [5.0, 50.0]
+    tunable PRICE_VOLATILITY_THRESHOLD = 0.15 bounds [0.0, 1.0]
 
     # Check 1: Order Completeness
     check "Order Completeness" on orders {
@@ -49,7 +50,7 @@ suite "Book Order Processing Quality" {
             tags [volume, diversity]
     }
 
-    # Check 3: Order Pricing - uses imported PRICE_VOLATILITY_THRESHOLD
+    # Check 3: Order Pricing
     check "Order Pricing" on orders {
         assert minimum(unit_price) > 0
             name "orders.pricing.positive_prices"
@@ -61,7 +62,7 @@ suite "Book Order Processing Quality" {
             severity P1
             tags [pricing]
 
-        # Use imported constant from book_inventory.dql
+        # Price stability check
         assert abs(day_over_day(average(unit_price))) < PRICE_VOLATILITY_THRESHOLD
             name "orders.pricing.price_stability"
             severity P2
