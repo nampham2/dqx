@@ -740,6 +740,106 @@ class TestErrorHandling:
         with pytest.raises(DQLError, match="No 5th monday"):
             interp.run_string(dql, datasources, date(2024, 2, 29))
 
+    def test_nth_weekday_wrong_arg_count(self) -> None:
+        """Test error for wrong number of arguments to nth_weekday."""
+        dql = """
+        suite "Test" {
+            check "Test" on t {
+                assert num_rows() > 0
+                    name "test.rows"
+            }
+
+            profile "Bad" {
+                type holiday
+                from nth_weekday(november, thursday)
+                to december(25)
+                scale tag "x" by 2.0x
+            }
+        }
+        """
+        data = pa.Table.from_pydict({"id": [1, 2, 3]})
+        datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
+
+        interp = Interpreter(db=InMemoryMetricDB())
+
+        with pytest.raises(DQLError, match=r"nth_weekday requires 3 arguments.*got 2"):
+            interp.run_string(dql, datasources, date(2024, 12, 25))
+
+    def test_nth_weekday_non_integer_n(self) -> None:
+        """Test error for non-integer n in nth_weekday."""
+        dql = """
+        suite "Test" {
+            check "Test" on t {
+                assert num_rows() > 0
+                    name "test.rows"
+            }
+
+            profile "Bad" {
+                type holiday
+                from nth_weekday(november, thursday, xyz)
+                to december(25)
+                scale tag "x" by 2.0x
+            }
+        }
+        """
+        data = pa.Table.from_pydict({"id": [1, 2, 3]})
+        datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
+
+        interp = Interpreter(db=InMemoryMetricDB())
+
+        with pytest.raises(DQLError, match=r"nth_weekday 'n' must be an integer"):
+            interp.run_string(dql, datasources, date(2024, 12, 25))
+
+    def test_month_day_non_integer(self) -> None:
+        """Test error for non-integer day in month(day) function."""
+        dql = """
+        suite "Test" {
+            check "Test" on t {
+                assert num_rows() > 0
+                    name "test.rows"
+            }
+
+            profile "Bad" {
+                type holiday
+                from december(abc)
+                to december(25)
+                scale tag "x" by 2.0x
+            }
+        }
+        """
+        data = pa.Table.from_pydict({"id": [1, 2, 3]})
+        datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
+
+        interp = Interpreter(db=InMemoryMetricDB())
+
+        with pytest.raises(DQLError, match=r"Invalid day argument for december"):
+            interp.run_string(dql, datasources, date(2024, 12, 25))
+
+    def test_month_day_invalid_date(self) -> None:
+        """Test error for invalid date like february(31)."""
+        dql = """
+        suite "Test" {
+            check "Test" on t {
+                assert num_rows() > 0
+                    name "test.rows"
+            }
+
+            profile "Bad" {
+                type holiday
+                from february(31)
+                to december(25)
+                scale tag "x" by 2.0x
+            }
+        }
+        """
+        data = pa.Table.from_pydict({"id": [1, 2, 3]})
+        datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
+
+        interp = Interpreter(db=InMemoryMetricDB())
+
+        with pytest.raises(DQLError, match=r"Invalid date: february\(31\)"):
+            interp.run_string(dql, datasources, date(2024, 12, 25))
+
     def test_run_file(self, tmp_path: Path) -> None:
         """Test run_file method."""
         dql_content = """

@@ -307,7 +307,8 @@ class Interpreter:
         severity = self._resolve_severity(assertion_ast)
 
         # Build assertion ready
-        if assertion_ast.name is None:
+        if assertion_ast.name is None:  # pragma: no cover
+            # Parser ensures all assertions have names
             raise DQLError("Assertion must have a name", loc=assertion_ast.loc)
 
         cost_annotation = self._get_cost_annotation(assertion_ast)
@@ -398,7 +399,8 @@ class Interpreter:
 
         # Validate threshold is present for conditions that require it
         requires_threshold = cond in (">", ">=", "<", "<=", "==", "!=", "between")
-        if requires_threshold and assertion_ast.threshold is None:
+        if requires_threshold and assertion_ast.threshold is None:  # pragma: no cover
+            # Parser ensures threshold is present for these conditions
             raise DQLError(f"Condition '{cond}' requires a threshold", assertion_ast.loc)
 
         if cond == ">":
@@ -423,7 +425,8 @@ class Interpreter:
             threshold = self._eval_simple_expr(assertion_ast.threshold)  # type: ignore[arg-type]
             ready.is_neq(threshold)
         elif cond == "between":
-            if assertion_ast.threshold_upper is None:
+            if assertion_ast.threshold_upper is None:  # pragma: no cover
+                # Parser ensures upper threshold is present for between
                 raise DQLError("Condition 'between' requires upper threshold", assertion_ast.loc)
             lower = self._eval_simple_expr(assertion_ast.threshold)  # type: ignore[arg-type]
             upper = self._eval_simple_expr(assertion_ast.threshold_upper)
