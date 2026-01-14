@@ -175,9 +175,6 @@ class DQLTransformer(Transformer):
     def neg(self, items: list) -> Expr:
         return Expr(text=f"-{items[0].text}")
 
-    def none_literal(self, items: list) -> Expr:
-        return Expr(text="None")
-
     def call(self, items: list) -> Expr:
         func_name = items[0]
         if len(items) > 1 and items[1] is not None:
@@ -270,12 +267,6 @@ class DQLTransformer(Transformer):
 
     def kw_negative(self, items: list) -> str:
         return "negative"
-
-    def kw_none(self, items: list) -> str:
-        return "None"
-
-    def kw_not_none(self, items: list) -> str:
-        return "not None"
 
     # === Modifiers ===
 

@@ -78,7 +78,7 @@ class Assertion:
     condition: str  # The condition operator: ">", ">=", "<", "<=", "==", "!=", "between", "is"
     threshold: Expr | None = None  # Right-hand side of comparison
     threshold_upper: Expr | None = None  # For "between A and B"
-    keyword: str | None = None  # For "is positive", "is negative", "is None", "is not None"
+    keyword: str | None = None  # For "is positive", "is negative"
     name: str | None = None
     severity: Severity = Severity.P1
     tolerance: float | None = None

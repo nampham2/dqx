@@ -140,30 +140,6 @@ class TestAssertions:
         assertion = result.checks[0].assertions[0]
         assert assertion.keyword == "negative"
 
-    def test_is_none(self) -> None:
-        source = """
-        suite "Test" {
-            check "Test" on t {
-                assert first(deleted_at) is None
-            }
-        }
-        """
-        result = parse(source)
-        assertion = result.checks[0].assertions[0]
-        assert assertion.keyword == "None"
-
-    def test_is_not_none(self) -> None:
-        source = """
-        suite "Test" {
-            check "Test" on t {
-                assert first(created_at) is not None
-            }
-        }
-        """
-        result = parse(source)
-        assertion = result.checks[0].assertions[0]
-        assert assertion.keyword == "not None"
-
     def test_assertion_with_name(self) -> None:
         source = """
         suite "Test" {
@@ -756,16 +732,16 @@ class TestCoverageEdgeCases:
         assert "-" in result.checks[0].assertions[0].expr.text
 
     def test_none_literal(self) -> None:
-        """Cover None literal parsing."""
+        """Cover coalesce function with default value."""
         source = """
         suite "Test" {
             check "Test" on t {
-                assert coalesce(average(price), None) > 0
+                assert coalesce(average(price), 0) > 0
             }
         }
         """
         result = parse(source)
-        assert "None" in result.checks[0].assertions[0].expr.text
+        assert "coalesce" in result.checks[0].assertions[0].expr.text
 
     def test_list_arg_in_function(self) -> None:
         """Cover list_arg() - lines 199-203, 222."""
@@ -784,7 +760,7 @@ class TestCoverageEdgeCases:
         source = """
         suite "Test" {
             check "Test" on t {
-                assert first(timestamp, order_by=price) is not None
+                assert first(timestamp, order_by=price) > 0
             }
         }
         """
