@@ -1,4 +1,10 @@
-"""Tests for VerificationSuite.reset() functionality."""
+"""Tests for VerificationSuite.reset() functionality.
+
+Note: Some tests use pytest fixtures (test_db, test_datasource, test_key) to reduce
+boilerplate while maintaining test isolation. Other tests create their own instances
+inline for clarity when they need specific configurations (e.g., different seeds,
+tunables, or profiles).
+"""
 
 from __future__ import annotations
 
@@ -14,35 +20,50 @@ from dqx.tunables import TunableFloat, TunableInt, TunablePercent
 from tests.fixtures.data_fixtures import CommercialDataSource
 
 
+@pytest.fixture
+def test_db() -> InMemoryMetricDB:
+    """Provide a fresh InMemoryMetricDB for each test."""
+    return InMemoryMetricDB()
+
+
+@pytest.fixture
+def test_datasource() -> CommercialDataSource:
+    """Provide a standard CommercialDataSource for testing."""
+    return CommercialDataSource(
+        start_date=dt.date(2025, 1, 1),
+        end_date=dt.date(2025, 1, 31),
+        name="orders",
+        records_per_day=30,
+        seed=1000,
+    )
+
+
+@pytest.fixture
+def test_key() -> ResultKey:
+    """Provide a standard ResultKey for testing."""
+    return ResultKey(yyyy_mm_dd=dt.date(2025, 1, 15), tags={})
+
+
 class TestResetBasicFunctionality:
     """Tests for basic reset() behavior."""
 
-    def test_reset_clears_state(self) -> None:
+    def test_reset_clears_state(
+        self, test_db: InMemoryMetricDB, test_datasource: CommercialDataSource, test_key: ResultKey
+    ) -> None:
         """Verify reset() clears all execution state."""
 
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             ctx.assert_that(mp.num_rows()).where(name="row_count").is_positive()
 
-        db = InMemoryMetricDB()
         suite = VerificationSuite(
             checks=[test_check],
-            db=db,
+            db=test_db,
             name="Test Suite",
         )
 
-        # Create test data
-        ds = CommercialDataSource(
-            start_date=dt.date(2025, 1, 1),
-            end_date=dt.date(2025, 1, 31),
-            name="orders",
-            records_per_day=30,
-            seed=1000,
-        )
-        key = ResultKey(yyyy_mm_dd=dt.date(2025, 1, 15), tags={})
-
         # Run suite
-        suite.run([ds], key)
+        suite.run([test_datasource], test_key)
 
         # Verify state is set
         assert suite.is_evaluated is True
@@ -62,80 +83,62 @@ class TestResetBasicFunctionality:
         assert suite._metrics_stats is None
         assert suite._plugin_manager is None
 
-    def test_reset_allows_multiple_runs(self) -> None:
+    def test_reset_allows_multiple_runs(
+        self, test_db: InMemoryMetricDB, test_datasource: CommercialDataSource, test_key: ResultKey
+    ) -> None:
         """Verify suite can be run multiple times after reset()."""
 
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             ctx.assert_that(mp.num_rows()).where(name="row_count").is_positive()
 
-        db = InMemoryMetricDB()
         suite = VerificationSuite(
             checks=[test_check],
-            db=db,
+            db=test_db,
             name="Test Suite",
         )
 
-        # Create test data
-        ds = CommercialDataSource(
-            start_date=dt.date(2025, 1, 1),
-            end_date=dt.date(2025, 1, 31),
-            name="orders",
-            records_per_day=30,
-            seed=1000,
-        )
-        key = ResultKey(yyyy_mm_dd=dt.date(2025, 1, 15), tags={})
-
         # Run 1
-        suite.run([ds], key)
+        suite.run([test_datasource], test_key)
         results1 = suite.collect_results()
         assert len(results1) == 1
         assert results1[0].status == "PASSED"
 
         # Reset and run 2
         suite.reset()
-        suite.run([ds], key)
+        suite.run([test_datasource], test_key)
         results2 = suite.collect_results()
         assert len(results2) == 1
         assert results2[0].status == "PASSED"
 
         # Reset and run 3
         suite.reset()
-        suite.run([ds], key)
+        suite.run([test_datasource], test_key)
         results3 = suite.collect_results()
         assert len(results3) == 1
         assert results3[0].status == "PASSED"
 
-    def test_reset_before_run_is_safe(self) -> None:
+    def test_reset_before_run_is_safe(
+        self, test_db: InMemoryMetricDB, test_datasource: CommercialDataSource, test_key: ResultKey
+    ) -> None:
         """Verify reset() is idempotent and safe to call before run()."""
 
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             ctx.assert_that(mp.num_rows()).where(name="row_count").is_positive()
 
-        db = InMemoryMetricDB()
         suite = VerificationSuite(
             checks=[test_check],
-            db=db,
+            db=test_db,
             name="Test Suite",
         )
-
-        # Create test data
-        ds = CommercialDataSource(
-            start_date=dt.date(2025, 1, 1),
-            end_date=dt.date(2025, 1, 31),
-            name="orders",
-            records_per_day=30,
-            seed=1000,
-        )
-        key = ResultKey(yyyy_mm_dd=dt.date(2025, 1, 15), tags={})
 
         # Reset before any run (should be safe)
         suite.reset()
         assert suite.is_evaluated is False
 
         # Run should succeed
-        suite.run([ds], key)
+        suite.run([test_datasource], test_key)
         results = suite.collect_results()
         assert len(results) == 1
         assert results[0].status == "PASSED"
@@ -591,7 +594,13 @@ class TestResetPluginManager:
         assert suite._plugin_manager is not None
 
     def test_reset_reinitializes_plugin_manager_with_all_plugins(self) -> None:
-        """Verify plugin_manager is properly initialized with plugins after reset and run."""
+        """
+        Verify plugin_manager is properly initialized with plugins after reset and run.
+
+        Note: This test depends on the "audit" plugin being registered by default
+        in PluginManager.__init__() (see src/dqx/plugins.py:135). If default plugin
+        configuration changes, this test may need adjustment.
+        """
 
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -617,6 +626,7 @@ class TestResetPluginManager:
         suite.run([ds], key)
         plugin_mgr_1 = suite.plugin_manager
         assert plugin_mgr_1 is not None
+        # NOTE: Assumes "audit" plugin is registered by default in PluginManager
         assert suite.plugin_manager.plugin_exists("audit"), "Default audit plugin should be registered"
 
         # Verify audit plugin actually ran by checking that results were processed
@@ -640,7 +650,7 @@ class TestResetPluginManager:
         # Verify it's a NEW plugin manager instance (not the same object)
         assert id(plugin_mgr_2) != first_plugin_manager_id, "Should create new plugin manager after reset"
 
-        # Verify plugins are registered in the new instance
+        # Verify plugins are registered in the new instance (assumes default audit plugin)
         assert suite.plugin_manager.plugin_exists("audit"), "Audit plugin should be registered after reset"
 
         # Verify audit plugin ran again by checking results
