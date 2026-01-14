@@ -85,7 +85,7 @@ class TestBasicExecution:
         db = InMemoryMetricDB()
         interp = Interpreter(db=db)
 
-        with pytest.raises(DQLError, match="Missing datasources.*customers"):
+        with pytest.raises(DQLError, match=r"Missing datasources.*customers"):
             interp.run_string(dql, datasources, date.today())
 
 
@@ -972,7 +972,7 @@ class TestAdditionalCoverage:
         assert not results.all_passed()
 
     def test_profile_disable_assertion_no_check_match(self) -> None:
-        """Test disable assertion without in_check clause (line 575)."""
+        """Test disable assertion in wrong check (assertion exists but check doesn't match)."""
         dql = """
         suite "Test" {
             check "Volume" on t {
@@ -987,19 +987,24 @@ class TestAdditionalCoverage:
                 type holiday
                 from 2024-12-20
                 to 2024-12-31
-                disable assertion "min_rows" in "Volume"
+                disable assertion "min_rows" in "Quality"
             }
         }
         """
+        # Only 3 rows, would fail, but we're trying to disable in wrong check
         data = pa.Table.from_pydict({"id": [1, 2, 3]})
         datasources = {"t": DuckRelationDataSource.from_arrow(data, "t")}
 
         interp = Interpreter(db=InMemoryMetricDB())
         results = interp.run_string(dql, datasources, date(2024, 12, 25))
 
-        # min_rows disabled by name match
-        assert len(results.assertions) == 1
-        assert results.assertions[0].assertion_name == "has_rows"
+        # min_rows NOT disabled because check name doesn't match ("Quality" != "Volume")
+        # So the assertion runs and fails
+        assert len(results.assertions) == 2
+        assert not results.all_passed()  # min_rows failed
+        failed = [a for a in results.assertions if not a.passed]
+        assert len(failed) == 1
+        assert failed[0].assertion_name == "min_rows"
 
     def test_results_passes_property_used(self) -> None:
         """Test using the passes property specifically (line 98)."""

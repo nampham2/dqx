@@ -62,7 +62,7 @@ WEEKDAY_NAMES = {
 }
 
 
-@dataclass
+@dataclass(frozen=True)
 class AssertionResult:
     """Result from executing a single DQL assertion."""
 
@@ -76,12 +76,12 @@ class AssertionResult:
     reason: str | None  # Failure reason if not passed
 
 
-@dataclass
+@dataclass(frozen=True)
 class SuiteResults:
     """Results from executing a DQL suite."""
 
     suite_name: str
-    assertions: list[AssertionResult]
+    assertions: tuple[AssertionResult, ...]
     execution_date: date
 
     def all_passed(self) -> bool:
@@ -89,14 +89,14 @@ class SuiteResults:
         return all(a.passed for a in self.assertions)
 
     @property
-    def failures(self) -> list[AssertionResult]:
+    def failures(self) -> tuple[AssertionResult, ...]:
         """Get failed assertions."""
-        return [a for a in self.assertions if not a.passed]
+        return tuple(a for a in self.assertions if not a.passed)
 
     @property
-    def passes(self) -> list[AssertionResult]:
+    def passes(self) -> tuple[AssertionResult, ...]:
         """Get passed assertions."""
-        return [a for a in self.assertions if a.passed]
+        return tuple(a for a in self.assertions if a.passed)
 
 
 class Interpreter:
@@ -271,7 +271,7 @@ class Interpreter:
             return float(text)
         except ValueError:  # pragma: no cover
             # Parser validates numeric literals
-            raise DQLError(f"Cannot evaluate expression: {text}", loc=expr.loc)
+            raise DQLError(f"Cannot evaluate expression: {text}", loc=expr.loc) from None
 
     def _build_check(self, check_ast: Check, tunables: list[TunableFloat | TunablePercent | TunableInt]) -> Callable:
         """Convert DQL Check AST to Python check function."""
@@ -307,7 +307,8 @@ class Interpreter:
         severity = self._resolve_severity(assertion_ast)
 
         # Build assertion ready
-        assert assertion_ast.name is not None, "Assertion must have a name"
+        if assertion_ast.name is None:
+            raise DQLError("Assertion must have a name", loc=assertion_ast.loc)
 
         cost_annotation = self._get_cost_annotation(assertion_ast)
         cost_dict = {k: float(v) for k, v in cost_annotation.items()} if cost_annotation else None
@@ -335,12 +336,12 @@ class Interpreter:
         # Parse with sympy
         try:
             return sp.sympify(expr_text, locals=namespace, evaluate=False)
-        except Exception as e:  # pragma: no cover
+        except (sp.SympifyError, TypeError, ValueError) as e:  # pragma: no cover
             # Sympy parsing error (very rare with valid DQL)
             raise DQLError(
                 f"Failed to parse metric expression: {expr.text}\n{e}",
                 loc=expr.loc,
-            )
+            ) from e
 
     def _build_metric_namespace(self, mp: MetricProvider) -> dict[str, Any]:
         """Build sympy namespace with all metric and math functions."""
@@ -377,48 +378,54 @@ class Interpreter:
         return namespace
 
     def _substitute_tunables(self, expr_text: str) -> str:
-        """Replace tunable names with their values in expression."""
+        """Replace tunable names with their values in expression.
+
+        Uses word-boundary regex to avoid corrupting identifiers when one tunable
+        name is a prefix of another (e.g., MAX and MAX_VALUE).
+        """
         result = expr_text
-        for name, value in self.tunables.items():
-            # Simple string replacement (tunables are identifiers, safe)
-            result = result.replace(name, str(value))
+        # Sort by length descending to handle longest matches first
+        for name in sorted(self.tunables.keys(), key=len, reverse=True):
+            value = self.tunables[name]
+            # Use word boundaries to match only complete identifiers
+            pattern = r"\b" + re.escape(name) + r"\b"
+            result = re.sub(pattern, str(value), result)
         return result
 
     def _apply_condition(self, ready: Any, assertion_ast: Assertion) -> None:
         """Apply the assertion condition to AssertionReady."""
         cond = assertion_ast.condition
 
+        # Validate threshold is present for conditions that require it
+        requires_threshold = cond in (">", ">=", "<", "<=", "==", "!=", "between")
+        if requires_threshold and assertion_ast.threshold is None:
+            raise DQLError(f"Condition '{cond}' requires a threshold", assertion_ast.loc)
+
         if cond == ">":
-            assert assertion_ast.threshold is not None
-            threshold = self._eval_simple_expr(assertion_ast.threshold)
+            threshold = self._eval_simple_expr(assertion_ast.threshold)  # type: ignore[arg-type]
             ready.is_gt(threshold)
         elif cond == ">=":
-            assert assertion_ast.threshold is not None
-            threshold = self._eval_simple_expr(assertion_ast.threshold)
+            threshold = self._eval_simple_expr(assertion_ast.threshold)  # type: ignore[arg-type]
             ready.is_geq(threshold)
         elif cond == "<":
-            assert assertion_ast.threshold is not None
-            threshold = self._eval_simple_expr(assertion_ast.threshold)
+            threshold = self._eval_simple_expr(assertion_ast.threshold)  # type: ignore[arg-type]
             ready.is_lt(threshold)
         elif cond == "<=":
-            assert assertion_ast.threshold is not None
-            threshold = self._eval_simple_expr(assertion_ast.threshold)
+            threshold = self._eval_simple_expr(assertion_ast.threshold)  # type: ignore[arg-type]
             ready.is_leq(threshold)
         elif cond == "==":
-            assert assertion_ast.threshold is not None
-            threshold = self._eval_simple_expr(assertion_ast.threshold)
+            threshold = self._eval_simple_expr(assertion_ast.threshold)  # type: ignore[arg-type]
             if assertion_ast.tolerance:
                 ready.is_eq(threshold, tol=assertion_ast.tolerance)
             else:
                 ready.is_eq(threshold)
         elif cond == "!=":
-            assert assertion_ast.threshold is not None
-            threshold = self._eval_simple_expr(assertion_ast.threshold)
+            threshold = self._eval_simple_expr(assertion_ast.threshold)  # type: ignore[arg-type]
             ready.is_neq(threshold)
         elif cond == "between":
-            assert assertion_ast.threshold is not None
-            assert assertion_ast.threshold_upper is not None
-            lower = self._eval_simple_expr(assertion_ast.threshold)
+            if assertion_ast.threshold_upper is None:
+                raise DQLError("Condition 'between' requires upper threshold", assertion_ast.loc)
+            lower = self._eval_simple_expr(assertion_ast.threshold)  # type: ignore[arg-type]
             upper = self._eval_simple_expr(assertion_ast.threshold_upper)
             ready.is_between(lower, upper)
         elif cond == "is":
@@ -492,9 +499,15 @@ class Interpreter:
         """
         # Parse args: month name, weekday name, occurrence number
         args = [a.strip() for a in args_str.split(",")]
+        if len(args) != 3:
+            raise DQLError(f"nth_weekday requires 3 arguments (month, weekday, n), got {len(args)}")
+
         month_name = args[0]  # e.g., "november"
         weekday_name = args[1]  # e.g., "thursday"
-        n = int(args[2])  # e.g., 4
+        try:
+            n = int(args[2])  # e.g., 4
+        except ValueError:
+            raise DQLError(f"nth_weekday 'n' must be an integer, got: {args[2]}") from None
 
         # Convert month name to number (1-12)
         month_num = MONTH_NAMES.get(month_name.lower())
@@ -534,11 +547,18 @@ class Interpreter:
 
     def _month_day(self, month_name: str, args_str: str, execution_date: date) -> date:
         """Implement month(day) functions like december(25)."""
-        day = int(args_str.strip())
+        try:
+            day = int(args_str.strip())
+        except ValueError:
+            raise DQLError(f"Invalid day argument for {month_name}(): {args_str}") from None
+
         month_num = MONTH_NAMES[month_name.lower()]
         year = execution_date.year
 
-        return date(year, month_num, day)
+        try:
+            return date(year, month_num, day)
+        except ValueError as e:
+            raise DQLError(f"Invalid date: {month_name}({day}) in year {year}: {e}") from e
 
     def _apply_profile_scaling(self, metric_value: Any, assertion_ast: Assertion) -> Any:
         """Apply scale multipliers from active profiles."""
@@ -655,6 +675,6 @@ class Interpreter:
 
         return SuiteResults(
             suite_name=suite_name,
-            assertions=assertions,
+            assertions=tuple(assertions),
             execution_date=execution_date,
         )
