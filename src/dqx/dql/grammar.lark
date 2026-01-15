@@ -18,9 +18,11 @@ check: "check" STRING "on" datasets "{" check_body "}"
 
 datasets: ident ("," ident)*
 
-check_body: annotated_assertion+
+check_body: (annotated_assertion | annotated_collection)+
 
 annotated_assertion: annotation* "assert" expr condition modifiers*
+
+annotated_collection: annotation* "collect" expr modifiers*
 
 annotation: "@" IDENT ["(" ann_args ")"]
 

@@ -14,6 +14,7 @@ from dqx.dql.ast import (
     Annotation,
     Assertion,
     Check,
+    Collection,
     DateExpr,
     DisableRule,
     Expr,
@@ -373,13 +374,55 @@ class DQLTransformer(Transformer):
             loc=self._loc(tree),
         )
 
+    @v_args(tree=True)
+    def annotated_collection(self, tree: Any) -> Collection:
+        """Parse a collection statement (noop assertion)."""
+        items = tree.children
+
+        # Collect annotations that were processed before this collection
+        annotations = tuple(self._pending_annotations)
+        self._pending_annotations = []
+
+        # Find the expr (first Expr after any annotations)
+        expr_idx = 0
+        for i, item in enumerate(items):
+            if isinstance(item, Expr):
+                expr_idx = i
+                break
+
+        expr = items[expr_idx]
+
+        # Collect modifiers (everything after expr)
+        modifiers: dict[str, Any] = {}
+        for item in items[expr_idx + 1 :]:
+            if isinstance(item, dict):
+                modifiers.update(item)
+
+        # Validate that name is present (REQUIRED)
+        name = modifiers.get("name")
+        if name is None:
+            raise DQLSyntaxError(
+                "Collection statement must have a 'name' modifier",
+                loc=self._loc(tree),
+            )
+
+        return Collection(
+            expr=expr,
+            name=name,
+            severity=modifiers.get("severity", Severity.P1),
+            tolerance=modifiers.get("tolerance"),
+            tags=modifiers.get("tags", ()),
+            annotations=annotations,
+            loc=self._loc(tree),
+        )
+
     # === Checks ===
 
     def datasets(self, items: list) -> tuple[str, ...]:
         return tuple(items)
 
-    def check_body(self, items: list) -> list[Assertion]:
-        # All items should be Assertions now (annotated_assertion rule)
+    def check_body(self, items: list) -> list[Assertion | Collection]:
+        # Items can be Assertions or Collections now
         return list(items)
 
     @v_args(tree=True)

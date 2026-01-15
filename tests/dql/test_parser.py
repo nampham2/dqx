@@ -214,6 +214,138 @@ class TestAssertions:
         assert assertion.tags == ("pricing", "critical")
 
 
+class TestCollections:
+    """Test collection statement parsing."""
+
+    def test_simple_collect(self) -> None:
+        """Test basic collect statement."""
+        source = """
+        suite "Test" {
+            check "Metrics" on orders {
+                collect num_rows()
+                    name "row_count"
+            }
+        }
+        """
+        result = parse(source)
+        assert len(result.checks) == 1
+        check = result.checks[0]
+        assert len(check.assertions) == 1
+
+        from dqx.dql import Collection
+
+        statement = check.assertions[0]
+        assert isinstance(statement, Collection)
+        assert statement.name == "row_count"
+        assert statement.expr.text == "num_rows()"
+        assert statement.severity == Severity.P1  # Default
+
+    def test_collect_with_modifiers(self) -> None:
+        """Test collect with severity and tags."""
+        source = """
+        suite "Test" {
+            check "Metrics" on orders {
+                collect average(price)
+                    name "avg_price"
+                    severity P0
+                    tags [pricing, metrics]
+            }
+        }
+        """
+        result = parse(source)
+        from dqx.dql import Collection
+
+        collection = result.checks[0].assertions[0]
+        assert isinstance(collection, Collection)
+        assert collection.name == "avg_price"
+        assert collection.severity == Severity.P0
+        assert collection.tags == ("pricing", "metrics")
+
+    def test_collect_with_annotations(self) -> None:
+        """Test collect with @experimental and @cost."""
+        source = """
+        suite "Test" {
+            check "Metrics" on orders {
+                @experimental
+                @cost(fp=1, fn=100)
+                collect day_over_day(sum(amount))
+                    name "dod_revenue"
+                    tags [trends]
+            }
+        }
+        """
+        result = parse(source)
+        from dqx.dql import Collection
+
+        collection = result.checks[0].assertions[0]
+        assert isinstance(collection, Collection)
+        assert len(collection.annotations) == 2
+        assert collection.annotations[0].name == "experimental"
+        assert collection.annotations[1].name == "cost"
+        assert collection.annotations[1].args == {"fp": 1, "fn": 100}
+
+    def test_collect_complex_expression(self) -> None:
+        """Test collect with complex metric expression."""
+        source = """
+        suite "Test" {
+            check "Metrics" on orders {
+                collect null_count(email) / num_rows()
+                    name "email_null_rate"
+            }
+        }
+        """
+        result = parse(source)
+        from dqx.dql import Collection
+
+        collection = result.checks[0].assertions[0]
+        assert isinstance(collection, Collection)
+        assert "null_count(email)" in collection.expr.text
+        assert "num_rows()" in collection.expr.text
+
+    def test_mixed_assert_and_collect(self) -> None:
+        """Test check with both assertions and collections."""
+        source = """
+        suite "Test" {
+            check "Quality" on orders {
+                assert num_rows() > 1000
+                    name "min_rows"
+                
+                collect average(price)
+                    name "avg_price"
+                
+                assert null_count(email) == 0
+                    name "email_not_null"
+                
+                collect day_over_day(sum(amount))
+                    name "dod_revenue"
+            }
+        }
+        """
+        result = parse(source)
+        check = result.checks[0]
+        assert len(check.assertions) == 4
+
+        from dqx.dql import Assertion, Collection
+
+        assert isinstance(check.assertions[0], Assertion)
+        assert isinstance(check.assertions[1], Collection)
+        assert isinstance(check.assertions[2], Assertion)
+        assert isinstance(check.assertions[3], Collection)
+
+    def test_collect_without_name_fails(self) -> None:
+        """Test that collect without name raises error."""
+        source = """
+        suite "Test" {
+            check "Metrics" on data {
+                collect num_rows()
+            }
+        }
+        """
+        # Should raise DQLSyntaxError (wrapped in VisitError by Lark)
+        with pytest.raises(Exception, match="must have a 'name'"):
+            parse(source)
+
+
 class TestAnnotations:
     """Test annotation parsing."""
 
