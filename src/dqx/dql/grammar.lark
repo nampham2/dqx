@@ -94,6 +94,7 @@ named_arg: "lag" "=" NUMBER -> arg_lag
          | "dataset" "=" ident -> arg_dataset
          | "order_by" "=" ident -> arg_order_by
          | "n" "=" NUMBER -> arg_n
+         | "offset" "=" NUMBER -> arg_offset
 
 list_arg: "[" ident ("," ident)* "]"
 

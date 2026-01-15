@@ -1176,3 +1176,300 @@ class TestAdditionalCoverage:
         interp = Interpreter(db=InMemoryMetricDB())
         results = interp.run(dql, datasources, date.today())
         assert results.all_passed()
+
+
+class TestInterpreterFixes:
+    """Tests for DQL interpreter bug fixes from DQL parity work."""
+
+    def test_check_includes_datasets_parameter(self) -> None:
+        """Test Fix 2: @check decorator includes datasets parameter for multi-dataset checks."""
+        dql = """
+        suite "Test" {
+            check "Multi" on orders, customers {
+                assert num_rows(dataset=orders) > 0
+                    name "test"
+            }
+        }
+        """
+        data1 = pa.Table.from_pydict({"id": [1, 2, 3]})
+        data2 = pa.Table.from_pydict({"cust_id": [10, 20]})
+        datasources = {
+            "orders": DuckRelationDataSource.from_arrow(data1, "orders"),
+            "customers": DuckRelationDataSource.from_arrow(data2, "customers"),
+        }
+
+        db = InMemoryMetricDB()
+        interp = Interpreter(db=db)
+
+        # Should not raise dataset imputation error
+        results = interp.run(dql, datasources, date.today())
+        assert len(results.assertions) == 1
+        assert results.all_passed()
+
+    def test_lag_parameter_converts_to_int(self) -> None:
+        """Test Fix 3: lag=1 is converted to int, not sympy.One."""
+        dql = """
+        suite "Test" {
+            check "Test" on orders {
+                assert average(price, lag=1) > 0
+                    name "test.lag"
+            }
+        }
+        """
+        data = pa.Table.from_pydict({"id": [1, 2], "price": [10.0, 20.0]})
+        ds = DuckRelationDataSource.from_arrow(data, "orders")
+
+        db = InMemoryMetricDB()
+        interp = Interpreter(db=db)
+
+        # Should not raise TypeError about timedelta with sympy.One
+        results = interp.run(dql, {"orders": ds}, date.today())
+        assert len(results.assertions) == 1
+
+    def test_dataset_parameter_converts_to_string(self) -> None:
+        """Test Fix 3: dataset=ds1 is converted to str, not sympy.Symbol."""
+        dql = """
+        suite "Test" {
+            check "Test" on ds1, ds2 {
+                assert average(price, dataset=ds1) > 0
+                    name "test.dataset"
+            }
+        }
+        """
+        data = pa.Table.from_pydict({"id": [1], "price": [10.0]})
+        ds1 = DuckRelationDataSource.from_arrow(data, "ds1")
+        ds2 = DuckRelationDataSource.from_arrow(data, "ds2")
+
+        db = InMemoryMetricDB()
+        interp = Interpreter(db=db)
+
+        results = interp.run(dql, {"ds1": ds1, "ds2": ds2}, date.today())
+        assert results.all_passed()
+
+    def test_duplicate_count_with_single_column_list(self) -> None:
+        """Test Fix 4: duplicate_count([col]) works with list argument."""
+        dql = """
+        suite "Test" {
+            check "Test" on orders {
+                assert duplicate_count([order_id]) == 0
+                    name "test.dup"
+            }
+        }
+        """
+        data = pa.Table.from_pydict({"order_id": [1, 2, 3]})
+        ds = DuckRelationDataSource.from_arrow(data, "orders")
+
+        db = InMemoryMetricDB()
+        interp = Interpreter(db=db)
+
+        results = interp.run(dql, {"orders": ds}, date.today())
+        assert results.all_passed()
+
+    def test_duplicate_count_with_multiple_columns(self) -> None:
+        """Test Fix 4: duplicate_count([col1, col2]) works with multiple columns."""
+        dql = """
+        suite "Test" {
+            check "Test" on orders {
+                assert duplicate_count([order_id, customer_id]) == 0
+                    name "test.dup_multi"
+            }
+        }
+        """
+        data = pa.Table.from_pydict({"order_id": [1, 2, 3], "customer_id": [10, 20, 30]})
+        ds = DuckRelationDataSource.from_arrow(data, "orders")
+
+        db = InMemoryMetricDB()
+        interp = Interpreter(db=db)
+
+        results = interp.run(dql, {"orders": ds}, date.today())
+        assert results.all_passed()
+
+    def test_count_values_with_string_literal(self) -> None:
+        """Test Fix 5: count_values(col, \"value\") preserves string literal."""
+        dql = """
+        suite "Test" {
+            check "Test" on orders {
+                assert count_values(status, "shipped") > 0
+                    name "test.count_str"
+            }
+        }
+        """
+        data = pa.Table.from_pydict({"status": ["shipped", "pending", "shipped"]})
+        ds = DuckRelationDataSource.from_arrow(data, "orders")
+
+        db = InMemoryMetricDB()
+        interp = Interpreter(db=db)
+
+        results = interp.run(dql, {"orders": ds}, date.today())
+        assert results.all_passed()
+
+    def test_count_values_with_integer(self) -> None:
+        """Test Fix 5: count_values(col, 0) works with integer values."""
+        dql = """
+        suite "Test" {
+            check "Test" on inventory {
+                assert count_values(stock_quantity, 0) == 2
+                    name "test.count_int"
+            }
+        }
+        """
+        data = pa.Table.from_pydict({"stock_quantity": [0, 5, 10, 0]})
+        ds = DuckRelationDataSource.from_arrow(data, "inventory")
+
+        db = InMemoryMetricDB()
+        interp = Interpreter(db=db)
+
+        results = interp.run(dql, {"inventory": ds}, date.today())
+        assert results.all_passed()
+
+    def test_offset_parameter_in_grammar(self) -> None:
+        """Test Fix 1: offset parameter is recognized by grammar."""
+        from dqx.dql import parse
+
+        dql = """
+        suite "Test" {
+            check "Test" on orders {
+                assert stddev(average(price), offset=2, n=10) < 100
+                    name "test.offset_grammar"
+            }
+        }
+        """
+        # Should parse without syntax error
+        suite_ast = parse(dql)
+        assert suite_ast.name == "Test"
+        assert len(suite_ast.checks) == 1
+        # Verify expression contains offset
+        assert "offset=2" in suite_ast.checks[0].assertions[0].expr.text
+
+    def test_stddev_with_n_parameter(self) -> None:
+        """Test Fix 6: stddev(metric, n=7) works with n parameter."""
+        dql = """
+        suite "Test" {
+            check "Test" on orders {
+                assert stddev(average(price), n=3) < 1000
+                    name "test.stddev_n"
+            }
+        }
+        """
+        data = pa.Table.from_pydict({"id": list(range(10)), "price": [100.0] * 10})
+        ds = DuckRelationDataSource.from_arrow(data, "orders")
+
+        db = InMemoryMetricDB()
+        interp = Interpreter(db=db)
+
+        results = interp.run(dql, {"orders": ds}, date.today())
+        # May fail due to data availability, but should not crash
+        assert len(results.assertions) == 1
+
+    def test_stddev_with_offset_and_n(self) -> None:
+        """Test Fix 6: stddev(metric, offset=1, n=7) works with both parameters."""
+        dql = """
+        suite "Test" {
+            check "Test" on orders {
+                assert stddev(average(price), offset=1, n=3) < 1000
+                    name "test.stddev_offset_n"
+            }
+        }
+        """
+        data = pa.Table.from_pydict({"id": list(range(10)), "price": [100.0] * 10})
+        ds = DuckRelationDataSource.from_arrow(data, "orders")
+
+        db = InMemoryMetricDB()
+        interp = Interpreter(db=db)
+
+        results = interp.run(dql, {"orders": ds}, date.today())
+        assert len(results.assertions) == 1
+
+    def test_stddev_with_nested_extension(self) -> None:
+        """Test Fix 6: stddev(day_over_day(metric), offset=1, n=7) with nested extension."""
+        dql = """
+        suite "Test" {
+            check "Test" on orders {
+                assert stddev(day_over_day(average(price)), offset=1, n=3) < 1000
+                    name "test.stddev_nested"
+            }
+        }
+        """
+        data = pa.Table.from_pydict({"id": list(range(10)), "price": [100.0] * 10})
+        ds = DuckRelationDataSource.from_arrow(data, "orders")
+
+        db = InMemoryMetricDB()
+        interp = Interpreter(db=db)
+
+        results = interp.run(dql, {"orders": ds}, date.today())
+        assert len(results.assertions) == 1
+
+    def test_manual_day_over_day_with_lag(self) -> None:
+        """Test manual DoD calculation: avg(tax) / avg(tax, lag=1)."""
+        dql = """
+        suite "Test" {
+            check "Test" on orders {
+                assert average(tax) / average(tax, lag=1) > 0.5
+                    name "manual_dod"
+                    tolerance 0.5
+            }
+        }
+        """
+        data = pa.Table.from_pydict({"tax": [10.0, 20.0, 30.0]})
+        ds = DuckRelationDataSource.from_arrow(data, "orders")
+
+        db = InMemoryMetricDB()
+        interp = Interpreter(db=db)
+
+        results = interp.run(dql, {"orders": ds}, date.today())
+        assert len(results.assertions) == 1
+
+    def test_cross_dataset_with_abs_and_tolerance(self) -> None:
+        """Test cross-dataset assertion with abs() and tolerance."""
+        dql = """
+        suite "Test" {
+            check "Test" on ds1, ds2 {
+                assert abs(average(price, dataset=ds1) / average(price, dataset=ds2) - 1) < 0.2
+                    name "test.cross"
+                    tolerance 0.01
+            }
+        }
+        """
+        data1 = pa.Table.from_pydict({"price": [100.0, 110.0]})
+        data2 = pa.Table.from_pydict({"price": [105.0, 115.0]})
+        ds1 = DuckRelationDataSource.from_arrow(data1, "ds1")
+        ds2 = DuckRelationDataSource.from_arrow(data2, "ds2")
+
+        db = InMemoryMetricDB()
+        interp = Interpreter(db=db)
+
+        results = interp.run(dql, {"ds1": ds1, "ds2": ds2}, date.today())
+        assert len(results.assertions) == 1
+        assert results.all_passed()
+
+    def test_complex_expression_with_all_fixes(self) -> None:
+        """Integration test: expression using all fixed features together."""
+        dql = """
+        suite "Test" {
+            check "Test" on ds1 {
+                assert duplicate_count([order_id]) == 0
+                    name "unique"
+
+                assert count_values(status, "active") / num_rows() > 0.5
+                    name "active_rate"
+
+                assert average(price, lag=1) > 0
+                    name "lag_test"
+            }
+        }
+        """
+        data = pa.Table.from_pydict(
+            {
+                "order_id": [1, 2, 3],
+                "price": [100.0, 200.0, 150.0],
+                "status": ["active", "active", "inactive"],
+            }
+        )
+        ds1 = DuckRelationDataSource.from_arrow(data, "ds1")
+
+        db = InMemoryMetricDB()
+        interp = Interpreter(db=db)
+
+        # Should execute without errors
+        results = interp.run(dql, {"ds1": ds1}, date.today())
+        assert len(results.assertions) == 3

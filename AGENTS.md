@@ -255,7 +255,7 @@ src/dqx/           # Main source code
 ├── common.py      # Shared types and protocols
 ├── display.py     # Result visualization with Rich
 ├── graph/         # Graph processing for dependency analysis
-├── dql/           # Domain Query Language parser
+├── dql/           # Data Quality Language parser
 └── orm/           # Object-relational mapping for metrics
 
 tests/             # Test suite (110+ files)

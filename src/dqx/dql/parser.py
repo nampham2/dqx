@@ -87,6 +87,7 @@ class DQLTransformer(Transformer):
         super().__init__()
         self.filename = filename
         self._pending_annotations: list[Annotation] = []
+        self._string_literals: set[str] = set()  # Track string literals
 
     def _loc(self, tree: Any) -> SourceLocation | None:
         return _make_loc(tree, self.filename)
@@ -94,7 +95,9 @@ class DQLTransformer(Transformer):
     # === Tokens ===
 
     def STRING(self, token: Any) -> str:
-        return _parse_string(str(token))
+        value = _parse_string(str(token))
+        self._string_literals.add(value)  # Remember this was a string literal
+        return value
 
     def NUMBER(self, token: Any) -> float | int:
         return _parse_number(str(token))
@@ -184,10 +187,28 @@ class DQLTransformer(Transformer):
         parts = []
         for item in items:
             if isinstance(item, Expr):
-                parts.append(item.text)
+                # Check if this Expr text is a string literal that needs quotes
+                if item.text in self._string_literals:
+                    # This was a STRING token - preserve quotes for sympy
+                    escaped = item.text.replace('"', '\\"')
+                    parts.append(f'"{escaped}"')
+                else:
+                    parts.append(item.text)
             elif isinstance(item, str):
-                # Named arg string like "lag 1"
-                parts.append(item)
+                # Check if this is a named arg (contains '=') or a string literal
+                if "=" in item:
+                    # Named arg like "lag=1" or "dataset=ds1"
+                    parts.append(item)
+                elif item in self._string_literals:  # pragma: no cover - string literals handled as Expr
+                    # This was a STRING token - preserve quotes for sympy
+                    escaped = item.replace('"', '\\"')
+                    parts.append(f'"{escaped}"')
+                else:  # pragma: no cover - identifiers/numbers handled as Expr
+                    # Identifier or number
+                    parts.append(item)  # pragma: no cover
+            elif isinstance(item, (int, float)):  # pragma: no cover - numbers parsed as Expr
+                # Number
+                parts.append(str(item))
             elif isinstance(item, list):
                 # List arg
                 parts.append(f"[{', '.join(item)}]")
@@ -212,6 +233,9 @@ class DQLTransformer(Transformer):
 
     def arg_n(self, items: list) -> str:
         return f"n={items[0]}"
+
+    def arg_offset(self, items: list) -> str:
+        return f"offset={items[0]}"
 
     def list_arg(self, items: list) -> list:
         return list(items)
