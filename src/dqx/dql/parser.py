@@ -203,9 +203,9 @@ class DQLTransformer(Transformer):
                     # This was a STRING token - preserve quotes for sympy
                     escaped = item.replace('"', '\\"')
                     parts.append(f'"{escaped}"')
-                else:
+                else:  # pragma: no cover - identifiers/numbers handled as Expr
                     # Identifier or number
-                    parts.append(item)
+                    parts.append(item)  # pragma: no cover
             elif isinstance(item, (int, float)):  # pragma: no cover - numbers parsed as Expr
                 # Number
                 parts.append(str(item))
