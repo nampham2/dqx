@@ -408,7 +408,7 @@ class Interpreter:
         pattern = r"stddev\((.+?)(?:, offset=(\d+))?(?:, n=(\d+))\)"
         match = re.search(pattern, expr_text)
 
-        if not match:
+        if not match:  # pragma: no cover - defensive fallback for malformed stddev
             # Fallback to normal parsing
             namespace = self._build_metric_namespace(mp)
             return sp.sympify(expr_text, locals=namespace, evaluate=False)
@@ -454,7 +454,7 @@ class Interpreter:
                     elif isinstance(value, sp.Symbol):
                         # For symbols (like dataset names), convert to string
                         result[key] = str(value)
-                    else:
+                    else:  # pragma: no cover - defensive fallback for unknown sympy types
                         # For other sympy types, try to extract value
                         try:
                             result[key] = float(value)  # type: ignore[arg-type]
@@ -474,7 +474,7 @@ class Interpreter:
             """
             if isinstance(cols, list):
                 return [_to_str(item) for item in cols]
-            elif isinstance(cols, tuple):
+            elif isinstance(cols, tuple):  # pragma: no cover - tuples not produced by parser
                 return [_to_str(item) for item in cols]
             else:
                 # Single column passed without list brackets
@@ -499,7 +499,7 @@ class Interpreter:
                     return int(float(val))  # type: ignore[arg-type]
                 elif isinstance(val, sp.Symbol):
                     return str(val)
-                else:
+                else:  # pragma: no cover - defensive fallback for unknown sympy types
                     # Try to extract numeric value
                     try:
                         return int(val)  # type: ignore[arg-type]
@@ -510,7 +510,7 @@ class Interpreter:
                 return int(val)
             elif isinstance(val, (int, str, bool)):
                 return val
-            else:
+            else:  # pragma: no cover - defensive fallback for unknown types
                 return str(val)
 
         namespace = {

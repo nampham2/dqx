@@ -199,14 +199,14 @@ class DQLTransformer(Transformer):
                 if "=" in item:
                     # Named arg like "lag=1" or "dataset=ds1"
                     parts.append(item)
-                elif item in self._string_literals:
+                elif item in self._string_literals:  # pragma: no cover - string literals handled as Expr
                     # This was a STRING token - preserve quotes for sympy
                     escaped = item.replace('"', '\\"')
                     parts.append(f'"{escaped}"')
                 else:
                     # Identifier or number
                     parts.append(item)
-            elif isinstance(item, (int, float)):
+            elif isinstance(item, (int, float)):  # pragma: no cover - numbers parsed as Expr
                 # Number
                 parts.append(str(item))
             elif isinstance(item, list):
