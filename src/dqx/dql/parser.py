@@ -332,11 +332,18 @@ class DQLTransformer(Transformer):
 
     # === Assertions ===
 
-    @v_args(tree=True)
-    def annotated_assertion(self, tree: Any) -> Assertion:
+    def _extract_statement_parts(self, tree: Any) -> tuple[tuple[Annotation, ...], Expr, dict[str, Any], int]:
+        """Extract common parts from annotated statements (assertions and collections).
+
+        Args:
+            tree: The parse tree node
+
+        Returns:
+            Tuple of (annotations, expr, modifiers, expr_idx)
+        """
         items = tree.children
 
-        # Collect annotations that were processed before this assertion
+        # Collect annotations that were processed before this statement
         annotations = tuple(self._pending_annotations)
         self._pending_annotations = []
 
@@ -348,6 +355,13 @@ class DQLTransformer(Transformer):
                 break
 
         expr = items[expr_idx]
+
+        return annotations, expr, {}, expr_idx
+
+    @v_args(tree=True)
+    def annotated_assertion(self, tree: Any) -> Assertion:
+        annotations, expr, _, expr_idx = self._extract_statement_parts(tree)
+        items = tree.children
 
         # Find condition
         cond_idx = expr_idx + 1
@@ -377,20 +391,8 @@ class DQLTransformer(Transformer):
     @v_args(tree=True)
     def annotated_collection(self, tree: Any) -> Collection:
         """Parse a collection statement (noop assertion)."""
+        annotations, expr, _, expr_idx = self._extract_statement_parts(tree)
         items = tree.children
-
-        # Collect annotations that were processed before this collection
-        annotations = tuple(self._pending_annotations)
-        self._pending_annotations = []
-
-        # Find the expr (first Expr after any annotations)
-        expr_idx = 0
-        for i, item in enumerate(items):
-            if isinstance(item, Expr):
-                expr_idx = i
-                break
-
-        expr = items[expr_idx]
 
         # Collect modifiers (everything after expr)
         modifiers: dict[str, Any] = {}

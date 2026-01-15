@@ -63,8 +63,8 @@ class TestCollectExecution:
         assert len(results.assertions) == 1
         assertion = results.assertions[0]
         assert assertion.passed
-        # The metric value should be 60.0 (10 + 20 + 30)
-        # Note: metric value access depends on implementation details
+        # Verify the metric value (10 + 20 + 30 = 60)
+        assert assertion.metric_value == 60.0
 
     def test_mixed_assert_and_collect(self) -> None:
         """Test check with both assertions and collections."""
@@ -218,7 +218,8 @@ class TestCollectWithProfiles:
         # Verify metric was scaled
         assert len(results.assertions) == 1
         assert results.assertions[0].passed
-        # Metric should be scaled by 2.0x (100 * 2.0 = 200)
+        # Verify metric was scaled by 2.0x (100 * 2.0 = 200)
+        assert results.assertions[0].metric_value == 200.0
 
     def test_collect_can_be_disabled(self) -> None:
         """Test that profiles can disable collect statements."""
@@ -284,7 +285,8 @@ class TestCollectWithProfiles:
         # Verify
         assert len(results.assertions) == 1
         assert results.assertions[0].passed
-        # Severity should be overridden to P3
+        # Verify severity was overridden to P3
+        assert results.assertions[0].severity == "P3"
 
 
 class TestCollectMultiDataset:

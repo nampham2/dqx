@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 
 from dqx.dql import (
+    Assertion,
+    Collection,
     DisableRule,
     ScaleRule,
     SetSeverityRule,
@@ -232,8 +234,6 @@ class TestCollections:
         check = result.checks[0]
         assert len(check.assertions) == 1
 
-        from dqx.dql import Collection
-
         statement = check.assertions[0]
         assert isinstance(statement, Collection)
         assert statement.name == "row_count"
@@ -253,7 +253,6 @@ class TestCollections:
         }
         """
         result = parse(source)
-        from dqx.dql import Collection
 
         collection = result.checks[0].assertions[0]
         assert isinstance(collection, Collection)
@@ -275,7 +274,6 @@ class TestCollections:
         }
         """
         result = parse(source)
-        from dqx.dql import Collection
 
         collection = result.checks[0].assertions[0]
         assert isinstance(collection, Collection)
@@ -295,7 +293,6 @@ class TestCollections:
         }
         """
         result = parse(source)
-        from dqx.dql import Collection
 
         collection = result.checks[0].assertions[0]
         assert isinstance(collection, Collection)
@@ -324,8 +321,6 @@ class TestCollections:
         result = parse(source)
         check = result.checks[0]
         assert len(check.assertions) == 4
-
-        from dqx.dql import Assertion, Collection
 
         assert isinstance(check.assertions[0], Assertion)
         assert isinstance(check.assertions[1], Collection)
