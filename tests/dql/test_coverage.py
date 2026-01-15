@@ -284,7 +284,7 @@ class TestParserCoverage:
         """
         suite_ast = parse(dql)
         # Numbers should be in the threshold expression
-        threshold = suite_ast.checks[0].assertions[0].threshold
+        threshold = suite_ast.checks[0].assertions[0].threshold  # type: ignore[union-attr]
         assert threshold is not None
         assert "100.5" in threshold.text
 
@@ -303,7 +303,7 @@ class TestParserCoverage:
         """
         suite_ast = parse(dql)
         # Identifiers should be passed through without quotes in threshold
-        threshold = suite_ast.checks[0].assertions[0].threshold
+        threshold = suite_ast.checks[0].assertions[0].threshold  # type: ignore[union-attr]
         assert threshold is not None
         assert "minimum(price)" in threshold.text
 

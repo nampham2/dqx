@@ -14,6 +14,7 @@ from dqx.dql.ast import (
     Annotation,
     Assertion,
     Check,
+    Collection,
     DateExpr,
     DisableRule,
     Expr,
@@ -331,11 +332,18 @@ class DQLTransformer(Transformer):
 
     # === Assertions ===
 
-    @v_args(tree=True)
-    def annotated_assertion(self, tree: Any) -> Assertion:
+    def _extract_statement_parts(self, tree: Any) -> tuple[tuple[Annotation, ...], Expr, dict[str, Any], int]:
+        """Extract common parts from annotated statements (assertions and collections).
+
+        Args:
+            tree: The parse tree node
+
+        Returns:
+            Tuple of (annotations, expr, modifiers, expr_idx)
+        """
         items = tree.children
 
-        # Collect annotations that were processed before this assertion
+        # Collect annotations that were processed before this statement
         annotations = tuple(self._pending_annotations)
         self._pending_annotations = []
 
@@ -347,6 +355,13 @@ class DQLTransformer(Transformer):
                 break
 
         expr = items[expr_idx]
+
+        return annotations, expr, {}, expr_idx
+
+    @v_args(tree=True)
+    def annotated_assertion(self, tree: Any) -> Assertion:
+        annotations, expr, _, expr_idx = self._extract_statement_parts(tree)
+        items = tree.children
 
         # Find condition
         cond_idx = expr_idx + 1
@@ -373,13 +388,43 @@ class DQLTransformer(Transformer):
             loc=self._loc(tree),
         )
 
+    @v_args(tree=True)
+    def annotated_collection(self, tree: Any) -> Collection:
+        """Parse a collection statement (noop assertion)."""
+        annotations, expr, _, expr_idx = self._extract_statement_parts(tree)
+        items = tree.children
+
+        # Collect modifiers (everything after expr)
+        modifiers: dict[str, Any] = {}
+        for item in items[expr_idx + 1 :]:
+            if isinstance(item, dict):
+                modifiers.update(item)
+
+        # Validate that name is present (REQUIRED)
+        name = modifiers.get("name")
+        if name is None:
+            raise DQLSyntaxError(
+                "Collection statement must have a 'name' modifier",
+                loc=self._loc(tree),
+            )
+
+        return Collection(
+            expr=expr,
+            name=name,
+            severity=modifiers.get("severity", Severity.P1),
+            tolerance=modifiers.get("tolerance"),
+            tags=modifiers.get("tags", ()),
+            annotations=annotations,
+            loc=self._loc(tree),
+        )
+
     # === Checks ===
 
     def datasets(self, items: list) -> tuple[str, ...]:
         return tuple(items)
 
-    def check_body(self, items: list) -> list[Assertion]:
-        # All items should be Assertions now (annotated_assertion rule)
+    def check_body(self, items: list) -> list[Assertion | Collection]:
+        # Items can be Assertions or Collections now
         return list(items)
 
     @v_args(tree=True)

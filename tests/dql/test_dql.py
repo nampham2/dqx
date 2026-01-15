@@ -130,7 +130,7 @@ class TestBankingTransactionsDQL:
         result = parse(banking_dql)
         volume = next(c for c in result.checks if c.name == "Volume")
 
-        between_assertions = [a for a in volume.assertions if a.condition == "between"]
+        between_assertions = [a for a in volume.assertions if a.condition == "between"]  # type: ignore[union-attr]
         assert len(between_assertions) >= 1
 
     def test_duplicate_count_with_list(self, banking_dql: str) -> None:
@@ -234,7 +234,7 @@ class TestBookInventoryDQL:
         result = parse(inventory_dql)
         pricing = next(c for c in result.checks if c.name == "Pricing Validity")
 
-        between_assertions = [a for a in pricing.assertions if a.condition == "between"]
+        between_assertions = [a for a in pricing.assertions if a.condition == "between"]  # type: ignore[union-attr]
         assert len(between_assertions) >= 1
 
     # Sampling support removed - no longer part of DQL spec
@@ -255,7 +255,7 @@ class TestBookInventoryDQL:
         result = parse(inventory_dql)
         consistency = next(c for c in result.checks if c.name == "Cross-Table Consistency")
 
-        positive_assertions = [a for a in consistency.assertions if a.keyword == "positive"]
+        positive_assertions = [a for a in consistency.assertions if a.keyword == "positive"]  # type: ignore[union-attr]
         assert len(positive_assertions) >= 1
 
     def test_complex_sympy_expressions(self, inventory_dql: str) -> None:
@@ -464,7 +464,7 @@ class TestVideoStreamingDQL:
         result = parse(streaming_dql)
         cross = next(c for c in result.checks if c.name == "Cross-Dataset Consistency")
 
-        sum_positive = [a for a in cross.assertions if "sum" in a.expr.text and a.keyword == "positive"]
+        sum_positive = [a for a in cross.assertions if "sum" in a.expr.text and a.keyword == "positive"]  # type: ignore[union-attr]
         assert len(sum_positive) >= 1
 
     def test_date_offset_in_profile(self, streaming_dql: str) -> None:
@@ -566,10 +566,10 @@ class TestAllDQLScenariosIntegration:
                     if assertion.tolerance:
                         all_features["tolerance"] = True
 
-                    if assertion.condition == "between":
+                    if assertion.condition == "between":  # type: ignore[union-attr]
                         all_features["between_condition"] = True
 
-                    if assertion.keyword == "positive":
+                    if assertion.keyword == "positive":  # type: ignore[union-attr]
                         all_features["is_positive"] = True
 
                     expr_text = assertion.expr.text

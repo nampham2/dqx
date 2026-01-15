@@ -27,9 +27,12 @@ def test_e2e_suite_from_dql() -> None:
     - Manual day-over-day calculations with lag parameter
     - List arguments (duplicate_count) and string literals (count_values)
     - Tags, tolerance, and severity levels
+    - Collect statements (equivalent to Python's .noop())
     - Result collection and display
 
-    Note: custom_sql is not supported in DQL, so we have 15 assertions instead of 16.
+    Note: custom_sql is not supported in DQL. The Python test has 16 total results
+    (15 validating assertions + 1 noop). This DQL test has 15 total results
+    (14 validating assertions + 1 collect statement).
     """
     db = InMemoryMetricDB()
 
@@ -79,9 +82,11 @@ def test_e2e_suite_from_dql() -> None:
     dql_file = Path(__file__).parent.parent / "dql" / "commerce_suite.dql"
     results = interp.run(dql_file, datasources, execution_date, tags=tags)
 
-    # Validate assertion count matches Python test (minus custom_sql which DQL doesn't support)
+    # Validate result count matches Python test expectations
+    # Python test: 16 results (15 assertions + 1 noop)
+    # DQL test: 15 results (14 assertions + 1 collect, minus 1 custom_sql not supported)
     assert len(results.assertions) == 15, (
-        f"Expected 15 assertions (16 from Python test minus 1 custom_sql), got {len(results.assertions)}"
+        f"Expected 15 results (14 validating assertions + 1 collect statement), got {len(results.assertions)}"
     )
 
     # Display summary

@@ -79,12 +79,29 @@ class Assertion:
 
 
 @dataclass(frozen=True)
+class Collection:
+    """A collection statement within a check (noop assertion).
+
+    Collections compute metrics without validation, always passing.
+    Equivalent to Python API: ctx.assert_that(metric).where(...).noop()
+    """
+
+    expr: Expr
+    name: str | None = None
+    severity: Severity = Severity.P1
+    tolerance: float | None = None  # Kept for structural consistency, not used
+    tags: tuple[str, ...] = ()
+    annotations: tuple[Annotation, ...] = ()
+    loc: SourceLocation | None = None
+
+
+@dataclass(frozen=True)
 class Check:
-    """A check block containing assertions."""
+    """A check block containing assertions and collections."""
 
     name: str
     datasets: tuple[str, ...]
-    assertions: tuple[Assertion, ...]
+    assertions: tuple[Assertion | Collection, ...]
     loc: SourceLocation | None = None
 
 

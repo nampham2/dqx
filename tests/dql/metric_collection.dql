@@ -1,0 +1,73 @@
+# Example: Metric Collection with DQL
+#
+# This example demonstrates using the `collect` statement to gather metrics
+# without validation. Collect statements always pass and are useful for:
+# - Gathering baseline metrics before setting thresholds
+# - Collecting time-series data for analysis
+# - Monitoring metrics without triggering alerts
+# - Experimenting with new metrics
+
+suite "Metric Collection Example" {
+    # Basic metric collection
+    check "Baseline Metrics" on orders {
+        # Collect metrics without validation
+        collect num_rows()
+            name "daily_order_count"
+            tags [volume, baseline]
+
+        collect average(amount)
+            name "avg_order_value"
+            tags [revenue, baseline]
+
+        collect null_count(email) / num_rows()
+            name "email_null_rate"
+            tags [quality, baseline]
+
+        # Mix with assertions for critical checks
+        assert num_rows() > 0
+            name "has_orders"
+            severity P0
+    }
+
+    # Collect trending metrics
+    check "Trend Analysis" on orders {
+        # Day-over-day comparisons
+        collect day_over_day(sum(amount))
+            name "revenue_dod_change"
+            tags [trends, revenue]
+
+        collect day_over_day(num_rows())
+            name "volume_dod_change"
+            tags [trends, volume]
+
+        # Standard deviation for volatility
+        @experimental
+        collect average(amount)
+            name "revenue_volatility"
+            tags [trends, experimental]
+    }
+
+    # Collect metrics with cost annotations for RL optimization
+    check "RL Metric Collection" on orders {
+        @cost(fp=1, fn=50)
+        collect sum(amount)
+            name "total_revenue"
+            tags [revenue]
+
+        @cost(fp=1, fn=10)
+        collect unique_count(customer_id)
+            name "unique_customers"
+            tags [engagement]
+    }
+
+    # Profile: Scale metrics during high-traffic periods
+    profile "Black Friday" {
+        type holiday
+        from nth_weekday(november, thursday, 4)
+        to nth_weekday(november, thursday, 4) + 3
+
+        # Collections are scaled too!
+        scale tag "volume" by 3.0x
+        scale tag "revenue" by 3.0x
+    }
+}

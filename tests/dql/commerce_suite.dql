@@ -1,8 +1,7 @@
 # DQL implementation of the test_e2e_suite from test_api_e2e.py
 # This suite achieves feature parity with the Python API test, with the following exceptions:
-# 1. custom_sql checks are not supported in DQL (15 assertions vs 16 in Python)
+# 1. custom_sql checks are not supported in DQL (15 validating assertions vs 16 in Python)
 # 2. Generic 'parameters' argument is not supported in DQL (named args like lag, dataset, etc. are supported)
-# 3. noop() is not available in DQL, so "random tax value" uses a trivial check instead
 
 suite "Simple test suite" {
     availability_threshold 80%
@@ -76,16 +75,15 @@ suite "Simple test suite" {
             severity P1
     }
 
-    # Check 6: Cross Dataset Check (2 assertions)
+    # Check 6: Cross Dataset Check (1 assertion + 1 collection)
     check "Cross Dataset Check" on ds1, ds2 {
         assert abs(average(tax, dataset=ds1) / average(tax, dataset=ds2) - 1) < 0.2
             name "Tax average ratio between datasets"
             severity P1
             tolerance 0.01
 
-        # Note: noop() is not supported in DQL. Using a trivial check instead.
-        assert first(tax, dataset=ds1) >= -999999.0
+        # Collect statement (noop) - equivalent to Python's .noop()
+        collect first(tax, dataset=ds1)
             name "random tax value"
-            severity P1
     }
 }

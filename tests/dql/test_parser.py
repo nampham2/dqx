@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 
 from dqx.dql import (
+    Assertion,
+    Collection,
     DisableRule,
     ScaleRule,
     SetSeverityRule,
@@ -101,7 +103,7 @@ class TestAssertions:
             """
             result = parse(source)
             assertion = result.checks[0].assertions[0]
-            assert assertion.condition == op
+            assert assertion.condition == op  # type: ignore[union-attr]
 
     def test_between_condition(self) -> None:
         source = """
@@ -113,9 +115,9 @@ class TestAssertions:
         """
         result = parse(source)
         assertion = result.checks[0].assertions[0]
-        assert assertion.condition == "between"
-        assert assertion.threshold is not None
-        assert assertion.threshold_upper is not None
+        assert assertion.condition == "between"  # type: ignore[union-attr]
+        assert assertion.threshold is not None  # type: ignore[union-attr]
+        assert assertion.threshold_upper is not None  # type: ignore[union-attr]
 
     def test_is_positive(self) -> None:
         source = """
@@ -127,8 +129,8 @@ class TestAssertions:
         """
         result = parse(source)
         assertion = result.checks[0].assertions[0]
-        assert assertion.condition == "is"
-        assert assertion.keyword == "positive"
+        assert assertion.condition == "is"  # type: ignore[union-attr]
+        assert assertion.keyword == "positive"  # type: ignore[union-attr]
 
     def test_is_negative(self) -> None:
         source = """
@@ -140,7 +142,7 @@ class TestAssertions:
         """
         result = parse(source)
         assertion = result.checks[0].assertions[0]
-        assert assertion.keyword == "negative"
+        assert assertion.keyword == "negative"  # type: ignore[union-attr]
 
     def test_assertion_with_name(self) -> None:
         source = """
@@ -212,6 +214,131 @@ class TestAssertions:
         assert assertion.name == "Price positive"
         assert assertion.severity == Severity.P0
         assert assertion.tags == ("pricing", "critical")
+
+
+class TestCollections:
+    """Test collection statement parsing."""
+
+    def test_simple_collect(self) -> None:
+        """Test basic collect statement."""
+        source = """
+        suite "Test" {
+            check "Metrics" on orders {
+                collect num_rows()
+                    name "row_count"
+            }
+        }
+        """
+        result = parse(source)
+        assert len(result.checks) == 1
+        check = result.checks[0]
+        assert len(check.assertions) == 1
+
+        statement = check.assertions[0]
+        assert isinstance(statement, Collection)
+        assert statement.name == "row_count"
+        assert statement.expr.text == "num_rows()"
+        assert statement.severity == Severity.P1  # Default
+
+    def test_collect_with_modifiers(self) -> None:
+        """Test collect with severity and tags."""
+        source = """
+        suite "Test" {
+            check "Metrics" on orders {
+                collect average(price)
+                    name "avg_price"
+                    severity P0
+                    tags [pricing, metrics]
+            }
+        }
+        """
+        result = parse(source)
+
+        collection = result.checks[0].assertions[0]
+        assert isinstance(collection, Collection)
+        assert collection.name == "avg_price"
+        assert collection.severity == Severity.P0
+        assert collection.tags == ("pricing", "metrics")
+
+    def test_collect_with_annotations(self) -> None:
+        """Test collect with @experimental and @cost."""
+        source = """
+        suite "Test" {
+            check "Metrics" on orders {
+                @experimental
+                @cost(fp=1, fn=100)
+                collect day_over_day(sum(amount))
+                    name "dod_revenue"
+                    tags [trends]
+            }
+        }
+        """
+        result = parse(source)
+
+        collection = result.checks[0].assertions[0]
+        assert isinstance(collection, Collection)
+        assert len(collection.annotations) == 2
+        assert collection.annotations[0].name == "experimental"
+        assert collection.annotations[1].name == "cost"
+        assert collection.annotations[1].args == {"fp": 1, "fn": 100}
+
+    def test_collect_complex_expression(self) -> None:
+        """Test collect with complex metric expression."""
+        source = """
+        suite "Test" {
+            check "Metrics" on orders {
+                collect null_count(email) / num_rows()
+                    name "email_null_rate"
+            }
+        }
+        """
+        result = parse(source)
+
+        collection = result.checks[0].assertions[0]
+        assert isinstance(collection, Collection)
+        assert "null_count(email)" in collection.expr.text
+        assert "num_rows()" in collection.expr.text
+
+    def test_mixed_assert_and_collect(self) -> None:
+        """Test check with both assertions and collections."""
+        source = """
+        suite "Test" {
+            check "Quality" on orders {
+                assert num_rows() > 1000
+                    name "min_rows"
+
+                collect average(price)
+                    name "avg_price"
+
+                assert null_count(email) == 0
+                    name "email_not_null"
+
+                collect day_over_day(sum(amount))
+                    name "dod_revenue"
+            }
+        }
+        """
+        result = parse(source)
+        check = result.checks[0]
+        assert len(check.assertions) == 4
+
+        assert isinstance(check.assertions[0], Assertion)
+        assert isinstance(check.assertions[1], Collection)
+        assert isinstance(check.assertions[2], Assertion)
+        assert isinstance(check.assertions[3], Collection)
+
+    def test_collect_without_name_fails(self) -> None:
+        """Test that collect without name raises error."""
+        source = """
+        suite "Test" {
+            check "Metrics" on data {
+                collect num_rows()
+            }
+        }
+        """
+        # Should raise DQLSyntaxError (wrapped in VisitError by Lark)
+        with pytest.raises(Exception, match="must have a 'name'"):
+            parse(source)
 
 
 class TestAnnotations:
@@ -340,8 +467,8 @@ class TestExpressions:
         result = parse(source)
         assertion = result.checks[0].assertions[0]
         # 5% is converted to 0.05
-        assert assertion.threshold is not None
-        assert "0.05" in assertion.threshold.text
+        assert assertion.threshold is not None  # type: ignore[union-attr]
+        assert "0.05" in assertion.threshold.text  # type: ignore[union-attr]
 
 
 class TestTunables:
@@ -761,9 +888,9 @@ class TestCoverageEdgeCases:
         """
         result = parse(source)
         assertion = result.checks[0].assertions[0]
-        assert assertion.condition == "between"
-        assert assertion.threshold is not None
-        assert "*" in assertion.threshold.text
+        assert assertion.condition == "between"  # type: ignore[union-attr]
+        assert assertion.threshold is not None  # type: ignore[union-attr]
+        assert "*" in assertion.threshold.text  # type: ignore[union-attr]
 
     def test_complex_arithmetic_expression(self) -> None:
         """Cover multi-term expr and term - lines 137-149, 162-165."""
@@ -847,10 +974,10 @@ class TestAdditionalEdgeCases:
         """
         result = parse(source)
         assertion = result.checks[0].assertions[0]
-        assert assertion.threshold is not None
-        assert assertion.threshold_upper is not None
-        assert "10" in assertion.threshold.text
-        assert "500" in assertion.threshold_upper.text
+        assert assertion.threshold is not None  # type: ignore[union-attr]
+        assert assertion.threshold_upper is not None  # type: ignore[union-attr]
+        assert "10" in assertion.threshold.text  # type: ignore[union-attr]
+        assert "500" in assertion.threshold_upper.text  # type: ignore[union-attr]
 
     def test_between_term_with_identifier(self) -> None:
         """Cover between bounds with identifier constants."""
@@ -863,10 +990,10 @@ class TestAdditionalEdgeCases:
         """
         result = parse(source)
         assertion = result.checks[0].assertions[0]
-        assert assertion.threshold is not None
-        assert assertion.threshold_upper is not None
-        assert "MIN_VAL" in assertion.threshold.text
-        assert "MAX_VAL" in assertion.threshold_upper.text
+        assert assertion.threshold is not None  # type: ignore[union-attr]
+        assert assertion.threshold_upper is not None  # type: ignore[union-attr]
+        assert "MIN_VAL" in assertion.threshold.text  # type: ignore[union-attr]
+        assert "MAX_VAL" in assertion.threshold_upper.text  # type: ignore[union-attr]
 
     # Sampling support removed - no longer part of DQL spec
     # def test_sample_value_rule(self) -> None:
@@ -894,7 +1021,7 @@ class TestAdditionalEdgeCases:
         """
         result = parse(source)
         assertion = result.checks[0].assertions[0]
-        assert assertion.condition == "!="
+        assert assertion.condition == "!="  # type: ignore[union-attr]
 
     def test_make_loc_no_meta(self) -> None:
         """Cover _make_loc when tree has no meta."""
@@ -952,11 +1079,11 @@ class TestAdditionalEdgeCases:
         """
         result = parse(source)
         assertion = result.checks[0].assertions[0]
-        assert assertion.condition == "between"
-        assert assertion.threshold is not None
-        assert assertion.threshold_upper is not None
-        assert "min_val()" in assertion.threshold.text
-        assert "max_val()" in assertion.threshold_upper.text
+        assert assertion.condition == "between"  # type: ignore[union-attr]
+        assert assertion.threshold is not None  # type: ignore[union-attr]
+        assert assertion.threshold_upper is not None  # type: ignore[union-attr]
+        assert "min_val()" in assertion.threshold.text  # type: ignore[union-attr]
+        assert "max_val()" in assertion.threshold_upper.text  # type: ignore[union-attr]
 
     def test_date_func_no_args_direct(self) -> None:
         """Cover date function returning value with empty parens."""

@@ -17,6 +17,7 @@ from dqx.common import ResultKey, SqlDataSource
 from dqx.dql.ast import (
     Assertion,
     Check,
+    Collection,
     DateExpr,
     DisableRule,
     Expr,
@@ -333,44 +334,80 @@ class Interpreter:
 
             # Execute each assertion
             for assertion_ast in assertions:
-                self._build_assertion(assertion_ast, mp, ctx)
+                self._build_statement(assertion_ast, mp, ctx)
 
         return dynamic_check
 
-    def _build_assertion(self, assertion_ast: Assertion, mp: MetricProvider, ctx: Context) -> None:
-        """Convert DQL Assertion to ctx.assert_that() call."""
-        # Check if assertion is disabled by active profiles
-        if self._is_disabled(assertion_ast):
-            return  # Skip this assertion
+    def _build_statement(self, statement: Assertion | Collection, mp: MetricProvider, ctx: Context) -> None:
+        """Convert DQL Assertion or Collection to ctx.assert_that() call."""
+        # Dispatch based on type
+        if isinstance(statement, Collection):
+            self._build_collection(statement, mp, ctx)
+        else:
+            self._build_assertion(statement, mp, ctx)
+
+    def _setup_assertion_ready(self, statement: Assertion | Collection, mp: MetricProvider, ctx: Context) -> Any | None:
+        """Common setup for assertions and collections.
+
+        Returns AssertionReady object or None if statement is disabled.
+
+        Args:
+            statement: Assertion or Collection AST node
+            mp: MetricProvider for evaluating metric expressions
+            ctx: Context for creating assertions
+
+        Returns:
+            AssertionReady object if statement should be processed, None if disabled
+        """
+        # Check if statement is disabled by active profiles
+        if self._is_disabled(statement):
+            return None
 
         # Evaluate metric expression
-        metric_value = self._eval_metric_expr(assertion_ast.expr, mp)
+        metric_value = self._eval_metric_expr(statement.expr, mp)
 
         # Apply profile scaling if active
-        metric_value = self._apply_profile_scaling(metric_value, assertion_ast)
+        metric_value = self._apply_profile_scaling(metric_value, statement)
 
         # Resolve severity (profile may override)
-        severity = self._resolve_severity(assertion_ast)
+        severity = self._resolve_severity(statement)
 
-        # Build assertion ready
-        if assertion_ast.name is None:  # pragma: no cover
-            # Parser ensures all assertions have names
-            raise DQLError("Assertion must have a name", loc=assertion_ast.loc)
+        # Validate name is present
+        if statement.name is None:  # pragma: no cover
+            # Parser should have caught this
+            raise DQLError("Statement must have a name", loc=statement.loc)
 
-        cost_annotation = self._get_cost_annotation(assertion_ast)
+        # Extract cost annotation
+        cost_annotation = self._get_cost_annotation(statement)
         cost_dict = {k: float(v) for k, v in cost_annotation.items()} if cost_annotation else None
 
-        ready = ctx.assert_that(metric_value).where(
-            name=assertion_ast.name,
+        # Build and return assertion ready object
+        return ctx.assert_that(metric_value).where(
+            name=statement.name,
             severity=severity.value,
-            tags=set(assertion_ast.tags),
-            experimental=self._has_annotation(assertion_ast, "experimental"),
-            required=self._has_annotation(assertion_ast, "required"),
+            tags=set(statement.tags),
+            experimental=self._has_annotation(statement, "experimental"),
+            required=self._has_annotation(statement, "required"),
             cost=cost_dict,
         )
 
+    def _build_assertion(self, assertion_ast: Assertion, mp: MetricProvider, ctx: Context) -> None:
+        """Convert DQL Assertion to ctx.assert_that() call."""
+        ready = self._setup_assertion_ready(assertion_ast, mp, ctx)
+        if ready is None:
+            return
+
         # Apply condition
         self._apply_condition(ready, assertion_ast)
+
+    def _build_collection(self, collection_ast: Collection, mp: MetricProvider, ctx: Context) -> None:
+        """Convert DQL Collection to ctx.assert_that(...).noop() call."""
+        ready = self._setup_assertion_ready(collection_ast, mp, ctx)
+        if ready is None:
+            return
+
+        # Call noop() instead of applying a condition
+        ready.noop()
 
     def _eval_metric_expr(self, expr: Expr, mp: MetricProvider) -> Any:
         """Parse metric expression using sympy, with special handling for extensions."""
@@ -804,51 +841,51 @@ class Interpreter:
         except ValueError as e:
             raise DQLError(f"Invalid date: {month_name}({day}) in year {year}: {e}") from e
 
-    def _apply_profile_scaling(self, metric_value: Any, assertion_ast: Assertion) -> Any:
+    def _apply_profile_scaling(self, metric_value: Any, statement_ast: Assertion | Collection) -> Any:
         """Apply scale multipliers from active profiles."""
         multiplier = 1.0
 
         for profile in self.active_profiles:
             for rule in profile.rules:
                 if isinstance(rule, ScaleRule):
-                    if self._rule_matches_assertion(rule, assertion_ast):
+                    if self._rule_matches_statement(rule, statement_ast):
                         multiplier *= rule.multiplier
 
         if multiplier != 1.0:
             return metric_value * multiplier
         return metric_value
 
-    def _is_disabled(self, assertion_ast: Assertion) -> bool:
-        """Check if assertion disabled by any active profile."""
+    def _is_disabled(self, statement_ast: Assertion | Collection) -> bool:
+        """Check if assertion or collection is disabled by any active profile."""
         for profile in self.active_profiles:
             for rule in profile.rules:
                 if isinstance(rule, DisableRule):
-                    if self._rule_matches_assertion(rule, assertion_ast):
+                    if self._rule_matches_statement(rule, statement_ast):
                         return True
         return False
 
-    def _resolve_severity(self, assertion_ast: Assertion) -> Severity:
+    def _resolve_severity(self, statement_ast: Assertion | Collection) -> Severity:
         """Resolve severity with profile overrides."""
-        severity = assertion_ast.severity
+        severity = statement_ast.severity
 
         # Check for severity overrides in active profiles
         for profile in self.active_profiles:
             for rule in profile.rules:
                 if isinstance(rule, SetSeverityRule):
-                    if self._rule_matches_assertion(rule, assertion_ast):
+                    if self._rule_matches_statement(rule, statement_ast):
                         severity = rule.severity
 
         return severity
 
-    def _rule_matches_assertion(self, rule: Rule, assertion_ast: Assertion) -> bool:
-        """Check if a profile rule applies to an assertion."""
+    def _rule_matches_statement(self, rule: Rule, statement_ast: Assertion | Collection) -> bool:
+        """Check if a profile rule applies to an assertion or collection."""
         # DisableRule uses target_type/target_name
         if isinstance(rule, DisableRule):
             if rule.target_type == "check":
                 return rule.target_name == self.current_check_name
             elif rule.target_type == "assertion":
-                # Matches if assertion name matches and optionally check name matches
-                if assertion_ast.name == rule.target_name:
+                # Matches if statement name matches and optionally check name matches
+                if statement_ast.name == rule.target_name:
                     if rule.in_check:
                         return self.current_check_name == rule.in_check
                     return True  # pragma: no cover - Parser requires 'in' clause
@@ -858,7 +895,7 @@ class Interpreter:
         # ScaleRule and SetSeverityRule use selector_type/selector_name
         if hasattr(rule, "selector_type"):
             if rule.selector_type == "tag":
-                return rule.selector_name in assertion_ast.tags
+                return rule.selector_name in statement_ast.tags
             elif rule.selector_type == "check":
                 return rule.selector_name == self.current_check_name
 
@@ -866,13 +903,13 @@ class Interpreter:
 
     # === Annotation Helpers ===
 
-    def _has_annotation(self, assertion_ast: Assertion, name: str) -> bool:
-        """Check if assertion has a specific annotation."""
-        return any(ann.name == name for ann in assertion_ast.annotations)
+    def _has_annotation(self, statement_ast: Assertion | Collection, name: str) -> bool:
+        """Check if assertion or collection has a specific annotation."""
+        return any(ann.name == name for ann in statement_ast.annotations)
 
-    def _get_cost_annotation(self, assertion_ast: Assertion) -> dict[str, int] | None:
+    def _get_cost_annotation(self, statement_ast: Assertion | Collection) -> dict[str, int] | None:
         """Extract cost annotation args if present."""
-        for ann in assertion_ast.annotations:
+        for ann in statement_ast.annotations:
             if ann.name == "cost":
                 # Convert args to expected format
                 return {
