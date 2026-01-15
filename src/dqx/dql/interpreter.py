@@ -325,7 +325,7 @@ class Interpreter:
         assertions = check_ast.assertions
 
         # Create the check function
-        @check(name=check_name)
+        @check(name=check_name, datasets=list(check_ast.datasets))
         def dynamic_check(mp: MetricProvider, ctx: Context) -> None:
             """Generated check function from DQL."""
             # Store current check name for profile matching
@@ -373,12 +373,16 @@ class Interpreter:
         self._apply_condition(ready, assertion_ast)
 
     def _eval_metric_expr(self, expr: Expr, mp: MetricProvider) -> Any:
-        """Parse metric expression using sympy."""
+        """Parse metric expression using sympy, with special handling for extensions."""
+        # Check if expression contains extension functions with named params
+        expr_text = self._substitute_tunables(expr.text)
+
+        # Handle stddev specially since it has named params that sympy doesn't understand
+        if "stddev(" in expr_text and (", n=" in expr_text or ", offset=" in expr_text):
+            return self._handle_stddev_extension(expr_text, mp)
+
         # Build namespace with metric functions
         namespace = self._build_metric_namespace(mp)
-
-        # Substitute tunables
-        expr_text = self._substitute_tunables(expr.text)
 
         # Parse with sympy
         try:
@@ -390,12 +394,124 @@ class Interpreter:
                 loc=expr.loc,
             ) from e
 
+    def _handle_stddev_extension(self, expr_text: str, mp: MetricProvider) -> Any:
+        """Handle stddev extension function with named parameters.
+
+        Example: stddev(day_over_day(average(tax)), offset=1, n=7)
+        """
+        import re
+
+        # Pattern to match stddev with named params
+        # Group 1: inner expression
+        # Group 2: offset value (optional)
+        # Group 3: n value
+        pattern = r"stddev\((.+?)(?:, offset=(\d+))?(?:, n=(\d+))\)"
+        match = re.search(pattern, expr_text)
+
+        if not match:
+            # Fallback to normal parsing
+            namespace = self._build_metric_namespace(mp)
+            return sp.sympify(expr_text, locals=namespace, evaluate=False)
+
+        inner_expr_text = match.group(1)
+        offset = int(match.group(2)) if match.group(2) else 0
+        n = int(match.group(3))
+
+        # Parse the inner expression normally (it might contain day_over_day etc)
+        # Don't recursively call _eval_metric_expr to avoid infinite loop
+        namespace = self._build_metric_namespace(mp)
+        inner_metric = sp.sympify(inner_expr_text, locals=namespace, evaluate=False)
+
+        # Call extension
+        result = mp.ext.stddev(inner_metric, offset=offset, n=n)
+
+        return result
+
     def _build_metric_namespace(self, mp: MetricProvider) -> dict[str, Any]:
         """Build sympy namespace with all metric and math functions."""
 
         def _to_str(arg: Any) -> str:
             """Convert sympy Symbol to string."""
             return str(arg) if isinstance(arg, sp.Symbol) else arg
+
+        def _convert_kwargs(kw: dict[str, Any]) -> dict[str, Any]:
+            """Convert sympy types in kwargs to Python primitives.
+
+            Handles:
+            - sp.Integer -> int (lag=1, n=7, offset=1)
+            - sp.Float -> float
+            - sp.Symbol -> str (dataset=ds1)
+            - Other types pass through unchanged
+            """
+            result: dict[str, Any] = {}
+            for key, value in kw.items():
+                if isinstance(value, sp.Basic):
+                    # Convert sympy numbers to Python int/float
+                    if value.is_Integer:
+                        result[key] = int(value)  # type: ignore[arg-type]
+                    elif value.is_Float or value.is_Rational:
+                        result[key] = float(value)  # type: ignore[arg-type]
+                    elif isinstance(value, sp.Symbol):
+                        # For symbols (like dataset names), convert to string
+                        result[key] = str(value)
+                    else:
+                        # For other sympy types, try to extract value
+                        try:
+                            result[key] = float(value)  # type: ignore[arg-type]
+                        except (TypeError, AttributeError):
+                            result[key] = str(value)
+                else:
+                    result[key] = value
+            return result
+
+        def _convert_list_arg(cols: Any) -> list[str]:
+            """Convert list of Symbols/tokens to list of strings.
+
+            Handles:
+            - [Symbol('name')] -> ['name']
+            - [Symbol('id'), Symbol('date')] -> ['id', 'date']
+            - Symbol('name') -> ['name'] (single column case)
+            """
+            if isinstance(cols, list):
+                return [_to_str(item) for item in cols]
+            elif isinstance(cols, tuple):
+                return [_to_str(item) for item in cols]
+            else:
+                # Single column passed without list brackets
+                return [_to_str(cols)]
+
+        def _convert_value(val: Any) -> int | str | bool:
+            """Convert value argument to proper Python type for count_values.
+
+            Handles:
+            - sp.Integer/Zero/One -> int
+            - sp.Float -> int (rounded)
+            - sp.Symbol -> str
+            - bool/int/str -> unchanged
+            - float -> int (rounded)
+            """
+            if isinstance(val, sp.Basic):
+                # Convert sympy types
+                if val.is_Integer:
+                    return int(val)  # type: ignore[arg-type]
+                elif val.is_Float or val.is_Rational:
+                    # Convert float to int for count_values
+                    return int(float(val))  # type: ignore[arg-type]
+                elif isinstance(val, sp.Symbol):
+                    return str(val)
+                else:
+                    # Try to extract numeric value
+                    try:
+                        return int(val)  # type: ignore[arg-type]
+                    except (TypeError, AttributeError):
+                        return str(val)
+            elif isinstance(val, float):
+                # Convert float to int for count_values
+                return int(val)
+            elif isinstance(val, (int, str, bool)):
+                return val
+            else:
+                return str(val)
 
         namespace = {
             # Math functions
@@ -405,20 +521,26 @@ class Interpreter:
             "exp": sp.exp,
             "min": sp.Min,
             "max": sp.Max,
-            # Base metrics - convert Symbol args to strings
-            "num_rows": lambda **kw: mp.num_rows(**kw),
-            "null_count": lambda col, **kw: mp.null_count(_to_str(col), **kw),
-            "average": lambda col, **kw: mp.average(_to_str(col), **kw),
-            "sum": lambda col, **kw: mp.sum(_to_str(col), **kw),
-            "minimum": lambda col, **kw: mp.minimum(_to_str(col), **kw),
-            "maximum": lambda col, **kw: mp.maximum(_to_str(col), **kw),
-            "variance": lambda col, **kw: mp.variance(_to_str(col), **kw),
-            "unique_count": lambda col, **kw: mp.unique_count(_to_str(col), **kw),
-            "duplicate_count": lambda cols, **kw: mp.duplicate_count(cols, **kw),  # cols is a list
-            "count_values": lambda col, val, **kw: mp.count_values(_to_str(col), val, **kw),
-            "first": lambda col, **kw: mp.first(_to_str(col), **kw),
+            # Base metrics - convert Symbol args to strings and kwargs to Python types
+            "num_rows": lambda **kw: mp.num_rows(**_convert_kwargs(kw)),
+            "null_count": lambda col, **kw: mp.null_count(_to_str(col), **_convert_kwargs(kw)),
+            "average": lambda col, **kw: mp.average(_to_str(col), **_convert_kwargs(kw)),
+            "sum": lambda col, **kw: mp.sum(_to_str(col), **_convert_kwargs(kw)),
+            "minimum": lambda col, **kw: mp.minimum(_to_str(col), **_convert_kwargs(kw)),
+            "maximum": lambda col, **kw: mp.maximum(_to_str(col), **_convert_kwargs(kw)),
+            "variance": lambda col, **kw: mp.variance(_to_str(col), **_convert_kwargs(kw)),
+            "unique_count": lambda col, **kw: mp.unique_count(_to_str(col), **_convert_kwargs(kw)),
+            "duplicate_count": lambda cols, **kw: mp.duplicate_count(_convert_list_arg(cols), **_convert_kwargs(kw)),
+            "count_values": lambda col, val, **kw: mp.count_values(
+                _to_str(col), _convert_value(val), **_convert_kwargs(kw)
+            ),
+            "first": lambda col, **kw: mp.first(_to_str(col), **_convert_kwargs(kw)),
             # Utility functions
             "coalesce": lambda *args: Coalesce(*args),
+            # Extension functions
+            "day_over_day": lambda metric, **kw: mp.ext.day_over_day(metric, **_convert_kwargs(kw)),
+            "week_over_week": lambda metric, **kw: mp.ext.week_over_week(metric, **_convert_kwargs(kw)),
+            # Note: stddev with n parameter is handled specially in _handle_stddev_extension
             # RAW SQL ESCAPE HATCH
             "custom_sql": lambda expr: mp.custom_sql(_to_str(expr)),
         }
