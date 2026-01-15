@@ -309,13 +309,13 @@ class TestCollections:
             check "Quality" on orders {
                 assert num_rows() > 1000
                     name "min_rows"
-                
+
                 collect average(price)
                     name "avg_price"
-                
+
                 assert null_count(email) == 0
                     name "email_not_null"
-                
+
                 collect day_over_day(sum(amount))
                     name "dod_revenue"
             }
