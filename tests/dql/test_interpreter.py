@@ -113,31 +113,6 @@ class TestBasicExecution:
         assert results.all_passed()
         assert len(results.assertions) == 1
 
-    def test_tags_as_set(self) -> None:
-        """Test interpreter accepts tags as set[str] for backward compatibility."""
-        dql = """
-        suite "Test Suite" {
-            check "Volume" on orders {
-                assert num_rows() > 0
-                    name "orders.volume.has_rows"
-            }
-        }
-        """
-
-        # Create test data
-        data = pa.Table.from_pydict({"id": [1, 2, 3]})
-        datasources = {"orders": DuckRelationDataSource.from_arrow(data, "orders")}
-
-        # Execute with set tags
-        db = InMemoryMetricDB()
-        interp = Interpreter(db=db)
-        tags_set = {"env", "region"}
-        results = interp.run(dql, datasources, date.today(), tags=tags_set)
-
-        # Verify
-        assert results.all_passed()
-        assert len(results.assertions) == 1
-
     def test_tags_as_none(self) -> None:
         """Test interpreter accepts tags=None (no tags)."""
         dql = """
@@ -181,30 +156,6 @@ class TestBasicExecution:
         db = InMemoryMetricDB()
         interp = Interpreter(db=db)
         results = interp.run(dql, datasources, date.today(), tags={})
-
-        # Verify
-        assert results.all_passed()
-        assert len(results.assertions) == 1
-
-    def test_tags_empty_set(self) -> None:
-        """Test interpreter accepts empty set for tags."""
-        dql = """
-        suite "Test Suite" {
-            check "Volume" on orders {
-                assert num_rows() > 0
-                    name "orders.volume.has_rows"
-            }
-        }
-        """
-
-        # Create test data
-        data = pa.Table.from_pydict({"id": [1, 2, 3]})
-        datasources = {"orders": DuckRelationDataSource.from_arrow(data, "orders")}
-
-        # Execute with empty set tags
-        db = InMemoryMetricDB()
-        interp = Interpreter(db=db)
-        results = interp.run(dql, datasources, date.today(), tags=set())
 
         # Verify
         assert results.all_passed()

@@ -132,7 +132,7 @@ class Interpreter:
         source: Path,
         datasources: Mapping[str, SqlDataSource],
         date: date,
-        tags: dict[str, str] | set[str] | None = None,
+        tags: dict[str, str] | None = None,
     ) -> SuiteResults:
         """Parse and execute a DQL file.
 
@@ -140,7 +140,7 @@ class Interpreter:
             source: Path to .dql file
             datasources: Dataset name -> datasource mapping
             date: Execution date for ResultKey
-            tags: Optional tags for ResultKey (dict with values or set for empty values)
+            tags: Optional tags for ResultKey
 
         Returns:
             SuiteResults with all assertion outcomes
@@ -156,7 +156,7 @@ class Interpreter:
         source: str,
         datasources: Mapping[str, SqlDataSource],
         date: date,
-        tags: dict[str, str] | set[str] | None = None,
+        tags: dict[str, str] | None = None,
         *,
         filename: str | None = None,
     ) -> SuiteResults:
@@ -166,7 +166,7 @@ class Interpreter:
             source: DQL source code string
             datasources: Dataset name -> datasource mapping
             date: Execution date for ResultKey
-            tags: Optional tags for ResultKey (dict with values or set for empty values)
+            tags: Optional tags for ResultKey
             filename: Optional filename for error messages
 
         Returns:
@@ -182,7 +182,7 @@ class Interpreter:
         source: str | Path,
         datasources: Mapping[str, SqlDataSource],
         date: date,
-        tags: dict[str, str] | set[str] | None = None,
+        tags: dict[str, str] | None = None,
         *,
         filename: str | None = None,
     ) -> SuiteResults:
@@ -196,7 +196,7 @@ class Interpreter:
             source: Path to .dql file, or DQL source code string
             datasources: Dataset name -> datasource mapping
             date: Execution date for ResultKey
-            tags: Optional tags for ResultKey (dict with values or set for empty values)
+            tags: Optional tags for ResultKey
             filename: Optional filename for error messages (only used when source is str)
 
         Returns:
@@ -217,7 +217,7 @@ class Interpreter:
         suite_ast: Suite,
         datasources: Mapping[str, SqlDataSource],
         execution_date: date,
-        tags: dict[str, str] | set[str] | None,
+        tags: dict[str, str] | None,
     ) -> SuiteResults:
         """Execute a parsed suite AST."""
         # Store datasources for access in helpers
@@ -233,14 +233,7 @@ class Interpreter:
         suite = self._build_suite(suite_ast)
 
         # Execute the suite
-        # Convert tags to dict format (DQX expects dict[str, str])
-        if tags is None:
-            tags_dict: dict[str, str] = {}
-        elif isinstance(tags, dict):
-            tags_dict = tags
-        else:  # set[str]
-            tags_dict = {tag: "" for tag in tags}
-
+        tags_dict = tags if tags is not None else {}
         key = ResultKey(execution_date, tags_dict)
         suite.run(list(datasources.values()), key)
 
