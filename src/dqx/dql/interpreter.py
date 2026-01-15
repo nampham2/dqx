@@ -397,33 +397,106 @@ class Interpreter:
     def _handle_stddev_extension(self, expr_text: str, mp: MetricProvider) -> Any:
         """Handle stddev extension function with named parameters.
 
-        Example: stddev(day_over_day(average(tax)), offset=1, n=7)
+        Parses stddev calls with optional offset and required n parameters in any order:
+        - stddev(expr, n=7)
+        - stddev(expr, offset=1, n=7)
+        - stddev(expr, n=7, offset=1)
+
+        Args:
+            expr_text: Expression string containing stddev call
+            mp: MetricProvider for accessing extension functions
+
+        Returns:
+            Result of mp.ext.stddev() call via sp.sympify()
         """
-        import re
-
-        # Pattern to match stddev with named params
-        # Group 1: inner expression
-        # Group 2: offset value (optional)
-        # Group 3: n value
-        pattern = r"stddev\((.+?)(?:, offset=(\d+))?(?:, n=(\d+))\)"
-        match = re.search(pattern, expr_text)
-
-        if not match:  # pragma: no cover - defensive fallback for malformed stddev
-            # Fallback to normal parsing
+        # Find the matching closing paren for stddev( by counting parentheses
+        # This properly handles nested function calls like stddev(day_over_day(avg(x)), n=7)
+        stddev_start = expr_text.find("stddev(")
+        if stddev_start == -1:  # pragma: no cover
+            # Should not happen - caller checks for stddev( first
             namespace = self._build_metric_namespace(mp)
             return sp.sympify(expr_text, locals=namespace, evaluate=False)
 
-        inner_expr_text = match.group(1)
-        offset = int(match.group(2)) if match.group(2) else 0
-        n = int(match.group(3))
+        # Start after "stddev("
+        pos = stddev_start + 7
+        paren_count = 1
+        inner_start = pos
 
-        # Parse the inner expression normally (it might contain day_over_day etc)
+        # Find the matching closing paren
+        while pos < len(expr_text) and paren_count > 0:
+            if expr_text[pos] == "(":
+                paren_count += 1
+            elif expr_text[pos] == ")":
+                paren_count -= 1
+            pos += 1
+
+        if paren_count != 0:  # pragma: no cover - defensive fallback
+            # Malformed expression - fallback to normal parsing
+            namespace = self._build_metric_namespace(mp)
+            return sp.sympify(expr_text, locals=namespace, evaluate=False)
+
+        # Extract everything inside stddev(...)
+        inner_content = expr_text[inner_start : pos - 1]
+
+        # Split inner content by commas, being careful about nested functions
+        # Look for the first comma that's at the top level (not inside nested parens)
+        parts = []
+        current_part = []
+        paren_depth = 0
+
+        for char in inner_content:
+            if char == "(":
+                paren_depth += 1
+                current_part.append(char)
+            elif char == ")":
+                paren_depth -= 1
+                current_part.append(char)
+            elif char == "," and paren_depth == 0:
+                parts.append("".join(current_part).strip())
+                current_part = []
+            else:
+                current_part.append(char)
+
+        # Don't forget the last part
+        if current_part:
+            parts.append("".join(current_part).strip())
+
+        # First part is the inner expression
+        inner_expr_text = parts[0] if parts else ""
+
+        # Extract offset and n parameters from remaining parts
+        offset = 0  # Default offset
+        n = None  # Will be required if params exist
+
+        for part in parts[1:]:
+            # Match offset=N or n=N with optional whitespace
+            offset_match = re.search(r"offset\s*=\s*(\d+)", part)
+            n_match = re.search(r"n\s*=\s*(\d+)", part)
+
+            if offset_match:
+                offset = int(offset_match.group(1))
+            if n_match:
+                n = int(n_match.group(1))
+
+        # If params exist but n is not found, this shouldn't happen with valid DQL
+        # The grammar should enforce n parameter when using stddev with params
+        if len(parts) > 1 and n is None:  # pragma: no cover
+            raise ValueError(f"stddev requires 'n' parameter: {expr_text}")
+
+        # Parse the inner expression via _build_metric_namespace and sp.sympify
         # Don't recursively call _eval_metric_expr to avoid infinite loop
         namespace = self._build_metric_namespace(mp)
         inner_metric = sp.sympify(inner_expr_text, locals=namespace, evaluate=False)
 
-        # Call extension
-        result = mp.ext.stddev(inner_metric, offset=offset, n=n)
+        # Call mp.ext.stddev with parsed parameters
+        # Note: stddev without params is handled by normal sympy evaluation
+        if n is not None:
+            result = mp.ext.stddev(inner_metric, offset=offset, n=n)
+        else:  # pragma: no cover - stddev without params shouldn't reach here
+            # This path shouldn't be reached - stddev without params won't match
+            # the condition in _eval_metric_expr that calls this method
+            namespace = self._build_metric_namespace(mp)
+            return sp.sympify(expr_text, locals=namespace, evaluate=False)
 
         return result
 
