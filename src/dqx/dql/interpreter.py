@@ -132,7 +132,7 @@ class Interpreter:
         source: Path,
         datasources: Mapping[str, SqlDataSource],
         date: date,
-        tags: set[str] | None = None,
+        tags: dict[str, str] | None = None,
     ) -> SuiteResults:
         """Parse and execute a DQL file.
 
@@ -156,7 +156,7 @@ class Interpreter:
         source: str,
         datasources: Mapping[str, SqlDataSource],
         date: date,
-        tags: set[str] | None = None,
+        tags: dict[str, str] | None = None,
         *,
         filename: str | None = None,
     ) -> SuiteResults:
@@ -182,7 +182,7 @@ class Interpreter:
         source: str | Path,
         datasources: Mapping[str, SqlDataSource],
         date: date,
-        tags: set[str] | None = None,
+        tags: dict[str, str] | None = None,
         *,
         filename: str | None = None,
     ) -> SuiteResults:
@@ -217,7 +217,7 @@ class Interpreter:
         suite_ast: Suite,
         datasources: Mapping[str, SqlDataSource],
         execution_date: date,
-        tags: set[str] | None,
+        tags: dict[str, str] | None,
     ) -> SuiteResults:
         """Execute a parsed suite AST."""
         # Store datasources for access in helpers
@@ -233,8 +233,7 @@ class Interpreter:
         suite = self._build_suite(suite_ast)
 
         # Execute the suite
-        # Convert set tags to dict tags (DQX expects dict[str, str])
-        tags_dict: dict[str, str] = {tag: "" for tag in tags} if tags else {}
+        tags_dict = tags if tags is not None else {}
         key = ResultKey(execution_date, tags_dict)
         suite.run(list(datasources.values()), key)
 

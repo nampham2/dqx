@@ -88,6 +88,79 @@ class TestBasicExecution:
         with pytest.raises(DQLError, match=r"Missing datasources.*customers"):
             interp.run(dql, datasources, date.today())
 
+    def test_tags_as_dict(self) -> None:
+        """Test interpreter accepts tags as dict[str, str]."""
+        dql = """
+        suite "Test Suite" {
+            check "Volume" on orders {
+                assert num_rows() > 0
+                    name "orders.volume.has_rows"
+            }
+        }
+        """
+
+        # Create test data
+        data = pa.Table.from_pydict({"id": [1, 2, 3]})
+        datasources = {"orders": DuckRelationDataSource.from_arrow(data, "orders")}
+
+        # Execute with dict tags
+        db = InMemoryMetricDB()
+        interp = Interpreter(db=db)
+        tags_dict = {"env": "prod", "region": "us-west"}
+        results = interp.run(dql, datasources, date.today(), tags=tags_dict)
+
+        # Verify
+        assert results.all_passed()
+        assert len(results.assertions) == 1
+
+    def test_tags_as_none(self) -> None:
+        """Test interpreter accepts tags=None (no tags)."""
+        dql = """
+        suite "Test Suite" {
+            check "Volume" on orders {
+                assert num_rows() > 0
+                    name "orders.volume.has_rows"
+            }
+        }
+        """
+
+        # Create test data
+        data = pa.Table.from_pydict({"id": [1, 2, 3]})
+        datasources = {"orders": DuckRelationDataSource.from_arrow(data, "orders")}
+
+        # Execute with no tags
+        db = InMemoryMetricDB()
+        interp = Interpreter(db=db)
+        results = interp.run(dql, datasources, date.today(), tags=None)
+
+        # Verify
+        assert results.all_passed()
+        assert len(results.assertions) == 1
+
+    def test_tags_empty_dict(self) -> None:
+        """Test interpreter accepts empty dict for tags."""
+        dql = """
+        suite "Test Suite" {
+            check "Volume" on orders {
+                assert num_rows() > 0
+                    name "orders.volume.has_rows"
+            }
+        }
+        """
+
+        # Create test data
+        data = pa.Table.from_pydict({"id": [1, 2, 3]})
+        datasources = {"orders": DuckRelationDataSource.from_arrow(data, "orders")}
+
+        # Execute with empty dict tags
+        db = InMemoryMetricDB()
+        interp = Interpreter(db=db)
+        results = interp.run(dql, datasources, date.today(), tags={})
+
+        # Verify
+        assert results.all_passed()
+        assert len(results.assertions) == 1
+
 
 class TestComparisonOperators:
     """Test all comparison operators."""

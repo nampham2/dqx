@@ -71,11 +71,8 @@ def test_e2e_suite_from_dql() -> None:
     # Execution date
     execution_date = dt.date.fromisoformat("2025-01-15")
 
-    # Tags for result key
-    # Note: DQL Interpreter expects set[str] and converts to dict[str, str] with empty values
-    # Python API uses dict[str, str] directly
-    # For parity, we use set format here which will be converted to {"env": "", "prod": "", "partner": "", "gha": ""}
-    tags = {"env", "prod", "partner", "gha"}
+    # Tags for result key - use dict to match API test behavior
+    tags = {"env": "prod", "partner": "gha"}
 
     # Create interpreter and run DQL suite
     interp = Interpreter(db=db)
