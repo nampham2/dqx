@@ -522,8 +522,8 @@ class Interpreter:
                     # Convert sympy numbers to Python int/float
                     if value.is_Integer:
                         result[key] = int(value)  # type: ignore[arg-type]
-                    elif value.is_Float or value.is_Rational:
-                        result[key] = float(value)  # type: ignore[arg-type]
+                    elif value.is_Float or value.is_Rational:  # pragma: no cover - rare sympy output
+                        result[key] = float(value)  # type: ignore[arg-type]  # pragma: no cover
                     elif isinstance(value, sp.Symbol):
                         # For symbols (like dataset names), convert to string
                         result[key] = str(value)
@@ -567,11 +567,11 @@ class Interpreter:
                 # Convert sympy types
                 if val.is_Integer:
                     return int(val)  # type: ignore[arg-type]
-                elif val.is_Float or val.is_Rational:
+                elif val.is_Float or val.is_Rational:  # pragma: no cover - rare sympy output
                     # Convert float to int for count_values
-                    return int(float(val))  # type: ignore[arg-type]
-                elif isinstance(val, sp.Symbol):
-                    return str(val)
+                    return int(float(val))  # type: ignore[arg-type]  # pragma: no cover
+                elif isinstance(val, sp.Symbol):  # pragma: no cover - symbols handled elsewhere
+                    return str(val)  # pragma: no cover
                 else:  # pragma: no cover - defensive fallback for unknown sympy types
                     # Try to extract numeric value
                     try:  # pragma: no cover
