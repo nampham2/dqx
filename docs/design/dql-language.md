@@ -581,8 +581,8 @@ scale check "Revenue" by 1.5
 # Holiday traffic drops to 500 rows (50% of normal)
 # Without profile: 500 >= 1000 → FAIL (false positive!)
 #
-# With scale 2.0: 500 × 2.0 = 1000 >= 1000 → PASS
-# Interpretation: "500 rows during a 0.5× traffic period is like 1000 rows normally"
+# With scale 2.0: 500 * 2.0 = 1000 >= 1000 → PASS
+# Interpretation: "500 rows during a 0.5 traffic period is like 1000 rows normally"
 ```
 
 **Mental model:** Scale answers: "What would this metric be under normal conditions?" A scale of 2.0 compensates for a period with 50% expected traffic—multiply the actual value to normalize it for comparison against normal-period thresholds.
@@ -620,7 +620,7 @@ profile "Holiday Season" { from 2024-11-15 to 2025-01-05 scale tag "volume" by 1
 profile "Black Friday" { from 2024-11-29 to 2024-12-02 scale tag "volume" by 2.0 }
 
 # On 2024-11-30: Both profiles active
-# Combined multiplier for "volume" tag: 1.5 × 2.0 = 3.0
+# Combined multiplier for "volume" tag: 1.5 * 2.0 = 3.0
 ```
 
 **Warning:** Overlapping profiles with compounding multipliers can produce unexpected results. The interpreter logs active profiles and combined multipliers for debugging.
@@ -1108,7 +1108,7 @@ profile "Holiday" {
 
 ```python
 # On holiday: actual rows = 600
-# Multiplier 2.0x applied: 600 * 2.0 = 1200
+# Multiplier 2.0 applied: 600 * 2.0 = 1200
 # Comparison: 1200 >= 1000 → PASS
 
 # The agent sees:
