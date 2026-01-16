@@ -19,6 +19,7 @@ from dqx.dql.ast import (
     DisableRule,
     Expr,
     Profile,
+    Rule,
     ScaleRule,
     SetSeverityRule,
     Severity,
@@ -523,7 +524,7 @@ class DQLTransformer(Transformer):
     def sel_tag(self, items: list) -> tuple[str, str]:
         return ("tag", items[0])
 
-    def profile_body(self, items: list) -> tuple[DateExpr, DateExpr, tuple]:
+    def profile_body(self, items: list) -> tuple[DateExpr, DateExpr, tuple[Rule, ...]]:
         from_date = items[0]
         to_date = items[1]
         rules = tuple(items[2:])

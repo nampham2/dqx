@@ -259,11 +259,11 @@ class TestTunables:
         assert not results.all_passed()
 
 
-class TestDateFunctions:
-    """Test all date functions in profiles."""
+class TestProfileDates:
+    """Test profile date expressions with fixed dates and arithmetic."""
 
     def test_date_with_offset(self) -> None:
-        """Test date functions with day offsets."""
+        """Test fixed dates in profiles."""
         dql = """
         suite "Test" {
             check "Test" on t {

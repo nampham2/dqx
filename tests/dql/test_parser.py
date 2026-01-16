@@ -606,7 +606,8 @@ class TestProfiles:
         assert rule.selector_name == "non-critical"
         assert rule.severity == Severity.P3
 
-    def test_profile_with_date_function(self) -> None:
+    def test_profile_with_fixed_dates(self) -> None:
+        """Test profile with fixed ISO date values."""
         source = """
         suite "Test" {
             profile "Thanksgiving" {
@@ -986,7 +987,7 @@ class TestAdditionalEdgeCases:
 
     def test_date_expr_string_fallback(self) -> None:
         """Cover date expression with ISO date."""
-        # This is covered by the date function tests
+        # Covered by fixed-date parsing tests
         source = """
         suite "Test" {
             profile "Test" {

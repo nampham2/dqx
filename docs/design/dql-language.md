@@ -520,7 +520,6 @@ Profiles modify assertion behavior during specific periods. Define profiles at s
 
 ```dql
 profile "Black Friday" {
-    type holiday
     from 2024-11-29
     to   2024-12-02
 
@@ -582,11 +581,11 @@ scale check "Revenue" by 1.5
 # Holiday traffic drops to 500 rows (50% of normal)
 # Without profile: 500 >= 1000 → FAIL (false positive!)
 #
-# With scale 2.0x: 500 × 2.0 = 1000 >= 1000 → PASS
+# With scale 2.0: 500 × 2.0 = 1000 >= 1000 → PASS
 # Interpretation: "500 rows during a 0.5× traffic period is like 1000 rows normally"
 ```
 
-**Mental model:** Scale answers: "What would this metric be under normal conditions?" A scale of 2.0x compensates for a period with 50% expected traffic—multiply the actual value to normalize it for comparison against normal-period thresholds.
+**Mental model:** Scale answers: "What would this metric be under normal conditions?" A scale of 2.0 compensates for a period with 50% expected traffic—multiply the actual value to normalize it for comparison against normal-period thresholds.
 
 For `between A and B`, the scaled metric compares against both bounds unchanged.
 
@@ -603,7 +602,6 @@ Rules apply in definition order. Multipliers compound; severity uses last match.
 
 ```dql
 profile "Holiday" {
-    type holiday
     from 2024-12-20
     to   2025-01-05
 
@@ -683,7 +681,6 @@ suite "E-Commerce Data Quality" {
     }
 
     profile "Black Friday" {
-        type holiday
         from 2024-11-29
         to   2024-12-02
 
@@ -691,7 +688,6 @@ suite "E-Commerce Data Quality" {
     }
 
     profile "Christmas" {
-        type holiday
         from 2024-12-20
         to   2025-01-05
 
@@ -1104,7 +1100,6 @@ check "Volume" on orders {
 }
 
 profile "Holiday" {
-    type holiday
     from 2024-12-20
     to   2024-12-31
     scale tag "volume" by 2.0
@@ -1482,10 +1477,8 @@ qualified_ident = IDENT ("." IDENT)*
 
 (* === Profiles === *)
 profile     = "profile" STRING "{" profile_body "}"
-profile_body= "type" IDENT "from" date_expr "to" date_expr rule*
-date_expr   = DATE | date_func | date_expr ("+" | "-") NUMBER
-date_func   = IDENT "(" [date_args] ")"
-date_args   = (IDENT | NUMBER) ("," (IDENT | NUMBER))*
+profile_body= "from" date_expr "to" date_expr rule*
+date_expr   = DATE | date_expr ("+" | "-") NUMBER
 rule        = disable | scale | set_severity
 disable     = "disable" ("check" STRING | "assertion" STRING "in" STRING)
 scale       = "scale" selector "by" NUMBER

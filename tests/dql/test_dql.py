@@ -270,8 +270,8 @@ class TestBookInventoryDQL:
         assert "math" in all_tags
         assert "experimental" in all_tags
 
-    def test_profiles_with_date_functions(self, inventory_dql: str) -> None:
-        """Test profiles with date function expressions."""
+    def test_profiles_with_fixed_dates(self, inventory_dql: str) -> None:
+        """Test profiles with fixed dates and date arithmetic."""
         result = parse(inventory_dql)
         assert len(result.profiles) >= 2
 

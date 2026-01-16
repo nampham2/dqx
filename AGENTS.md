@@ -55,7 +55,7 @@ uv run pytest -s
 uv run pytest -m demo -s
 ```
 
-**IMPORTANT: 100% Test Coverage Required**
+### IMPORTANT: 100% Test Coverage Required
 
 - All code changes MUST maintain 100% test coverage
 - After implementation, always verify coverage with: `uv run pytest --cov=src/dqx --cov-report=term-missing`
