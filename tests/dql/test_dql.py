@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -90,20 +91,10 @@ class TestBankingTransactionsDQL:
     def test_profiles(self, banking_dql: str) -> None:
         """Test profile definitions with rules."""
         result = parse(banking_dql)
-        assert len(result.profiles) == 2
-
-        # End of Month profile
-        eom = next(p for p in result.profiles if p.name == "End of Month")
-        assert eom.profile_type == "recurring"
-        assert len(eom.rules) >= 2
-
-        scale_rules = [r for r in eom.rules if isinstance(r, ScaleRule)]
-        assert len(scale_rules) >= 1
-        assert scale_rules[0].multiplier == 2.0
+        assert len(result.profiles) == 1
 
         # Holiday Season profile
         holiday = next(p for p in result.profiles if p.name == "Holiday Season")
-        assert holiday.profile_type == "holiday"
         disable_rules = [r for r in holiday.rules if isinstance(r, DisableRule)]
         assert len(disable_rules) >= 1
 
@@ -164,22 +155,6 @@ class TestBankingTransactionsDQL:
 
         dataset_assertions = [a for a in recon.assertions if "dataset=" in a.expr.text]
         assert len(dataset_assertions) >= 2
-
-    def test_date_function_in_profile(self, banking_dql: str) -> None:
-        """Test date function expressions in profiles."""
-        result = parse(banking_dql)
-        eom = next(p for p in result.profiles if p.name == "End of Month")
-
-        assert "last_day_of_month" in str(eom.from_date.value)
-
-    def test_set_severity_rule(self, banking_dql: str) -> None:
-        """Test set severity rule in profile."""
-        result = parse(banking_dql)
-        eom = next(p for p in result.profiles if p.name == "End of Month")
-
-        set_rules = [r for r in eom.rules if isinstance(r, SetSeverityRule)]
-        assert len(set_rules) >= 1
-        assert set_rules[0].severity == Severity.P3
 
 
 class TestBookInventoryDQL:
@@ -295,13 +270,14 @@ class TestBookInventoryDQL:
         assert "math" in all_tags
         assert "experimental" in all_tags
 
-    def test_profiles_with_date_functions(self, inventory_dql: str) -> None:
-        """Test profiles with date function expressions."""
+    def test_profiles_with_fixed_dates(self, inventory_dql: str) -> None:
+        """Test profiles with fixed dates and date arithmetic."""
         result = parse(inventory_dql)
         assert len(result.profiles) >= 2
 
         black_friday = next(p for p in result.profiles if p.name == "Black Friday")
-        assert "nth_weekday" in str(black_friday.from_date.value)
+        # Black Friday now uses fixed ISO dates
+        assert black_friday.from_date.value == date(2024, 11, 29)
 
         # Check disable assertion in check
         disable_rules = [r for r in black_friday.rules if isinstance(r, DisableRule)]
@@ -422,13 +398,7 @@ class TestVideoStreamingDQL:
     def test_multiple_profiles(self, streaming_dql: str) -> None:
         """Test multiple profile definitions."""
         result = parse(streaming_dql)
-        assert len(result.profiles) >= 3
-
-        # Check different profile types
-        recurring_profiles = [p for p in result.profiles if p.profile_type == "recurring"]
-        holiday_profiles = [p for p in result.profiles if p.profile_type == "holiday"]
-        assert len(recurring_profiles) >= 1
-        assert len(holiday_profiles) >= 2
+        assert len(result.profiles) >= 2
 
     def test_set_severity_rule(self, streaming_dql: str) -> None:
         """Test set severity rule in profiles."""
@@ -466,13 +436,6 @@ class TestVideoStreamingDQL:
 
         sum_positive = [a for a in cross.assertions if "sum" in a.expr.text and a.keyword == "positive"]  # type: ignore[union-attr]
         assert len(sum_positive) >= 1
-
-    def test_date_offset_in_profile(self, streaming_dql: str) -> None:
-        """Test date offset expressions in profiles."""
-        result = parse(streaming_dql)
-        new_release = next(p for p in result.profiles if p.name == "New Release Week")
-
-        assert new_release.to_date.offset == 7
 
     def test_disable_assertion_in_check(self, streaming_dql: str) -> None:
         """Test disable assertion targeting specific check."""
@@ -535,7 +498,6 @@ class TestAllDQLScenariosIntegration:
             "scale_rule": False,
             "disable_rule": False,
             "set_severity_rule": False,
-            "date_function": False,
         }
 
         for dql in all_dqls:
@@ -586,10 +548,6 @@ class TestAllDQLScenariosIntegration:
 
             # Check profiles
             for profile in result.profiles:
-                date_funcs = ["nth_weekday", "last_day_of_month", "today"]
-                if any(func in str(profile.from_date.value) for func in date_funcs):
-                    all_features["date_function"] = True
-
                 for rule in profile.rules:
                     if isinstance(rule, ScaleRule):
                         all_features["scale_rule"] = True
@@ -639,17 +597,6 @@ class TestAllDQLScenariosIntegration:
             result = parse(dql)
             multi_dataset_checks = [c for c in result.checks if len(c.datasets) > 1]
             assert len(multi_dataset_checks) >= 1, f"No multi-dataset checks in {result.name}"
-
-    def test_profile_types_coverage(self, all_dqls: list[str]) -> None:
-        """Test that both profile types (holiday and recurring) are used."""
-        all_profile_types = set()
-        for dql in all_dqls:
-            result = parse(dql)
-            for profile in result.profiles:
-                all_profile_types.add(profile.profile_type)
-
-        assert "holiday" in all_profile_types, "No holiday profiles found"
-        assert "recurring" in all_profile_types, "No recurring profiles found"
 
     def test_check_naming_convention(self, all_dqls: list[str]) -> None:
         """Test that assertions follow naming convention (dataset.check.assertion)."""
@@ -776,7 +723,6 @@ class TestBookOrdersDQLWithImport:
         assert len(result.profiles) >= 1
 
         holiday = next(p for p in result.profiles if p.name == "Holiday Shopping")
-        assert holiday.profile_type == "holiday"
 
         scale_rules = [r for r in holiday.rules if isinstance(r, ScaleRule)]
         assert len(scale_rules) >= 2

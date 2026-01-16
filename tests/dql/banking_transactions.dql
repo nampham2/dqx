@@ -107,21 +107,11 @@ suite "Banking Transaction Data Quality" {
     }
 
     # Profiles for special periods
-    profile "End of Month" {
-        type recurring
-        from last_day_of_month() - 3
-        to last_day_of_month()
-
-        scale tag "volume" by 2.0x
-        set tag "trend" severity P3
-    }
-
     profile "Holiday Season" {
-        type holiday
         from 2024-12-20
         to 2025-01-05
 
         disable check "Volume"
-        scale tag "reconciliation" by 1.5x
+        scale tag "reconciliation" by 1.5
     }
 }

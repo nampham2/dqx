@@ -197,11 +197,10 @@ class TestCollectWithProfiles:
             }
 
             profile "Test Profile" {
-                type holiday
                 from 2024-01-01
                 to 2024-01-01
 
-                scale tag "volume" by 2.0x
+                scale tag "volume" by 2.0
             }
         }
         """
@@ -218,7 +217,7 @@ class TestCollectWithProfiles:
         # Verify metric was scaled
         assert len(results.assertions) == 1
         assert results.assertions[0].passed
-        # Verify metric was scaled by 2.0x (100 * 2.0 = 200)
+        # Verify metric was scaled by 2.0 (100 * 2.0 = 200)
         assert results.assertions[0].metric_value == 200.0
 
     def test_collect_can_be_disabled(self) -> None:
@@ -231,7 +230,6 @@ class TestCollectWithProfiles:
             }
 
             profile "Disable Profile" {
-                type holiday
                 from 2024-01-01
                 to 2024-01-01
 
@@ -264,7 +262,6 @@ class TestCollectWithProfiles:
             }
 
             profile "Override Profile" {
-                type holiday
                 from 2024-01-01
                 to 2024-01-01
 

@@ -171,20 +171,18 @@ suite "Book E-Commerce Inventory Quality" {
 
     # Profiles
     profile "Back to School" {
-        type holiday
         from 2024-08-15
         to 2024-09-15
 
-        scale tag "inventory" by 1.5x
-        scale check "Inventory Health" by 2.0x
+        scale tag "inventory" by 1.5
+        scale check "Inventory Health" by 2.0
     }
 
     profile "Black Friday" {
-        type holiday
-        from nth_weekday(november, friday, 4)
-        to nth_weekday(november, friday, 4) + 4
+        from 2024-11-29  # Black Friday 2024
+        to 2024-12-03    # Through Cyber Monday
 
-        scale tag "volume" by 3.0x
+        scale tag "volume" by 3.0
         disable assertion "books.pricing.day_over_day_stability" in "Pricing Validity"
         set tag "pricing" severity P3
     }

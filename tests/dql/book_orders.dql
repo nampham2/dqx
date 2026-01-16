@@ -109,12 +109,11 @@ suite "Book Order Processing Quality" {
 
     # Profile for holiday shopping
     profile "Holiday Shopping" {
-        type holiday
         from 2024-11-25
         to 2025-01-05
 
-        scale tag "volume" by 3.0x
-        scale check "Order Volume" by 2.5x
+        scale tag "volume" by 3.0
+        scale check "Order Volume" by 2.5
         set tag "trend" severity P3
     }
 }

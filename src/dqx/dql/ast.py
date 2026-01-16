@@ -45,9 +45,9 @@ class Expr:
 
 @dataclass(frozen=True)
 class DateExpr:
-    """A date expression - either a literal date or a function call."""
+    """A date expression with optional day offset."""
 
-    value: date | str  # date literal or expression string like "nth_weekday(...)"
+    value: date  # date literal (YYYY-MM-DD)
     offset: int = 0  # day offset (+/- N)
     loc: SourceLocation | None = None
 
@@ -154,7 +154,6 @@ class Profile:
     """A profile for modifying checks during specific periods."""
 
     name: str
-    profile_type: str  # "holiday" or "recurring"
     from_date: DateExpr
     to_date: DateExpr
     rules: tuple[Rule, ...]
