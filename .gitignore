@@ -27,3 +27,6 @@ examples/
 # Personal configuration and scripts
 .opencode/
 bin/sync-gitlab.sh
+
+# AI assistant memory files
+memory-bank/
