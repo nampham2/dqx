@@ -105,16 +105,11 @@ qualified_ident: IDENT ("." IDENT)*
 // === Profiles ===
 profile: "profile" STRING "{" profile_body "}"
 
-profile_body: "type" IDENT "from" date_expr "to" date_expr rule*
+profile_body: "from" date_expr "to" date_expr rule*
 
 date_expr: DATE
-         | date_func
          | date_expr "+" NUMBER -> date_add
          | date_expr "-" NUMBER -> date_sub
-
-date_func: IDENT "(" [date_func_args] ")"
-
-date_func_args: (IDENT | NUMBER) ("," (IDENT | NUMBER))*
 
 rule: disable_rule | scale_rule | set_rule
 
@@ -123,7 +118,7 @@ disable_rule: "disable" disable_target
 disable_target: "check" STRING -> disable_check
               | "assertion" STRING "in" STRING -> disable_assertion
 
-scale_rule: "scale" selector "by" NUMBER "x"
+scale_rule: "scale" selector "by" NUMBER
 
 set_rule: "set" selector "severity" SEVERITY
 

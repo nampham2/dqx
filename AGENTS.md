@@ -39,6 +39,9 @@ uv run pytest tests/test_graph_display.py::TestGraphPrintTree::test_print_tree_w
 # Run tests with coverage
 uv run pytest --cov=src/dqx --cov-report=html --cov-report=xml
 
+# Run tests with coverage report in terminal
+uv run pytest --cov=src/dqx --cov-report=term-missing
+
 # Run tests matching a pattern
 uv run pytest -k "test_parser"
 
@@ -51,6 +54,15 @@ uv run pytest -s
 # Run demo tests (marked with @pytest.mark.demo)
 uv run pytest -m demo -s
 ```
+
+**IMPORTANT: 100% Test Coverage Required**
+
+- All code changes MUST maintain 100% test coverage
+- After implementation, always verify coverage with: `uv run pytest --cov=src/dqx --cov-report=term-missing`
+- If any lines are uncovered, either:
+  1. Add tests to cover them, OR
+  2. Add `# pragma: no cover` comment for unreachable/defensive code
+- Coverage target: 100% (no exceptions)
 
 ### Code Quality
 
@@ -242,6 +254,28 @@ class ResultKey:
 - Use descriptive test names: `test_print_tree_with_default_formatter`
 - Mock external dependencies with `unittest.mock`
 - Use `pytest.mark.demo` for demonstration tests requiring visual output
+
+## Implementation Workflow
+
+After implementing code changes, **always** follow this checklist before reporting completion:
+
+1. **Run all tests**: `uv run pytest`
+   - All tests must pass
+
+2. **Check coverage**: `uv run pytest --cov=src/dqx --cov-report=term-missing`
+   - Coverage must be 100%
+   - Add tests for uncovered lines or use `# pragma: no cover` for unreachable code
+
+3. **Run pre-commit checks**: `uv run pre-commit run --all-files`
+   - All hooks must pass (formatting, linting, type checking, commit message validation)
+   - Pre-commit runs: ruff format, ruff check, mypy, commitizen check
+
+4. **Verify no issues**:
+   - No linting errors
+   - No type errors
+   - All formatting applied
+
+**Summary**: Implementation is only complete when tests pass, coverage is 100%, and pre-commit checks pass.
 
 ## Project Structure
 

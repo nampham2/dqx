@@ -150,17 +150,7 @@ suite "Video Streaming Data Quality" {
     }
 
     # Profiles for special events
-    profile "New Release Week" {
-        type recurring
-        from today()
-        to today() + 7
-
-        scale tag "volume" by 2.5x
-        scale tag "engagement" by 1.5x
-    }
-
     profile "Super Bowl Sunday" {
-        type holiday
         from 2025-02-09
         to 2025-02-10
 
@@ -169,12 +159,11 @@ suite "Video Streaming Data Quality" {
     }
 
     profile "Holiday Binge Season" {
-        type holiday
         from 2024-12-20
         to 2025-01-05
 
-        scale check "User Engagement" by 2.0x
-        scale tag "volume" by 3.0x
+        scale check "User Engagement" by 2.0
+        scale tag "volume" by 3.0
         disable assertion "viewing.activity.day_over_day" in "Viewing Activity"
     }
 }

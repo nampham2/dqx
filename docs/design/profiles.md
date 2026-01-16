@@ -66,7 +66,7 @@ class Profile(Protocol):
     def rules(self) -> list[Rule]: ...
 ```
 
-The protocol enables future profile types: `MaintenanceProfile`, `RegionProfile`, `ABTestProfile`.
+The protocol enables future profile types with different activation logic.
 
 ### Rule
 

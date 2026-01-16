@@ -525,7 +525,7 @@ profile "Black Friday" {
     to   2024-12-02
 
     disable check "Volume"
-    scale tag "seasonal" by 3.0x
+    scale tag "seasonal" by 3.0
 }
 ```
 
@@ -534,51 +534,28 @@ profile "Black Friday" {
 | Field | Required | Description |
 |-------|----------|-------------|
 | `name` | Yes | Profile identifier |
-| `type` | Yes | Profile type: `holiday` or `recurring` |
 | `from` | Yes | Start date (ISO format or expression) |
 | `to` | Yes | End date (ISO format or expression) |
 
-### Profile Types
-
-**`holiday`** — Fixed dates. ISO dates apply to that specific year only. Date expressions re-evaluate each year.
-
-**`recurring`** — Re-evaluates `from`/`to` expressions relative to the execution date (e.g., monthly patterns).
-
 ### Dynamic Dates
 
-Use date expressions for recurring events:
+Profiles support both fixed ISO dates and date arithmetic:
 
 ```dql
-profile "Thanksgiving Week" {
-    type holiday
-    from nth_weekday(november, thursday, 4)      # 4th Thursday
-    to   nth_weekday(november, thursday, 4) + 3  # Through Sunday
-}
-
-profile "Christmas" {
-    type holiday
-    from december(20)    # December 20 of execution year
-    to   january(5)      # January 5 of following year
-}
-
-profile "Month End" {
-    type recurring
-    from last_day_of_month() - 2
-    to   last_day_of_month()
+profile "Holiday Season" {
+    from 2024-12-20
+    to   2025-01-05
 }
 ```
 
-**Year handling:** When `to` references a month earlier than `from` (e.g., December → January), the interpreter infers year rollover. Explicit year can be specified: `january(5, year + 1)`.
+**Date format:** Profiles use ISO format dates (YYYY-MM-DD). Date arithmetic (`+ N` or `- N`) adds or subtracts days.
 
-Date functions:
+Date arithmetic:
 
-| Function | Description |
+| Operator | Description |
 |----------|-------------|
-| `nth_weekday(month, day, n)` | Nth occurrence of weekday in month |
-| `last_day_of_month()` | Last day of current month |
-| `month(day)` | Specific day in month (e.g., `december(25)`) |
-| `month(day, year)` | Explicit year: `year`, `year + 1`, `year - 1` |
-| Date arithmetic | `+ N` or `- N` for day offsets |
+| `+ N` | Adds N days to the date |
+| `- N` | Subtracts N days from the date |
 
 ### Rules
 
@@ -594,8 +571,8 @@ disable assertion "Order count" in "Volume"
 **Scale** multiplies the computed metric value before comparison:
 
 ```dql
-scale tag "seasonal" by 2.0x
-scale check "Revenue" by 1.5x
+scale tag "seasonal" by 2.0
+scale check "Revenue" by 1.5
 ```
 
 **Scale semantics:** The multiplier applies to the metric value, not the threshold. Use this when you expect the metric to be *lower* than normal due to reduced activity.
@@ -630,9 +607,9 @@ profile "Holiday" {
     from 2024-12-20
     to   2025-01-05
 
-    scale tag "volume" by 1.5x
-    scale check "Orders" by 2.0x
-    # Assertion with tag "volume" in "Orders": multiplier = 3.0x
+    scale tag "volume" by 1.5
+    scale check "Orders" by 2.0
+    # Assertion with tag "volume" in "Orders": multiplier = 3.0
 }
 ```
 
@@ -641,11 +618,11 @@ profile "Holiday" {
 When multiple profiles match the same date, rules from all matching profiles apply in profile definition order. Multipliers compound across profiles.
 
 ```dql
-profile "Holiday Season" { from 2024-11-15 to 2025-01-05 scale tag "volume" by 1.5x }
-profile "Black Friday" { from 2024-11-29 to 2024-12-02 scale tag "volume" by 2.0x }
+profile "Holiday Season" { from 2024-11-15 to 2025-01-05 scale tag "volume" by 1.5 }
+profile "Black Friday" { from 2024-11-29 to 2024-12-02 scale tag "volume" by 2.0 }
 
 # On 2024-11-30: Both profiles active
-# Combined multiplier for "volume" tag: 1.5 × 2.0 = 3.0x
+# Combined multiplier for "volume" tag: 1.5 × 2.0 = 3.0
 ```
 
 **Warning:** Overlapping profiles with compounding multipliers can produce unexpected results. The interpreter logs active profiles and combined multipliers for debugging.
@@ -710,7 +687,7 @@ suite "E-Commerce Data Quality" {
         from 2024-11-29
         to   2024-12-02
 
-        scale tag "volume" by 3.0x
+        scale tag "volume" by 3.0
     }
 
     profile "Christmas" {
@@ -1130,7 +1107,7 @@ profile "Holiday" {
     type holiday
     from 2024-12-20
     to   2024-12-31
-    scale tag "volume" by 2.0x
+    scale tag "volume" by 2.0
 }
 ```
 
@@ -1511,7 +1488,7 @@ date_func   = IDENT "(" [date_args] ")"
 date_args   = (IDENT | NUMBER) ("," (IDENT | NUMBER))*
 rule        = disable | scale | set_severity
 disable     = "disable" ("check" STRING | "assertion" STRING "in" STRING)
-scale       = "scale" selector "by" NUMBER "x"
+scale       = "scale" selector "by" NUMBER
 set_severity= "set" selector "severity" SEVERITY
 selector    = "check" STRING | "tag" STRING
 

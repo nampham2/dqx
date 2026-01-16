@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from calendar import monthrange
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -34,33 +33,6 @@ from dqx.dql.parser import parse, parse_file
 from dqx.functions import Coalesce
 from dqx.orm.repositories import MetricDB
 from dqx.tunables import TunableFloat, TunableInt, TunablePercent
-
-# Month name to number mapping
-MONTH_NAMES = {
-    "january": 1,
-    "february": 2,
-    "march": 3,
-    "april": 4,
-    "may": 5,
-    "june": 6,
-    "july": 7,
-    "august": 8,
-    "september": 9,
-    "october": 10,
-    "november": 11,
-    "december": 12,
-}
-
-# Weekday name to number mapping (0=Monday, 6=Sunday)
-WEEKDAY_NAMES = {
-    "monday": 0,
-    "tuesday": 1,
-    "wednesday": 2,
-    "thursday": 3,
-    "friday": 4,
-    "saturday": 5,
-    "sunday": 6,
-}
 
 
 @dataclass(frozen=True)
@@ -737,108 +709,14 @@ class Interpreter:
 
     def _resolve_date_expr(self, date_expr: DateExpr, execution_date: date) -> date:
         """Resolve DQL date expression to concrete date."""
-        if isinstance(date_expr.value, date):
-            result = date_expr.value  # Literal like 2024-12-25
-        else:
-            result = self._eval_date_function(date_expr.value, execution_date)
+        # DateExpr.value is always a date literal (YYYY-MM-DD)
+        result = date_expr.value
 
         # Apply day offset
         if date_expr.offset != 0:
             result = result + timedelta(days=date_expr.offset)
 
         return result
-
-    def _eval_date_function(self, func_str: str, execution_date: date) -> date:
-        """Evaluate date function: nth_weekday(...), last_day_of_month(), etc."""
-        # Parse: "function_name(arg1, arg2, ...)"
-        match = re.match(r"(\w+)\((.*)\)", func_str)
-        if not match:  # pragma: no cover
-            # Parser ensures valid date function format
-            raise DQLError(f"Invalid date function: {func_str}")
-
-        func_name = match.group(1)
-        args_str = match.group(2).strip()
-
-        # Dispatch to implementation
-        if func_name == "nth_weekday":
-            return self._nth_weekday(args_str, execution_date)
-        elif func_name == "last_day_of_month":
-            return self._last_day_of_month(execution_date)
-        elif func_name in MONTH_NAMES:  # january, february, etc.
-            return self._month_day(func_name, args_str, execution_date)
-        else:  # pragma: no cover
-            # Parser validates date function names
-            raise DQLError(f"Unknown date function: {func_name}")
-
-    def _nth_weekday(self, args_str: str, execution_date: date) -> date:
-        """Implement nth_weekday(month, day, n).
-
-        Examples:
-            nth_weekday(november, thursday, 4)  # 4th Thursday in November
-            nth_weekday(december, monday, 1)    # 1st Monday in December
-        """
-        # Parse args: month name, weekday name, occurrence number
-        args = [a.strip() for a in args_str.split(",")]
-        if len(args) != 3:
-            raise DQLError(f"nth_weekday requires 3 arguments (month, weekday, n), got {len(args)}")
-
-        month_name = args[0]  # e.g., "november"
-        weekday_name = args[1]  # e.g., "thursday"
-        try:
-            n = int(args[2])  # e.g., 4
-        except ValueError:
-            raise DQLError(f"nth_weekday 'n' must be an integer, got: {args[2]}") from None
-
-        # Convert month name to number (1-12)
-        month_num = MONTH_NAMES.get(month_name.lower())
-        if month_num is None:
-            raise DQLError(f"Unknown month name: {month_name}")
-
-        # Convert weekday name to number (0=Monday, 6=Sunday)
-        weekday_num = WEEKDAY_NAMES.get(weekday_name.lower())
-        if weekday_num is None:
-            raise DQLError(f"Unknown weekday name: {weekday_name}")
-
-        # Find nth occurrence in execution_date's year
-        year = execution_date.year
-        first_day = date(year, month_num, 1)
-
-        # Find first occurrence of the weekday
-        days_ahead = (weekday_num - first_day.weekday()) % 7
-        first_occurrence = first_day + timedelta(days=days_ahead)
-
-        # Add weeks to get nth occurrence
-        nth_occurrence = first_occurrence + timedelta(weeks=n - 1)
-
-        # Verify it's still in the same month
-        if nth_occurrence.month != month_num:
-            raise DQLError(f"No {n}th {weekday_name} in {month_name}")
-
-        return nth_occurrence
-
-    def _last_day_of_month(self, execution_date: date) -> date:
-        """Implement last_day_of_month()."""
-        year = execution_date.year
-        month = execution_date.month
-
-        # Get last day of month
-        _, last_day = monthrange(year, month)
-        return date(year, month, last_day)
-
-    def _month_day(self, month_name: str, args_str: str, execution_date: date) -> date:
-        """Implement month(day) functions like december(25)."""
-        try:
-            day = int(args_str.strip())
-        except ValueError:
-            raise DQLError(f"Invalid day argument for {month_name}(): {args_str}") from None
-
-        month_num = MONTH_NAMES[month_name.lower()]
-        year = execution_date.year
-
-        try:
-            return date(year, month_num, day)
-        except ValueError as e:
-            raise DQLError(f"Invalid date: {month_name}({day}) in year {year}: {e}") from e
 
     def _apply_profile_scaling(self, metric_value: Any, statement_ast: Assertion | Collection) -> Any:
         """Apply scale multipliers from active profiles."""

@@ -469,22 +469,8 @@ class DQLTransformer(Transformer):
         item = items[0]
         if isinstance(item, date):
             return DateExpr(value=item)
-        # DateExpr from date_func or date arithmetic
-        return item
-
-    def date_func(self, items: list) -> DateExpr:
-        func_name = items[0]
-        # Filter out None from optional date_func_args
-        args_items = [x for x in items[1:] if x is not None]
-        if args_items:
-            # Has arguments from date_func_args
-            args_list = args_items[0] if isinstance(args_items[0], list) else args_items
-            args = ", ".join(str(a) for a in args_list)
-            return DateExpr(value=f"{func_name}({args})")
-        return DateExpr(value=f"{func_name}()")
-
-    def date_func_args(self, items: list) -> list:
-        return list(items)
+        # DateExpr from date arithmetic
+        return item  # pragma: no cover
 
     def date_add(self, items: list) -> DateExpr:
         base = items[0]
@@ -537,22 +523,20 @@ class DQLTransformer(Transformer):
     def sel_tag(self, items: list) -> tuple[str, str]:
         return ("tag", items[0])
 
-    def profile_body(self, items: list) -> tuple[str, DateExpr, DateExpr, tuple]:
-        profile_type = items[0]
-        from_date = items[1]
-        to_date = items[2]
-        rules = tuple(items[3:])
-        return (profile_type, from_date, to_date, rules)
+    def profile_body(self, items: list) -> tuple[DateExpr, DateExpr, tuple]:
+        from_date = items[0]
+        to_date = items[1]
+        rules = tuple(items[2:])
+        return (from_date, to_date, rules)
 
     @v_args(tree=True)
     def profile(self, tree: Any) -> Profile:
         items = tree.children
         name = items[0]
         body = items[1]
-        profile_type, from_date, to_date, rules = body
+        from_date, to_date, rules = body
         return Profile(
             name=name,
-            profile_type=profile_type,
             from_date=from_date,
             to_date=to_date,
             rules=rules,

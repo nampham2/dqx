@@ -62,12 +62,11 @@ suite "Metric Collection Example" {
 
     # Profile: Scale metrics during high-traffic periods
     profile "Black Friday" {
-        type holiday
-        from nth_weekday(november, thursday, 4)
-        to nth_weekday(november, thursday, 4) + 3
+        from 2024-11-28  # Thanksgiving 2024
+        to 2024-12-01    # Through Sunday
 
         # Collections are scaled too!
-        scale tag "volume" by 3.0x
-        scale tag "revenue" by 3.0x
+        scale tag "volume" by 3.0
+        scale tag "revenue" by 3.0
     }
 }

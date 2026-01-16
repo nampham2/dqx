@@ -521,7 +521,6 @@ class TestProfiles:
         source = """
         suite "Test" {
             profile "Black Friday" {
-                type holiday
                 from 2024-11-29
                 to 2024-12-02
             }
@@ -531,7 +530,6 @@ class TestProfiles:
         assert len(result.profiles) == 1
         profile = result.profiles[0]
         assert profile.name == "Black Friday"
-        assert profile.profile_type == "holiday"
         assert profile.from_date.value == date(2024, 11, 29)
         assert profile.to_date.value == date(2024, 12, 2)
 
@@ -539,7 +537,6 @@ class TestProfiles:
         source = """
         suite "Test" {
             profile "Holiday" {
-                type holiday
                 from 2024-12-20
                 to 2025-01-05
 
@@ -559,7 +556,6 @@ class TestProfiles:
         source = """
         suite "Test" {
             profile "Holiday" {
-                type holiday
                 from 2024-12-20
                 to 2025-01-05
 
@@ -578,11 +574,10 @@ class TestProfiles:
         source = """
         suite "Test" {
             profile "Holiday" {
-                type holiday
                 from 2024-12-20
                 to 2025-01-05
 
-                scale tag "volume" by 2.0x
+                scale tag "volume" by 2.0
             }
         }
         """
@@ -597,7 +592,6 @@ class TestProfiles:
         source = """
         suite "Test" {
             profile "Holiday" {
-                type holiday
                 from 2024-12-20
                 to 2025-01-05
 
@@ -616,16 +610,15 @@ class TestProfiles:
         source = """
         suite "Test" {
             profile "Thanksgiving" {
-                type holiday
-                from nth_weekday(november, thursday, 4)
-                to nth_weekday(november, thursday, 4) + 3
+                from 2024-11-28
+                to 2024-12-01
             }
         }
         """
         result = parse(source)
         profile = result.profiles[0]
-        assert "nth_weekday" in str(profile.from_date.value)
-        assert profile.to_date.offset == 3
+        assert profile.from_date.value == date(2024, 11, 28)
+        assert profile.to_date.value == date(2024, 12, 1)
 
 
 class TestCompleteExample:
@@ -659,15 +652,13 @@ class TestCompleteExample:
             }
 
             profile "Black Friday" {
-                type holiday
                 from 2024-11-29
                 to 2024-12-02
 
-                scale tag "volume" by 3.0x
+                scale tag "volume" by 3.0
             }
 
             profile "Christmas" {
-                type holiday
                 from 2024-12-20
                 to 2025-01-05
 
@@ -817,52 +808,6 @@ class TestCoverageEdgeCases:
         """
         result = parse(source)
         assert "order_by" in result.checks[0].assertions[0].expr.text
-
-    def test_date_func_no_args(self) -> None:
-        """Cover date function with no arguments."""
-        source = """
-        suite "Test" {
-            profile "Month End" {
-                type recurring
-                from last_day_of_month()
-                to last_day_of_month()
-            }
-        }
-        """
-        result = parse(source)
-        assert "last_day_of_month" in str(result.profiles[0].from_date.value)
-
-    def test_date_subtraction(self) -> None:
-        """Cover date_sub() - lines 469-471."""
-        source = """
-        suite "Test" {
-            profile "Month End" {
-                type recurring
-                from last_day_of_month() - 2
-                to last_day_of_month()
-            }
-        }
-        """
-        result = parse(source)
-        assert result.profiles[0].from_date.offset == -2
-
-    def test_scale_check_selector(self) -> None:
-        """Cover sel_check() and selector() - lines 506, 509."""
-        source = """
-        suite "Test" {
-            profile "Holiday" {
-                type holiday
-                from 2024-12-20
-                to 2024-12-31
-                scale check "Volume" by 2.0x
-            }
-        }
-        """
-        result = parse(source)
-        rule = result.profiles[0].rules[0]
-        assert isinstance(rule, ScaleRule)
-        assert rule.selector_type == "check"
-        assert rule.selector_name == "Volume"
 
     def test_unexpected_character_error(self) -> None:
         """Cover UnexpectedCharacters handling - lines 621-624."""
@@ -1040,20 +985,20 @@ class TestAdditionalEdgeCases:
         assert result is None
 
     def test_date_expr_string_fallback(self) -> None:
-        """Cover date expression with function call."""
+        """Cover date expression with ISO date."""
         # This is covered by the date function tests
         source = """
         suite "Test" {
             profile "Test" {
-                type recurring
-                from last_day_of_month()
-                to last_day_of_month()
+                from 2024-12-31
+                to 2024-12-31
             }
         }
         """
         result = parse(source)
-        # The date func returns a DateExpr which is passed through date_expr
+        # The date is parsed as a DateExpr
         assert result.profiles[0].from_date is not None
+        assert result.profiles[0].from_date.value == date(2024, 12, 31)
 
     def test_factor_with_parenthesized_expr(self) -> None:
         """Cover parenthesized expression parsing."""
@@ -1084,20 +1029,6 @@ class TestAdditionalEdgeCases:
         assert assertion.threshold_upper is not None  # type: ignore[union-attr]
         assert "min_val()" in assertion.threshold.text  # type: ignore[union-attr]
         assert "max_val()" in assertion.threshold_upper.text  # type: ignore[union-attr]
-
-    def test_date_func_no_args_direct(self) -> None:
-        """Cover date function returning value with empty parens."""
-        source = """
-        suite "Test" {
-            profile "End of Month" {
-                type recurring
-                from today()
-                to today()
-            }
-        }
-        """
-        result = parse(source)
-        assert "today()" in str(result.profiles[0].from_date.value)
 
     def test_n_parameter(self) -> None:
         """Test 'n' parameter for stddev() and similar functions."""
