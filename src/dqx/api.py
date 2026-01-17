@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 timer_registry = Registry()
 
 
-def collect_tunables_from_graph(graph: Graph) -> dict[str, Tunable]:
+def collect_tunables_from_graph(graph: Graph) -> dict[str, Tunable[Any]]:
     """
     Extract all Tunable objects referenced in assertion expressions.
 
@@ -62,7 +62,7 @@ def collect_tunables_from_graph(graph: Graph) -> dict[str, Tunable]:
         graph: The verification graph to scan for tunables
 
     Returns:
-        dict[str, Tunable]: Mapping of tunable names to Tunable objects
+        dict[str, Tunable[Any]]: Mapping of tunable names to Tunable objects
 
     Example:
         >>> # After building the graph

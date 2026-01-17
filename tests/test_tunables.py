@@ -344,7 +344,7 @@ class TestVerificationSuiteTunables:
         assert history[0].new_value == 0.10
         assert history[1].new_value == 0.15
 
-    def test_duplicate_tunable_name_raises(self) -> None:
+    def test_duplicate_tunable_name_deduplicates(self) -> None:
         """
         Verifies that SymPy deduplicates tunables by name, so only 1 tunable is discovered when two instances have the same name.
         """
@@ -450,7 +450,7 @@ class TestTunableRuntimeBehavior:
         from dqx.provider import MetricProvider
         from tests.fixtures.data_fixtures import CommercialDataSource
 
-        # Set up test data with ~26% null rate
+        # Set up test data (seed=1050 produces ~25.8% null rate with 31 rows)
         ds = CommercialDataSource(
             start_date=dt.date(2025, 1, 1),
             end_date=dt.date(2025, 1, 31),
@@ -461,41 +461,32 @@ class TestTunableRuntimeBehavior:
 
         key = ResultKey(yyyy_mm_dd=dt.date(2025, 1, 15), tags={})
 
-        # Run with initial threshold (20%) - should FAIL (null rate ~26% > 20%)
-        null_threshold1 = TunablePercent("NULL_THRESHOLD", value=0.20, bounds=(0.0, 0.50))
+        # Create tunable with initial threshold (20%) - should FAIL (null rate ~25.8% > 20%)
+        null_threshold = TunablePercent("NULL_THRESHOLD", value=0.20, bounds=(0.0, 0.50))
 
-        @check(name="Null Rate Check 1", datasets=["orders"])
-        def null_rate_check1(mp: MetricProvider, ctx: Context) -> None:
+        @check(name="Null Rate Check", datasets=["orders"])
+        def null_rate_check(mp: MetricProvider, ctx: Context) -> None:
             null_rate = mp.null_count("delivered") / mp.num_rows()
-            ctx.assert_that(null_rate).where(name="null_rate_assertion").is_lt(null_threshold1.value)
+            # Use tunable directly in expression (not .value)
+            ctx.assert_that(null_rate - null_threshold).where(name="null_rate_assertion").is_lt(0)
 
-        db1 = InMemoryMetricDB()
-        suite1 = VerificationSuite(
-            checks=[null_rate_check1],
-            db=db1,
+        db = InMemoryMetricDB()
+        suite = VerificationSuite(
+            checks=[null_rate_check],
+            db=db,
             name="Test Suite",
         )
-        suite1.run([ds], key)
-        result1 = suite1.collect_results()
+
+        # Run with initial threshold (20%) - should FAIL
+        suite.run([ds], key)
+        result1 = suite.collect_results()
         initial_status = result1[0].status
 
-        # Change threshold to 30% (more lenient) - should PASS (null rate ~26% < 30%)
-        # Create new tunable with updated value and new suite instance
-        null_threshold2 = TunablePercent("NULL_THRESHOLD", value=0.30, bounds=(0.0, 0.50))
-
-        @check(name="Null Rate Check 2", datasets=["orders"])
-        def null_rate_check2(mp: MetricProvider, ctx: Context) -> None:
-            null_rate = mp.null_count("delivered") / mp.num_rows()
-            ctx.assert_that(null_rate).where(name="null_rate_assertion").is_lt(null_threshold2.value)
-
-        db2 = InMemoryMetricDB()
-        suite2 = VerificationSuite(
-            checks=[null_rate_check2],
-            db=db2,
-            name="Test Suite",
-        )
-        suite2.run([ds], key)
-        result2 = suite2.collect_results()
+        # Use set_param to change threshold to 30% (more lenient) - should PASS (null rate ~25.8% < 30%)
+        suite.set_param("NULL_THRESHOLD", 0.30, agent="test", reason="Relax threshold")
+        suite.reset()
+        suite.run([ds], key)
+        result2 = suite.collect_results()
         updated_status = result2[0].status
 
         # Verify the threshold change affected the assertion result

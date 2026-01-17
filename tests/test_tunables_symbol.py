@@ -1,5 +1,7 @@
 """Tests for TunableSymbol and arithmetic operators."""
 
+from __future__ import annotations
+
 import sympy as sp
 
 from dqx.tunables import (

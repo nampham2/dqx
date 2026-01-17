@@ -1,5 +1,7 @@
 """Tests for collect_tunables_from_graph function."""
 
+from __future__ import annotations
+
 from dqx.api import Context, MetricProvider, VerificationSuite, check, collect_tunables_from_graph
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.tunables import TunableFloat, TunableInt, TunablePercent
