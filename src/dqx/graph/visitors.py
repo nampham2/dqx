@@ -106,6 +106,11 @@ class DatasetImputationVisitor:
         # Extract symbols from the assertion's actual expression
         symbols = node.actual.free_symbols
 
+        # Filter out TunableSymbols - they don't need dataset imputation
+        from dqx.tunables import TunableSymbol
+
+        symbols = {sym for sym in symbols if not isinstance(sym, TunableSymbol)}
+
         # Process all symbols and their transitive dependencies
         processed_symbols = set()
         symbols_to_process = list(symbols)

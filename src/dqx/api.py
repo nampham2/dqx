@@ -483,7 +483,9 @@ class VerificationSuite:
     A suite of data quality verification checks that can be executed against multiple data sources.
 
     The suite collects symbolic assertions through check functions and builds a dependency graph
-    of metrics, symbols, and analyzers required to evaluate those assertions.
+    of metrics, symbols, and analyzers required to evaluate those assertions. The graph is built
+    immediately upon suite initialization, and any Tunable objects used in assertions are
+    automatically discovered and made available for tuning.
 
     Example:
         Basic usage (single run):
@@ -497,7 +499,16 @@ class VerificationSuite:
 
         >>> from dqx.tunables import TunablePercent
         >>> threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.50))
-        >>> suite = VerificationSuite([my_check], db, "My Suite", tunables=[threshold])
+        >>>
+        >>> @check(name="My Check")
+        >>> def my_check(mp, ctx):
+        >>>     null_rate = mp.null_count("col") / mp.num_rows()
+        >>>     # Use tunable directly in expression (no .value needed!)
+        >>>     ctx.assert_that(null_rate - threshold).where(name="Null rate check").is_lt(0)
+        >>>
+        >>> suite = VerificationSuite([my_check], db, "My Suite")
+        >>> # Tunables are automatically discovered from the checks
+        >>> print(suite.get_tunable_params())  # Shows discovered tunables
         >>>
         >>> # Run 1
         >>> suite.run([datasource], key)
@@ -505,7 +516,7 @@ class VerificationSuite:
         >>>
         >>> # Adjust threshold based on results
         >>> suite.set_param("THRESHOLD", 0.30, agent="rl_optimizer", reason="Tuning iteration")
-        >>> suite.reset()  # Clear state for next run
+        >>> suite.reset()  # Rebuild graph with new threshold
         >>>
         >>> # Run 2 with new threshold
         >>> suite.run([datasource], key)
@@ -520,7 +531,6 @@ class VerificationSuite:
         log_level: int | str = logging.INFO,
         data_av_threshold: float = 0.9,
         profiles: Sequence[Profile] | None = None,
-        tunables: Sequence["Tunable"] | None = None,
     ) -> None:
         """
         Initialize a VerificationSuite that orchestrates and evaluates a set of data quality checks.
@@ -532,10 +542,9 @@ class VerificationSuite:
             log_level: Logging level for the suite (default: logging.INFO).
             data_av_threshold: Minimum fraction of available data required to evaluate assertions (default: 0.9).
             profiles: Optional profiles that alter assertion evaluation behavior.
-            tunables: Optional tunable parameters exposed for external agents; names must be unique.
 
         Raises:
-            DQXError: If no checks are provided, the suite name is empty, or duplicate tunable names are supplied.
+            DQXError: If no checks are provided or the suite name is empty.
         """
         # Setting up the logger
         setup_logger(level=log_level)
@@ -581,13 +590,14 @@ class VerificationSuite:
         # Store profiles for evaluation
         self._profiles: list[Profile] = list(profiles) if profiles else []
 
-        # Store tunables for RL agent integration
-        self._tunables: dict[str, Tunable] = {}
-        if tunables:
-            for t in tunables:
-                if t.name in self._tunables:
-                    raise DQXError(f"Duplicate tunable name: {t.name}")
-                self._tunables[t.name] = t
+        # Build the dependency graph immediately
+        logger.info("Building dependency graph for suite '%s'...", self._name)
+        self.build_graph(self._context)
+
+        # Collect tunables from the graph automatically
+        self._tunables = collect_tunables_from_graph(self._context._graph)
+        if self._tunables:
+            logger.info(f"Discovered {len(self._tunables)} tunable(s): {list(self._tunables.keys())}")
 
     @property
     def execution_id(self) -> str:
@@ -608,24 +618,17 @@ class VerificationSuite:
         """
         Access the dependency graph for the verification suite.
 
-        This property provides read-only access to the internal Graph instance
-        after the graph has been built via build_graph() or run().
+        The graph is built during suite initialization and is immediately
+        available after the VerificationSuite is constructed.
 
         Returns:
             Graph: The dependency graph containing checks and assertions
 
-        Raises:
-            DQXError: If accessed before the graph has been built
-                     (i.e., before build_graph() or run() has been called)
-
         Example:
             >>> suite = VerificationSuite(checks, db, "My Suite")
-            >>> datasources = [DuckRelationDataSource.from_arrow(data, "my_data")]
-            >>> suite.run(datasources, key)
-            >>> graph = suite.graph  # Now accessible
-            >>> print(f"Graph has {len(list(graph.checks()))} checks")
+            >>> print(f"Graph has {len(list(suite.graph.checks()))} checks")
+            >>> # Can access graph immediately after construction
         """
-        self.assert_is_evaluated()
         return self._context._graph
 
     @property
@@ -808,14 +811,16 @@ class VerificationSuite:
         """
         Reset the verification suite to allow running it again with modified tunables.
 
-        This method clears all execution state (results, analysis reports, graph) while
-        preserving the suite configuration and tunable values. Each reset generates a
-        new execution_id to distinguish tuning iterations in the metrics database.
+        This method clears all execution state (results, analysis reports) while
+        preserving the suite configuration and tunable values. The graph is rebuilt
+        to ensure all assertions reflect the current tunable values. Each reset
+        generates a new execution_id to distinguish tuning iterations in the metrics
+        database.
 
         Primary use case: AI agents tuning threshold parameters via Tunables.
 
         Example:
-            >>> suite = VerificationSuite(checks, db, "My Suite", tunables=[threshold])
+            >>> suite = VerificationSuite(checks, db, "My Suite")
             >>> suite.run([datasource], key)
             >>> result1 = suite.collect_results()[0].status  # "FAILED"
             >>>
@@ -828,20 +833,28 @@ class VerificationSuite:
         Note:
             - Generates a new execution_id for the next run
             - Preserves tunables, profiles, checks, and suite name
-            - Clears cached results, analysis reports, and dependency graph
+            - Rebuilds the graph to reflect current tunable values
+            - Clears cached results, analysis reports
             - Clears plugin manager (will be lazy-loaded on next use)
         """
         # Generate new execution_id for the next run
         self._execution_id = str(uuid.uuid4())
 
         # Create fresh context with new execution_id
-        # Preserve the db reference from the old context's provider
         self._context = Context(
             suite=self._name,
             db=self._context.provider.db,
             execution_id=self._execution_id,
             data_av_threshold=self._data_av_threshold,
         )
+
+        # Rebuild the graph with updated tunable values
+        logger.info("Rebuilding dependency graph after reset...")
+        self.build_graph(self._context)
+
+        # Re-collect tunables from the rebuilt graph
+        # The tunable instances are the same, but their values may have changed
+        self._tunables = collect_tunables_from_graph(self._context._graph)
 
         # Clear execution state
         self._is_evaluated = False
@@ -927,9 +940,7 @@ class VerificationSuite:
         # Reset the run timer
         self._context.tick()
 
-        # Build the dependency graph
-        logger.info("Building dependency graph...")
-        self.build_graph(self._context)
+        # Graph is already built in __init__(), no need to build again
 
         # 1. Impute datasets using visitor pattern
         # Use graph in the context to avoid the check if the suite has been evaluated

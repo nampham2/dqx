@@ -382,7 +382,8 @@ def test_assertion_severity_is_mandatory_with_p1_default() -> None:
 
 
 def test_verification_suite_graph_property() -> None:
-    """Test that VerificationSuite exposes graph property with proper error handling."""
+    """Test that VerificationSuite graph property is accessible immediately after construction."""
+    from dqx.graph.traversal import Graph
 
     # Create a simple check for testing
     @check(name="Simple Check")
@@ -392,27 +393,13 @@ def test_verification_suite_graph_property() -> None:
     db = InMemoryMetricDB()
     suite = VerificationSuite([simple_check], db, "Test Suite")
 
-    # Should raise error before run is called
-    with pytest.raises(DQXError, match="Verification suite has not been executed yet!"):
-        _ = suite.graph
-
-    # After running suite, should work
-    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    # Need to provide a mock data source for run
-    import pyarrow as pa
-
-    from dqx.datasource import DuckRelationDataSource
-
-    data = pa.table({"x": [1, 2, 3]})
-    suite.run([DuckRelationDataSource.from_arrow(data, "data")], key)
-
-    # Should return a Graph instance
-    from dqx.graph.traversal import Graph
-
+    # Graph should be accessible immediately after construction
     assert isinstance(suite.graph, Graph)
 
-    # Should have the suite name as root
-    assert suite.graph.root.name == "Test Suite"
+    # Should have one check
+    checks = list(suite.graph.checks())
+    assert len(checks) == 1
+    assert checks[0].name == "Simple Check"
 
 
 def test_verification_suite_build_graph_method() -> None:

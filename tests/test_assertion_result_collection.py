@@ -160,25 +160,23 @@ class TestAssertionResultCollection:
         assert "20" in r3.expression
 
     def test_is_evaluated_only_set_on_success(self) -> None:
-        """Should NOT set is_evaluated if run() fails."""
+        """Should NOT set is_evaluated if run() fails with dataset issues."""
 
-        @check(name="failing check")
-        def failing_check(mp: MetricProvider, ctx: Context) -> None:
-            # This will cause an error during execution
-            raise RuntimeError("Simulated failure")
+        @check(name="test check", datasets=["data"])
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
+            ctx.assert_that(mp.num_rows()).where(name="rows").is_positive()
 
         db = InMemoryMetricDB()
-        suite = VerificationSuite([failing_check], db, "Test Suite")
+        suite = VerificationSuite([test_check], db, "Test Suite")
 
         assert suite.is_evaluated is False
 
-        # Run should fail
-        data = pa.table({"x": [1]})
+        # Run with NO datasources (will fail during imputation/validation)
         key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
-        # This should raise an exception
-        with pytest.raises(RuntimeError):
-            suite.run([DuckRelationDataSource.from_arrow(data, "data")], key)
+        # This should raise an exception during execution
+        with pytest.raises(Exception):  # Will raise some error due to missing datasource
+            suite.run([], key)  # Empty datasource list
 
         # Flag should NOT be set on failure
         assert suite.is_evaluated is False

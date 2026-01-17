@@ -136,6 +136,19 @@ class Evaluator:
         if not isinstance(expr, sp.Basic):
             expr = sp.sympify(expr)
 
+        # First, substitute TunableSymbols with their values
+        from dqx.tunables import TunableSymbol
+
+        tunable_subs = {}
+        for ts in expr.atoms(TunableSymbol):
+            tunable_subs[ts] = ts.value
+            print(f"[EVALUATOR DEBUG] Substituting {ts.name} with {ts.value}")
+
+        if tunable_subs:
+            print(f"[EVALUATOR DEBUG] Expression before subs: {expr}")
+            expr = expr.subs(tunable_subs)
+            print(f"[EVALUATOR DEBUG] Expression after subs: {expr}")
+
         for sym in expr.free_symbols:
             if sym not in self.metrics:
                 sm = self.metric_for_symbol(sym)

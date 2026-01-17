@@ -203,43 +203,46 @@ class TestVerificationSuiteTunables:
         from dqx.api import VerificationSuite, check
         from dqx.orm.repositories import InMemoryMetricDB
 
-        @check(name="Test Check")
-        def test_check(mp: Any, ctx: Any) -> None:
-            pass
-
-        db = InMemoryMetricDB()
         threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
         min_rows = TunableInt("MIN_ROWS", value=1000, bounds=(100, 10000))
+
+        @check(name="Test Check")
+        def test_check(mp: Any, ctx: Any) -> None:
+            x = mp.num_rows()
+            ctx.assert_that(x - threshold).where(name="threshold_test").is_gt(0)
+            ctx.assert_that(x - min_rows).where(name="min_rows_test").is_gt(0)
+
+        db = InMemoryMetricDB()
 
         suite = VerificationSuite(
             checks=[test_check],
             db=db,
             name="Test Suite",
-            tunables=[threshold, min_rows],
         )
 
         params = suite.get_tunable_params()
         assert len(params) == 2
-        assert params[0]["name"] == "THRESHOLD"
-        assert params[1]["name"] == "MIN_ROWS"
+        param_names = {p["name"] for p in params}
+        assert param_names == {"THRESHOLD", "MIN_ROWS"}
 
     def test_get_param(self) -> None:
         """Can get individual param value."""
         from dqx.api import VerificationSuite, check
         from dqx.orm.repositories import InMemoryMetricDB
 
+        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
-            pass
+            x = mp.num_rows()
+            ctx.assert_that(x - threshold).where(name="test").is_gt(0)
 
         db = InMemoryMetricDB()
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         suite = VerificationSuite(
             checks=[test_check],
             db=db,
             name="Test Suite",
-            tunables=[threshold],
         )
 
         assert suite.get_param("THRESHOLD") == 0.05
@@ -251,14 +254,13 @@ class TestVerificationSuiteTunables:
 
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
-            pass
+            ctx.assert_that(mp.num_rows()).where(name="test").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(
             checks=[test_check],
             db=db,
             name="Test Suite",
-            tunables=[],
         )
 
         with pytest.raises(KeyError, match="not found"):
@@ -273,18 +275,19 @@ class TestVerificationSuiteTunables:
         from dqx.api import VerificationSuite, check
         from dqx.orm.repositories import InMemoryMetricDB
 
+        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
-            pass
+            x = mp.num_rows()
+            ctx.assert_that(x - threshold).where(name="test").is_gt(0)
 
         db = InMemoryMetricDB()
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         suite = VerificationSuite(
             checks=[test_check],
             db=db,
             name="Test Suite",
-            tunables=[threshold],
         )
 
         suite.set_param("THRESHOLD", 0.10, agent="rl_optimizer", reason="Test")
@@ -295,18 +298,19 @@ class TestVerificationSuiteTunables:
         from dqx.api import VerificationSuite, check
         from dqx.orm.repositories import InMemoryMetricDB
 
+        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
-            pass
+            x = mp.num_rows()
+            ctx.assert_that(x - threshold).where(name="test").is_gt(0)
 
         db = InMemoryMetricDB()
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         suite = VerificationSuite(
             checks=[test_check],
             db=db,
             name="Test Suite",
-            tunables=[threshold],
         )
 
         with pytest.raises(ValueError, match="outside bounds"):
@@ -317,18 +321,19 @@ class TestVerificationSuiteTunables:
         from dqx.api import VerificationSuite, check
         from dqx.orm.repositories import InMemoryMetricDB
 
+        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
-            pass
+            x = mp.num_rows()
+            ctx.assert_that(x - threshold).where(name="test").is_gt(0)
 
         db = InMemoryMetricDB()
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         suite = VerificationSuite(
             checks=[test_check],
             db=db,
             name="Test Suite",
-            tunables=[threshold],
         )
 
         suite.set_param("THRESHOLD", 0.10, agent="rl_optimizer", reason="Episode 1")
@@ -341,30 +346,33 @@ class TestVerificationSuiteTunables:
 
     def test_duplicate_tunable_name_raises(self) -> None:
         """
-        Verifies that constructing a VerificationSuite with two tunables that share the same name raises an error.
-
-        Raises:
-            DQXError: with message "Duplicate tunable name" when duplicate tunable names are provided to VerificationSuite.
+        Verifies that SymPy deduplicates tunables by name, so only 1 tunable is discovered when two instances have the same name.
         """
         from dqx.api import VerificationSuite, check
-        from dqx.common import DQXError
         from dqx.orm.repositories import InMemoryMetricDB
 
-        @check(name="Test Check")
-        def test_check(mp: Any, ctx: Any) -> None:
-            pass
-
-        db = InMemoryMetricDB()
         t1 = TunableFloat("X", value=0.5, bounds=(0.0, 1.0))
         t2 = TunableFloat("X", value=0.3, bounds=(0.0, 1.0))  # Duplicate name
 
-        with pytest.raises(DQXError, match="Duplicate tunable name"):
-            VerificationSuite(
-                checks=[test_check],
-                db=db,
-                name="Test Suite",
-                tunables=[t1, t2],
-            )
+        @check(name="Test Check")
+        def test_check(mp: Any, ctx: Any) -> None:
+            x = mp.num_rows()
+            # Use both tunables in the check - SymPy should deduplicate by name
+            ctx.assert_that(x - t1).where(name="test1").is_gt(0)
+            ctx.assert_that(x - t2).where(name="test2").is_gt(0)
+
+        db = InMemoryMetricDB()
+
+        suite = VerificationSuite(
+            checks=[test_check],
+            db=db,
+            name="Test Suite",
+        )
+
+        # SymPy deduplicates by name, so only 1 tunable should be discovered
+        params = suite.get_tunable_params()
+        assert len(params) == 1
+        assert params[0]["name"] == "X"
 
     def test_set_param_not_found(self) -> None:
         """KeyError raised when setting unknown param."""
@@ -373,14 +381,13 @@ class TestVerificationSuiteTunables:
 
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
-            pass
+            ctx.assert_that(mp.num_rows()).where(name="test").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(
             checks=[test_check],
             db=db,
             name="Test Suite",
-            tunables=[],
         )
 
         with pytest.raises(KeyError, match="not found"):
@@ -393,14 +400,13 @@ class TestVerificationSuiteTunables:
 
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
-            pass
+            ctx.assert_that(mp.num_rows()).where(name="test").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(
             checks=[test_check],
             db=db,
             name="Test Suite",
-            tunables=[],
         )
 
         with pytest.raises(KeyError, match="not found"):
@@ -451,7 +457,7 @@ class TestTunableRuntimeBehavior:
         @check(name="Null Rate Check", datasets=["orders"])
         def null_rate_check(mp: MetricProvider, ctx: Context) -> None:
             null_rate = mp.null_count("delivered") / mp.num_rows()
-            ctx.assert_that(null_rate).where(name="null_rate_assertion").is_lt(null_threshold.value)
+            ctx.assert_that(null_rate - null_threshold).where(name="null_rate_assertion").is_lt(0)
 
         # Set up test data with ~26% null rate
         ds = CommercialDataSource(
@@ -470,7 +476,6 @@ class TestTunableRuntimeBehavior:
             checks=[null_rate_check],
             db=db1,
             name="Test Suite",
-            tunables=[null_threshold],
         )
         suite1.run([ds], key)
         result1 = suite1.collect_results()
@@ -489,7 +494,6 @@ class TestTunableRuntimeBehavior:
             checks=[null_rate_check],
             db=db2,
             name="Test Suite",
-            tunables=[null_threshold],
         )
         suite2.run([ds], key)
         result2 = suite2.collect_results()
