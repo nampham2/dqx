@@ -179,7 +179,6 @@ class TestResetBasicFunctionality:
 class TestResetWithTunables:
     """Tests for reset() with tunable parameter adjustments (main use case)."""
 
-    @pytest.mark.skip(reason="Test data produces >70% null rate, not ~26% as expected. Needs correct seed value.")
     def test_reset_with_tunable_threshold_adjustment(self) -> None:
         """
         Verify AI agent can tune threshold via reset() workflow.
@@ -190,7 +189,7 @@ class TestResetWithTunables:
         # Create a tunable threshold
         null_threshold = TunablePercent("NULL_THRESHOLD", value=0.05, bounds=(0.0, 0.50))
 
-        # Create a check that uses the tunable
+        # Create a check that uses the tunable directly in expression
         @check(name="Null Rate Check", datasets=["orders"])
         def null_rate_check(mp: MetricProvider, ctx: Context) -> None:
             null_rate = mp.null_count("delivered") / mp.num_rows()
@@ -216,31 +215,28 @@ class TestResetWithTunables:
         suite.run([ds], key)
         assert suite.collect_results()[0].status == "FAILED"
 
-        # Iteration 2: threshold=0.20 (still too strict) -> FAIL
-        suite.set_param("NULL_THRESHOLD", 0.20, agent="rl", reason="iter 2")
+        # Iteration 2: threshold=0.10 (still too strict) -> FAIL
+        suite.set_param("NULL_THRESHOLD", 0.10, agent="rl", reason="iter 2")
         suite.reset()
         suite.run([ds], key)
         assert suite.collect_results()[0].status == "FAILED"
 
-        # Iteration 3: threshold=0.40 (more lenient) -> might still fail
-        suite.set_param("NULL_THRESHOLD", 0.40, agent="rl", reason="iter 3")
+        # Iteration 3: threshold=0.20 (still too strict) -> FAIL
+        suite.set_param("NULL_THRESHOLD", 0.20, agent="rl", reason="iter 3")
         suite.reset()
         suite.run([ds], key)
-        result3 = suite.collect_results()[0].status
+        assert suite.collect_results()[0].status == "FAILED"
 
-        # Iteration 4: threshold=0.50 (very lenient) -> should PASS
-        suite.set_param("NULL_THRESHOLD", 0.50, agent="rl", reason="iter 4")
+        # Iteration 4: threshold=0.30 (just right) -> PASS
+        suite.set_param("NULL_THRESHOLD", 0.30, agent="rl", reason="iter 4")
         suite.reset()
         suite.run([ds], key)
-        result4 = suite.collect_results()[0].status
+        assert suite.collect_results()[0].status == "PASSED"
 
-        # At least one of the last two should pass (depending on actual null rate)
-        assert result3 == "PASSED" or result4 == "PASSED", f"Expected at least one PASS, got {result3} and {result4}"
-
-        # Verify tunable history tracks all changes (3 set_param calls)
+        # Verify tunable history
         history = suite.get_param_history("NULL_THRESHOLD")
         assert len(history) == 3
-        assert [h.new_value for h in history] == [0.20, 0.40, 0.50]
+        assert [h.new_value for h in history] == [0.10, 0.20, 0.30]
 
 
 class TestResetExecutionId:
