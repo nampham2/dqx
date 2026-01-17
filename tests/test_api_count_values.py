@@ -198,8 +198,6 @@ def test_count_values_failure_case() -> None:
 
 def test_count_values_with_empty_list() -> None:
     """Test CountValues with an empty list of values raises ValueError."""
-    data = pa.table({"col": [1, 2, 3]})
-    ds = DuckRelationDataSource.from_arrow(data, "data")
 
     @check(name="Empty List Check")
     def empty_list_check(mp: MetricProvider, ctx: Context) -> None:
@@ -207,12 +205,10 @@ def test_count_values_with_empty_list() -> None:
         ctx.assert_that(mp.count_values("col", [])).where(name="Count with empty list should be 0").is_eq(0)
 
     db = InMemoryMetricDB()
-    suite = VerificationSuite([empty_list_check], db, "Test Suite")
-    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
-    # Expecting ValueError because empty list is not allowed
+    # Expecting ValueError during suite creation (graph built in __init__)
     with pytest.raises(ValueError, match="CountValues requires at least one value"):
-        suite.run([ds], key)
+        VerificationSuite([empty_list_check], db, "Test Suite")
 
 
 def test_count_values_with_special_characters() -> None:

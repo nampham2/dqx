@@ -3,12 +3,21 @@
 This module provides an extensible type hierarchy for tunable parameters
 that can be adjusted by RL agents within specified bounds.
 
+Tunables can be used directly in SymPy expressions, automatically converting
+to TunableSymbol objects that preserve the tunable reference for later
+collection and manipulation.
+
 Example:
     >>> from dqx.tunables import TunablePercent, TunableInt
     >>> threshold = TunablePercent("NULL_THRESHOLD", value=0.05, bounds=(0.0, 0.20))
     >>> threshold.set(0.03, agent="rl_optimizer", reason="Episode 42")
     >>> threshold.value
     0.03
+    >>>
+    >>> # Use tunable directly in expressions (no .value needed)
+    >>> import sympy as sp
+    >>> x = sp.Symbol("x")
+    >>> expr = x - threshold  # threshold auto-converts to TunableSymbol
 """
 
 from __future__ import annotations
@@ -16,7 +25,12 @@ from __future__ import annotations
 import datetime
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
+
+import sympy as sp
+
+if TYPE_CHECKING:
+    import sympy.core.expr
 
 T = TypeVar("T")
 
@@ -38,6 +52,73 @@ class TunableChange:
     new_value: Any
     agent: str
     reason: str | None = None
+
+
+class TunableSymbol(sp.Symbol):
+    """SymPy Symbol that wraps a Tunable parameter.
+
+    This allows Tunables to be used directly in SymPy expressions while
+    preserving the reference to the underlying Tunable object for later
+    extraction and manipulation.
+
+    The TunableSymbol appears as a regular symbol in expressions but maintains
+    a reference to its source Tunable, enabling automatic collection of all
+    tunables used in assertions.
+
+    Example:
+        >>> from dqx.tunables import TunablePercent
+        >>> threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        >>> symbol = TunableSymbol(threshold)
+        >>> x = sp.Symbol("x")
+        >>> expr = x - symbol
+        >>> # expr now contains the TunableSymbol which can be extracted later
+        >>> # symbol.tunable gives access to the original Tunable object
+    """
+
+    def __new__(cls, tunable: Tunable[Any]) -> TunableSymbol:
+        """Create a new TunableSymbol wrapping the given Tunable.
+
+        Args:
+            tunable: The Tunable object to wrap as a SymPy symbol.
+
+        Returns:
+            TunableSymbol: A SymPy Symbol subclass that preserves the tunable reference.
+
+        Note:
+            We use a unique dummy assumption (based on tunable ID) to ensure different
+            Tunable instances with the same name create different TunableSymbol instances,
+            preventing SymPy's caching from causing test isolation issues.
+        """
+        # Create a unique dummy assumption to prevent SymPy caching
+        # This ensures different tunable instances with the same name get different symbols
+        dummy_assumption = f"_tid{id(tunable)}"
+        # Use a custom assumption that SymPy will treat as unique
+        obj = sp.Symbol.__new__(cls, tunable.name, **{dummy_assumption: True})
+        # Store reference to the tunable (uses object.__setattr__ to bypass SymPy's immutability)
+        object.__setattr__(obj, "_tunable_ref", tunable)
+        return obj
+
+    @property
+    def tunable(self) -> Tunable[Any]:
+        """Get the underlying Tunable object.
+
+        Returns:
+            Tunable: The original Tunable instance wrapped by this symbol.
+        """
+        return object.__getattribute__(self, "_tunable_ref")
+
+    @property
+    def value(self) -> Any:
+        """Get the current value of the tunable for evaluation.
+
+        This property allows TunableSymbol to be substituted with its numeric
+        value during expression evaluation, enabling seamless integration with
+        SymPy's numeric evaluation system.
+
+        Returns:
+            The current value of the underlying tunable.
+        """
+        return self.tunable.value
 
 
 @dataclass
@@ -105,6 +186,60 @@ class Tunable(ABC, Generic[T]):
                 reason=reason,
             )
         )
+
+    # Arithmetic operators to support using Tunables directly in expressions
+
+    def __add__(self, other: Any) -> sympy.core.expr.Expr:
+        """Support addition: threshold + x."""
+        return TunableSymbol(self) + other
+
+    def __radd__(self, other: Any) -> sympy.core.expr.Expr:
+        """Support reverse addition: x + threshold."""
+        return other + TunableSymbol(self)
+
+    def __sub__(self, other: Any) -> sympy.core.expr.Expr:
+        """Support subtraction: threshold - x."""
+        return TunableSymbol(self) - other
+
+    def __rsub__(self, other: Any) -> sympy.core.expr.Expr:
+        """Support reverse subtraction: x - threshold."""
+        return other - TunableSymbol(self)
+
+    def __mul__(self, other: Any) -> sympy.core.expr.Expr:
+        """Support multiplication: threshold * x."""
+        return TunableSymbol(self) * other
+
+    def __rmul__(self, other: Any) -> sympy.core.expr.Expr:
+        """Support reverse multiplication: x * threshold."""
+        return other * TunableSymbol(self)
+
+    def __truediv__(self, other: Any) -> sympy.core.expr.Expr:
+        """Support division: threshold / x."""
+        return TunableSymbol(self) / other
+
+    def __rtruediv__(self, other: Any) -> sympy.core.expr.Expr:
+        """Support reverse division: x / threshold."""
+        return other / TunableSymbol(self)
+
+    def __neg__(self) -> sympy.core.expr.Expr:
+        """Support negation: -threshold."""
+        return -TunableSymbol(self)
+
+    def __lt__(self, other: Any) -> bool:
+        """Support < comparison using the tunable's value."""
+        return self.value < other
+
+    def __le__(self, other: Any) -> bool:
+        """Support <= comparison using the tunable's value."""
+        return self.value <= other
+
+    def __gt__(self, other: Any) -> bool:
+        """Support > comparison using the tunable's value."""
+        return self.value > other
+
+    def __ge__(self, other: Any) -> bool:
+        """Support >= comparison using the tunable's value."""
+        return self.value >= other
 
 
 @dataclass

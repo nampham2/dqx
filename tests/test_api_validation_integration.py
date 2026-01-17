@@ -11,7 +11,7 @@ from dqx.provider import MetricProvider
 
 
 def test_suite_validation_on_build_graph_success() -> None:
-    """Test that validation runs during build_graph with valid suite."""
+    """Test that validation runs during suite initialization with valid suite."""
     db = InMemoryMetricDB()
 
     @check(name="Valid Check 1")
@@ -22,14 +22,13 @@ def test_suite_validation_on_build_graph_success() -> None:
     def check2(mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(mp.average("price")).where(name="Price check").is_positive()
 
+    # Should not raise any errors during suite creation (graph is built in __init__)
     suite = VerificationSuite([check1, check2], db, "Valid Suite")
-
-    # Should not raise any errors
-    suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {"test": "true"}))
+    assert suite is not None  # Suite created successfully
 
 
 def test_suite_validation_on_build_graph_failure() -> None:
-    """Test that validation fails with duplicate check names."""
+    """Test that validation fails with duplicate check names during suite creation."""
     db = InMemoryMetricDB()
 
     @check(name="Duplicate Name")
@@ -40,50 +39,46 @@ def test_suite_validation_on_build_graph_failure() -> None:
     def check2(mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(mp.average("price")).where(name="Test").is_positive()
 
-    suite = VerificationSuite([check1, check2], db, "Invalid Suite")
-
-    # Should raise DQXError with validation message
+    # Should raise DQXError during suite creation (graph built in __init__)
     with pytest.raises(DQXError) as exc_info:
-        suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {"test": "true"}))
+        VerificationSuite([check1, check2], db, "Invalid Suite")
 
     assert "validation failed" in str(exc_info.value).lower()
     assert "Duplicate check name" in str(exc_info.value)
 
 
 def test_suite_validation_warnings_logged() -> None:
-    """Test that validation warnings don't cause failure."""
+    """Test that validation warnings don't cause failure during suite creation."""
     db = InMemoryMetricDB()
 
     @check(name="Empty Check")
     def empty_check(mp: MetricProvider, ctx: Context) -> None:
         pass  # No assertions!
 
-    suite = VerificationSuite([empty_check], db, "Test Suite")
-
-    # Should not raise error even with warnings
+    # Should not raise error even with warnings (graph built in __init__)
     # The warning will be logged to stderr but won't cause failure
-    suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {"test": "true"}))
+    suite = VerificationSuite([empty_check], db, "Test Suite")
 
     # If we got here without exception, the test passed
     # The warning was logged but didn't cause failure
+    assert suite is not None
 
 
 def test_validation_warnings_during_build_graph() -> None:
-    """Test that validation warnings are logged but don't fail build_graph."""
+    """Test that validation warnings are logged but don't fail suite creation."""
     db = InMemoryMetricDB()
 
     @check(name="Empty Check")
     def empty_check(mp: MetricProvider, ctx: Context) -> None:
         pass  # No assertions!
 
-    suite = VerificationSuite([empty_check], db, "Test Suite")
-
-    # Build graph should succeed despite warnings (warnings are only logged)
+    # Build graph (during __init__) should succeed despite warnings (warnings are only logged)
     # This won't raise an exception because warnings don't cause failure
-    suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {}))
+    suite = VerificationSuite([empty_check], db, "Test Suite")
 
     # The test passes if no exception was raised
     # Warnings are logged but don't prevent execution
+    assert suite is not None
 
 
 def test_noop_assertion_always_succeeds() -> None:

@@ -40,7 +40,7 @@ def test_evaluator_sympify_non_basic_expression() -> None:
     # The sympify happens in _gather, not evaluate
     # We need to test _gather directly with a non-Basic expression
     # True is not a sp.Basic, so it will be sympified
-    symbol_values, symbol_infos = evaluator._gather(True)
+    _, symbol_values, symbol_infos = evaluator._gather(True)
 
     # True becomes S.true which has no free symbols
     assert len(symbol_values) == 0
@@ -48,7 +48,7 @@ def test_evaluator_sympify_non_basic_expression() -> None:
 
     # Test with a more complex case - a Python int
     # This tests the sympify path for non-Basic values
-    symbol_values2, symbol_infos2 = evaluator._gather(42)
+    _, symbol_values2, symbol_infos2 = evaluator._gather(42)
     assert len(symbol_values2) == 0  # No symbols in constant
     assert len(symbol_infos2) == 0
 

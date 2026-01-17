@@ -229,18 +229,17 @@ class Interpreter:
 
     def _build_suite(self, suite_ast: Suite) -> VerificationSuite:
         """Convert DQL Suite AST into DQX VerificationSuite."""
-        # Build tunables
+        # Build tunables (creates Tunable objects that will be auto-discovered)
         tunables = self._build_tunables(suite_ast.tunables)
 
-        # Build checks
+        # Build checks (tunables are used in expressions, will be auto-discovered)
         checks = [self._build_check(c, tunables) for c in suite_ast.checks]
 
-        # Create suite with availability threshold if specified
+        # Create suite - tunables will be auto-discovered from check expressions
         suite = VerificationSuite(
             checks=checks,
             db=self.db,
             name=suite_ast.name,
-            tunables=tunables,
             data_av_threshold=suite_ast.availability_threshold or 0.9,
         )
 

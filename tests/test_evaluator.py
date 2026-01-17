@@ -158,7 +158,7 @@ class TestEvaluatorGather:
         evaluator._metrics = {symbol: Success(42.0)}
 
         # Pass a boolean that needs sympify
-        values, infos = evaluator._gather(True)
+        _, values, infos = evaluator._gather(True)
 
         # Should handle boolean as constant
         assert len(values) == 0  # No symbols in True
@@ -231,7 +231,7 @@ class TestEvaluatorGather:
 
         # Gather for expression with both symbols
         expr = x1 + x2
-        values, infos = evaluator._gather(expr)
+        _, values, infos = evaluator._gather(expr)
 
         # Values should only have successful symbol
         assert len(values) == 1
