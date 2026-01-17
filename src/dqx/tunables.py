@@ -83,9 +83,17 @@ class TunableSymbol(sp.Symbol):
 
         Returns:
             TunableSymbol: A SymPy Symbol subclass that preserves the tunable reference.
+
+        Note:
+            We use a unique dummy assumption (based on tunable ID) to ensure different
+            Tunable instances with the same name create different TunableSymbol instances,
+            preventing SymPy's caching from causing test isolation issues.
         """
-        # Create symbol with the tunable's name
-        obj = sp.Symbol.__new__(cls, tunable.name)
+        # Create a unique dummy assumption to prevent SymPy caching
+        # This ensures different tunable instances with the same name get different symbols
+        dummy_assumption = f"_tid{id(tunable)}"
+        # Use a custom assumption that SymPy will treat as unique
+        obj = sp.Symbol.__new__(cls, tunable.name, **{dummy_assumption: True})
         # Store reference to the tunable (uses object.__setattr__ to bypass SymPy's immutability)
         object.__setattr__(obj, "_tunable_ref", tunable)
         return obj

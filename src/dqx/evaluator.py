@@ -110,7 +110,7 @@ class Evaluator:
         """
         return self.provider.get_symbol(symbol)
 
-    def _gather(self, expr: sp.Expr) -> Tuple[dict[sp.Symbol, float], list[SymbolInfo]]:
+    def _gather(self, expr: sp.Expr) -> Tuple[sp.Expr, dict[sp.Symbol, float], list[SymbolInfo]]:
         """Gather metric values and symbol information for all symbols in an expression.
 
         Extracts all free symbols from the expression and retrieves their
@@ -123,6 +123,7 @@ class Evaluator:
 
         Returns:
             Tuple containing:
+            - Expression with TunableSymbols substituted with their values
             - Dictionary mapping symbols to their float values (empty if failures)
             - List of SymbolInfo objects for all symbols in the expression
 
@@ -142,12 +143,9 @@ class Evaluator:
         tunable_subs = {}
         for ts in expr.atoms(TunableSymbol):
             tunable_subs[ts] = ts.value
-            print(f"[EVALUATOR DEBUG] Substituting {ts.name} with {ts.value}")
 
         if tunable_subs:
-            print(f"[EVALUATOR DEBUG] Expression before subs: {expr}")
             expr = expr.subs(tunable_subs)
-            print(f"[EVALUATOR DEBUG] Expression after subs: {expr}")
 
         for sym in expr.free_symbols:
             if sym not in self.metrics:
@@ -180,7 +178,7 @@ class Evaluator:
                 case _:
                     pass
 
-        return symbol_values, symbol_infos
+        return expr, symbol_values, symbol_infos
 
     def evaluate(self, expr: sp.Expr) -> Result[float, list[EvaluationFailure]]:
         """Evaluate a symbolic expression by substituting collected metric values.
@@ -205,7 +203,7 @@ class Evaluator:
             symbols fail to evaluate or if the result is NaN/infinity.
         """
         # Gather symbol values and information
-        symbol_values, symbol_infos = self._gather(expr)
+        expr, symbol_values, symbol_infos = self._gather(expr)
 
         # Check if any symbols failed to evaluate
         failed_symbols = [si for si in symbol_infos if not is_successful(si.value)]
@@ -409,5 +407,5 @@ class Evaluator:
             symbols = evaluator.collect_symbols(expr)
             # Returns [SymbolInfo(...), SymbolInfo(...)]
         """
-        _, symbol_infos = self._gather(expr)
+        _, _, symbol_infos = self._gather(expr)
         return symbol_infos
