@@ -150,7 +150,7 @@ class TestApiCoverage:
             mock_validator.return_value.validate.return_value = warning_report
 
             with patch("dqx.api.logger") as mock_logger:
-                suite2.build_graph(suite2._context, ResultKey(datetime.date.today(), {}))
+                suite2.build_graph(suite2._context)
                 mock_logger.debug.assert_called_once()
                 assert "Suite validation warnings:" in mock_logger.debug.call_args[0][0]
 

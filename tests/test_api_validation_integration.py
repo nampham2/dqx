@@ -25,7 +25,7 @@ def test_suite_validation_on_build_graph_success() -> None:
     suite = VerificationSuite([check1, check2], db, "Valid Suite")
 
     # Should not raise any errors
-    suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {"test": "true"}))
+    suite.build_graph(suite._context)
 
 
 def test_suite_validation_on_build_graph_failure() -> None:
@@ -44,7 +44,7 @@ def test_suite_validation_on_build_graph_failure() -> None:
 
     # Should raise DQXError with validation message
     with pytest.raises(DQXError) as exc_info:
-        suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {"test": "true"}))
+        suite.build_graph(suite._context)
 
     assert "validation failed" in str(exc_info.value).lower()
     assert "Duplicate check name" in str(exc_info.value)
@@ -62,7 +62,7 @@ def test_suite_validation_warnings_logged() -> None:
 
     # Should not raise error even with warnings
     # The warning will be logged to stderr but won't cause failure
-    suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {"test": "true"}))
+    suite.build_graph(suite._context)
 
     # If we got here without exception, the test passed
     # The warning was logged but didn't cause failure
@@ -80,7 +80,7 @@ def test_validation_warnings_during_build_graph() -> None:
 
     # Build graph should succeed despite warnings (warnings are only logged)
     # This won't raise an exception because warnings don't cause failure
-    suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {}))
+    suite.build_graph(suite._context)
 
     # The test passes if no exception was raised
     # Warnings are logged but don't prevent execution

@@ -1,11 +1,9 @@
 """Integration tests for DatasetValidator within VerificationSuite."""
 
-from datetime import date
-
 import pytest
 
 from dqx.api import Context, MetricProvider, VerificationSuite, check
-from dqx.common import DQXError, ResultKey
+from dqx.common import DQXError
 from dqx.orm.repositories import InMemoryMetricDB
 
 
@@ -24,7 +22,7 @@ def test_verification_suite_detects_dataset_mismatch() -> None:
 
     # Validation during build_graph should fail
     with pytest.raises(DQXError) as exc_info:
-        suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {}))
+        suite.build_graph(suite._context)
 
     error_str = str(exc_info.value)
     assert "dataset_mismatch" in error_str
@@ -46,7 +44,7 @@ def test_verification_suite_allows_valid_datasets() -> None:
     suite = VerificationSuite([price_check], db, "Test Suite")
 
     # Validation should pass - no exception raised
-    suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {}))
+    suite.build_graph(suite._context)
 
 
 def test_verification_suite_dataset_ambiguity_error() -> None:
@@ -63,7 +61,7 @@ def test_verification_suite_dataset_ambiguity_error() -> None:
 
     # Validation should report ambiguity error
     with pytest.raises(DQXError) as exc_info:
-        suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {}))
+        suite.build_graph(suite._context)
 
     error_str = str(exc_info.value)
     assert "no dataset specified" in error_str
@@ -83,7 +81,7 @@ def test_verification_suite_allows_no_dataset_with_single_check_dataset() -> Non
     suite = VerificationSuite([price_check], db, "Test Suite")
 
     # Validation should pass - imputation will handle it
-    suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {}))
+    suite.build_graph(suite._context)
 
 
 def test_verification_suite_no_validation_without_datasets() -> None:
@@ -99,7 +97,7 @@ def test_verification_suite_no_validation_without_datasets() -> None:
     suite = VerificationSuite([price_check], db, "Test Suite")
 
     # Validation should pass - no dataset validation when check has no datasets
-    suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {}))
+    suite.build_graph(suite._context)
 
 
 def test_verification_suite_build_graph_validates_datasets() -> None:
@@ -116,7 +114,7 @@ def test_verification_suite_build_graph_validates_datasets() -> None:
 
     # Build graph should fail validation
     with pytest.raises(DQXError) as exc_info:
-        suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {}))
+        suite.build_graph(suite._context)
 
     assert "testing" in str(exc_info.value)
 
@@ -141,7 +139,7 @@ def test_multiple_checks_with_dataset_issues() -> None:
 
     # Validation should report errors due to second check
     with pytest.raises(DQXError) as exc_info:
-        suite.build_graph(suite._context, ResultKey(date(2024, 1, 1), {}))
+        suite.build_graph(suite._context)
 
     error_str = str(exc_info.value)
     assert "Invalid Check" in error_str

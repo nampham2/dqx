@@ -33,7 +33,7 @@ def test_assertion_node_is_immutable() -> None:
 def test_assertion_methods_return_none() -> None:
     """Assertion methods should not return AssertBuilder for chaining."""
     db = InMemoryMetricDB()
-    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+    Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
     # Create a simple check to have proper context
     @check(name="Test Check")
@@ -54,15 +54,13 @@ def test_assertion_methods_return_none() -> None:
         assert result3 is None  # Should return None
 
     # Set up suite with the check
-    suite = VerificationSuite([test_check], db, "test")
-    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.build_graph(context, key=key)
+    VerificationSuite([test_check], db, "test")
 
 
 def test_no_assertion_chaining() -> None:
     """Chained assertions should not be possible."""
     db = InMemoryMetricDB()
-    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+    Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -74,15 +72,13 @@ def test_no_assertion_chaining() -> None:
             result.is_lt(100)  # type: ignore[attr-defined]
 
     # Set up suite and run check
-    suite = VerificationSuite([test_check], db, "test")
-    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.build_graph(context, key=key)
+    VerificationSuite([test_check], db, "test")
 
 
 def test_multiple_assertions_on_same_metric() -> None:
     """Test that multiple separate assertions can be made on the same metric."""
     db = InMemoryMetricDB()
-    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+    Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -101,9 +97,7 @@ def test_multiple_assertions_on_same_metric() -> None:
         assert check_node.children[0].name == "Greater than 40"
         assert check_node.children[1].name == "Less than 60"
 
-    suite = VerificationSuite([test_check], db, "test")
-    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.build_graph(context, key=key)
+    VerificationSuite([test_check], db, "test")
 
 
 def test_simple_check_uses_function_name() -> None:
@@ -142,8 +136,7 @@ def test_simple_check_works_in_suite() -> None:
 
     # Collect checks (this is where it would fail with NameError)
     context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
-    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.build_graph(context, key)
+    suite.build_graph(context)
 
     # Verify the check was registered correctly
     checks = list(context._graph.root.children)
@@ -194,8 +187,7 @@ def test_check_decorator_with_name_works() -> None:
 
     # Verify it can be collected
     context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
-    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.build_graph(context, key)
+    suite.build_graph(context)
 
     # Verify the check was registered with the correct name
     checks = list(context._graph.root.children)
@@ -258,7 +250,7 @@ def test_context_assert_that_returns_draft() -> None:
 def test_assertion_workflow_end_to_end() -> None:
     """Test complete assertion workflow from draft to execution."""
     db = InMemoryMetricDB()
-    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+    Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -276,9 +268,7 @@ def test_assertion_workflow_end_to_end() -> None:
         assert len(ctx.current_check.children) == 1
         assert ctx.current_check.children[0].name == "X is positive"
 
-    suite = VerificationSuite([test_check], db, "test")
-    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.build_graph(context, key=key)
+    VerificationSuite([test_check], db, "test")
 
 
 def test_cannot_use_assertion_methods_on_draft() -> None:
@@ -313,7 +303,7 @@ def test_where_requires_name_parameter() -> None:
 def test_assertion_ready_always_has_name() -> None:
     """AssertionReady should always have a name set."""
     db = InMemoryMetricDB()
-    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+    Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -324,9 +314,7 @@ def test_assertion_ready_always_has_name() -> None:
         assertion_node = ctx.current_check.children[0]
         assert assertion_node.name == "My assertion"
 
-    suite = VerificationSuite([test_check], db, "test")
-    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.build_graph(context, key=key)
+    VerificationSuite([test_check], db, "test")
 
 
 def test_where_validates_name() -> None:
@@ -460,7 +448,7 @@ def test_verification_suite_build_graph_method() -> None:
 def test_is_between_assertion_workflow() -> None:
     """Test is_between assertion in complete workflow."""
     db = InMemoryMetricDB()
-    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+    Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
     @check(name="Range Check")
     def range_check(mp: MetricProvider, ctx: Context) -> None:
@@ -476,9 +464,7 @@ def test_is_between_assertion_workflow() -> None:
         assert ctx.current_check.children[0].name == "X is between 10 and 20"
         assert ctx.current_check.children[1].name == "Y equals 5"
 
-    suite = VerificationSuite([range_check], db, "test")
-    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.build_graph(context, key=key)
+    VerificationSuite([range_check], db, "test")
 
 
 def test_is_between_invalid_bounds() -> None:
@@ -510,7 +496,7 @@ def test_assertion_ready_has_noop_method() -> None:
 def test_noop_assertion_workflow() -> None:
     """Test complete noop assertion workflow."""
     db = InMemoryMetricDB()
-    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+    Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
     @check(name="Metric Collection Check")
     def collection_check(mp: MetricProvider, ctx: Context) -> None:
@@ -523,9 +509,7 @@ def test_noop_assertion_workflow() -> None:
         assert ctx.current_check is not None
         assert len(ctx.current_check.children) == 3
 
-    suite = VerificationSuite([collection_check], db, "test")
-    key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-    suite.build_graph(context, key=key)
+    VerificationSuite([collection_check], db, "test")
 
 
 def test_verification_suite_metric_trace() -> None:
@@ -953,7 +937,7 @@ class TestNewAssertionMethods:
     def test_is_neq_assertion_workflow(self) -> None:
         """Test is_neq assertion in complete workflow."""
         db = InMemoryMetricDB()
-        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+        Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
         @check(name="Not Equal Check")
         def neq_check(mp: MetricProvider, ctx: Context) -> None:
@@ -970,14 +954,12 @@ class TestNewAssertionMethods:
             assert ctx.current_check.children[0].name == "X is not zero"
             assert ctx.current_check.children[1].name == "Y is not 100"
 
-        suite = VerificationSuite([neq_check], db, "test")
-        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-        suite.build_graph(context, key=key)
+        VerificationSuite([neq_check], db, "test")
 
     def test_is_neq_validator_description(self) -> None:
         """Test is_neq creates correct validator description."""
         db = InMemoryMetricDB()
-        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+        Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
         @check(name="Validator Check")
         def val_check(mp: MetricProvider, ctx: Context) -> None:
@@ -987,14 +969,12 @@ class TestNewAssertionMethods:
             assertion = ctx.current_check.children[0]
             assert "\u2260 42" in assertion.validator.name  # ≠ symbol
 
-        suite = VerificationSuite([val_check], db, "test")
-        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-        suite.build_graph(context, key=key)
+        VerificationSuite([val_check], db, "test")
 
     def test_is_neq_with_tolerance(self) -> None:
         """Test is_neq with custom tolerance."""
         db = InMemoryMetricDB()
-        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+        Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
         @check(name="Tolerance Check")
         def tol_check(mp: MetricProvider, ctx: Context) -> None:
@@ -1015,9 +995,7 @@ class TestNewAssertionMethods:
             assert ctx.current_check is not None
             assert len(ctx.current_check.children) == 2
 
-        suite = VerificationSuite([tol_check], db, "test")
-        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-        suite.build_graph(context, key=key)
+        VerificationSuite([tol_check], db, "test")
 
     def test_assertion_ready_has_is_zero(self) -> None:
         """AssertionReady should have is_zero method."""
@@ -1030,7 +1008,7 @@ class TestNewAssertionMethods:
     def test_is_zero_assertion_workflow(self) -> None:
         """Test is_zero assertion in complete workflow."""
         db = InMemoryMetricDB()
-        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+        Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
         @check(name="Zero Check")
         def zero_check(mp: MetricProvider, ctx: Context) -> None:
@@ -1040,14 +1018,12 @@ class TestNewAssertionMethods:
             assert len(ctx.current_check.children) == 1
             assert ctx.current_check.children[0].name == "X is zero"
 
-        suite = VerificationSuite([zero_check], db, "test")
-        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-        suite.build_graph(context, key=key)
+        VerificationSuite([zero_check], db, "test")
 
     def test_is_zero_validator_description(self) -> None:
         """Test is_zero creates correct validator description."""
         db = InMemoryMetricDB()
-        context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+        Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
         @check(name="Validator Check")
         def val_check(mp: MetricProvider, ctx: Context) -> None:
@@ -1057,9 +1033,7 @@ class TestNewAssertionMethods:
             assertion = ctx.current_check.children[0]
             assert "== 0" in assertion.validator.name
 
-        suite = VerificationSuite([val_check], db, "test")
-        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-        suite.build_graph(context, key=key)
+        VerificationSuite([val_check], db, "test")
 
     def test_is_zero_with_tolerance(self) -> None:
         """Test is_zero with custom tolerance."""
@@ -1077,8 +1051,7 @@ class TestNewAssertionMethods:
             assert len(ctx.current_check.children) == 2
 
         suite = VerificationSuite([tol_check], db, "test")
-        key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
-        suite.build_graph(context, key=key)
+        suite.build_graph(context)
 
 
 class TestTagValidation:

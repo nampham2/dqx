@@ -814,7 +814,7 @@ class VerificationSuite:
         # Clear plugin manager (will be lazy-loaded on next use)
         self._plugin_manager = None
 
-    def build_graph(self, context: Context, key: ResultKey) -> None:
+    def build_graph(self, context: Context) -> None:
         """
         Populate the execution graph by running all registered checks and validate it.
 
@@ -822,7 +822,6 @@ class VerificationSuite:
 
         Args:
             context: Execution context that holds the graph and provider.
-            key: Result key identifying the run (reserved for future use).
 
         Raises:
             DQXError: If the graph validation reports errors.
@@ -891,7 +890,7 @@ class VerificationSuite:
 
         # Build the dependency graph
         logger.info("Building dependency graph...")
-        self.build_graph(self._context, key)
+        self.build_graph(self._context)
 
         # 1. Impute datasets using visitor pattern
         # Use graph in the context to avoid the check if the suite has been evaluated
