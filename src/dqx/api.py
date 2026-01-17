@@ -31,7 +31,7 @@ from dqx.graph.traversal import Graph
 from dqx.plugins import PluginExecutionContext, PluginManager
 from dqx.profiles import Profile
 from dqx.provider import MetricProvider, SymbolicMetric
-from dqx.tunables import Tunable, TunableChange
+from dqx.tunables import Tunable, TunableChange, TunableSymbol
 from dqx.timer import Registry
 from dqx.validator import SuiteValidator
 
@@ -44,6 +44,45 @@ CheckCreator = Callable[[CheckProducer], CheckProducer]
 
 logger = logging.getLogger(__name__)
 timer_registry = Registry()
+
+
+def collect_tunables_from_graph(graph: Graph) -> dict[str, Tunable]:
+    """
+    Extract all Tunable objects referenced in assertion expressions.
+
+    Traverses the graph and collects TunableSymbol instances from
+    assertion expressions, returning a mapping of tunable names to
+    their Tunable objects.
+
+    Note: If multiple Tunable instances with the same name are used,
+    SymPy's symbol caching means only the last instance will be captured.
+    Users should avoid creating multiple tunables with the same name.
+
+    Args:
+        graph: The verification graph to scan for tunables
+
+    Returns:
+        dict[str, Tunable]: Mapping of tunable names to Tunable objects
+
+    Example:
+        >>> # After building the graph
+        >>> tunables = collect_tunables_from_graph(suite.graph)
+        >>> print(tunables.keys())  # {'THRESHOLD', 'MIN_ROWS', ...}
+    """
+    tunables: dict[str, Tunable] = {}
+
+    for assertion in graph.assertions():
+        # Extract all TunableSymbol atoms from the expression
+        tunable_symbols = assertion.actual.atoms(TunableSymbol)
+
+        for ts in tunable_symbols:
+            tunable = ts.tunable
+            name = tunable.name
+            # Due to SymPy's symbol caching, TunableSymbols with the same name
+            # are the same object, so we don't need to check for duplicates
+            tunables[name] = tunable
+
+    return tunables
 
 
 class AssertionDraft:
