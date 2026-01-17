@@ -175,8 +175,8 @@ class TestAssertionResultCollection:
         key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})
 
         # This should raise an exception during execution
-        with pytest.raises(Exception):  # Will raise some error due to missing datasource
-            suite.run([], key)  # Empty datasource list
+        with pytest.raises(DQXError, match="No data sources provided"):
+            suite.run([], key)
 
         # Flag should NOT be set on failure
         assert suite.is_evaluated is False
