@@ -31,7 +31,7 @@ from dqx.graph.traversal import Graph
 from dqx.plugins import PluginExecutionContext, PluginManager
 from dqx.profiles import Profile
 from dqx.provider import MetricProvider, SymbolicMetric
-from dqx.tunables import Tunable, TunableChange, TunableSymbol
+from dqx.tunables import Tunable, TunableChange
 from dqx.timer import Registry
 from dqx.validator import SuiteValidator
 
@@ -50,12 +50,12 @@ def collect_tunables_from_graph(graph: Graph) -> dict[str, Tunable]:
     """
     Extract all Tunable objects referenced in assertion expressions.
 
-    Traverses the graph and collects TunableSymbol instances from
-    assertion expressions, returning a mapping of tunable names to
-    their Tunable objects.
+    Uses graph traversal with TunableCollectorVisitor to scan the graph
+    and collect TunableSymbol instances from assertion expressions,
+    returning a mapping of tunable names to their Tunable objects.
 
     Note: If multiple Tunable instances with the same name are used,
-    SymPy's symbol caching means only the last instance will be captured.
+    only the last instance encountered during traversal will be captured.
     Users should avoid creating multiple tunables with the same name.
 
     Args:
@@ -69,20 +69,11 @@ def collect_tunables_from_graph(graph: Graph) -> dict[str, Tunable]:
         >>> tunables = collect_tunables_from_graph(suite.graph)
         >>> print(tunables.keys())  # {'THRESHOLD', 'MIN_ROWS', ...}
     """
-    tunables: dict[str, Tunable] = {}
+    from dqx.graph.visitors import TunableCollectorVisitor
 
-    for assertion in graph.assertions():
-        # Extract all TunableSymbol atoms from the expression
-        tunable_symbols = assertion.actual.atoms(TunableSymbol)
-
-        for ts in tunable_symbols:
-            tunable = ts.tunable
-            name = tunable.name
-            # Due to SymPy's symbol caching, TunableSymbols with the same name
-            # are the same object, so we don't need to check for duplicates
-            tunables[name] = tunable
-
-    return tunables
+    visitor = TunableCollectorVisitor()
+    graph.dfs(visitor)
+    return visitor.tunables
 
 
 class AssertionDraft:

@@ -1,4 +1,4 @@
-from typing import Generic, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 import sympy as sp
 
@@ -6,6 +6,9 @@ from dqx.common import DQXError
 from dqx.graph.base import BaseNode
 from dqx.graph.nodes import AssertionNode, CheckNode, RootNode
 from dqx.provider import MetricProvider
+
+if TYPE_CHECKING:
+    from dqx.tunables import Tunable
 
 TNode = TypeVar("TNode", bound=BaseNode)
 
@@ -313,5 +316,60 @@ class NodeCollector(Generic[TNode]):
 
         Args:
             node: The node to visit and potentially collect.
+        """
+        self.visit(node)
+
+
+class TunableCollectorVisitor:
+    """Visitor that collects Tunable objects from assertion expressions during graph traversal.
+
+    This visitor traverses the graph and extracts TunableSymbol instances from
+    AssertionNode expressions, collecting the underlying Tunable objects in a
+    dictionary mapping tunable names to Tunable instances.
+
+    Attributes:
+        tunables: Dictionary mapping tunable names to their Tunable objects.
+
+    Example:
+        >>> from dqx.graph.traversal import Graph
+        >>> collector = TunableCollectorVisitor()
+        >>> graph.dfs(collector)
+        >>> tunables = collector.tunables
+        >>> print(tunables.keys())  # {'THRESHOLD', 'MIN_ROWS', ...}
+    """
+
+    def __init__(self) -> None:
+        """Initialize a TunableCollectorVisitor with an empty tunables dictionary."""
+        self.tunables: dict[str, Tunable[Any]] = {}
+
+    def visit(self, node: BaseNode) -> None:
+        """Visit a node and collect TunableSymbols if it's an AssertionNode.
+
+        For AssertionNode instances, extracts all TunableSymbol atoms from the
+        assertion's actual expression and adds them to the tunables dictionary.
+
+        Args:
+            node: The node to visit.
+        """
+        if isinstance(node, AssertionNode):
+            # Import here to avoid circular dependency
+            from dqx.tunables import TunableSymbol
+
+            # Extract all TunableSymbol atoms from the expression
+            tunable_symbols = node.actual.atoms(TunableSymbol)
+
+            for ts in tunable_symbols:
+                tunable = ts.tunable
+                name = tunable.name
+                # Store tunable by name (later instances override earlier ones)
+                self.tunables[name] = tunable
+
+    async def visit_async(self, node: BaseNode) -> None:  # pragma: no cover
+        """Asynchronously visit a node and collect tunables.
+
+        Currently delegates to synchronous visit.
+
+        Args:
+            node: The node to visit.
         """
         self.visit(node)
