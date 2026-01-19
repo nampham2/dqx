@@ -192,9 +192,9 @@ def enforce_slas(mp: MetricProvider, ctx: Context) -> None:
 Adjust validation behavior during specific periods:
 
 ```python
-from dqx.profiles import HolidayProfile, tag, check
+from dqx.profiles import SeasonalProfile, tag, check
 
-christmas = HolidayProfile(
+christmas = SeasonalProfile(
     name="Christmas 2024",
     start_date=date(2024, 12, 20),
     end_date=date(2025, 1, 5),
