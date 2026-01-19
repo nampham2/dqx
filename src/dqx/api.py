@@ -32,8 +32,8 @@ from dqx.graph.traversal import Graph
 from dqx.plugins import PluginExecutionContext, PluginManager
 from dqx.profiles import Profile
 from dqx.provider import MetricProvider, SymbolicMetric
-from dqx.tunables import Tunable, TunableChange
 from dqx.timer import Registry
+from dqx.tunables import Tunable, TunableChange
 from dqx.validator import SuiteValidator
 
 if TYPE_CHECKING:
@@ -749,8 +749,7 @@ class VerificationSuite:
         checks: Sequence[CheckProducer | DecoratedCheck] | None = None,
         db: "MetricDB | None" = None,
         name: str | object = _NAME_NOT_PROVIDED,
-        *,
-        dql: str | Path | None = None,
+        dql: Path | None = None,
         log_level: int | str = logging.INFO,
         data_av_threshold: float = 0.9,
         profiles: Sequence[Profile] | None = None,
@@ -1488,6 +1487,7 @@ class VerificationSuite:
             DQLError: If expression cannot be evaluated
         """
         import sympy as sp
+
         from dqx.dql.errors import DQLError
         from dqx.tunables import TunableSymbol
 
