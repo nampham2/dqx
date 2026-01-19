@@ -549,6 +549,7 @@ profiles:
 
 **Python API Example:**
 ```python
+from datetime import date
 from dqx.profiles import SeasonalProfile, check, tag
 
 holiday = SeasonalProfile(
@@ -793,6 +794,7 @@ suite = VerificationSuite(
     db=db,
 )
 
+key = ResultKey(date.today(), {})
 suite.run(datasources, key)
 results = suite.collect_results()
 ```
