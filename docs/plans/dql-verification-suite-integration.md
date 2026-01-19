@@ -2239,19 +2239,19 @@ Add entry for this breaking change:
 
 ### Breaking Changes
 
-**DQL Profiles Removed**
+#### DQL Profiles Removed
 
 Profile definitions are no longer supported in DQL syntax. Profiles must now
 be defined in YAML configuration files or passed programmatically via the
 Python API.
 
-**Migration required:**
+##### Migration required:
 - Extract `profile` blocks from `.dql` files
 - Convert to YAML format in `config.yaml`
 - Or use Python `SeasonalProfile` API
 - See [Migration Guide](migration/dql-profiles-to-yaml.md) for details
 
-**Rationale:**
+##### Rationale:
 - Separates validation logic (DQL) from runtime behavior (profiles)
 - Enables environment-specific configuration without modifying DQL
 - Follows same pattern as tunables (YAML config)

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 import sympy as sp
 from returns.result import Result
 
-from dqx.common import AssertionStatus, EvaluationFailure, SeverityLevel, SymbolicValidator
+from dqx.common import AssertionStatus, DQXError, EvaluationFailure, SeverityLevel, SymbolicValidator
 from dqx.graph.base import BaseNode, CompositeNode
 
 if TYPE_CHECKING:
@@ -50,13 +50,13 @@ class RootNode(CompositeNode[None, "CheckNode"]):
             name: Human-readable name for the verification suite
 
         Raises:
-            ValueError: If name is empty or longer than 255 characters
+            DQXError: If name is empty or longer than 255 characters
         """
         if not name or not name.strip():
-            raise ValueError("Root name cannot be empty")
+            raise DQXError("Root name cannot be empty")
         stripped_name = name.strip()
         if len(stripped_name) > 255:
-            raise ValueError("Root name is too long (max 255 characters)")
+            raise DQXError("Root name is too long (max 255 characters)")
 
         super().__init__(parent=None)  # Root always has None parent
         self.name = stripped_name
@@ -104,13 +104,13 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
             datasets: Optional list of datasets this check applies to
 
         Raises:
-            ValueError: If name is empty or longer than 255 characters
+            DQXError: If name is empty or longer than 255 characters
         """
         if not name or not name.strip():
-            raise ValueError("Check name cannot be empty")
+            raise DQXError("Check name cannot be empty")
         stripped_name = name.strip()
         if len(stripped_name) > 255:
-            raise ValueError("Check name is too long (max 255 characters)")
+            raise DQXError("Check name is too long (max 255 characters)")
 
         super().__init__(parent)
         self.name = stripped_name

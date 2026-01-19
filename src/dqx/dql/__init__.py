@@ -4,6 +4,8 @@ This module provides parsing of DQL files for data quality checks.
 DQL programs are executed via VerificationSuite with the dql parameter.
 """
 
+from __future__ import annotations
+
 from dqx.dql.ast import (
     Annotation,
     Assertion,

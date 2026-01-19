@@ -28,11 +28,11 @@ from __future__ import annotations
 import logging
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
 
-from dqx.common import DQXError
+from dqx.common import DQXError, SeverityLevel
 from dqx.tunables import Tunable
 
 logger = logging.getLogger(__name__)
@@ -260,7 +260,7 @@ def _parse_rules(profile_name: str, rules_data: list[dict[str, Any]]) -> list[An
                 valid_fields = {"action", "target", "name", "severity"}
                 _validate_no_unknown_fields(rule_dict, valid_fields, f"Profile '{profile_name}', rule {rule_idx}")
 
-                rule = Rule(selector=selector, severity=severity)  # type: ignore[arg-type]
+                rule = Rule(selector=selector, severity=cast(SeverityLevel, severity))
 
             else:  # pragma: no cover
                 # This should never happen as we validate action above

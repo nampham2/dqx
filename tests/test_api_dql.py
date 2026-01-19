@@ -284,7 +284,7 @@ class TestCheckNameValidation:
 
         root = RootNode(name="Test Suite")
 
-        with pytest.raises(ValueError, match="Check name cannot be empty"):
+        with pytest.raises(DQXError, match="Check name cannot be empty"):
             CheckNode(parent=root, name="")
 
     def test_check_name_cannot_be_whitespace(self) -> None:
@@ -293,7 +293,7 @@ class TestCheckNameValidation:
 
         root = RootNode(name="Test Suite")
 
-        with pytest.raises(ValueError, match="Check name cannot be empty"):
+        with pytest.raises(DQXError, match="Check name cannot be empty"):
             CheckNode(parent=root, name="   ")
 
     def test_check_name_too_long(self) -> None:
@@ -303,7 +303,7 @@ class TestCheckNameValidation:
         root = RootNode(name="Test Suite")
         long_name = "a" * 256
 
-        with pytest.raises(ValueError, match="Check name is too long"):
+        with pytest.raises(DQXError, match="Check name is too long"):
             CheckNode(parent=root, name=long_name)
 
     def test_check_name_strips_whitespace(self) -> None:
@@ -327,7 +327,7 @@ class TestCheckNameValidation:
             ctx.assert_that(mp.num_rows()).where(name="test").is_gt(0)
 
         # Should fail when building the graph (during suite creation)
-        with pytest.raises(ValueError, match="Check name cannot be empty"):
+        with pytest.raises(DQXError, match="Check name cannot be empty"):
             VerificationSuite(
                 checks=[empty_name_check],
                 db=db,
@@ -342,14 +342,14 @@ class TestRootNodeValidation:
         """Test that RootNode rejects empty names."""
         from dqx.graph.nodes import RootNode
 
-        with pytest.raises(ValueError, match="Root name cannot be empty"):
+        with pytest.raises(DQXError, match="Root name cannot be empty"):
             RootNode(name="")
 
     def test_root_node_rejects_whitespace_only_name(self) -> None:
         """Test that RootNode rejects whitespace-only names."""
         from dqx.graph.nodes import RootNode
 
-        with pytest.raises(ValueError, match="Root name cannot be empty"):
+        with pytest.raises(DQXError, match="Root name cannot be empty"):
             RootNode(name="   ")
 
     def test_root_node_rejects_long_names(self) -> None:
@@ -357,7 +357,7 @@ class TestRootNodeValidation:
         from dqx.graph.nodes import RootNode
 
         long_name = "a" * 256
-        with pytest.raises(ValueError, match="Root name is too long"):
+        with pytest.raises(DQXError, match="Root name is too long"):
             RootNode(name=long_name)
 
     def test_root_node_strips_whitespace(self) -> None:

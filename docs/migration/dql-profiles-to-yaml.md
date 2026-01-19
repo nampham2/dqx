@@ -74,12 +74,14 @@ results = interp.run(Path("suite.dql"), datasources, date.today())
 ```python
 from dqx.api import VerificationSuite
 from dqx.common import ResultKey
+from datetime import date
 
 suite = VerificationSuite(
     dql=Path("suite.dql"),
     db=db,
     config=Path("config.yaml"),  # Add this
 )
+key = ResultKey(date.today(), {})
 suite.run(datasources, key)
 results = suite.collect_results()
 ```

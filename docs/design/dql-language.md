@@ -31,7 +31,7 @@ dql run suite.dql --connection databricks://... --date 2024-12-25
 
 A DQL file contains one suite. A suite contains checks and tunables.
 
-```
+```text
 suite
 ├── metadata (name, threshold)
 ├── tunables
