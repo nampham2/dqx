@@ -778,28 +778,6 @@ for r in results:
     print(f"{r.check}/{r.assertion_name}: {r.status}")
 ```
 
-Or use inline DQL source:
-
-```python
-dql_source = """
-suite "Quick Check" {
-    check "Basic" on orders {
-        assert num_rows() > 0
-            name "Has rows"
-    }
-}
-"""
-
-suite = VerificationSuite(
-    dql=dql_source,
-    db=db,
-)
-
-key = ResultKey(date.today(), {})
-suite.run(datasources, key)
-results = suite.collect_results()
-```
-
 ### RL Agent Integration
 
 DQL provides a programmatic API for reinforcement learning agents to optimize data quality checks:

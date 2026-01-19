@@ -1269,18 +1269,36 @@ class VerificationSuite:
         from dqx.tunables import TunableFloat, TunableInt
 
         # Reserved names (built-in metric function names that should not be shadowed)
+        # NOTE: Keep in sync with _build_metric_namespace()
         RESERVED_NAMES = {
+            # Math functions (sympy builtins)
+            "abs",
+            "sqrt",
+            "log",
+            "exp",
+            "min",
+            "max",
+            # Base aggregate metrics
             "num_rows",
             "null_count",
             "null_rate",
-            "avg",
-            "min",
-            "max",
+            "average",
             "sum",
+            "minimum",
+            "maximum",
+            "variance",
             "stddev",
+            # Completeness/value metrics
+            "unique_count",
+            "duplicate_count",
             "distinct_count",
+            "count_values",
+            "first",
+            # Extension metrics (temporal comparisons)
             "day_over_day",
             "week_over_week",
+            # Utility functions
+            "coalesce",
             "custom_sql",
         }
 

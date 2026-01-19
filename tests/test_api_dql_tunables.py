@@ -270,9 +270,84 @@ class TestDQLTunableCostPreservation:
 
         suite = VerificationSuite(dql=dql_file, db=db)
 
-        # The suite was created successfully, which means costs were parsed
-        # The actual cost values are stored in assertion nodes which are created during build_graph()
-        # We verify here that the suite was created without error, which confirms
-        # that float costs are handled correctly (no truncation during parsing)
+        # Access assertion nodes from the graph to verify costs
+        assertions = list(suite.graph.assertions())
+        assert len(assertions) == 1
+
+        assertion = assertions[0]
+        assert assertion.name == "Has rows"
+
+        # Verify costs are preserved as floats, not truncated to ints
+        assert assertion.cost_fp == 0.5, f"Expected cost_fp=0.5, got {assertion.cost_fp}"
+        assert assertion.cost_fn == 2.5, f"Expected cost_fn=2.5, got {assertion.cost_fn}"
+
+
+class TestDQLTunableReservedNames:
+    """Test that tunables cannot shadow reserved metric function names."""
+
+    @pytest.mark.parametrize(
+        "reserved_name",
+        [
+            # Math functions
+            "abs",
+            "sqrt",
+            "log",
+            "exp",
+            # Aggregate metrics
+            "average",
+            "minimum",
+            "maximum",
+            "variance",
+            # Completeness metrics
+            "unique_count",
+            "duplicate_count",
+            "count_values",
+            "first",
+            # Utility functions
+            "coalesce",
+        ],
+    )
+    def test_dql_tunable_cannot_shadow_reserved_names(self, tmp_path: Path, reserved_name: str) -> None:
+        """Tunables cannot use reserved metric function names."""
+        from dqx.dql.errors import DQLSyntaxError
+
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text(f"""
+            suite "Test" {{
+                tunable {reserved_name} = 5 bounds [1, 10]
+
+                check "Basic" on dataset {{
+                    assert num_rows() > 0
+                        name "Test"
+                }}
+            }}
+        """)
+
+        with pytest.raises(DQLSyntaxError, match=f"Tunable name '{reserved_name}' conflicts"):
+            VerificationSuite(dql=dql_file, db=db)
+
+    def test_dql_tunable_non_reserved_name_allowed(self, tmp_path: Path) -> None:
+        """Tunables can use non-reserved names."""
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+            suite "Test" {
+                tunable MY_THRESHOLD = 5 bounds [1, 10]
+                tunable custom_value = 100 bounds [10, 1000]
+
+                check "Basic" on dataset {
+                    assert num_rows() > MY_THRESHOLD
+                        name "Test"
+                }
+            }
+        """)
+
+        # Should succeed - these names don't conflict with reserved names
+        suite = VerificationSuite(dql=dql_file, db=db)
         assert suite is not None
-        assert suite._name == "Test"
+        tunables = {t["name"]: t for t in suite.get_tunable_params()}
+        assert "MY_THRESHOLD" in tunables
+        assert "custom_value" in tunables
