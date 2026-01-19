@@ -1231,6 +1231,25 @@ class VerificationSuite:
             # Use effective severity (profile override) if set, otherwise original
             effective_severity = assertion._effective_severity or assertion.severity
 
+            # Build expression, substituting tunable names with their actual values
+            # Step 1: Substitute TunableSymbols in the actual expression
+            from dqx.tunables import TunableSymbol
+
+            actual_expr = assertion.actual
+            tunable_symbols = actual_expr.atoms(TunableSymbol)
+            if tunable_symbols:
+                # Create substitution dict: TunableSymbol -> numeric value
+                subs_dict = {ts: ts.value for ts in tunable_symbols}
+                actual_expr = actual_expr.subs(subs_dict)
+
+            # Step 2: Substitute tunable names in the validator
+            validator_name = assertion.validator.name
+            for tunable_name, tunable in assertion.tunables.items():
+                validator_name = validator_name.replace(tunable_name, str(tunable.value))
+
+            # Step 3: Build final expression string
+            expression_str = f"{actual_expr} {validator_name}"
+
             result = AssertionResult(
                 yyyy_mm_dd=key.yyyy_mm_dd,
                 suite=self._name,
@@ -1239,7 +1258,7 @@ class VerificationSuite:
                 severity=effective_severity,
                 status=assertion._result,
                 metric=assertion._metric,
-                expression=f"{assertion.actual} {assertion.validator.name}",
+                expression=expression_str,
                 tags=key.tags,
                 assertion_tags=assertion.tags,
                 experimental=assertion.experimental,
