@@ -450,6 +450,7 @@ class AssertionReady:
 
             # Create validator with closure that evaluates tunables at validation time
             def between_validator(x: float) -> bool:
+                """Validate that x is between lower and upper bounds, evaluating tunables at runtime."""
                 # Get current values (tunable or static)
                 lower_val = lower.value if lower_is_tunable else lower  # type: ignore[union-attr]
                 upper_val = upper.value if upper_is_tunable else upper  # type: ignore[union-attr]
@@ -665,6 +666,7 @@ class Context:
 
     @property
     def provider(self) -> MetricProvider:
+        """Get the metric provider for this context."""
         return self._provider
 
     def assert_that(self, expr: sp.Expr) -> AssertionDraft:
@@ -2208,6 +2210,7 @@ def check(
     """
 
     def decorator(fn: CheckProducer) -> DecoratedCheck:
+        """Wrap the check function with metadata and return a decorated check."""
         wrapped = functools.wraps(fn)(functools.partial(_create_check, _check=fn, name=name, datasets=datasets))
         # No metadata storage needed anymore
         return cast(DecoratedCheck, wrapped)

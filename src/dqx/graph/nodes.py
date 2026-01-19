@@ -222,4 +222,5 @@ class AssertionNode(BaseNode["CheckNode"]):
         self._effective_severity: SeverityLevel | None = None
 
     def is_leaf(self) -> bool:
+        """Check if this node is a leaf node (has no children)."""
         return True
