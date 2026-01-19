@@ -1212,8 +1212,9 @@ class VerificationSuite:
         self.build_graph(self._context)
 
         # Re-collect tunables from the rebuilt graph
-        # The tunable instances are the same, but their values may have changed
-        self._tunables = collect_tunables_from_graph(self._context._graph)
+        # Merge both graph-discovered tunables and DQL tunables to preserve all
+        graph_tunables = collect_tunables_from_graph(self._context._graph)
+        self._tunables = {**graph_tunables, **self._dql_tunables}
 
         # Clear execution state
         self._is_evaluated = False
@@ -1624,14 +1625,22 @@ class VerificationSuite:
         n = None  # Will be required if params exist
 
         for part in parts[1:]:
-            # Match offset=N or n=N with optional whitespace
-            offset_match = re.search(r"offset\s*=\s*(\d+)", part)
-            n_match = re.search(r"n\s*=\s*(\d+)", part)
+            # Match offset=N or n=N with optional whitespace and decimal support
+            # Pattern matches: offset=1, offset=1.0, n=7, n=7.0, etc.
+            num_pattern = r"([0-9]+(?:\.[0-9]+)?)"
+            offset_match = re.search(rf"offset\s*=\s*{num_pattern}", part)
+            n_match = re.search(rf"n\s*=\s*{num_pattern}", part)
 
             if offset_match:
-                offset = int(offset_match.group(1))
+                offset_val = float(offset_match.group(1))
+                if not offset_val.is_integer():
+                    raise ValueError(f"stddev offset must be an integer, got: {offset_val}")
+                offset = int(offset_val)
             if n_match:
-                n = int(n_match.group(1))
+                n_val = float(n_match.group(1))
+                if not n_val.is_integer():
+                    raise ValueError(f"stddev n must be an integer, got: {n_val}")
+                n = int(n_val)
 
         # If params exist but n is not found, this shouldn't happen with valid DQL
         # The grammar should enforce n parameter when using stddev with params

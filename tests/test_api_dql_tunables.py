@@ -74,7 +74,6 @@ class TestDQLTunableAdjustability:
         tunables = {t["name"]: t for t in suite.get_tunable_params()}
         assert tunables["THRESHOLD"]["value"] == 0.10
 
-    @pytest.mark.skip(reason="reset() currently rebuilds graph and loses DQL tunables - known limitation")
     def test_dql_tunables_values_persist_after_reset(self, tmp_path: Path) -> None:
         """DQL tunable values persist after reset() (reset is for re-running, not resetting values)."""
         db = InMemoryMetricDB()
@@ -351,3 +350,79 @@ class TestDQLTunableReservedNames:
         tunables = {t["name"]: t for t in suite.get_tunable_params()}
         assert "MY_THRESHOLD" in tunables
         assert "custom_value" in tunables
+
+
+class TestDQLStddevDecimalParams:
+    """Test that stddev extension function handles decimal parameters correctly."""
+
+    def test_stddev_with_decimal_n_parameter(self, tmp_path: Path) -> None:
+        """stddev with n=7.0 (decimal) should work and be converted to int."""
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+            suite "Test" {
+                check "Basic" on dataset {
+                    assert stddev(average(price), n=7.0) < 1.0
+                        name "Low volatility"
+                }
+            }
+        """)
+
+        # Should parse successfully and convert 7.0 to int(7)
+        suite = VerificationSuite(dql=dql_file, db=db)
+        assert suite is not None
+
+    def test_stddev_with_decimal_offset_parameter(self, tmp_path: Path) -> None:
+        """stddev with offset=1.0 (decimal) should work and be converted to int."""
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+            suite "Test" {
+                check "Basic" on dataset {
+                    assert stddev(average(price), offset=1.0, n=7) < 1.0
+                        name "Low volatility"
+                }
+            }
+        """)
+
+        # Should parse successfully and convert 1.0 to int(1)
+        suite = VerificationSuite(dql=dql_file, db=db)
+        assert suite is not None
+
+    def test_stddev_with_non_integer_decimal_fails(self, tmp_path: Path) -> None:
+        """stddev with n=7.5 (non-integer decimal) should fail with clear error."""
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+            suite "Test" {
+                check "Basic" on dataset {
+                    assert stddev(average(price), n=7.5) < 1.0
+                        name "Low volatility"
+                }
+            }
+        """)
+
+        # Should fail with clear error about integer requirement
+        with pytest.raises(ValueError, match="stddev n must be an integer, got: 7.5"):
+            VerificationSuite(dql=dql_file, db=db)
+
+    def test_stddev_with_non_integer_offset_fails(self, tmp_path: Path) -> None:
+        """stddev with offset=1.5 (non-integer decimal) should fail with clear error."""
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+            suite "Test" {
+                check "Basic" on dataset {
+                    assert stddev(average(price), offset=1.5, n=7) < 1.0
+                        name "Low volatility"
+                }
+            }
+        """)
+
+        # Should fail with clear error about integer requirement
+        with pytest.raises(ValueError, match="stddev offset must be an integer, got: 1.5"):
+            VerificationSuite(dql=dql_file, db=db)
