@@ -1,5 +1,7 @@
 """Tests for configuration file loading."""
 
+from __future__ import annotations
+
 import datetime as dt
 from pathlib import Path
 from typing import Any
@@ -151,12 +153,12 @@ class TestApplyTunables:
             apply_tunables_from_config(config, tunables)
 
     def test_apply_invalid_tunable_value(self) -> None:
-        """Invalid tunable value should raise ValueError."""
+        """Invalid tunable value should raise DQXError."""
         threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
         tunables = {"THRESHOLD": threshold}
         config = {"tunables": {"THRESHOLD": 0.50}}  # Outside bounds
 
-        with pytest.raises(ValueError, match="Invalid value for tunable 'THRESHOLD'"):
+        with pytest.raises(DQXError, match="Invalid value for tunable 'THRESHOLD'"):
             apply_tunables_from_config(config, tunables)
 
     def test_apply_all_tunable_types(self) -> None:

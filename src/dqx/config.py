@@ -94,8 +94,7 @@ def apply_tunables_from_config(config: dict[str, Any], tunables: Mapping[str, Tu
         tunables: Mapping of tunable name to Tunable object from the suite.
 
     Raises:
-        DQXError: If configuration structure is invalid.
-        ValueError: If a tunable value fails validation (propagated from Tunable.set()).
+        DQXError: If configuration structure is invalid or a tunable value fails validation.
 
     Example:
         >>> config = {"tunables": {"THRESHOLD": 0.05, "MIN_ROWS": 1000}}
@@ -124,4 +123,4 @@ def apply_tunables_from_config(config: dict[str, Any], tunables: Mapping[str, Tu
             logger.debug(f"Set tunable '{name}' to {value} from config")
         except (ValueError, TypeError) as e:
             # Re-raise with more context about which config value failed
-            raise ValueError(f"Invalid value for tunable '{name}' in config: {e}") from e
+            raise DQXError(f"Invalid value for tunable '{name}' in config: {e}") from e
