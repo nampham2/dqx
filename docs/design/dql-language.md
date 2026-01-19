@@ -29,16 +29,14 @@ dql run suite.dql --connection databricks://... --date 2024-12-25
 
 ## Structure
 
-A DQL file contains one suite. A suite contains checks, profiles, and tunables.
+A DQL file contains one suite. A suite contains checks and tunables.
 
 ```
 suite
 ├── metadata (name, threshold)
 ├── tunables
-├── checks
-│   └── assertions
-└── profiles
-    └── rules
+└── checks
+    └── assertions
 ```
 
 ### Suite
@@ -49,7 +47,7 @@ Every DQL file begins with a suite declaration:
 suite "E-Commerce Data Quality" {
     availability_threshold 80%
 
-    # checks and profiles go here
+    # checks and tunables go here
 }
 ```
 
@@ -516,114 +514,62 @@ assert coalesce(average(price), 0) >= 0
 
 ## Profiles
 
-Profiles modify assertion behavior during specific periods. Define profiles at suite level.
+## Profiles (Removed in v0.6.0)
 
-```dql
-profile "Black Friday" {
-    from 2024-11-29
-    to   2024-12-02
+**Note:** Profile definitions are no longer part of DQL syntax as of v0.6.0.
 
-    disable check "Volume"
-    scale tag "seasonal" by 3.0
-}
+Profiles are now defined in:
+- **YAML configuration files** (recommended for most use cases)
+- **Python API** using `SeasonalProfile` class (for programmatic control)
+
+See the [Migration Guide](../migration/dql-profiles-to-yaml.md) for converting existing DQL profiles to YAML or Python API.
+
+**Why the change?** Profiles define runtime behavior (when/how to modify checks), which is conceptually separate from validation logic (what to check). This separation:
+- Enables environment-specific configuration without modifying DQL
+- Allows profile reuse across multiple suites
+- Follows the same pattern as tunables
+- Makes DQL simpler and more focused on validation logic
+
+**YAML Example:**
+```yaml
+profiles:
+  - name: "Holiday Season"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "disable"
+        target: "check"
+        name: "Volume"
+      - action: "scale"
+        target: "tag"
+        name: "reconciliation"
+        multiplier: 1.5
 ```
 
-### Profile Fields
+**Python API Example:**
+```python
+from dqx.profiles import SeasonalProfile, check, tag
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | Yes | Profile identifier |
-| `from` | Yes | Start date (ISO format or expression) |
-| `to` | Yes | End date (ISO format or expression) |
+holiday = SeasonalProfile(
+    name="Holiday Season",
+    start_date=date(2024, 12, 20),
+    end_date=date(2025, 1, 5),
+    rules=[
+        check("Volume").disable(),
+        tag("reconciliation").set(metric_multiplier=1.5),
+    ],
+)
 
-### Dynamic Dates
-
-Profiles support both fixed ISO dates and date arithmetic:
-
-```dql
-profile "Holiday Season" {
-    from 2024-12-20
-    to   2025-01-05
-}
+suite = VerificationSuite(
+    dql=Path("suite.dql"),
+    db=db,
+    name="My Suite",
+    profiles=[holiday],
+)
 ```
 
-**Date format:** Profiles use ISO format dates (YYYY-MM-DD). Date arithmetic (`+ N` or `- N`) adds or subtracts days.
-
-Date arithmetic:
-
-| Operator | Description |
-|----------|-------------|
-| `+ N` | Adds N days to the date |
-| `- N` | Subtracts N days from the date |
-
-### Rules
-
-Rules select assertions and apply modifications:
-
-**Disable** skips matched assertions:
-
-```dql
-disable check "Volume"
-disable assertion "Order count" in "Volume"
-```
-
-**Scale** multiplies the computed metric value before comparison:
-
-```dql
-scale tag "seasonal" by 2.0
-scale check "Revenue" by 1.5
-```
-
-**Scale semantics:** The multiplier applies to the metric value, not the threshold. Use this when you expect the metric to be *lower* than normal due to reduced activity.
-
-```dql
-# Normal: assert num_rows() >= 1000
-# Holiday traffic drops to 500 rows (50% of normal)
-# Without profile: 500 >= 1000 → FAIL (false positive!)
-#
-# With scale 2.0: 500 * 2.0 = 1000 >= 1000 → PASS
-# Interpretation: "500 rows during a 0.5 traffic period is like 1000 rows normally"
-```
-
-**Mental model:** Scale answers: "What would this metric be under normal conditions?" A scale of 2.0 compensates for a period with 50% expected traffic—multiply the actual value to normalize it for comparison against normal-period thresholds.
-
-For `between A and B`, the scaled metric compares against both bounds unchanged.
-
-**Set severity** changes the severity level (can raise or lower):
-
-```dql
-set tag "non-critical" severity P3
-set check "Volume" severity P2
-```
-
-### Rule Ordering
-
-Rules apply in definition order. Multipliers compound; severity uses last match.
-
-```dql
-profile "Holiday" {
-    from 2024-12-20
-    to   2025-01-05
-
-    scale tag "volume" by 1.5
-    scale check "Orders" by 2.0
-    # Assertion with tag "volume" in "Orders": multiplier = 3.0
-}
-```
-
-### Profile Overlap
-
-When multiple profiles match the same date, rules from all matching profiles apply in profile definition order. Multipliers compound across profiles.
-
-```dql
-profile "Holiday Season" { from 2024-11-15 to 2025-01-05 scale tag "volume" by 1.5 }
-profile "Black Friday" { from 2024-11-29 to 2024-12-02 scale tag "volume" by 2.0 }
-
-# On 2024-11-30: Both profiles active
-# Combined multiplier for "volume" tag: 1.5 * 2.0 = 3.0
-```
-
-**Warning:** Overlapping profiles with compounding multipliers can produce unexpected results. The interpreter logs active profiles and combined multipliers for debugging.
+For full documentation on profiles, see [Profiles Design](profiles.md).
 
 ## Complete Example
 
@@ -822,30 +768,48 @@ dql run suite.dql
 
 ### Python API
 
-Embed the interpreter in Python code:
+Execute DQL through VerificationSuite:
 
 ```python
-from dqx.dql import Interpreter
+from dqx.api import VerificationSuite
+from dqx.common import ResultKey
 from datetime import date
+from pathlib import Path
 
-interp = Interpreter(db=my_db, target_date=date.today())
-results = interp.run_file("suite.dql")
+suite = VerificationSuite(
+    dql=Path("suite.dql"),
+    db=db,
+    name="My Suite",
+    config=Path("config.yaml"),  # Optional: load tunables + profiles
+)
+
+suite.run(datasources, ResultKey(date.today(), {}))
+results = suite.collect_results()
 
 for r in results:
-    print(f"{r.check}/{r.assertion}: {r.status}")
+    print(f"{r.check}/{r.assertion_name}: {r.status}")
 ```
 
-Or run from a string:
+Or use inline DQL source:
 
 ```python
 dql_source = """
 suite "Quick Check" {
     check "Basic" on orders {
         assert num_rows() > 0
+            name "Has rows"
     }
 }
 """
-results = interp.run_string(dql_source)
+
+suite = VerificationSuite(
+    dql=dql_source,
+    db=db,
+    name="Quick Check",
+)
+
+suite.run(datasources, key)
+results = suite.collect_results()
 ```
 
 ### RL Agent Integration
