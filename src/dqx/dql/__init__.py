@@ -1,6 +1,7 @@
-"""DQL (Data Quality Language) parser and interpreter.
+"""DQL (Data Quality Language) parser.
 
-This module provides parsing and execution of DQL files for data quality checks.
+This module provides parsing of DQL files for data quality checks.
+DQL programs are executed via VerificationSuite with the dql parameter.
 """
 
 from dqx.dql.ast import (
@@ -15,7 +16,6 @@ from dqx.dql.ast import (
     Tunable,
 )
 from dqx.dql.errors import DQLError, DQLSyntaxError
-from dqx.dql.interpreter import AssertionResult, Interpreter, SuiteResults
 from dqx.dql.parser import parse, parse_file
 
 __all__ = [
@@ -32,10 +32,6 @@ __all__ = [
     # Parser
     "parse",
     "parse_file",
-    # Interpreter
-    "Interpreter",
-    "SuiteResults",
-    "AssertionResult",
     # Errors
     "DQLError",
     "DQLSyntaxError",

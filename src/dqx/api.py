@@ -743,9 +743,11 @@ class VerificationSuite:
 
     def __init__(
         self,
-        checks: Sequence[CheckProducer | DecoratedCheck],
-        db: "MetricDB",
-        name: str,
+        checks: Sequence[CheckProducer | DecoratedCheck] | None = None,
+        db: "MetricDB | None" = None,
+        name: str = "",
+        *,
+        dql: str | Path | None = None,
         log_level: int | str = logging.INFO,
         data_av_threshold: float = 0.9,
         profiles: Sequence[Profile] | None = None,
@@ -754,38 +756,131 @@ class VerificationSuite:
         """
         Initialize a VerificationSuite that orchestrates and evaluates a set of data quality checks.
 
+        The suite can be initialized in two ways:
+        1. Python API: Pass check functions via `checks` parameter
+        2. DQL: Pass DQL source or file path via `dql` parameter
+
+        Exactly one of `checks` or `dql` must be provided.
+
         Args:
-            checks: Sequence of check callables to execute; each will be invoked to populate the suite's verification graph.
+            checks: Python check functions decorated with @check. Mutually exclusive with `dql`.
+            dql: DQL source string or Path to .dql file. Mutually exclusive with `checks`.
+                 If Path, must point to a valid .dql file. If str, treated as DQL source code.
             db: Storage backend for producing and retrieving metrics used by checks and analysis.
-            name: Human-readable name for the suite; must be non-empty.
+            name: Human-readable name for the suite. If dql is provided and defines a suite name,
+                  the DQL name takes precedence.
             log_level: Logging level for the suite (default: logging.INFO).
             data_av_threshold: Minimum fraction of available data required to evaluate assertions (default: 0.9).
+                              Can be overridden by DQL availability_threshold.
             profiles: Optional profiles that alter assertion evaluation behavior.
-            config: Optional path to YAML configuration file for setting initial tunable values.
+                     Profiles from config file (if provided) are loaded first, then profiles from
+                     this parameter are appended. All profiles are active; there is no override behavior.
+            config: Optional path to YAML configuration file for setting initial tunable values and profiles.
 
         Raises:
-            DQXError: If no checks are provided, the suite name is empty, or config file is invalid.
+            DQXError: If both or neither of checks/dql provided, the suite name is empty, or config file is invalid.
+
+        Examples:
+            Python API (existing usage):
+
+            >>> @check(name="Completeness", datasets=["orders"])
+            >>> def check_completeness(mp, ctx):
+            >>>     ctx.assert_that(mp.null_count("id")).where(
+            >>>         name="ID not null"
+            >>>     ).is_eq(0)
+            >>>
+            >>> suite = VerificationSuite(
+            >>>     checks=[check_completeness],
+            >>>     db=db,
+            >>>     name="My Suite",
+            >>> )
+
+            DQL with file:
+
+            >>> suite = VerificationSuite(
+            >>>     dql=Path("suites/orders.dql"),
+            >>>     db=db,
+            >>>     name="Orders Suite",
+            >>>     config=Path("config/prod.yaml"),
+            >>> )
+
+            DQL with inline source:
+
+            >>> dql_source = '''
+            >>> suite "Orders" {
+            >>>     check "Completeness" on orders {
+            >>>         assert null_count(id) == 0
+            >>>             name "ID not null"
+            >>>     }
+            >>> }
+            >>> '''
+            >>> suite = VerificationSuite(
+            >>>     dql=dql_source,
+            >>>     db=db,
+            >>>     name="Orders Suite",
+            >>> )
         """
         # Setting up the logger
         setup_logger(level=log_level)
 
-        if not checks:
-            raise DQXError("At least one check must be provided")
-        if not name.strip():
-            raise DQXError("Suite name cannot be empty")
+        # Validation: exactly one of checks or dql must be provided
+        if (checks is None) == (dql is None):
+            raise DQXError(
+                "Exactly one of 'checks' or 'dql' must be provided. "
+                "Use 'checks' for Python API or 'dql' for DQL files/strings."
+            )
 
-        self._checks: Sequence[CheckProducer | DecoratedCheck] = checks
-        self._name = name.strip()
+        # Parse DQL if provided
+        if dql is not None:
+            from dqx.dql.parser import parse, parse_file
+
+            if db is None:
+                raise DQXError("'db' parameter is required when using 'dql'")
+
+            # Parse DQL source or file
+            if isinstance(dql, Path):
+                suite_ast = parse_file(dql)
+            else:
+                suite_ast = parse(dql, filename=name or "DQL Suite")
+
+            # Extract suite properties (DQL takes precedence)
+            if suite_ast.name:
+                self._name = suite_ast.name
+            elif name:
+                self._name = name.strip()
+            else:
+                raise DQXError("Suite name must be provided either in DQL or via 'name' parameter")
+
+            if suite_ast.availability_threshold is not None:
+                self._data_av_threshold = suite_ast.availability_threshold
+            else:
+                self._data_av_threshold = data_av_threshold
+
+            # Build checks from DQL (will be implemented in next step)
+            logger.info("Building checks from DQL...")
+            self._checks = self._build_dql_checks(suite_ast)
+        else:
+            # Python API path
+            if not checks:
+                raise DQXError("At least one check must be provided")
+            if db is None:
+                raise DQXError("'db' parameter is required")
+            if not name.strip():
+                raise DQXError("Suite name cannot be empty")
+
+            self._checks = list(checks)
+            self._name = name.strip()
+            self._data_av_threshold = data_av_threshold
 
         # Generate unique execution ID
         self._execution_id = str(uuid.uuid4())
 
-        # Store data availability threshold
-        self._data_av_threshold = data_av_threshold
-
         # Create a context with execution_id and data availability threshold
         self._context = Context(
-            suite=self._name, db=db, execution_id=self._execution_id, data_av_threshold=self._data_av_threshold
+            suite=self._name,
+            db=db,
+            execution_id=self._execution_id,
+            data_av_threshold=self._data_av_threshold,  # type: ignore[arg-type]
         )
 
         # State tracking for result collection
@@ -1125,6 +1220,524 @@ class VerificationSuite:
 
         # Clear plugin manager (will be lazy-loaded on next use)
         self._plugin_manager = None
+
+    def _build_dql_checks(self, suite_ast: Any) -> list[CheckProducer]:
+        """
+        Convert DQL Suite AST to Python check functions.
+
+        Args:
+            suite_ast: Parsed DQL Suite AST
+
+        Returns:
+            List of check functions compatible with VerificationSuite
+        """
+        # Build tunables dict for expression substitution
+        tunables_dict = self._build_tunables_from_ast(suite_ast.tunables)
+
+        # Build each check
+        checks: list[CheckProducer] = []
+        for check_ast in suite_ast.checks:
+            check_func = self._build_check_from_ast(check_ast, tunables_dict)
+            checks.append(check_func)
+
+        return checks
+
+    def _build_tunables_from_ast(self, tunables_ast: tuple[Any, ...]) -> dict[str, float]:
+        """Convert DQL Tunable AST nodes to value dictionary."""
+        from dqx.tunables import TunableFloat, TunableInt, TunablePercent
+
+        tunables_dict: dict[str, float] = {}
+        for t in tunables_ast:
+            # Evaluate bounds and value
+            min_val = self._eval_simple_expr(t.bounds[0], tunables_dict)
+            max_val = self._eval_simple_expr(t.bounds[1], tunables_dict)
+            value = self._eval_simple_expr(t.value, tunables_dict)
+
+            # Store for expression substitution
+            tunables_dict[t.name] = value
+
+            # Create Tunable object (will be auto-discovered from graph later)
+            if 0 <= value <= 1 and 0 <= min_val <= 1 and 0 <= max_val <= 1:
+                TunablePercent(name=t.name, value=value, bounds=(min_val, max_val))
+            elif isinstance(value, int) and isinstance(min_val, int) and isinstance(max_val, int):
+                TunableInt(name=t.name, value=int(value), bounds=(int(min_val), int(max_val)))
+            else:
+                TunableFloat(name=t.name, value=float(value), bounds=(float(min_val), float(max_val)))
+
+        return tunables_dict
+
+    def _build_check_from_ast(self, check_ast: Any, tunables: dict[str, float]) -> CheckProducer:
+        """Convert DQL Check AST to Python check function."""
+        check_name = check_ast.name
+        assertions = check_ast.assertions
+        tunables_copy = dict(tunables)
+
+        @check(name=check_name, datasets=list(check_ast.datasets))
+        def dynamic_check(mp: MetricProvider, ctx: Context) -> None:
+            """Generated check function from DQL."""
+            # Execute each assertion
+            for assertion_ast in assertions:
+                self._build_statement(assertion_ast, mp, ctx, tunables_copy)
+
+        return dynamic_check
+
+    def _build_statement(
+        self,
+        statement: Any,
+        mp: MetricProvider,
+        ctx: Context,
+        tunables: dict[str, float],
+    ) -> None:
+        """Convert DQL Assertion or Collection to ctx.assert_that() call."""
+        from dqx.dql.ast import Collection
+
+        # Dispatch based on type
+        if isinstance(statement, Collection):
+            self._build_collection(statement, mp, ctx, tunables)
+        else:
+            self._build_assertion(statement, mp, ctx, tunables)
+
+    def _build_assertion(
+        self,
+        assertion_ast: Any,
+        mp: MetricProvider,
+        ctx: Context,
+        tunables: dict[str, float],
+    ) -> None:
+        """Convert DQL Assertion to ctx.assert_that() call."""
+        ready = self._setup_assertion_ready(assertion_ast, mp, ctx, tunables)
+        if ready is None:  # pragma: no cover
+            return
+
+        # Apply condition
+        self._apply_condition(ready, assertion_ast, tunables)
+
+    def _build_collection(
+        self,
+        collection_ast: Any,
+        mp: MetricProvider,
+        ctx: Context,
+        tunables: dict[str, float],
+    ) -> None:
+        """Convert DQL Collection to ctx.assert_that(...).noop() call."""
+        ready = self._setup_assertion_ready(collection_ast, mp, ctx, tunables)
+        if ready is None:  # pragma: no cover
+            return
+
+        # Call noop() instead of applying a condition
+        ready.noop()
+
+    def _setup_assertion_ready(
+        self,
+        statement: Any,
+        mp: MetricProvider,
+        ctx: Context,
+        tunables: dict[str, float],
+    ) -> Any | None:
+        """Common setup for assertions and collections.
+
+        Returns AssertionReady object or None if statement is disabled.
+
+        Args:
+            statement: Assertion or Collection AST node
+            mp: MetricProvider for evaluating metric expressions
+            ctx: Context for creating assertions
+            tunables: Tunable values for expression substitution
+
+        Returns:
+            AssertionReady object if statement should be processed, None if disabled
+        """
+        # Evaluate metric expression
+        metric_value = self._eval_metric_expr(statement.expr, mp, tunables)
+
+        # Use severity from DQL statement
+        severity = statement.severity
+
+        # Validate name is present
+        if statement.name is None:  # pragma: no cover
+            # Parser should have caught this
+            from dqx.dql.errors import DQLError
+
+            raise DQLError("Statement must have a name", loc=statement.loc)
+
+        # Extract cost annotation
+        cost_annotation = self._get_cost_annotation(statement)
+        cost_dict = {k: float(v) for k, v in cost_annotation.items()} if cost_annotation else None
+
+        # Build and return assertion ready object
+        return ctx.assert_that(metric_value).where(
+            name=statement.name,
+            severity=severity.value,
+            tags=set(statement.tags),
+            experimental=self._has_annotation(statement, "experimental"),
+            required=self._has_annotation(statement, "required"),
+            cost=cost_dict,
+        )
+
+    # === DQL Expression Evaluation Methods ===
+
+    def _eval_simple_expr(self, expr: Any, tunables: dict[str, float]) -> float:
+        """Evaluate simple numeric expressions (for tunable bounds and values)."""
+        # Substitute tunables first
+        text = self._substitute_tunables(expr.text.strip(), tunables)
+
+        # Handle percentages (already converted by parser, but keep for safety)
+        if text.endswith("%"):  # pragma: no cover
+            # Parser converts percentages to decimals
+            return float(text[:-1]) / 100
+
+        # Handle numeric literals - preserve int vs float
+        try:
+            # Try int first
+            if "." not in text:
+                return int(text)
+            return float(text)
+        except ValueError:  # pragma: no cover
+            # Parser validates numeric literals
+            from dqx.dql.errors import DQLError
+
+            raise DQLError(f"Cannot evaluate expression: {text}", loc=expr.loc) from None
+
+    def _substitute_tunables(self, expr_text: str, tunables: dict[str, float]) -> str:
+        """Replace tunable names with their values in expression.
+
+        Uses word-boundary regex to avoid corrupting identifiers when one tunable
+        name is a prefix of another (e.g., MAX and MAX_VALUE).
+        """
+        import re
+
+        result = expr_text
+        # Sort by length descending to handle longest matches first
+        for name in sorted(tunables.keys(), key=len, reverse=True):
+            value = tunables[name]
+            # Use word boundaries to match only complete identifiers
+            pattern = r"\b" + re.escape(name) + r"\b"
+            result = re.sub(pattern, str(value), result)
+        return result
+
+    def _eval_metric_expr(self, expr: Any, mp: MetricProvider, tunables: dict[str, float]) -> Any:
+        """Parse metric expression using sympy, with special handling for extensions."""
+        # Check if expression contains extension functions with named params
+        expr_text = self._substitute_tunables(expr.text, tunables)
+
+        # Handle stddev specially since it has named params that sympy doesn't understand
+        if "stddev(" in expr_text and (", n=" in expr_text or ", offset=" in expr_text):
+            return self._handle_stddev_extension(expr_text, mp)
+
+        # Build namespace with metric functions
+        namespace = self._build_metric_namespace(mp)
+
+        # Parse with sympy
+        try:
+            return sp.sympify(expr_text, locals=namespace, evaluate=False)
+        except (sp.SympifyError, TypeError, ValueError) as e:  # pragma: no cover
+            # Sympy parsing error (very rare with valid DQL)
+            from dqx.dql.errors import DQLError
+
+            raise DQLError(
+                f"Failed to parse metric expression: {expr.text}\n{e}",
+                loc=expr.loc,
+            ) from e
+
+    def _handle_stddev_extension(self, expr_text: str, mp: MetricProvider) -> Any:
+        """Handle stddev extension function with named parameters.
+
+        Parses stddev calls with optional offset and required n parameters in any order:
+        - stddev(expr, n=7)
+        - stddev(expr, offset=1, n=7)
+        - stddev(expr, n=7, offset=1)
+
+        Args:
+            expr_text: Expression string containing stddev call
+            mp: MetricProvider for accessing extension functions
+
+        Returns:
+            Result of mp.ext.stddev() call via sp.sympify()
+        """
+        import re
+
+        # Find the matching closing paren for stddev( by counting parentheses
+        # This properly handles nested function calls like stddev(day_over_day(avg(x)), n=7)
+        stddev_start = expr_text.find("stddev(")
+        if stddev_start == -1:  # pragma: no cover
+            # Should not happen - caller checks for stddev( first
+            namespace = self._build_metric_namespace(mp)
+            return sp.sympify(expr_text, locals=namespace, evaluate=False)
+
+        # Start after "stddev("
+        pos = stddev_start + 7
+        paren_count = 1
+        inner_start = pos
+
+        # Find the matching closing paren
+        while pos < len(expr_text) and paren_count > 0:
+            if expr_text[pos] == "(":
+                paren_count += 1
+            elif expr_text[pos] == ")":
+                paren_count -= 1
+            pos += 1
+
+        if paren_count != 0:  # pragma: no cover - defensive fallback
+            # Malformed expression - fallback to normal parsing
+            namespace = self._build_metric_namespace(mp)
+            return sp.sympify(expr_text, locals=namespace, evaluate=False)
+
+        # Extract everything inside stddev(...)
+        inner_content = expr_text[inner_start : pos - 1]
+
+        # Split inner content by commas, being careful about nested functions
+        # Look for the first comma that's at the top level (not inside nested parens)
+        parts = []
+        current_part = []
+        paren_depth = 0
+
+        for char in inner_content:
+            if char == "(":
+                paren_depth += 1
+                current_part.append(char)
+            elif char == ")":
+                paren_depth -= 1
+                current_part.append(char)
+            elif char == "," and paren_depth == 0:
+                parts.append("".join(current_part).strip())
+                current_part = []
+            else:
+                current_part.append(char)
+
+        # Don't forget the last part
+        if current_part:
+            parts.append("".join(current_part).strip())
+
+        # First part is the inner expression
+        inner_expr_text = parts[0] if parts else ""
+
+        # Extract offset and n parameters from remaining parts
+        offset = 0  # Default offset
+        n = None  # Will be required if params exist
+
+        for part in parts[1:]:
+            # Match offset=N or n=N with optional whitespace
+            offset_match = re.search(r"offset\s*=\s*(\d+)", part)
+            n_match = re.search(r"n\s*=\s*(\d+)", part)
+
+            if offset_match:
+                offset = int(offset_match.group(1))
+            if n_match:
+                n = int(n_match.group(1))
+
+        # If params exist but n is not found, this shouldn't happen with valid DQL
+        # The grammar should enforce n parameter when using stddev with params
+        if len(parts) > 1 and n is None:  # pragma: no cover
+            raise ValueError(f"stddev requires 'n' parameter: {expr_text}")
+
+        # Parse the inner expression via _build_metric_namespace and sp.sympify
+        # Don't recursively call _eval_metric_expr to avoid infinite loop
+        namespace = self._build_metric_namespace(mp)
+        inner_metric = sp.sympify(inner_expr_text, locals=namespace, evaluate=False)
+
+        # Call mp.ext.stddev with parsed parameters
+        # Note: stddev without params is handled by normal sympy evaluation
+        if n is not None:
+            result = mp.ext.stddev(inner_metric, offset=offset, n=n)
+        else:  # pragma: no cover - stddev without params shouldn't reach here
+            # This path shouldn't be reached - stddev without params won't match
+            # the condition in _eval_metric_expr that calls this method
+            namespace = self._build_metric_namespace(mp)
+            return sp.sympify(expr_text, locals=namespace, evaluate=False)
+
+        return result
+
+    def _build_metric_namespace(self, mp: MetricProvider) -> dict[str, Any]:
+        """Build sympy namespace with all metric and math functions."""
+
+        def _to_str(arg: Any) -> str:
+            """Convert sympy Symbol to string."""
+            return str(arg) if isinstance(arg, sp.Symbol) else arg
+
+        def _convert_kwargs(kw: dict[str, Any]) -> dict[str, Any]:
+            """Convert sympy types in kwargs to Python primitives.
+
+            Handles:
+            - sp.Integer -> int (lag=1, n=7, offset=1)
+            - sp.Float -> float
+            - sp.Symbol -> str (dataset=ds1)
+            - Other types pass through unchanged
+            """
+            result: dict[str, Any] = {}
+            for key, value in kw.items():
+                if isinstance(value, sp.Basic):
+                    # Convert sympy numbers to Python int/float
+                    if value.is_Integer:
+                        result[key] = int(value)  # type: ignore[arg-type]
+                    elif value.is_Float or value.is_Rational:  # pragma: no cover - rare sympy output
+                        result[key] = float(value)  # type: ignore[arg-type]  # pragma: no cover
+                    elif isinstance(value, sp.Symbol):
+                        # For symbols (like dataset names), convert to string
+                        result[key] = str(value)
+                    else:  # pragma: no cover - defensive fallback for unknown sympy types
+                        # For other sympy types, try to extract value
+                        try:  # pragma: no cover
+                            result[key] = float(value)  # type: ignore[arg-type]  # pragma: no cover
+                        except (TypeError, AttributeError):  # pragma: no cover
+                            result[key] = str(value)  # pragma: no cover
+                else:
+                    result[key] = value  # pragma: no cover - passthrough of non-sympy values
+            return result
+
+        def _convert_list_arg(cols: Any) -> list[str]:
+            """Convert list of Symbols/tokens to list of strings.
+
+            Handles:
+            - [Symbol('name')] -> ['name']
+            - [Symbol('id'), Symbol('date')] -> ['id', 'date']
+            - Symbol('name') -> ['name'] (single column case)
+            """
+            if isinstance(cols, list):
+                return [_to_str(item) for item in cols]
+            elif isinstance(cols, tuple):  # pragma: no cover - tuples not produced by parser
+                return [_to_str(item) for item in cols]  # pragma: no cover
+            else:  # pragma: no cover - single column fallback
+                # Single column passed without list brackets
+                return [_to_str(cols)]  # pragma: no cover
+
+        def _convert_value(val: Any) -> int | str | bool:
+            """Convert value argument to proper Python type for count_values.
+
+            Handles:
+            - sp.Integer/Zero/One -> int
+            - sp.Float -> int (rounded)
+            - sp.Symbol -> str
+            - bool/int/str -> unchanged
+            - float -> int (rounded)
+            """
+            if isinstance(val, sp.Basic):
+                # Convert sympy types
+                if val.is_Integer:
+                    return int(val)  # type: ignore[arg-type]
+                elif val.is_Float or val.is_Rational:  # pragma: no cover - rare sympy output
+                    # Convert float to int for count_values
+                    return int(float(val))  # type: ignore[arg-type]  # pragma: no cover
+                elif isinstance(val, sp.Symbol):  # pragma: no cover - symbols handled elsewhere
+                    return str(val)  # pragma: no cover
+                else:  # pragma: no cover - defensive fallback for unknown sympy types
+                    # Try to extract numeric value
+                    try:  # pragma: no cover
+                        return int(val)  # type: ignore[arg-type]  # pragma: no cover
+                    except (TypeError, AttributeError):  # pragma: no cover
+                        return str(val)  # pragma: no cover
+            elif isinstance(val, float):
+                # Convert float to int for count_values
+                return int(val)  # pragma: no cover - float values converted at parse time
+            elif isinstance(val, (int, str, bool)):
+                return val
+            else:  # pragma: no cover - defensive fallback for unknown types
+                return str(val)  # pragma: no cover
+
+        namespace = {
+            # Math functions
+            "abs": sp.Abs,
+            "sqrt": sp.sqrt,
+            "log": sp.log,
+            "exp": sp.exp,
+            "min": sp.Min,
+            "max": sp.Max,
+            # Base metrics - convert Symbol args to strings and kwargs to Python types
+            "num_rows": lambda **kw: mp.num_rows(**_convert_kwargs(kw)),
+            "null_count": lambda col, **kw: mp.null_count(_to_str(col), **_convert_kwargs(kw)),
+            "average": lambda col, **kw: mp.average(_to_str(col), **_convert_kwargs(kw)),
+            "sum": lambda col, **kw: mp.sum(_to_str(col), **_convert_kwargs(kw)),
+            "minimum": lambda col, **kw: mp.minimum(_to_str(col), **_convert_kwargs(kw)),
+            "maximum": lambda col, **kw: mp.maximum(_to_str(col), **_convert_kwargs(kw)),
+            "variance": lambda col, **kw: mp.variance(_to_str(col), **_convert_kwargs(kw)),
+            "unique_count": lambda col, **kw: mp.unique_count(_to_str(col), **_convert_kwargs(kw)),
+            "duplicate_count": lambda cols, **kw: mp.duplicate_count(_convert_list_arg(cols), **_convert_kwargs(kw)),
+            "count_values": lambda col, val, **kw: mp.count_values(
+                _to_str(col), _convert_value(val), **_convert_kwargs(kw)
+            ),
+            "first": lambda col, **kw: mp.first(_to_str(col), **_convert_kwargs(kw)),
+            # Utility functions
+            "coalesce": lambda *args: functions.Coalesce(*args),
+            # Extension functions
+            "day_over_day": lambda metric, **kw: mp.ext.day_over_day(metric, **_convert_kwargs(kw)),
+            "week_over_week": lambda metric, **kw: mp.ext.week_over_week(metric, **_convert_kwargs(kw)),
+            # Note: stddev with n parameter is handled specially in _handle_stddev_extension
+            # RAW SQL ESCAPE HATCH
+            "custom_sql": lambda expr: mp.custom_sql(_to_str(expr)),
+        }
+        return namespace
+
+    def _apply_condition(self, ready: Any, assertion_ast: Any, tunables: dict[str, float]) -> None:
+        """Apply the assertion condition to AssertionReady."""
+        cond = assertion_ast.condition
+
+        # Validate threshold is present for conditions that require it
+        requires_threshold = cond in (">", ">=", "<", "<=", "==", "!=", "between")
+        if requires_threshold and assertion_ast.threshold is None:  # pragma: no cover
+            # Parser ensures threshold is present for these conditions
+            from dqx.dql.errors import DQLError
+
+            raise DQLError(f"Condition '{cond}' requires a threshold", assertion_ast.loc)
+
+        if cond == ">":
+            threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
+            ready.is_gt(threshold)
+        elif cond == ">=":
+            threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
+            ready.is_geq(threshold)
+        elif cond == "<":
+            threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
+            ready.is_lt(threshold)
+        elif cond == "<=":
+            threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
+            ready.is_leq(threshold)
+        elif cond == "==":
+            threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
+            if assertion_ast.tolerance:
+                ready.is_eq(threshold, tol=assertion_ast.tolerance)
+            else:
+                ready.is_eq(threshold)
+        elif cond == "!=":
+            threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
+            ready.is_neq(threshold)
+        elif cond == "between":
+            if assertion_ast.threshold_upper is None:  # pragma: no cover
+                # Parser ensures upper threshold is present for between
+                from dqx.dql.errors import DQLError
+
+                raise DQLError("Condition 'between' requires upper threshold", assertion_ast.loc)
+            lower = self._eval_simple_expr(assertion_ast.threshold, tunables)
+            upper = self._eval_simple_expr(assertion_ast.threshold_upper, tunables)
+            ready.is_between(lower, upper)
+        elif cond == "is":
+            if assertion_ast.keyword == "positive":
+                ready.is_positive()
+            elif assertion_ast.keyword == "negative":
+                ready.is_negative()
+            else:  # pragma: no cover
+                # Parser ensures only 'positive' or 'negative' keywords
+                from dqx.dql.errors import DQLError
+
+                raise DQLError(f"Unknown keyword: {assertion_ast.keyword}", assertion_ast.loc)
+        else:  # pragma: no cover
+            # Parser validates all conditions
+            from dqx.dql.errors import DQLError
+
+            raise DQLError(f"Unknown condition: {cond}", assertion_ast.loc)
+
+    def _has_annotation(self, statement_ast: Any, name: str) -> bool:
+        """Check if assertion or collection has a specific annotation."""
+        return any(ann.name == name for ann in statement_ast.annotations)
+
+    def _get_cost_annotation(self, statement_ast: Any) -> dict[str, int] | None:
+        """Extract cost annotation args if present."""
+        for ann in statement_ast.annotations:
+            if ann.name == "cost":
+                # Convert args to expected format
+                return {
+                    "fp": int(ann.args.get("false_positive", 1)),
+                    "fn": int(ann.args.get("false_negative", 1)),
+                }
+        return None
 
     def build_graph(self, context: Context) -> None:
         """
