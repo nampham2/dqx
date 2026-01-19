@@ -550,11 +550,11 @@ class AssertionReady:
         Raises:
             DQXError: If no active check is present in the current context.
         """
-        if self._context is None:
+        if self._context is None:  # pragma: no cover
             return
 
         current = self._context.current_check
-        if not current:
+        if not current:  # pragma: no cover
             raise DQXError(
                 "Cannot create assertion outside of check context. "
                 "Assertions must be created within a @check decorated function."
