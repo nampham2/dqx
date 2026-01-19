@@ -680,23 +680,24 @@ The history file can be git-tracked separately or added to `.gitignore` dependin
 
 The interpreter executes DQL files directly against your database. Metric expressions pass to sympy for parsing, enabling full compatibility with DQX's Python runtime.
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                      DQL Source                             │
 │                     (suite.dql)                             │
 └──────────────────────────────┬──────────────────────────────┘
                               │
                               ▼
-                    ┌─────────────────┐
-                    │   Interpreter   │
-                    │   (via sympy)   │
-                    └────────┬────────┘
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │   DQX Runtime   │
-                    │   (database)    │
-                    └─────────────────┘
+                    ┌──────────────────────┐
+                    │ VerificationSuite    │
+                    │ (parses & executes)  │
+                    │    (via sympy)       │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │    DQX Runtime       │
+                    │    (database)        │
+                    └──────────────────────┘
 ```
 
 ### Installation
@@ -1498,14 +1499,14 @@ The following features from this design are **already implemented** in the DQX c
 
 The following features are specified in this design but **require implementation**:
 
-#### DQL Core (Parser & Interpreter)
+#### DQL Core (Parser & Execution)
 
 | Feature | Description | Priority |
 |---------|-------------|----------|
 | Lexer/Tokenizer | Tokenize DQL source into tokens | High |
 | Parser | Parse tokens into AST nodes | High |
 | AST Nodes | Suite, Check, Assertion, Profile, etc. | High |
-| Interpreter | Execute AST against DQX runtime | High |
+| ~~Interpreter~~ ✅ VerificationSuite execution | Execute AST against DQX runtime (implemented in VerificationSuite) | ~~High~~ ✅ Complete |
 | Sampling | `sample N%` / `sample N rows` with optional `seed` | Medium |
 | CLI (`dql run`, `dql check`) | Command-line interface | Medium |
 
