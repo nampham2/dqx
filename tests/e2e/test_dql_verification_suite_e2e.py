@@ -323,12 +323,6 @@ tunables:
 
         assert len(suite._checks) == 1
 
-    def test_dql_name_takes_precedence_over_parameter(self) -> None:
-        """Test removed - name parameter cannot be used with dql."""
-        # This test is no longer relevant since name parameter
-        # raises error when used with dql
-        pass
-
     def test_dql_availability_threshold_override(self, tmp_path: Path) -> None:
         """Test that DQL availability_threshold overrides parameter."""
         db = InMemoryMetricDB()

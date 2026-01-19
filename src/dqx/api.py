@@ -750,7 +750,7 @@ class VerificationSuite:
         db: "MetricDB | None" = None,
         name: str | object = _NAME_NOT_PROVIDED,
         *,
-        dql: Path | None = None,
+        dql: str | Path | None = None,
         log_level: int | str = logging.INFO,
         data_av_threshold: float = 0.9,
         profiles: Sequence[Profile] | None = None,
@@ -1375,26 +1375,46 @@ class VerificationSuite:
     # === DQL Expression Evaluation Methods ===
 
     def _eval_simple_expr(self, expr: Any, tunables: dict[str, float]) -> float:
-        """Evaluate simple numeric expressions (for tunable bounds and values)."""
+        """Evaluate numeric expressions with full SymPy arithmetic support.
+
+        Supports:
+        - Numeric literals: 42, 3.14
+        - Percentages: 50% (converted to 0.5)
+        - Arithmetic: +, -, *, /, **
+        - Tunable references: MIN_VAL, MAX_VAL
+        - Complex expressions: (MIN_VAL + 10) * 2
+
+        Args:
+            expr: Expression AST node with .text attribute
+            tunables: Dictionary mapping tunable names to their numeric values
+
+        Returns:
+            Evaluated numeric result (int or float)
+
+        Raises:
+            DQLError: If expression cannot be evaluated
+        """
+        import sympy as sp
+        from dqx.dql.errors import DQLError
+
         # Substitute tunables first
         text = self._substitute_tunables(expr.text.strip(), tunables)
 
-        # Handle percentages (already converted by parser, but keep for safety)
+        # Handle percentages (convert to decimal)
+        # Note: Parser already converts % tokens, this is defensive
         if text.endswith("%"):  # pragma: no cover
-            # Parser converts percentages to decimals
-            return float(text[:-1]) / 100
+            text = str(float(text[:-1]) / 100)
 
-        # Handle numeric literals - preserve int vs float
         try:
-            # Try int first
-            if "." not in text:
-                return int(text)
-            return float(text)
-        except ValueError:  # pragma: no cover
-            # Parser validates numeric literals
-            from dqx.dql.errors import DQLError
+            # Use SymPy to evaluate arithmetic expressions
+            result = sp.sympify(text, evaluate=True)
 
-            raise DQLError(f"Cannot evaluate expression: {text}", loc=expr.loc) from None
+            # Preserve int vs float type
+            if result.is_Integer:
+                return int(result)
+            return float(result)
+        except (sp.SympifyError, Exception) as e:
+            raise DQLError(f"Cannot evaluate expression: {text}", loc=expr.loc) from e
 
     def _substitute_tunables(self, expr_text: str, tunables: dict[str, float]) -> str:
         """Replace tunable names with their values in expression.

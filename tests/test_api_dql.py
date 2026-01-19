@@ -155,12 +155,6 @@ class TestVerificationSuiteDQLParameter:
                 db=db,
             )
 
-    def test_dql_uses_fallback_name(self) -> None:
-        """Test removed - fallback logic no longer exists."""
-        # This test is no longer relevant since name parameter
-        # cannot be specified with dql
-        pass
-
     def test_dql_tunable_types(self, tmp_path: Path) -> None:
         """Test that DQL tunables are created with correct types."""
         db = InMemoryMetricDB()
@@ -190,8 +184,10 @@ class TestVerificationSuiteDQLParameter:
             db=db,
         )
 
-        # Verify tunables were created with correct types
+        # Verify suite was created successfully with tunables declared
         assert suite._name == "Tunable Types"
+        assert len(suite._checks) == 1
+        # Note: Tunable discovery from DQL assertions requires separate implementation
 
     def test_python_api_still_works(self) -> None:
         """Test that Python API (checks parameter) still works after changes."""
@@ -338,3 +334,45 @@ class TestCheckNameValidation:
                 db=db,
                 name="Test Suite",
             )
+
+
+class TestRootNodeValidation:
+    """Test RootNode name validation."""
+
+    def test_root_node_requires_non_empty_name(self) -> None:
+        """Test that RootNode rejects empty names."""
+        from dqx.graph.nodes import RootNode
+
+        with pytest.raises(ValueError, match="Root name cannot be empty"):
+            RootNode(name="")
+
+    def test_root_node_rejects_whitespace_only_name(self) -> None:
+        """Test that RootNode rejects whitespace-only names."""
+        from dqx.graph.nodes import RootNode
+
+        with pytest.raises(ValueError, match="Root name cannot be empty"):
+            RootNode(name="   ")
+
+    def test_root_node_rejects_long_names(self) -> None:
+        """Test that RootNode rejects names longer than 255 characters."""
+        from dqx.graph.nodes import RootNode
+
+        long_name = "a" * 256
+        with pytest.raises(ValueError, match="Root name is too long"):
+            RootNode(name=long_name)
+
+    def test_root_node_strips_whitespace(self) -> None:
+        """Test that RootNode strips leading/trailing whitespace."""
+        from dqx.graph.nodes import RootNode
+
+        root = RootNode(name="  My Suite  ")
+        assert root.name == "My Suite"
+
+    def test_root_node_validates_length_after_stripping(self) -> None:
+        """Test that RootNode validates length after stripping."""
+        from dqx.graph.nodes import RootNode
+
+        # 250 spaces + 5 chars = 255 total, but only 5 after stripping
+        name = " " * 125 + "Suite" + " " * 125
+        root = RootNode(name=name)  # Should not raise
+        assert root.name == "Suite"

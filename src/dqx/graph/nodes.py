@@ -48,9 +48,18 @@ class RootNode(CompositeNode[None, "CheckNode"]):
 
         Args:
             name: Human-readable name for the verification suite
+
+        Raises:
+            ValueError: If name is empty or longer than 255 characters
         """
+        if not name or not name.strip():
+            raise ValueError("Root name cannot be empty")
+        stripped_name = name.strip()
+        if len(stripped_name) > 255:
+            raise ValueError("Root name is too long (max 255 characters)")
+
         super().__init__(parent=None)  # Root always has None parent
-        self.name = name
+        self.name = stripped_name
         self.datasets: list[str] = []
 
     def add_check(
@@ -99,11 +108,12 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
         """
         if not name or not name.strip():
             raise ValueError("Check name cannot be empty")
-        if len(name) > 255:
+        stripped_name = name.strip()
+        if len(stripped_name) > 255:
             raise ValueError("Check name is too long (max 255 characters)")
 
         super().__init__(parent)
-        self.name = name.strip()
+        self.name = stripped_name
         self.datasets = datasets or []
 
     def add_assertion(
