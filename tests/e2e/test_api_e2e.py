@@ -9,7 +9,7 @@ from dqx.api import VerificationSuite, check
 from dqx.common import Context, ResultKey
 from dqx.display import print_assertion_results, print_metric_trace
 from dqx.orm.repositories import InMemoryMetricDB
-from dqx.profiles import HolidayProfile, tag
+from dqx.profiles import SeasonalProfile, tag
 from dqx.profiles import check as profile_check
 from dqx.provider import MetricProvider
 from dqx.tunables import TunableFloat, TunablePercent
@@ -163,7 +163,7 @@ def test_e2e_suite_with_profiles() -> None:
     # Create a profile that:
     # 1. Disables the "Delivered null percentage" check entirely
     # 2. Applies a metric_multiplier to assertions tagged with "xmas"
-    holiday_profile = HolidayProfile(
+    holiday_profile = SeasonalProfile(
         name="January Holiday",
         start_date=dt.date(2025, 1, 1),
         end_date=dt.date(2025, 1, 31),
@@ -266,7 +266,7 @@ def test_e2e_profile_metric_multiplier_effect() -> None:
     # Second run WITH profile - multiplier=2.0 should make assertion PASS
     # (tax average ~50-80 * 2.0 = ~100-160 > 80)
     db2 = InMemoryMetricDB()
-    profile_with_multiplier = HolidayProfile(
+    profile_with_multiplier = SeasonalProfile(
         name="Multiplier Test",
         start_date=dt.date(2025, 1, 1),
         end_date=dt.date(2025, 1, 31),

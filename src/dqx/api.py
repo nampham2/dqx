@@ -807,11 +807,39 @@ class VerificationSuite:
         # Cache for metrics stats
         self._metrics_stats: "MetricStats | None" = None
 
-        # Store profiles for evaluation
-        self._profiles: list[Profile] = list(profiles) if profiles else []
-
         # Store config path for potential reloading
         self._config_path = config
+
+        # Load profiles from config file if provided
+        config_profiles: list[Profile] = []
+        config_data: dict[str, Any] | None = None
+        if self._config_path is not None:
+            logger.info(f"Loading configuration from {self._config_path}")
+            from dqx.config import load_config, load_profiles_from_config
+
+            config_data = load_config(self._config_path)
+
+            # Load profiles from config
+            config_profiles = load_profiles_from_config(config_data)
+            if config_profiles:
+                logger.info(f"Loaded {len(config_profiles)} profile(s) from config")
+
+        # Merge profiles: config + API (both active)
+        # Check for duplicate names between config and API profiles
+        if config_profiles and profiles:
+            config_names = {p.name for p in config_profiles}
+            api_names = {p.name for p in profiles}
+            duplicates = config_names & api_names
+            if duplicates:
+                raise DQXError(
+                    f"Duplicate profile name(s) {sorted(duplicates)} found in both config and API parameters. "
+                    f"Profile names must be unique. Rename one of the profiles."
+                )
+
+        all_profiles = list(config_profiles)
+        if profiles is not None:
+            all_profiles.extend(profiles)
+        self._profiles = all_profiles
 
         # Build the dependency graph immediately
         logger.info("Building dependency graph for suite '%s'...", self._name)
@@ -823,11 +851,9 @@ class VerificationSuite:
             logger.info(f"Discovered {len(self._tunables)} tunable(s): {list(self._tunables.keys())}")
 
         # Load tunable values from config file if provided
-        if self._config_path is not None:
-            logger.info(f"Loading configuration from {self._config_path}")
-            from dqx.config import apply_tunables_from_config, load_config
+        if self._config_path is not None and config_data is not None:
+            from dqx.config import apply_tunables_from_config
 
-            config_data = load_config(self._config_path)
             apply_tunables_from_config(config_data, self._tunables)
             logger.info("Applied tunable values from config")
 

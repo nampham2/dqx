@@ -102,6 +102,15 @@ tunables:
         validate_config_structure(config)  # Should not raise
         assert config["tunables"] is None
 
+    def test_config_profiles_not_list(self, tmp_path: Path) -> None:
+        """Raise DQXError if profiles section is not a list."""
+        config_file = tmp_path / "bad_profiles.yaml"
+        config_file.write_text("tunables: {}\nprofiles: not_a_list")
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'profiles' section must be a list"):
+            validate_config_structure(config)
+
 
 class TestApplyTunables:
     """Tests for applying tunables from config to suite tunables."""
@@ -454,3 +463,950 @@ class TestEdgeCases:
         # Should raise DQXError for unknown tunable
         with pytest.raises(DQXError, match="Configuration contains tunable 'UNKNOWN' not found in suite"):
             VerificationSuite(checks=[test_check], db=db, name="Test Suite", config=config_file)
+
+
+class TestProfileLoading:
+    """Tests for loading profiles from YAML configuration."""
+
+    def test_load_single_profile_with_disable_rule(self, tmp_path: Path) -> None:
+        """Load a profile with a single disable rule."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Holiday Season"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "disable"
+        target: "check"
+        name: "Volume"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        profiles = load_profiles_from_config(config)
+
+        assert len(profiles) == 1
+        assert profiles[0].name == "Holiday Season"
+        assert profiles[0].start_date == dt.date(2024, 12, 20)
+        assert profiles[0].end_date == dt.date(2025, 1, 5)
+        assert len(profiles[0].rules) == 1
+        assert profiles[0].rules[0].disabled is True
+
+    def test_load_profile_with_scale_rule(self, tmp_path: Path) -> None:
+        """Load a profile with a scale rule."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Black Friday"
+    type: "seasonal"
+    start_date: "2024-11-29"
+    end_date: "2024-11-29"
+    rules:
+      - action: "scale"
+        target: "tag"
+        name: "volume"
+        multiplier: 3.5
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        profiles = load_profiles_from_config(config)
+
+        assert len(profiles) == 1
+        assert profiles[0].rules[0].metric_multiplier == 3.5
+
+    def test_load_profile_with_set_severity_rule(self, tmp_path: Path) -> None:
+        """Load a profile with a set_severity rule."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Critical Period"
+    type: "seasonal"
+    start_date: "2024-12-31"
+    end_date: "2025-01-01"
+    rules:
+      - action: "set_severity"
+        target: "tag"
+        name: "fraud"
+        severity: "P0"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        profiles = load_profiles_from_config(config)
+
+        assert len(profiles) == 1
+        assert profiles[0].rules[0].severity == "P0"
+
+    def test_load_multiple_profiles(self, tmp_path: Path) -> None:
+        """Load multiple profiles from config."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Profile 1"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2024-12-25"
+    rules:
+      - action: "disable"
+        target: "check"
+        name: "Check1"
+
+  - name: "Profile 2"
+    type: "seasonal"
+    start_date: "2025-01-01"
+    end_date: "2025-01-05"
+    rules:
+      - action: "scale"
+        target: "tag"
+        name: "tag1"
+        multiplier: 2.0
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        profiles = load_profiles_from_config(config)
+
+        assert len(profiles) == 2
+        assert profiles[0].name == "Profile 1"
+        assert profiles[1].name == "Profile 2"
+
+    def test_load_profile_with_multiple_rules(self, tmp_path: Path) -> None:
+        """Load a profile with multiple rules."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Complex Profile"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "disable"
+        target: "check"
+        name: "Volume"
+      - action: "scale"
+        target: "tag"
+        name: "reconciliation"
+        multiplier: 1.5
+      - action: "set_severity"
+        target: "tag"
+        name: "critical"
+        severity: "P0"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        profiles = load_profiles_from_config(config)
+
+        assert len(profiles) == 1
+        assert len(profiles[0].rules) == 3
+
+    def test_load_empty_profiles_section(self, tmp_path: Path) -> None:
+        """Empty profiles section should return empty list."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        profiles = load_profiles_from_config(config)
+
+        assert profiles == []
+
+    def test_load_no_profiles_section(self, tmp_path: Path) -> None:
+        """Missing profiles section should return empty list."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables:
+  THRESHOLD: 0.05
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        profiles = load_profiles_from_config(config)
+
+        assert profiles == []
+
+    def test_profile_missing_name(self, tmp_path: Path) -> None:
+        """Profile without name should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'name' is required"):
+            load_profiles_from_config(config)
+
+    def test_profile_invalid_type(self, tmp_path: Path) -> None:
+        """Profile with invalid type should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "invalid_type"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="unknown type 'invalid_type'"):
+            load_profiles_from_config(config)
+
+    def test_profile_type_defaults_to_seasonal(self, tmp_path: Path) -> None:
+        """Profile without type should default to 'seasonal'."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+        from dqx.profiles import SeasonalProfile
+
+        config = load_config(config_file)
+        profiles = load_profiles_from_config(config)
+
+        assert len(profiles) == 1
+        assert profiles[0].name == "Test"
+        assert isinstance(profiles[0], SeasonalProfile)
+
+    def test_profile_invalid_date_format(self, tmp_path: Path) -> None:
+        """Profile with invalid date format should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "12/20/2024"
+    end_date: "2025-01-05"
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="invalid 'start_date' format"):
+            load_profiles_from_config(config)
+
+    def test_profile_end_before_start(self, tmp_path: Path) -> None:
+        """Profile with end_date before start_date should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2025-01-05"
+    end_date: "2024-12-20"
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'end_date'.*must be.*'start_date'"):
+            load_profiles_from_config(config)
+
+    def test_duplicate_profile_names_in_config(self, tmp_path: Path) -> None:
+        """Duplicate profile names within config should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Holiday"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2024-12-25"
+    rules: []
+  - name: "Holiday"
+    type: "seasonal"
+    start_date: "2025-01-01"
+    end_date: "2025-01-05"
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="Duplicate profile name 'Holiday' at index 1"):
+            load_profiles_from_config(config)
+
+    def test_rule_missing_action(self, tmp_path: Path) -> None:
+        """Rule without action should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - target: "check"
+        name: "Volume"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'action' is required"):
+            load_profiles_from_config(config)
+
+    def test_rule_invalid_action(self, tmp_path: Path) -> None:
+        """Rule with invalid action should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "invalid_action"
+        target: "check"
+        name: "Volume"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="invalid action 'invalid_action'"):
+            load_profiles_from_config(config)
+
+    def test_rule_invalid_target(self, tmp_path: Path) -> None:
+        """Rule with invalid target should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "disable"
+        target: "assertion"
+        name: "Volume"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="invalid target 'assertion'"):
+            load_profiles_from_config(config)
+
+    def test_scale_rule_missing_multiplier(self, tmp_path: Path) -> None:
+        """Scale rule without multiplier should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "scale"
+        target: "tag"
+        name: "volume"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'multiplier' is required"):
+            load_profiles_from_config(config)
+
+    def test_scale_rule_negative_multiplier(self, tmp_path: Path) -> None:
+        """Scale rule with negative multiplier should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "scale"
+        target: "tag"
+        name: "volume"
+        multiplier: -1.5
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'multiplier' must be positive"):
+            load_profiles_from_config(config)
+
+    def test_set_severity_rule_missing_severity(self, tmp_path: Path) -> None:
+        """Set_severity rule without severity should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "set_severity"
+        target: "tag"
+        name: "fraud"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'severity' is required"):
+            load_profiles_from_config(config)
+
+    def test_set_severity_rule_invalid_severity(self, tmp_path: Path) -> None:
+        """Set_severity rule with invalid severity should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "set_severity"
+        target: "tag"
+        name: "fraud"
+        severity: "P4"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="invalid severity 'P4'"):
+            load_profiles_from_config(config)
+
+    def test_unknown_field_at_profile_level(self, tmp_path: Path) -> None:
+        """Unknown field at profile level should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    unknown_field: "value"
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="unknown field.*unknown_field"):
+            load_profiles_from_config(config)
+
+    def test_unknown_field_at_rule_level(self, tmp_path: Path) -> None:
+        """Unknown field at rule level should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "disable"
+        target: "check"
+        name: "Volume"
+        unknown_field: "value"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="unknown field.*unknown_field"):
+            load_profiles_from_config(config)
+
+    def test_rule_not_dict(self, tmp_path: Path) -> None:
+        """Rule that's not a dict should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - "not a dict"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="rule at index 0 must be a dictionary"):
+            load_profiles_from_config(config)
+
+    def test_rule_missing_target(self, tmp_path: Path) -> None:
+        """Rule without target should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "disable"
+        name: "Volume"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'target' is required"):
+            load_profiles_from_config(config)
+
+    def test_rule_missing_name(self, tmp_path: Path) -> None:
+        """Rule without name should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "disable"
+        target: "check"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'name' is required"):
+            load_profiles_from_config(config)
+
+    def test_rule_name_not_string(self, tmp_path: Path) -> None:
+        """Rule with name that's not a string should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "disable"
+        target: "check"
+        name: 123
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'name' must be a string"):
+            load_profiles_from_config(config)
+
+    def test_scale_rule_multiplier_not_number(self, tmp_path: Path) -> None:
+        """Scale rule with multiplier that's not a number should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "scale"
+        target: "tag"
+        name: "volume"
+        multiplier: "not a number"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'multiplier' must be a number"):
+            load_profiles_from_config(config)
+
+    def test_profile_dict_not_dict(self, tmp_path: Path) -> None:
+        """Profile that's not a dict should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - "not a dict"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="Profile at index 0 must be a dictionary"):
+            load_profiles_from_config(config)
+
+    def test_profile_name_not_string(self, tmp_path: Path) -> None:
+        """Profile with name that's not a string should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: 123
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'name' must be a string"):
+            load_profiles_from_config(config)
+
+    def test_profile_missing_start_date(self, tmp_path: Path) -> None:
+        """Profile without start_date should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    end_date: "2025-01-05"
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'start_date' is required"):
+            load_profiles_from_config(config)
+
+    def test_profile_start_date_not_string(self, tmp_path: Path) -> None:
+        """Profile with start_date that's not a string should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: 20241220
+    end_date: "2025-01-05"
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'start_date' must be a string"):
+            load_profiles_from_config(config)
+
+    def test_profile_missing_end_date(self, tmp_path: Path) -> None:
+        """Profile without end_date should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'end_date' is required"):
+            load_profiles_from_config(config)
+
+    def test_profile_end_date_not_string(self, tmp_path: Path) -> None:
+        """Profile with end_date that's not a string should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: 20250105
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'end_date' must be a string"):
+            load_profiles_from_config(config)
+
+    def test_profile_invalid_end_date_format(self, tmp_path: Path) -> None:
+        """Profile with invalid end_date format should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "01/05/2025"
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="invalid 'end_date' format"):
+            load_profiles_from_config(config)
+
+    def test_profile_rules_not_list(self, tmp_path: Path) -> None:
+        """Profile with rules that's not a list should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules: "not a list"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'rules' must be a list"):
+            load_profiles_from_config(config)
+
+
+class TestSuiteWithProfilesFromConfig:
+    """Tests for VerificationSuite with profiles loaded from config."""
+
+    def test_suite_loads_profiles_from_config(self, tmp_path: Path) -> None:
+        """Verify suite loads profiles from config file."""
+
+        @check(name="Test Check", datasets=["ds"])
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
+            ctx.assert_that(mp.num_rows()).where(name="test", tags={"volume"}).is_positive()
+
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test Profile"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "scale"
+        target: "tag"
+        name: "volume"
+        multiplier: 2.0
+"""
+        )
+
+        db = InMemoryMetricDB()
+        suite = VerificationSuite(
+            checks=[test_check],
+            db=db,
+            name="Test Suite",
+            config=config_file,
+        )
+
+        # Verify profile was loaded
+        assert len(suite._profiles) == 1
+        assert suite._profiles[0].name == "Test Profile"
+
+    def test_suite_merges_config_and_api_profiles(self, tmp_path: Path) -> None:
+        """Verify suite merges profiles from config and API."""
+        from dqx.profiles import SeasonalProfile, tag
+
+        @check(name="Test Check", datasets=["ds"])
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
+            ctx.assert_that(mp.num_rows()).where(name="test").is_positive()
+
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Config Profile"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "disable"
+        target: "check"
+        name: "Test Check"
+"""
+        )
+
+        api_profile = SeasonalProfile(
+            name="API Profile",
+            start_date=dt.date(2025, 1, 10),
+            end_date=dt.date(2025, 1, 15),
+            rules=[tag("test").set(metric_multiplier=2.0)],
+        )
+
+        db = InMemoryMetricDB()
+        suite = VerificationSuite(
+            checks=[test_check],
+            db=db,
+            name="Test Suite",
+            config=config_file,
+            profiles=[api_profile],
+        )
+
+        # Verify both profiles are loaded
+        assert len(suite._profiles) == 2
+        assert suite._profiles[0].name == "Config Profile"
+        assert suite._profiles[1].name == "API Profile"
+
+    def test_suite_duplicate_profile_names_config_vs_api(self, tmp_path: Path) -> None:
+        """Duplicate profile names between config and API should raise DQXError."""
+        from dqx.profiles import SeasonalProfile, tag
+
+        @check(name="Test Check", datasets=["ds"])
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
+            ctx.assert_that(mp.num_rows()).where(name="test").is_positive()
+
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Holiday"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "disable"
+        target: "check"
+        name: "Test Check"
+"""
+        )
+
+        api_profile = SeasonalProfile(
+            name="Holiday",
+            start_date=dt.date(2025, 1, 10),
+            end_date=dt.date(2025, 1, 15),
+            rules=[tag("test").set(metric_multiplier=2.0)],
+        )
+
+        db = InMemoryMetricDB()
+        with pytest.raises(DQXError, match="Duplicate profile name.*'Holiday'"):
+            VerificationSuite(
+                checks=[test_check],
+                db=db,
+                name="Test Suite",
+                config=config_file,
+                profiles=[api_profile],
+            )

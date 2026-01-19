@@ -12,9 +12,9 @@ from dqx.graph.nodes import AssertionNode, CheckNode, RootNode
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.profiles import (
     AssertionSelector,
-    HolidayProfile,
     Profile,
     Rule,
+    SeasonalProfile,
     TagSelector,
     assertion,
     check,
@@ -68,11 +68,11 @@ class TestRule:
         assert rule.metric_multiplier == 2.0
 
 
-class TestHolidayProfile:
-    """Tests for HolidayProfile."""
+class TestSeasonalProfile:
+    """Tests for SeasonalProfile."""
 
     def test_is_active_within_range(self) -> None:
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -83,7 +83,7 @@ class TestHolidayProfile:
         assert profile.is_active(date(2025, 1, 5))  # End date
 
     def test_is_active_outside_range(self) -> None:
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -97,7 +97,7 @@ class TestHolidayProfile:
             Rule(selector=TagSelector(tag="xmas"), metric_multiplier=2.0),
             Rule(selector=AssertionSelector(check="Check"), disabled=True),
         ]
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -183,7 +183,7 @@ class TestResolveOverrides:
         assert result.metric_multiplier == 1.0
 
     def test_inactive_profile(self) -> None:
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -200,7 +200,7 @@ class TestResolveOverrides:
         assert result.metric_multiplier == 1.0
 
     def test_active_profile_with_matching_tag(self) -> None:
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -217,7 +217,7 @@ class TestResolveOverrides:
         assert result.metric_multiplier == 2.0
 
     def test_active_profile_with_non_matching_tag(self) -> None:
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -234,7 +234,7 @@ class TestResolveOverrides:
         assert result.metric_multiplier == 1.0
 
     def test_disabled_by_check_selector(self) -> None:
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -250,7 +250,7 @@ class TestResolveOverrides:
         assert result.disabled
 
     def test_disabled_by_assertion_selector(self) -> None:
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -266,7 +266,7 @@ class TestResolveOverrides:
         assert result.disabled
 
     def test_multipliers_compound(self) -> None:
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -285,13 +285,13 @@ class TestResolveOverrides:
         assert result.metric_multiplier == 3.0  # 1.5 * 2.0
 
     def test_multiple_profiles_compound(self) -> None:
-        profile1 = HolidayProfile(
+        profile1 = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
             rules=[tag("xmas").set(metric_multiplier=2.0)],
         )
-        profile2 = HolidayProfile(
+        profile2 = SeasonalProfile(
             name="Year End",
             start_date=date(2024, 12, 25),
             end_date=date(2024, 12, 31),
@@ -307,7 +307,7 @@ class TestResolveOverrides:
         assert result.metric_multiplier == 3.0  # 2.0 * 1.5
 
     def test_disabled_takes_precedence(self) -> None:
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -327,7 +327,7 @@ class TestResolveOverrides:
         assert result.metric_multiplier == 2.0  # Still computed
 
     def test_severity_override(self) -> None:
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -343,7 +343,7 @@ class TestResolveOverrides:
         assert result.severity == "P3"
 
     def test_severity_last_match_wins(self) -> None:
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -362,7 +362,7 @@ class TestResolveOverrides:
         assert result.severity == "P3"  # Last match wins
 
     def test_severity_with_multiplier(self) -> None:
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -379,7 +379,7 @@ class TestResolveOverrides:
         assert result.severity == "P3"
 
     def test_no_severity_override_returns_none(self) -> None:
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -455,7 +455,7 @@ class TestEvaluatorWithProfiles:
     def test_evaluator_with_metric_multiplier(self) -> None:
         """Test evaluator applies metric_multiplier from profile."""
         x = sp.Symbol("x")
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -490,7 +490,7 @@ class TestEvaluatorWithProfiles:
     def test_evaluator_with_disabled_assertion(self) -> None:
         """Test evaluator skips disabled assertions."""
         x = sp.Symbol("x")
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -522,7 +522,7 @@ class TestEvaluatorWithProfiles:
     def test_evaluator_inactive_profile_no_effect(self) -> None:
         """Test inactive profile has no effect on evaluation."""
         x = sp.Symbol("x")
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -558,7 +558,7 @@ class TestEvaluatorWithProfiles:
     def test_evaluator_non_matching_tag_no_effect(self) -> None:
         """Test profile rule with non-matching tag has no effect."""
         x = sp.Symbol("x")
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -593,13 +593,13 @@ class TestEvaluatorWithProfiles:
     def test_evaluator_multiple_profiles_compound(self) -> None:
         """Test multiple active profiles compound their multipliers."""
         x = sp.Symbol("x")
-        profile1 = HolidayProfile(
+        profile1 = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
             rules=[tag("xmas").set(metric_multiplier=2.0)],
         )
-        profile2 = HolidayProfile(
+        profile2 = SeasonalProfile(
             name="Year End",
             start_date=date(2024, 12, 25),
             end_date=date(2024, 12, 31),
@@ -634,7 +634,7 @@ class TestEvaluatorWithProfiles:
     def test_evaluator_disabled_by_assertion_selector(self) -> None:
         """Test disabling specific assertion by name."""
         x = sp.Symbol("x")
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
@@ -672,7 +672,7 @@ class TestEvaluatorWithProfiles:
     async def test_evaluator_visit_async_with_profiles(self) -> None:
         """Test async visit also applies profile overrides."""
         x = sp.Symbol("x")
-        profile = HolidayProfile(
+        profile = SeasonalProfile(
             name="Christmas",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
