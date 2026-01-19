@@ -113,11 +113,10 @@ def apply_tunables_from_config(config: dict[str, Any], tunables: Mapping[str, Tu
     # Apply each tunable from config
     for name, value in tunables_config.items():
         if name not in tunables:
-            logger.warning(
+            raise DQXError(
                 f"Configuration contains tunable '{name}' not found in suite. "
                 f"Available tunables: {list(tunables.keys())}"
             )
-            continue
 
         # Let Tunable.set() handle type validation
         try:

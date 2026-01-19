@@ -140,17 +140,15 @@ class TestApplyTunables:
         assert threshold.value == 0.05
         assert min_rows.value == 100  # Unchanged
 
-    def test_apply_extra_tunable_warns(self) -> None:
-        """Config with tunables not in suite should warn (but not error)."""
+    def test_apply_extra_tunable_raises(self) -> None:
+        """Config with tunables not in suite should raise DQXError."""
         threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
         tunables = {"THRESHOLD": threshold}
         config = {"tunables": {"THRESHOLD": 0.05, "UNKNOWN": 999}}
 
-        # Should not raise, just warn
-        apply_tunables_from_config(config, tunables)
-
-        # Valid tunable should still be applied
-        assert threshold.value == 0.05
+        # Should raise DQXError for unknown tunable
+        with pytest.raises(DQXError, match="Configuration contains tunable 'UNKNOWN' not found in suite"):
+            apply_tunables_from_config(config, tunables)
 
     def test_apply_invalid_tunable_value(self) -> None:
         """Invalid tunable value should raise ValueError."""
@@ -440,7 +438,7 @@ class TestEdgeCases:
     """Edge case tests for config loading."""
 
     def test_config_with_no_tunables_in_suite(self, tmp_path: Path) -> None:
-        """Suite with no tunables should handle config gracefully."""
+        """Suite with no tunables should raise DQXError for unknown tunables in config."""
 
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -451,7 +449,6 @@ class TestEdgeCases:
         config_file.write_text("tunables:\n  UNKNOWN: 0.05")
 
         db = InMemoryMetricDB()
-        # Should not raise, just warn
-        suite = VerificationSuite(checks=[test_check], db=db, name="Test Suite", config=config_file)
-
-        assert len(suite.get_tunable_params()) == 0
+        # Should raise DQXError for unknown tunable
+        with pytest.raises(DQXError, match="Configuration contains tunable 'UNKNOWN' not found in suite"):
+            VerificationSuite(checks=[test_check], db=db, name="Test Suite", config=config_file)
