@@ -92,7 +92,6 @@ class TestDQLVerificationSuiteE2E:
 
         assert len(suite._checks) == 3
 
-    @pytest.mark.skip(reason="Tunable discovery from DQL not yet implemented")
     def test_dql_with_tunables(self, tmp_path: Path) -> None:
         """Test that tunables defined in DQL are discovered when used."""
         db = InMemoryMetricDB()
@@ -150,7 +149,6 @@ class TestDQLVerificationSuiteE2E:
         assert len(suite._profiles) == 1
         assert suite._profiles[0].name == "Test Profile"
 
-    @pytest.mark.skip(reason="Tunable discovery from DQL not yet implemented")
     def test_dql_with_config_file(self, tmp_path: Path) -> None:
         """Test DQL with YAML config for tunable override."""
         db = InMemoryMetricDB()
@@ -385,3 +383,212 @@ tunables:
         )
 
         assert len(suite._checks) == 1
+
+    def test_dql_tunables_in_thresholds(self, tmp_path: Path) -> None:
+        """Test that tunables can be used in assertion thresholds."""
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+        suite "Threshold Suite" {
+            tunable MAX_ROWS = 1000 bounds [100, 10000]
+            tunable MIN_ROWS = 10 bounds [1, 100]
+
+            check "Check" on dataset {
+                assert num_rows() < MAX_ROWS
+                    name "Row count within upper limit"
+
+                assert num_rows() > MIN_ROWS
+                    name "Row count within lower limit"
+            }
+        }
+        """)
+
+        suite = VerificationSuite(dql=dql_file, db=db)
+
+        # Verify tunables are discoverable
+        assert "MAX_ROWS" in suite._tunables
+        assert suite._tunables["MAX_ROWS"].value == 1000
+        assert "MIN_ROWS" in suite._tunables
+        assert suite._tunables["MIN_ROWS"].value == 10
+
+        # Verify we can modify them
+        suite.set_param("MAX_ROWS", 500)
+        assert suite._tunables["MAX_ROWS"].value == 500
+
+    def test_dql_tunable_name_conflicts(self, tmp_path: Path) -> None:
+        """Test that tunable names can't shadow metric functions."""
+        from dqx.dql.errors import DQLSyntaxError
+
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+        suite "Bad Suite" {
+            tunable num_rows = 100 bounds [1, 1000]
+
+            check "Check" on dataset {
+                assert num_rows() > 50
+                    name "Conflicting name"
+            }
+        }
+        """)
+
+        with pytest.raises(DQLSyntaxError, match="conflicts with built-in metric function"):
+            VerificationSuite(dql=dql_file, db=db)
+
+    def test_dql_tunable_in_between_condition(self, tmp_path: Path) -> None:
+        """Test tunables in between conditions."""
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+        suite "Between Suite" {
+            tunable LOWER = 10 bounds [1, 50]
+            tunable UPPER = 100 bounds [51, 200]
+
+            check "Check" on dataset {
+                assert num_rows() between LOWER and UPPER
+                    name "Row count in range"
+            }
+        }
+        """)
+
+        suite = VerificationSuite(dql=dql_file, db=db)
+
+        assert "LOWER" in suite._tunables
+        assert "UPPER" in suite._tunables
+        assert suite._tunables["LOWER"].value == 10
+        assert suite._tunables["UPPER"].value == 100
+
+    def test_dql_tunable_type_inference_int(self, tmp_path: Path) -> None:
+        """Test that integer tunables are inferred as TunableInt."""
+        from dqx.tunables import TunableInt
+
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+        suite "Int Suite" {
+            tunable COUNT = 42 bounds [1, 100]
+
+            check "Check" on dataset {
+                assert num_rows() > COUNT
+                    name "Has rows"
+            }
+        }
+        """)
+
+        suite = VerificationSuite(dql=dql_file, db=db)
+
+        assert "COUNT" in suite._tunables
+        assert isinstance(suite._tunables["COUNT"], TunableInt)
+        assert suite._tunables["COUNT"].value == 42
+
+    def test_dql_tunable_type_inference_float(self, tmp_path: Path) -> None:
+        """Test that float tunables are inferred as TunableFloat."""
+        from dqx.tunables import TunableFloat
+
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+        suite "Float Suite" {
+            tunable RATE = 0.05 bounds [0.0, 1.0]
+
+            check "Check" on dataset {
+                assert null_rate(col) < RATE
+                    name "Low null rate"
+            }
+        }
+        """)
+
+        suite = VerificationSuite(dql=dql_file, db=db)
+
+        assert "RATE" in suite._tunables
+        assert isinstance(suite._tunables["RATE"], TunableFloat)
+        assert suite._tunables["RATE"].value == 0.05
+
+    def test_dql_tunable_invalid_bounds_int(self, tmp_path: Path) -> None:
+        """Test that invalid integer tunable bounds raise DQLError."""
+        from dqx.dql.errors import DQLError
+
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+        suite "Bad Int Bounds Suite" {
+            tunable BAD = 10 bounds [100, 1]
+
+            check "Check" on dataset {
+                assert num_rows() > BAD
+                    name "test"
+            }
+        }
+        """)
+
+        with pytest.raises(DQLError, match="Tunable 'BAD'.*Invalid bounds"):
+            VerificationSuite(dql=dql_file, db=db)
+
+    def test_dql_tunable_invalid_bounds_float(self, tmp_path: Path) -> None:
+        """Test that invalid float tunable bounds raise DQLError."""
+        from dqx.dql.errors import DQLError
+
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+        suite "Bad Float Bounds Suite" {
+            tunable BAD = 0.5 bounds [1.0, 0.0]
+
+            check "Check" on dataset {
+                assert num_rows() > 0
+                    name "test"
+            }
+        }
+        """)
+
+        with pytest.raises(DQLError, match="Tunable 'BAD'.*Invalid bounds"):
+            VerificationSuite(dql=dql_file, db=db)
+
+    def test_dql_tunable_value_outside_bounds_int(self, tmp_path: Path) -> None:
+        """Test that integer value outside bounds raises DQLError."""
+        from dqx.dql.errors import DQLError
+
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+        suite "Value Outside Bounds Suite" {
+            tunable BAD = 200 bounds [1, 100]
+
+            check "Check" on dataset {
+                assert num_rows() > 0
+                    name "test"
+            }
+        }
+        """)
+
+        with pytest.raises(DQLError, match="Tunable 'BAD'.*outside bounds"):
+            VerificationSuite(dql=dql_file, db=db)
+
+    def test_dql_tunable_value_outside_bounds_float(self, tmp_path: Path) -> None:
+        """Test that float value outside bounds raises DQLError."""
+        from dqx.dql.errors import DQLError
+
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+        suite "Float Value Outside Bounds Suite" {
+            tunable BAD = 2.0 bounds [0.0, 1.0]
+
+            check "Check" on dataset {
+                assert num_rows() > 0
+                    name "test"
+            }
+        }
+        """)
+
+        with pytest.raises(DQLError, match="Tunable 'BAD'.*outside bounds"):
+            VerificationSuite(dql=dql_file, db=db)

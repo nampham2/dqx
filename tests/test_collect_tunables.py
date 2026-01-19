@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dqx.api import Context, MetricProvider, VerificationSuite, check, collect_tunables_from_graph
 from dqx.orm.repositories import InMemoryMetricDB
-from dqx.tunables import TunableFloat, TunableInt, TunablePercent
+from dqx.tunables import TunableInt, TunableFloat
 
 
 class TestCollectTunablesFromGraph:
@@ -13,7 +13,7 @@ class TestCollectTunablesFromGraph:
     def test_collect_single_tunable(self) -> None:
         """Can collect a single tunable from the graph."""
         db = InMemoryMetricDB()
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -36,7 +36,7 @@ class TestCollectTunablesFromGraph:
     def test_collect_multiple_tunables(self) -> None:
         """Can collect multiple tunables from the graph."""
         db = InMemoryMetricDB()
-        threshold1 = TunablePercent("THRESHOLD1", value=0.05, bounds=(0.0, 0.20))
+        threshold1 = TunableFloat("THRESHOLD1", value=0.05, bounds=(0.0, 0.20))
         threshold2 = TunableInt("THRESHOLD2", value=100, bounds=(0, 1000))
 
         @check(name="Test Check")
@@ -61,7 +61,7 @@ class TestCollectTunablesFromGraph:
     def test_collect_tunable_from_multiple_assertions(self) -> None:
         """Same tunable used in multiple assertions is collected once."""
         db = InMemoryMetricDB()
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -86,7 +86,7 @@ class TestCollectTunablesFromGraph:
     def test_collect_tunable_from_expression(self) -> None:
         """Can collect tunable used in complex expression."""
         db = InMemoryMetricDB()
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -129,7 +129,7 @@ class TestCollectTunablesFromGraph:
     def test_collect_tunables_different_types(self) -> None:
         """Can collect tunables of different types."""
         db = InMemoryMetricDB()
-        percent = TunablePercent("PCT", value=0.05, bounds=(0.0, 1.0))
+        percent = TunableFloat("PCT", value=0.05, bounds=(0.0, 1.0))
         int_val = TunableInt("INT", value=100, bounds=(0, 1000))
         float_val = TunableFloat("FLT", value=0.5, bounds=(0.0, 1.0))
 
@@ -163,8 +163,8 @@ class TestCollectTunablesFromGraph:
         """
         db = InMemoryMetricDB()
         # Create two different tunables with same name (this shouldn't happen in practice)
-        threshold1 = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
-        threshold2 = TunablePercent("THRESHOLD", value=0.10, bounds=(0.0, 0.20))
+        threshold1 = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold2 = TunableFloat("THRESHOLD", value=0.10, bounds=(0.0, 0.20))
 
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -188,7 +188,7 @@ class TestCollectTunablesFromGraph:
     def test_collect_tunables_from_multiple_checks(self) -> None:
         """Can collect tunables from multiple checks."""
         db = InMemoryMetricDB()
-        t1 = TunablePercent("T1", value=0.05, bounds=(0.0, 0.20))
+        t1 = TunableFloat("T1", value=0.05, bounds=(0.0, 0.20))
         t2 = TunableInt("T2", value=100, bounds=(0, 1000))
 
         @check(name="Check 1")
@@ -215,7 +215,7 @@ class TestCollectTunablesFromGraph:
     def test_collect_same_tunable_across_checks(self) -> None:
         """Same tunable used across multiple checks is collected once."""
         db = InMemoryMetricDB()
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         @check(name="Check 1")
         def check1(mp: MetricProvider, ctx: Context) -> None:

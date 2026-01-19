@@ -7,9 +7,8 @@ import pytest
 
 from dqx.tunables import (
     TunableChoice,
-    TunableFloat,
     TunableInt,
-    TunablePercent,
+    TunableFloat,
 )
 
 
@@ -55,28 +54,6 @@ class TestTunableFloat:
             "value": 0.5,
             "bounds": (0.0, 1.0),
         }
-
-
-class TestTunablePercent:
-    """Tests for TunablePercent."""
-
-    def test_create_valid(self) -> None:
-        """Can create TunablePercent with valid value."""
-        t = TunablePercent("threshold", value=0.05, bounds=(0.0, 0.20))
-        assert t.value == 0.05
-        assert t.bounds == (0.0, 0.20)
-
-    def test_validation_error_message_shows_percentage(self) -> None:
-        """Error message shows percentages for readability."""
-        t = TunablePercent("x", value=0.05, bounds=(0.0, 0.10))
-        with pytest.raises(ValueError, match=r"15\.0%.*outside bounds.*0\.0%.*10\.0%"):
-            t.set(0.15)
-
-    def test_to_dict(self) -> None:
-        """to_dict returns correct structure with percent type."""
-        t = TunablePercent("x", value=0.05, bounds=(0.0, 0.20))
-        d = t.to_dict()
-        assert d["type"] == "percent"
 
 
 class TestTunableInt:
@@ -203,7 +180,7 @@ class TestVerificationSuiteTunables:
         from dqx.api import VerificationSuite, check
         from dqx.orm.repositories import InMemoryMetricDB
 
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
         min_rows = TunableInt("MIN_ROWS", value=1000, bounds=(100, 10000))
 
         @check(name="Test Check")
@@ -230,7 +207,7 @@ class TestVerificationSuiteTunables:
         from dqx.api import VerificationSuite, check
         from dqx.orm.repositories import InMemoryMetricDB
 
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
@@ -270,12 +247,12 @@ class TestVerificationSuiteTunables:
         """
         Verifies that a tunable parameter can be updated via a VerificationSuite and its new value retrieved.
 
-        Creates a VerificationSuite with a TunablePercent, calls set_param to change the parameter (including agent and reason), and asserts get_param returns the updated value.
+        Creates a VerificationSuite with a TunableFloat, calls set_param to change the parameter (including agent and reason), and asserts get_param returns the updated value.
         """
         from dqx.api import VerificationSuite, check
         from dqx.orm.repositories import InMemoryMetricDB
 
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
@@ -298,7 +275,7 @@ class TestVerificationSuiteTunables:
         from dqx.api import VerificationSuite, check
         from dqx.orm.repositories import InMemoryMetricDB
 
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
@@ -321,7 +298,7 @@ class TestVerificationSuiteTunables:
         from dqx.api import VerificationSuite, check
         from dqx.orm.repositories import InMemoryMetricDB
 
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
@@ -413,13 +390,13 @@ class TestVerificationSuiteTunables:
             suite.get_param_history("UNKNOWN")
 
 
-class TestTunablePercentValidation:
-    """Additional tests for TunablePercent validation."""
+class TestTunableFloatValidation:
+    """Additional tests for TunableFloat validation."""
 
     def test_invalid_bounds_order(self) -> None:
         """Raises error if min > max."""
         with pytest.raises(ValueError, match="Invalid bounds"):
-            TunablePercent("x", value=0.05, bounds=(0.20, 0.0))
+            TunableFloat("x", value=0.05, bounds=(0.20, 0.0))
 
 
 class TestTunableIntValidation:
@@ -462,7 +439,7 @@ class TestTunableRuntimeBehavior:
         key = ResultKey(yyyy_mm_dd=dt.date(2025, 1, 15), tags={})
 
         # Create tunable with initial threshold (20%) - should FAIL (null rate ~25.8% > 20%)
-        null_threshold = TunablePercent("NULL_THRESHOLD", value=0.20, bounds=(0.0, 0.50))
+        null_threshold = TunableFloat("NULL_THRESHOLD", value=0.20, bounds=(0.0, 0.50))
 
         @check(name="Null Rate Check", datasets=["orders"])
         def null_rate_check(mp: MetricProvider, ctx: Context) -> None:

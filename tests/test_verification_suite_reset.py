@@ -16,7 +16,7 @@ from dqx.api import VerificationSuite, check
 from dqx.common import Context, DQXError, ResultKey
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
-from dqx.tunables import TunablePercent
+from dqx.tunables import TunableFloat
 from tests.fixtures.data_fixtures import CommercialDataSource
 
 
@@ -187,7 +187,7 @@ class TestResetWithTunables:
         adjusts tunable parameters, resets, and runs again.
         """
         # Create a tunable threshold
-        null_threshold = TunablePercent("NULL_THRESHOLD", value=0.05, bounds=(0.0, 0.50))
+        null_threshold = TunableFloat("NULL_THRESHOLD", value=0.05, bounds=(0.0, 0.50))
 
         # Create a check that uses the tunable directly in expression
         @check(name="Null Rate Check", datasets=["orders"])
@@ -291,7 +291,7 @@ class TestResetExecutionId:
 
     def test_reset_execution_id_distinguishes_tuning_iterations_in_db(self) -> None:
         """Verify different execution_ids allow tracking tuning iterations in DB."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.50))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.50))
 
         @check(name="Null Rate Check", datasets=["orders"])
         def null_rate_check(mp: MetricProvider, ctx: Context) -> None:

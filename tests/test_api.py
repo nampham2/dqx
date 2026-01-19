@@ -11,7 +11,7 @@ from dqx.api import Context, MetricProvider, VerificationSuite, check
 from dqx.common import DQXError, ResultKey
 from dqx.datasource import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
-from dqx.tunables import TunableFloat, TunableInt, TunablePercent
+from dqx.tunables import TunableInt, TunableFloat
 
 
 def test_assertion_node_is_immutable() -> None:
@@ -1161,7 +1161,7 @@ class TestIsGeqWithTunable:
         self, db: InMemoryMetricDB, datasource: DuckRelationDataSource, key: ResultKey
     ) -> None:
         """is_geq passes when metric value meets or exceeds tunable threshold."""
-        MIN_SCORE = TunablePercent("MIN_SCORE", value=0.70, bounds=(0.0, 1.0))
+        MIN_SCORE = TunableFloat("MIN_SCORE", value=0.70, bounds=(0.0, 1.0))
 
         @check(name="Score Check")
         def score_check(mp: MetricProvider, ctx: Context) -> None:

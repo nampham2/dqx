@@ -42,7 +42,7 @@ if TYPE_CHECKING:
 CheckProducer = Callable[[MetricProvider, "Context"], None]
 CheckCreator = Callable[[CheckProducer], CheckProducer]
 
-# Type alias for numeric tunables (TunableFloat, TunablePercent, TunableInt)
+# Type alias for numeric tunables (TunableFloat, TunableInt)
 NumericTunable: TypeAlias = "Tunable[float] | Tunable[int]"
 
 
@@ -235,7 +235,7 @@ class AssertionReady:
             tol: Comparison tolerance; values within `tol` of `other` are treated as equal.
 
         Example:
-            >>> MAX_NULL = TunablePercent("MAX_NULL", value=0.05, bounds=(0.0, 0.20))
+            >>> MAX_NULL = TunableFloat("MAX_NULL", value=0.05, bounds=(0.0, 0.20))
             >>> ctx.assert_that(mp.null_count("col")).where(name="Nulls").is_geq(MAX_NULL)
         """
         from dqx.tunables import Tunable
@@ -281,7 +281,7 @@ class AssertionReady:
         Args:
             other: Threshold to compare against. Can be:
                    - float: Static threshold value
-                   - NumericTunable: Dynamic tunable parameter (TunableFloat, TunablePercent, TunableInt)
+                   - NumericTunable: Dynamic tunable parameter (TunableFloat, TunableInt)
             tol: Comparison tolerance for floating-point comparisons.
 
         Example:
@@ -718,8 +718,8 @@ class VerificationSuite:
 
         Advanced usage with tunables and reset (for AI agents):
 
-        >>> from dqx.tunables import TunablePercent
-        >>> threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.50))
+        >>> from dqx.tunables import TunableFloat
+        >>> threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.50))
         >>>
         >>> @check(name="My Check")
         >>> def my_check(mp, ctx):
@@ -847,7 +847,7 @@ class VerificationSuite:
                 self._data_av_threshold = data_av_threshold
 
             logger.info("Building checks from DQL...")
-            self._checks = self._build_dql_checks(suite_ast)
+            self._checks, self._dql_tunables = self._build_dql_checks(suite_ast)
         else:
             # Python API path - name is REQUIRED
             if not checks:
@@ -868,6 +868,7 @@ class VerificationSuite:
             self._checks = list(checks)
             self._name = name_str.strip()
             self._data_av_threshold = data_av_threshold
+            self._dql_tunables = {}  # Python API doesn't have DQL tunables
 
         # Generate unique execution ID
         self._execution_id = str(uuid.uuid4())
@@ -938,7 +939,12 @@ class VerificationSuite:
         self.build_graph(self._context)
 
         # Collect tunables from the graph automatically
-        self._tunables = collect_tunables_from_graph(self._context._graph)
+        graph_tunables = collect_tunables_from_graph(self._context._graph)
+
+        # Merge DQL tunables with graph-collected tunables
+        # DQL tunables take precedence (they are the source of truth)
+        self._tunables = {**graph_tunables, **self._dql_tunables}
+
         if self._tunables:
             logger.info(f"Discovered {len(self._tunables)} tunable(s): {list(self._tunables.keys())}")
 
@@ -1218,7 +1224,7 @@ class VerificationSuite:
         # Clear plugin manager (will be lazy-loaded on next use)
         self._plugin_manager = None
 
-    def _build_dql_checks(self, suite_ast: Any) -> list[CheckProducer]:
+    def _build_dql_checks(self, suite_ast: Any) -> tuple[list[CheckProducer], dict[str, Tunable[Any]]]:
         """
         Convert DQL Suite AST to Python check functions.
 
@@ -1226,7 +1232,7 @@ class VerificationSuite:
             suite_ast: Parsed DQL Suite AST
 
         Returns:
-            List of check functions compatible with VerificationSuite
+            Tuple of (list of check functions, dict of tunables defined in DQL)
         """
         # Build tunables dict for expression substitution
         tunables_dict = self._build_tunables_from_ast(suite_ast.tunables)
@@ -1237,25 +1243,82 @@ class VerificationSuite:
             check_func = self._build_check_from_ast(check_ast, tunables_dict)
             checks.append(check_func)
 
-        return checks
+        return checks, tunables_dict
 
-    def _build_tunables_from_ast(self, tunables_ast: tuple[Any, ...]) -> dict[str, float]:
-        """Convert DQL Tunable AST nodes to value dictionary."""
-        tunables_dict: dict[str, float] = {}
+    def _build_tunables_from_ast(self, tunables_ast: tuple[Any, ...]) -> dict[str, Tunable[Any]]:
+        """Convert DQL Tunable AST nodes to Tunable objects.
+
+        Creates TunableInt or TunableFloat based on type inference.
+        Type inference: if all components (value, min, max) are integers → TunableInt,
+        otherwise → TunableFloat.
+
+        Initial value is validated against bounds by Tunable.__post_init__().
+
+        Args:
+            tunables_ast: Tuple of Tunable AST nodes from DQL parser
+
+        Returns:
+            dict mapping tunable names to Tunable objects
+
+        Raises:
+            DQLError: If initial value is outside bounds or bounds are invalid
+            DQLSyntaxError: If tunable name conflicts with built-in metric function
+        """
+        from dqx.dql.errors import DQLError, DQLSyntaxError
+        from dqx.tunables import TunableFloat, TunableInt
+
+        # Reserved names (built-in metric function names that should not be shadowed)
+        RESERVED_NAMES = {
+            "num_rows",
+            "null_count",
+            "null_rate",
+            "avg",
+            "min",
+            "max",
+            "sum",
+            "stddev",
+            "distinct_count",
+            "day_over_day",
+            "week_over_week",
+            "custom_sql",
+        }
+
+        tunables_dict: dict[str, Tunable[Any]] = {}
         for t in tunables_ast:
-            # Evaluate value (bounds are evaluated but not used here)
-            # Bounds will be discovered later via collect_tunables_from_graph()
+            # Check for reserved names
+            if t.name in RESERVED_NAMES:
+                raise DQLSyntaxError(
+                    f"Tunable name '{t.name}' conflicts with built-in metric function",
+                    loc=t.loc,
+                )
+
+            # Evaluate bounds and value using simple expressions
+            # Can reference previously defined tunables
+            min_val = self._eval_simple_expr(t.bounds[0], tunables_dict)
+            max_val = self._eval_simple_expr(t.bounds[1], tunables_dict)
             value = self._eval_simple_expr(t.value, tunables_dict)
 
-            # Store for expression substitution
-            tunables_dict[t.name] = value
+            # Type inference: if all are ints → TunableInt, otherwise TunableFloat
+            tunable: Tunable[Any]
+            if isinstance(value, int) and isinstance(min_val, int) and isinstance(max_val, int):
+                try:
+                    tunable = TunableInt(name=t.name, value=int(value), bounds=(int(min_val), int(max_val)))
+                except ValueError as e:
+                    # TunableInt validation failed (value outside bounds or invalid bounds)
+                    raise DQLError(f"Tunable '{t.name}': {e}", loc=t.loc) from None
+            else:
+                # Promote to float if any component is float
+                try:
+                    tunable = TunableFloat(name=t.name, value=float(value), bounds=(float(min_val), float(max_val)))
+                except ValueError as e:
+                    raise DQLError(f"Tunable '{t.name}': {e}", loc=t.loc) from None
 
-            # Note: Tunables are auto-discovered from the dependency graph later
-            # via collect_tunables_from_graph(). We don't manually instantiate them here.
+            # Add to dict immediately so subsequent tunables can reference it
+            tunables_dict[t.name] = tunable
 
         return tunables_dict
 
-    def _build_check_from_ast(self, check_ast: Any, tunables: dict[str, float]) -> CheckProducer:
+    def _build_check_from_ast(self, check_ast: Any, tunables: dict[str, Tunable[Any]]) -> CheckProducer:
         """Convert DQL Check AST to Python check function."""
         check_name = check_ast.name
         assertions = check_ast.assertions
@@ -1275,7 +1338,7 @@ class VerificationSuite:
         statement: Any,
         mp: MetricProvider,
         ctx: Context,
-        tunables: dict[str, float],
+        tunables: dict[str, Tunable[Any]],
     ) -> None:
         """Convert DQL Assertion or Collection to ctx.assert_that() call."""
         from dqx.dql.ast import Collection
@@ -1291,7 +1354,7 @@ class VerificationSuite:
         assertion_ast: Any,
         mp: MetricProvider,
         ctx: Context,
-        tunables: dict[str, float],
+        tunables: dict[str, Tunable[Any]],
     ) -> None:
         """Convert DQL Assertion to ctx.assert_that() call."""
         ready = self._setup_assertion_ready(assertion_ast, mp, ctx, tunables)
@@ -1306,7 +1369,7 @@ class VerificationSuite:
         collection_ast: Any,
         mp: MetricProvider,
         ctx: Context,
-        tunables: dict[str, float],
+        tunables: dict[str, Tunable[Any]],
     ) -> None:
         """Convert DQL Collection to ctx.assert_that(...).noop() call."""
         ready = self._setup_assertion_ready(collection_ast, mp, ctx, tunables)
@@ -1321,7 +1384,7 @@ class VerificationSuite:
         statement: Any,
         mp: MetricProvider,
         ctx: Context,
-        tunables: dict[str, float],
+        tunables: dict[str, Tunable[Any]],
     ) -> Any | None:
         """Common setup for assertions and collections.
 
@@ -1366,78 +1429,33 @@ class VerificationSuite:
 
     # === DQL Expression Evaluation Methods ===
 
-    def _eval_simple_expr(self, expr: Any, tunables: dict[str, float]) -> float:
-        """Evaluate numeric expressions with full SymPy arithmetic support.
-
-        Supports:
-        - Numeric literals: 42, 3.14
-        - Percentages: 50% (converted to 0.5)
-        - Arithmetic: +, -, *, /, **
-        - Tunable references: MIN_VAL, MAX_VAL
-        - Complex expressions: (MIN_VAL + 10) * 2
+    def _eval_metric_expr(self, expr: Any, mp: MetricProvider, tunables: dict[str, Tunable[Any]]) -> Any:
+        """Parse metric expression using sympy, injecting tunables as TunableSymbol.
 
         Args:
             expr: Expression AST node with .text attribute
-            tunables: Dictionary mapping tunable names to their numeric values
+            mp: MetricProvider for accessing metric functions
+            tunables: Dictionary of Tunable objects (injected as TunableSymbol)
 
         Returns:
-            Evaluated numeric result (int or float)
-
-        Raises:
-            DQLError: If expression cannot be evaluated
+            SymPy expression with tunables as TunableSymbol instances
         """
-        import sympy as sp
-        from dqx.dql.errors import DQLError
+        from dqx.tunables import TunableSymbol
 
-        # Substitute tunables first
-        text = self._substitute_tunables(expr.text.strip(), tunables)
-
-        # Handle percentages (convert to decimal)
-        # Note: Parser already converts % tokens, this is defensive
-        if text.endswith("%"):  # pragma: no cover
-            text = str(float(text[:-1]) / 100)
-
-        try:
-            # Use SymPy to evaluate arithmetic expressions
-            result = sp.sympify(text, evaluate=True)
-
-            # Preserve int vs float type
-            if result.is_Integer:
-                return int(result)
-            return float(result)
-        except (sp.SympifyError, Exception) as e:
-            raise DQLError(f"Cannot evaluate expression: {text}", loc=expr.loc) from e
-
-    def _substitute_tunables(self, expr_text: str, tunables: dict[str, float]) -> str:
-        """Replace tunable names with their values in expression.
-
-        Uses word-boundary regex to avoid corrupting identifiers when one tunable
-        name is a prefix of another (e.g., MAX and MAX_VALUE).
-        """
-        import re
-
-        result = expr_text
-        # Sort by length descending to handle longest matches first
-        for name in sorted(tunables.keys(), key=len, reverse=True):
-            value = tunables[name]
-            # Use word boundaries to match only complete identifiers
-            pattern = r"\b" + re.escape(name) + r"\b"
-            result = re.sub(pattern, str(value), result)
-        return result
-
-    def _eval_metric_expr(self, expr: Any, mp: MetricProvider, tunables: dict[str, float]) -> Any:
-        """Parse metric expression using sympy, with special handling for extensions."""
-        # Check if expression contains extension functions with named params
-        expr_text = self._substitute_tunables(expr.text, tunables)
+        expr_text = expr.text
 
         # Handle stddev specially since it has named params that sympy doesn't understand
         if "stddev(" in expr_text and (", n=" in expr_text or ", offset=" in expr_text):
-            return self._handle_stddev_extension(expr_text, mp)
+            return self._handle_stddev_extension(expr_text, mp, tunables)
 
         # Build namespace with metric functions
         namespace = self._build_metric_namespace(mp)
 
-        # Parse with sympy
+        # Inject tunables as TunableSymbol
+        for name, tunable in tunables.items():
+            namespace[name] = TunableSymbol(tunable)
+
+        # Parse with sympy - tunables will appear as TunableSymbol in expression
         try:
             return sp.sympify(expr_text, locals=namespace, evaluate=False)
         except (sp.SympifyError, TypeError, ValueError) as e:  # pragma: no cover
@@ -1449,7 +1467,58 @@ class VerificationSuite:
                 loc=expr.loc,
             ) from e
 
-    def _handle_stddev_extension(self, expr_text: str, mp: MetricProvider) -> Any:
+    def _eval_simple_expr(self, expr: Any, tunables: dict[str, Tunable[Any]]) -> float:
+        """Evaluate numeric expressions with full SymPy arithmetic support.
+
+        Supports:
+        - Numeric literals: 42, 3.14
+        - Percentages: 50% (converted to 0.5)
+        - Arithmetic: +, -, *, /, **
+        - Tunable references: MIN_VAL, MAX_VAL (extracts .value)
+        - Complex expressions: (MIN_VAL + 10) * 2
+
+        Args:
+            expr: Expression AST node with .text attribute
+            tunables: Dictionary mapping tunable names to Tunable objects
+
+        Returns:
+            Evaluated numeric result (int or float)
+
+        Raises:
+            DQLError: If expression cannot be evaluated
+        """
+        import sympy as sp
+        from dqx.dql.errors import DQLError
+        from dqx.tunables import TunableSymbol
+
+        text = expr.text.strip()
+
+        # Handle percentages (convert to decimal)
+        # Note: Parser already converts % tokens, this is defensive
+        if text.endswith("%"):  # pragma: no cover
+            text = str(float(text[:-1]) / 100)
+
+        try:
+            # Inject tunables as numeric values for immediate evaluation
+            namespace = {name: tunable.value for name, tunable in tunables.items()}
+            result = sp.sympify(text, locals=namespace, evaluate=True)
+
+            # Handle TunableSymbol case (defensive - shouldn't happen with evaluate=True)
+            if isinstance(result, TunableSymbol):  # pragma: no cover
+                return float(result.value)
+
+            # Handle raw Python int/float (when sympify returns the namespace value directly)
+            if isinstance(result, (int, float)):
+                return result
+
+            # Preserve int vs float type for SymPy objects
+            if result.is_Integer:
+                return int(result)
+            return float(result)
+        except (sp.SympifyError, Exception) as e:
+            raise DQLError(f"Cannot evaluate expression: {text}", loc=expr.loc) from e
+
+    def _handle_stddev_extension(self, expr_text: str, mp: MetricProvider, tunables: dict[str, Tunable[Any]]) -> Any:
         """Handle stddev extension function with named parameters.
 
         Parses stddev calls with optional offset and required n parameters in any order:
@@ -1460,11 +1529,14 @@ class VerificationSuite:
         Args:
             expr_text: Expression string containing stddev call
             mp: MetricProvider for accessing extension functions
+            tunables: Dictionary of Tunable objects (injected as TunableSymbol)
 
         Returns:
             Result of mp.ext.stddev() call via sp.sympify()
         """
         import re
+
+        from dqx.tunables import TunableSymbol
 
         # Find the matching closing paren for stddev( by counting parentheses
         # This properly handles nested function calls like stddev(day_over_day(avg(x)), n=7)
@@ -1472,6 +1544,9 @@ class VerificationSuite:
         if stddev_start == -1:  # pragma: no cover
             # Should not happen - caller checks for stddev( first
             namespace = self._build_metric_namespace(mp)
+            # Inject tunables
+            for name, tunable in tunables.items():
+                namespace[name] = TunableSymbol(tunable)
             return sp.sympify(expr_text, locals=namespace, evaluate=False)
 
         # Start after "stddev("
@@ -1490,6 +1565,9 @@ class VerificationSuite:
         if paren_count != 0:  # pragma: no cover - defensive fallback
             # Malformed expression - fallback to normal parsing
             namespace = self._build_metric_namespace(mp)
+            # Inject tunables
+            for name, tunable in tunables.items():
+                namespace[name] = TunableSymbol(tunable)
             return sp.sympify(expr_text, locals=namespace, evaluate=False)
 
         # Extract everything inside stddev(...)
@@ -1543,6 +1621,9 @@ class VerificationSuite:
         # Parse the inner expression via _build_metric_namespace and sp.sympify
         # Don't recursively call _eval_metric_expr to avoid infinite loop
         namespace = self._build_metric_namespace(mp)
+        # Inject tunables
+        for name, tunable in tunables.items():  # pragma: no cover
+            namespace[name] = TunableSymbol(tunable)  # pragma: no cover
         inner_metric = sp.sympify(inner_expr_text, locals=namespace, evaluate=False)
 
         # Call mp.ext.stddev with parsed parameters
@@ -1553,6 +1634,9 @@ class VerificationSuite:
             # This path shouldn't be reached - stddev without params won't match
             # the condition in _eval_metric_expr that calls this method
             namespace = self._build_metric_namespace(mp)
+            # Inject tunables
+            for name, tunable in tunables.items():
+                namespace[name] = TunableSymbol(tunable)
             return sp.sympify(expr_text, locals=namespace, evaluate=False)
 
         return result
@@ -1676,7 +1760,7 @@ class VerificationSuite:
         }
         return namespace
 
-    def _apply_condition(self, ready: Any, assertion_ast: Any, tunables: dict[str, float]) -> None:
+    def _apply_condition(self, ready: Any, assertion_ast: Any, tunables: dict[str, Tunable[Any]]) -> None:
         """Apply the assertion condition to AssertionReady."""
         cond = assertion_ast.condition
 

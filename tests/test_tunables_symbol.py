@@ -6,9 +6,8 @@ import sympy as sp
 
 from dqx.tunables import (
     TunableChoice,
-    TunableFloat,
     TunableInt,
-    TunablePercent,
+    TunableFloat,
     TunableSymbol,
 )
 
@@ -17,8 +16,8 @@ class TestTunableSymbol:
     """Tests for TunableSymbol class."""
 
     def test_create_tunable_symbol_from_tunable_percent(self) -> None:
-        """Can create TunableSymbol from TunablePercent."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        """Can create TunableSymbol from TunableFloat."""
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
         symbol = TunableSymbol(threshold)
 
         assert isinstance(symbol, sp.Symbol)
@@ -56,7 +55,7 @@ class TestTunableSymbol:
 
     def test_tunable_symbol_value_updates_with_tunable(self) -> None:
         """TunableSymbol.value reflects current tunable value."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
         symbol = TunableSymbol(threshold)
 
         assert symbol.value == 0.05
@@ -69,7 +68,7 @@ class TestTunableSymbol:
 
     def test_tunable_symbol_in_sympy_expression(self) -> None:
         """TunableSymbol can be used in SymPy expressions."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
         symbol = TunableSymbol(threshold)
         x = sp.Symbol("x")
 
@@ -82,7 +81,7 @@ class TestTunableSymbol:
 
     def test_tunable_symbol_atoms(self) -> None:
         """TunableSymbol can be extracted from expressions using atoms()."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
         symbol = TunableSymbol(threshold)
         x = sp.Symbol("x")
 
@@ -96,8 +95,8 @@ class TestTunableSymbol:
 
     def test_multiple_tunable_symbols_in_expression(self) -> None:
         """Multiple TunableSymbol instances can be used in one expression."""
-        t1 = TunablePercent("T1", value=0.05, bounds=(0.0, 0.20))
-        t2 = TunablePercent("T2", value=0.10, bounds=(0.0, 0.20))
+        t1 = TunableFloat("T1", value=0.05, bounds=(0.0, 0.20))
+        t2 = TunableFloat("T2", value=0.10, bounds=(0.0, 0.20))
         s1 = TunableSymbol(t1)
         s2 = TunableSymbol(t2)
         x = sp.Symbol("x")
@@ -111,7 +110,7 @@ class TestTunableSymbol:
 
     def test_tunable_symbol_preserves_reference(self) -> None:
         """TunableSymbol maintains reference to original Tunable."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
         symbol = TunableSymbol(threshold)
 
         # The tunable reference should be the exact same object
@@ -124,7 +123,7 @@ class TestTunableArithmeticOperators:
 
     def test_tunable_addition(self) -> None:
         """Tunable supports addition operator."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
         x = sp.Symbol("x")
 
         # Tunable + x
@@ -139,7 +138,7 @@ class TestTunableArithmeticOperators:
 
     def test_tunable_subtraction(self) -> None:
         """Tunable supports subtraction operator."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
         x = sp.Symbol("x")
 
         # Tunable - x
@@ -154,7 +153,7 @@ class TestTunableArithmeticOperators:
 
     def test_tunable_multiplication(self) -> None:
         """Tunable supports multiplication operator."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
         x = sp.Symbol("x")
 
         # Tunable * x
@@ -169,7 +168,7 @@ class TestTunableArithmeticOperators:
 
     def test_tunable_division(self) -> None:
         """Tunable supports division operator."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
         x = sp.Symbol("x")
 
         # Tunable / x
@@ -184,7 +183,7 @@ class TestTunableArithmeticOperators:
 
     def test_tunable_negation(self) -> None:
         """Tunable supports negation operator."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         expr = -threshold
         assert isinstance(expr, sp.Expr)
@@ -192,7 +191,7 @@ class TestTunableArithmeticOperators:
 
     def test_tunable_comparison_less_than(self) -> None:
         """Tunable supports < comparison."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         assert threshold < 0.10
         assert not (threshold < 0.01)
@@ -200,7 +199,7 @@ class TestTunableArithmeticOperators:
 
     def test_tunable_comparison_less_equal(self) -> None:
         """Tunable supports <= comparison."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         assert threshold <= 0.10
         assert threshold <= 0.05  # Equal
@@ -208,7 +207,7 @@ class TestTunableArithmeticOperators:
 
     def test_tunable_comparison_greater_than(self) -> None:
         """Tunable supports > comparison."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         assert threshold > 0.01
         assert not (threshold > 0.10)
@@ -216,7 +215,7 @@ class TestTunableArithmeticOperators:
 
     def test_tunable_comparison_greater_equal(self) -> None:
         """Tunable supports >= comparison."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         assert threshold >= 0.01
         assert threshold >= 0.05  # Equal
@@ -224,7 +223,7 @@ class TestTunableArithmeticOperators:
 
     def test_tunable_arithmetic_with_constants(self) -> None:
         """Tunable arithmetic works with numeric constants."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
 
         expr1 = threshold + 0.10
         expr2 = threshold - 0.02
@@ -239,7 +238,7 @@ class TestTunableArithmeticOperators:
 
     def test_complex_expression_with_tunable(self) -> None:
         """Tunable can be used in complex expressions."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
         x = sp.Symbol("x")
         y = sp.Symbol("y")
 
@@ -253,7 +252,7 @@ class TestTunableArithmeticOperators:
 
     def test_tunable_in_assertion_pattern(self) -> None:
         """Tunable works in typical assertion patterns."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
         null_rate = sp.Symbol("null_rate")
 
         # Typical pattern: null_rate < threshold
@@ -265,7 +264,7 @@ class TestTunableArithmeticOperators:
 
     def test_tunable_different_types_arithmetic(self) -> None:
         """Different Tunable types can be used in arithmetic."""
-        percent = TunablePercent("PCT", value=0.05, bounds=(0.0, 1.0))
+        percent = TunableFloat("PCT", value=0.05, bounds=(0.0, 1.0))
         int_val = TunableInt("INT", value=100, bounds=(0, 1000))
         float_val = TunableFloat("FLT", value=0.5, bounds=(0.0, 1.0))
 
@@ -286,7 +285,7 @@ class TestTunableSymbolExtraction:
 
     def test_extract_single_tunable_from_expression(self) -> None:
         """Can extract a single tunable from an expression."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
         x = sp.Symbol("x")
 
         expr = x - threshold
@@ -301,7 +300,7 @@ class TestTunableSymbolExtraction:
 
     def test_extract_multiple_tunables_from_expression(self) -> None:
         """Can extract multiple tunables from an expression."""
-        t1 = TunablePercent("T1", value=0.05, bounds=(0.0, 0.20))
+        t1 = TunableFloat("T1", value=0.05, bounds=(0.0, 0.20))
         t2 = TunableInt("T2", value=100, bounds=(0, 1000))
         x = sp.Symbol("x")
 
@@ -318,7 +317,7 @@ class TestTunableSymbolExtraction:
 
     def test_extract_tunable_from_nested_expression(self) -> None:
         """Can extract tunable from nested expressions."""
-        threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
         x = sp.Symbol("x")
         y = sp.Symbol("y")
 

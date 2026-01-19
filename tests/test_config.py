@@ -13,7 +13,7 @@ from dqx.common import Context, DQXError, ResultKey
 from dqx.config import apply_tunables_from_config, load_config, validate_config_structure
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.provider import MetricProvider
-from dqx.tunables import Tunable, TunableChoice, TunableFloat, TunableInt, TunablePercent
+from dqx.tunables import Tunable, TunableChoice, TunableInt, TunableFloat
 from tests.fixtures.data_fixtures import CommercialDataSource
 
 
@@ -117,7 +117,7 @@ class TestApplyTunables:
 
     def test_apply_single_tunable(self) -> None:
         """Apply a single tunable value from config."""
-        threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
         tunables = {"THRESHOLD": threshold}
         config = {"tunables": {"THRESHOLD": 0.05}}
 
@@ -129,7 +129,7 @@ class TestApplyTunables:
 
     def test_apply_multiple_tunables(self) -> None:
         """Apply multiple tunable values from config."""
-        threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
         min_rows = TunableInt("MIN_ROWS", value=100, bounds=(0, 10000))
         tunables: dict[str, Tunable[Any]] = {"THRESHOLD": threshold, "MIN_ROWS": min_rows}
         config = {"tunables": {"THRESHOLD": 0.05, "MIN_ROWS": 1000}}
@@ -141,7 +141,7 @@ class TestApplyTunables:
 
     def test_apply_partial_tunables(self) -> None:
         """Config with subset of tunables should work (partial override)."""
-        threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
         min_rows = TunableInt("MIN_ROWS", value=100, bounds=(0, 10000))
         tunables: dict[str, Tunable[Any]] = {"THRESHOLD": threshold, "MIN_ROWS": min_rows}
         config = {"tunables": {"THRESHOLD": 0.05}}  # Only set THRESHOLD
@@ -153,7 +153,7 @@ class TestApplyTunables:
 
     def test_apply_extra_tunable_raises(self) -> None:
         """Config with tunables not in suite should raise DQXError."""
-        threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
         tunables = {"THRESHOLD": threshold}
         config = {"tunables": {"THRESHOLD": 0.05, "UNKNOWN": 999}}
 
@@ -163,7 +163,7 @@ class TestApplyTunables:
 
     def test_apply_invalid_tunable_value(self) -> None:
         """Invalid tunable value should raise DQXError."""
-        threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
         tunables = {"THRESHOLD": threshold}
         config = {"tunables": {"THRESHOLD": 0.50}}  # Outside bounds
 
@@ -173,7 +173,7 @@ class TestApplyTunables:
     def test_apply_all_tunable_types(self) -> None:
         """Test all tunable types: Float, Percent, Int, Choice."""
         t_float = TunableFloat("FLOAT", value=0.5, bounds=(0.0, 1.0))
-        t_percent = TunablePercent("PERCENT", value=0.05, bounds=(0.0, 0.20))
+        t_percent = TunableFloat("PERCENT", value=0.05, bounds=(0.0, 0.20))
         t_int = TunableInt("INT", value=100, bounds=(0, 1000))
         t_choice = TunableChoice("CHOICE", value="mean", choices=("mean", "median", "max"))
 
@@ -189,7 +189,7 @@ class TestApplyTunables:
 
     def test_apply_empty_config_tunables(self) -> None:
         """Empty tunables config should be a no-op."""
-        threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
         tunables = {"THRESHOLD": threshold}
         config: dict[str, Any] = {"tunables": {}}
 
@@ -199,7 +199,7 @@ class TestApplyTunables:
 
     def test_apply_null_config_tunables(self) -> None:
         """Null tunables config should be a no-op."""
-        threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
         tunables = {"THRESHOLD": threshold}
         config = {"tunables": None}
 
@@ -213,7 +213,7 @@ class TestSuiteWithConfig:
 
     def test_suite_with_config_file(self, tmp_path: Path) -> None:
         """Create suite with config file, verify tunables are set."""
-        threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
         min_rows = TunableInt("MIN_ROWS", value=100, bounds=(0, 10000))
 
         @check(name="Test Check")
@@ -240,7 +240,7 @@ tunables:
 
     def test_suite_without_config_file(self) -> None:
         """Create suite without config file, use default tunable values."""
-        threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
 
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -255,7 +255,7 @@ tunables:
 
     def test_suite_config_partial_tunables(self, tmp_path: Path) -> None:
         """Config with subset of tunables should work."""
-        threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
         min_rows = TunableInt("MIN_ROWS", value=100, bounds=(0, 10000))
 
         @check(name="Test Check")
@@ -275,7 +275,7 @@ tunables:
 
     def test_suite_config_invalid_file(self, tmp_path: Path) -> None:
         """Invalid config file should raise DQXError during suite construction."""
-        threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
 
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -295,7 +295,7 @@ class TestConfigResetCompatibility:
 
     def test_config_preserved_after_reset_unchanged(self, tmp_path: Path) -> None:
         """After reset(), tunables retain their current values (config not reloaded)."""
-        threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
 
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -318,7 +318,7 @@ class TestConfigResetCompatibility:
 
     def test_set_param_survives_reset(self, tmp_path: Path) -> None:
         """Tunable modified via set_param() should retain value after reset()."""
-        threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
 
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -348,7 +348,7 @@ class TestConfigResetCompatibility:
 
     def test_reset_does_not_reload_config(self, tmp_path: Path) -> None:
         """reset() should not reload config file from disk."""
-        threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
+        threshold = TunableFloat("THRESHOLD", value=0.01, bounds=(0.0, 0.20))
 
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
@@ -378,7 +378,7 @@ class TestConfigIntegration:
 
     def test_end_to_end_with_config(self, tmp_path: Path) -> None:
         """Full workflow: config → run → set_param → reset → run."""
-        threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.50))
+        threshold = TunableFloat("THRESHOLD", value=0.01, bounds=(0.0, 0.50))
 
         @check(name="Null Rate Check", datasets=["orders"])
         def null_rate_check(mp: MetricProvider, ctx: Context) -> None:
@@ -417,7 +417,7 @@ class TestConfigIntegration:
 
     def test_config_changes_assertion_behavior(self, tmp_path: Path) -> None:
         """Verify config actually affects check results."""
-        threshold = TunablePercent("THRESHOLD", value=0.01, bounds=(0.0, 0.50))
+        threshold = TunableFloat("THRESHOLD", value=0.01, bounds=(0.0, 0.50))
 
         @check(name="Null Rate Check", datasets=["orders"])
         def null_rate_check(mp: MetricProvider, ctx: Context) -> None:

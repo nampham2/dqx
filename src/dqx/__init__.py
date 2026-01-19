@@ -18,7 +18,6 @@ from dqx.tunables import (
     TunableChoice,
     TunableFloat,
     TunableInt,
-    TunablePercent,
 )
 
 __all__ = [
@@ -30,7 +29,6 @@ __all__ = [
     "TunableChoice",
     "TunableFloat",
     "TunableInt",
-    "TunablePercent",
     "assertion",
     "check",
     "tag",

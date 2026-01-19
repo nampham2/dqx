@@ -8,8 +8,8 @@ to TunableSymbol objects that preserve the tunable reference for later
 collection and manipulation.
 
 Example:
-    >>> from dqx.tunables import TunablePercent, TunableInt
-    >>> threshold = TunablePercent("NULL_THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+    >>> from dqx.tunables import TunableFloat, TunableInt
+    >>> threshold = TunableFloat("NULL_THRESHOLD", value=0.05, bounds=(0.0, 0.20))
     >>> threshold.set(0.03, agent="rl_optimizer", reason="Episode 42")
     >>> threshold.value
     0.03
@@ -66,8 +66,8 @@ class TunableSymbol(sp.Symbol):
     tunables used in assertions.
 
     Example:
-        >>> from dqx.tunables import TunablePercent
-        >>> threshold = TunablePercent("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
+        >>> from dqx.tunables import TunableFloat
+        >>> threshold = TunableFloat("THRESHOLD", value=0.05, bounds=(0.0, 0.20))
         >>> symbol = TunableSymbol(threshold)
         >>> x = sp.Symbol("x")
         >>> expr = x - symbol
@@ -312,83 +312,6 @@ class TunableFloat(Tunable[float]):
         return {
             "name": self.name,
             "type": "float",
-            "value": self.value,
-            "bounds": self.bounds,
-        }
-
-
-@dataclass
-class TunablePercent(Tunable[float]):
-    """Percentage tunable (0.0-1.0 internally, displayed as %).
-
-    Example:
-        >>> t = TunablePercent("threshold", value=0.05, bounds=(0.0, 0.20))
-        >>> t.set(0.10)  # 10%
-        >>> t.value
-        0.1
-    """
-
-    bounds: tuple[float, float] = (0.0, 1.0)
-
-    @property
-    def lower_bound(self) -> float:
-        """
-        Get the lower bound of the tunable's valid range.
-
-        Returns:
-            float: The lower bound of the allowed value range.
-        """
-        return self.bounds[0]
-
-    @property
-    def upper_bound(self) -> float:
-        """
-        Get the upper bound of the valid range.
-
-        Returns:
-            float: The upper bound value from `bounds`.
-        """
-        return self.bounds[1]
-
-    def __post_init__(self) -> None:
-        """
-        Validate bounds and the initial value on post-initialization.
-
-        Performs two checks: ensures the configured lower bound is not greater than the upper bound, and validates the current `value` using the tunable's `validate` method. Raises ValueError if the bounds are invalid or if the initial value fails validation.
-        """
-        if self.lower_bound > self.upper_bound:
-            raise ValueError(f"Invalid bounds: min ({self.lower_bound}) > max ({self.upper_bound})")
-        self.validate(self.value)
-
-    def validate(self, value: float) -> None:
-        """
-        Validate that a percentage value lies within the tunable's bounds.
-
-        Raises a ValueError if the provided value is outside [lower_bound, upper_bound]. The error message reports the value and bounds formatted as percentages.
-
-        Args:
-            value: Percentage expressed as a fraction (e.g., 0.25 for 25%).
-        """
-        if not self.lower_bound <= value <= self.upper_bound:
-            raise ValueError(
-                f"{self.name}: value {value * 100:.1f}% outside bounds "
-                f"[{self.lower_bound * 100:.1f}%, {self.upper_bound * 100:.1f}%]"
-            )
-
-    def to_dict(self) -> dict[str, Any]:
-        """
-        Serialize the percent tunable for external/agent consumption.
-
-        Returns:
-            A dict with:
-            - "name" (str): the tunable's identifier.
-            - "type" (str): literal "percent".
-            - "value" (float): current value as a fraction between the tunable's bounds (e.g., 0.0-1.0).
-            - "bounds" (tuple[float, float]): (lower_bound, upper_bound) expressed as fractions.
-        """
-        return {
-            "name": self.name,
-            "type": "percent",
             "value": self.value,
             "bounds": self.bounds,
         }
