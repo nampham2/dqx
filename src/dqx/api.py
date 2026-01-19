@@ -7,6 +7,7 @@ import time
 import uuid
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, cast, overload, runtime_checkable
 
 import pyarrow as pa
@@ -748,6 +749,7 @@ class VerificationSuite:
         log_level: int | str = logging.INFO,
         data_av_threshold: float = 0.9,
         profiles: Sequence[Profile] | None = None,
+        config: Path | None = None,
     ) -> None:
         """
         Initialize a VerificationSuite that orchestrates and evaluates a set of data quality checks.
@@ -759,9 +761,10 @@ class VerificationSuite:
             log_level: Logging level for the suite (default: logging.INFO).
             data_av_threshold: Minimum fraction of available data required to evaluate assertions (default: 0.9).
             profiles: Optional profiles that alter assertion evaluation behavior.
+            config: Optional path to YAML configuration file for setting initial tunable values.
 
         Raises:
-            DQXError: If no checks are provided or the suite name is empty.
+            DQXError: If no checks are provided, the suite name is empty, or config file is invalid.
         """
         # Setting up the logger
         setup_logger(level=log_level)
@@ -807,6 +810,9 @@ class VerificationSuite:
         # Store profiles for evaluation
         self._profiles: list[Profile] = list(profiles) if profiles else []
 
+        # Store config path for potential reloading
+        self._config_path = config
+
         # Build the dependency graph immediately
         logger.info("Building dependency graph for suite '%s'...", self._name)
         self.build_graph(self._context)
@@ -815,6 +821,15 @@ class VerificationSuite:
         self._tunables = collect_tunables_from_graph(self._context._graph)
         if self._tunables:
             logger.info(f"Discovered {len(self._tunables)} tunable(s): {list(self._tunables.keys())}")
+
+        # Load tunable values from config file if provided
+        if self._config_path is not None:
+            logger.info(f"Loading configuration from {self._config_path}")
+            from dqx.config import apply_tunables_from_config, load_config
+
+            config_data = load_config(self._config_path)
+            apply_tunables_from_config(config_data, self._tunables)
+            logger.info("Applied tunable values from config")
 
     @property
     def execution_id(self) -> str:
@@ -1050,6 +1065,8 @@ class VerificationSuite:
         Note:
             - Generates a new execution_id for the next run
             - Preserves tunables, profiles, checks, and suite name
+            - Preserves current tunable values (does NOT reload config file)
+            - Tunables retain any values set via set_param() after config was loaded
             - Rebuilds the graph to reflect current tunable values
             - Clears cached results, analysis reports
             - Clears plugin manager (will be lazy-loaded on next use)
