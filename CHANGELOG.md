@@ -33,6 +33,37 @@ profiles:
         name: "Volume"
 ```
 
+**HolidayProfile Renamed to SeasonalProfile**
+
+The `HolidayProfile` class has been renamed to `SeasonalProfile` for better semantic clarity.
+
+- All imports of `HolidayProfile` must be updated to `SeasonalProfile`
+- Behavior remains unchanged - this is a naming-only change
+- The new name better reflects its purpose: seasonal date-range based profiles
+
+**Migration:**
+```python
+# Before (v0.5.x)
+from dqx import HolidayProfile
+
+holiday = HolidayProfile(
+    name="Holiday",
+    start_date=date(2024, 12, 20),
+    end_date=date(2025, 1, 5),
+    rules=[...],
+)
+
+# After (v0.6.0)
+from dqx import SeasonalProfile
+
+holiday = SeasonalProfile(
+    name="Holiday",
+    start_date=date(2024, 12, 20),
+    end_date=date(2025, 1, 5),
+    rules=[...],
+)
+```
+
 **Interpreter Class Removed**
 
 The `dqx.dql.Interpreter` class has been removed. Use `VerificationSuite(dql=...)` instead.

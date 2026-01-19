@@ -285,7 +285,7 @@ for result in results:
 
 ### Need Help?
 
-Open an issue on GitHub: https://github.com/nampham2/dqx/issues
+Open an issue on [GitHub](https://github.com/nampham2/dqx/issues).
 
 ## Summary
 

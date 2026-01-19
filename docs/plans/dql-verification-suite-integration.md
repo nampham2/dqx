@@ -249,7 +249,7 @@ profiles:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | Yes | Profile identifier |
-| `type` | string | Yes | Must be "holiday" |
+| `type` | string | Yes | Must be "seasonal" |
 | `start_date` | string | Yes | ISO 8601 date (YYYY-MM-DD) |
 | `end_date` | string | Yes | ISO 8601 date (YYYY-MM-DD) |
 | `rules` | array | Yes | List of rule objects |
@@ -2233,7 +2233,7 @@ Verify:
 
 ### Need Help?
 
-Open an issue on GitHub: https://github.com/your-org/dqx/issues
+Open an issue on [GitHub](https://github.com/nampham2/dqx/issues).
 ```
 
 #### 5.5 Update Changelog
