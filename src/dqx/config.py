@@ -85,16 +85,16 @@ def apply_tunables_from_config(config: dict[str, Any], tunables: Mapping[str, Tu
     """Apply tunable values from configuration to suite tunables.
 
     Extracts the 'tunables' section from the config and applies each value to the
-    corresponding tunable in the suite. If a tunable in the config is not found in
-    the suite, a warning is logged. Tunables in the suite that are not in the config
-    are left unchanged.
+    corresponding tunable in the suite. Tunables in the suite that are not in the
+    config are left unchanged.
 
     Args:
         config: Parsed configuration dictionary containing 'tunables' section.
         tunables: Mapping of tunable name to Tunable object from the suite.
 
     Raises:
-        DQXError: If configuration structure is invalid or a tunable value fails validation.
+        DQXError: If configuration structure is invalid, an unknown tunable is
+            specified, or a tunable value fails validation.
 
     Example:
         >>> config = {"tunables": {"THRESHOLD": 0.05, "MIN_ROWS": 1000}}
