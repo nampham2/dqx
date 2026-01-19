@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import datetime as dt
+from pathlib import Path
 
 import sympy as sp
 
@@ -9,7 +12,7 @@ from dqx.orm.repositories import InMemoryMetricDB
 from dqx.profiles import HolidayProfile, tag
 from dqx.profiles import check as profile_check
 from dqx.provider import MetricProvider
-from dqx.tunables import TunableFloat
+from dqx.tunables import TunableFloat, TunablePercent
 from tests.fixtures.data_fixtures import CommercialDataSource
 
 MIN_QUANTITY_THRESHOLD = TunableFloat("MIN_QUANTITY_THRESHOLD", 2.5, bounds=(0.0, 4.0))
@@ -290,3 +293,152 @@ def test_e2e_profile_metric_multiplier_effect() -> None:
     print("\nMetric multiplier effect test:")
     print(f"  Without profile: {results_no_profile[0].status} (metric not scaled)")
     print(f"  With profile (multiplier=2.0): {results_with_profile[0].status} (metric doubled)")
+
+
+# Tunables for config test
+NULL_RATE_THRESHOLD = TunablePercent("NULL_RATE_THRESHOLD", value=0.10, bounds=(0.0, 0.50))
+MIN_AVG_PRICE = TunableFloat("MIN_AVG_PRICE", value=5.0, bounds=(0.0, 100.0))
+MAX_TAX_STDDEV = TunableFloat("MAX_TAX_STDDEV", value=5.0, bounds=(0.0, 50.0))
+
+
+@check(name="Config Test - Data Quality", datasets=["orders"])
+def config_test_data_quality(mp: MetricProvider, ctx: Context) -> None:
+    """Data quality checks using tunables from config file."""
+    # Check null rate is below threshold
+    null_rate = mp.null_count("delivered") / mp.num_rows()
+    ctx.assert_that(null_rate - NULL_RATE_THRESHOLD).where(name="Null rate below threshold").is_lt(0)
+
+    # Check average price meets minimum
+    avg_price = mp.average("price")
+    ctx.assert_that(avg_price).where(name="Average price meets minimum").is_geq(MIN_AVG_PRICE)
+
+    # Check tax standard deviation is within bounds
+    tax_stddev = mp.ext.stddev(mp.average("tax"), offset=1, n=7)
+    ctx.assert_that(tax_stddev).where(name="Tax stddev within bounds").is_leq(MAX_TAX_STDDEV)
+
+
+def test_e2e_suite_with_config(tmp_path: Path) -> None:
+    """End-to-end test demonstrating config file usage.
+
+    This test shows the complete workflow:
+    1. Create a YAML config file with tunable values
+    2. Initialize VerificationSuite with config parameter
+    3. Run checks using tunable thresholds loaded from config
+    4. Verify assertions pass/fail based on config values
+    5. Demonstrate that changing config values affects outcomes
+    """
+    db = InMemoryMetricDB()
+
+    # Create test datasource
+    # seed=1050 produces ~25.8% null rate
+    ds = CommercialDataSource(
+        start_date=dt.date(2025, 1, 1),
+        end_date=dt.date(2025, 1, 31),
+        name="orders",
+        records_per_day=30,
+        seed=1050,
+    )
+
+    key = ResultKey(yyyy_mm_dd=dt.date(2025, 1, 15), tags={"env": "test"})
+
+    # Scenario 1: Strict thresholds (should cause some failures)
+    # ==========================================================
+    config_strict = tmp_path / "config_strict.yaml"
+    config_strict.write_text(
+        """
+tunables:
+  NULL_RATE_THRESHOLD: 0.20  # Strict: 20% max (actual ~25.8%) → FAIL
+  MIN_AVG_PRICE: 50.0        # Reasonable minimum → should PASS
+  MAX_TAX_STDDEV: 5.0        # Low maximum → may PASS or FAIL
+"""
+    )
+
+    suite_strict = VerificationSuite(
+        checks=[config_test_data_quality],
+        db=db,
+        name="Strict Config Suite",
+        config=config_strict,
+    )
+
+    # Verify tunables were loaded from config
+    assert suite_strict.get_param("NULL_RATE_THRESHOLD") == 0.20
+    assert suite_strict.get_param("MIN_AVG_PRICE") == 50.0
+    assert suite_strict.get_param("MAX_TAX_STDDEV") == 5.0
+
+    suite_strict.run([ds], key)
+    results_strict = suite_strict.collect_results()
+
+    # Null rate check should FAIL (25.8% > 20%)
+    null_rate_result_strict = [r for r in results_strict if "Null rate" in r.assertion][0]
+    assert null_rate_result_strict.status == "FAILED", "Null rate should fail with strict threshold"
+
+    # Scenario 2: Lenient thresholds (should pass)
+    # ============================================
+    config_lenient = tmp_path / "config_lenient.yaml"
+    config_lenient.write_text(
+        """
+tunables:
+  NULL_RATE_THRESHOLD: 0.30  # Lenient: 30% max (actual ~25.8%) → PASS
+  MIN_AVG_PRICE: 10.0        # Low minimum → PASS
+  MAX_TAX_STDDEV: 50.0       # High maximum → PASS
+"""
+    )
+
+    # Reset suite with new config
+    db2 = InMemoryMetricDB()
+    suite_lenient = VerificationSuite(
+        checks=[config_test_data_quality],
+        db=db2,
+        name="Lenient Config Suite",
+        config=config_lenient,
+    )
+
+    # Verify tunables were updated
+    assert suite_lenient.get_param("NULL_RATE_THRESHOLD") == 0.30
+    assert suite_lenient.get_param("MIN_AVG_PRICE") == 10.0
+    assert suite_lenient.get_param("MAX_TAX_STDDEV") == 50.0
+
+    suite_lenient.run([ds], key)
+    results_lenient = suite_lenient.collect_results()
+
+    # All checks should PASS with lenient thresholds
+    null_rate_result_lenient = [r for r in results_lenient if "Null rate" in r.assertion][0]
+    assert null_rate_result_lenient.status == "PASSED", "Null rate should pass with lenient threshold"
+
+    avg_price_result_lenient = [r for r in results_lenient if "Average price" in r.assertion][0]
+    assert avg_price_result_lenient.status == "PASSED", "Average price should pass with low minimum"
+
+    # Scenario 3: Runtime override via set_param()
+    # ============================================
+    # Demonstrate that set_param() values survive reset()
+    suite_lenient.set_param("NULL_RATE_THRESHOLD", 0.15, agent="test", reason="Testing override")
+    suite_lenient.reset()
+
+    # Verify override persisted after reset
+    assert suite_lenient.get_param("NULL_RATE_THRESHOLD") == 0.15
+
+    suite_lenient.run([ds], key)
+    results_override = suite_lenient.collect_results()
+
+    # Null rate check should FAIL with tighter threshold (25.8% > 15%)
+    null_rate_result_override = [r for r in results_override if "Null rate" in r.assertion][0]
+    assert null_rate_result_override.status == "FAILED", "Null rate should fail with runtime override"
+
+    # Print results summary
+    print("\n" + "=" * 70)
+    print("E2E Config Test Results Summary")
+    print("=" * 70)
+    print("\nScenario 1: Strict Config (20% null max)")
+    print(f"  Null rate: {null_rate_result_strict.status}")
+
+    print("\nScenario 2: Lenient Config (30% null max, $10 price min)")
+    print(f"  Null rate: {null_rate_result_lenient.status}")
+    print(f"  Avg price: {avg_price_result_lenient.status}")
+
+    print("\nScenario 3: Runtime Override (15% null max)")
+    print(f"  Null rate: {null_rate_result_override.status}")
+
+    print("\n✅ Config file integration working correctly!")
+    print("   - Tunables loaded from YAML")
+    print("   - Different configs produce different outcomes")
+    print("   - Runtime overrides persist after reset()")
