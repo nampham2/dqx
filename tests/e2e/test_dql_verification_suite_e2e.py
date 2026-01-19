@@ -14,23 +14,23 @@ from dqx.orm.repositories import InMemoryMetricDB
 class TestDQLVerificationSuiteE2E:
     """End-to-end tests for DQL parameter in VerificationSuite."""
 
-    def test_simple_dql_string(self) -> None:
-        """Test that a simple DQL string can be parsed and creates a suite."""
+    def test_simple_dql_file(self, tmp_path: Path) -> None:
+        """Test that a simple DQL file can be parsed and creates a suite."""
         db = InMemoryMetricDB()
 
-        dql_source = """
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
         suite "Simple Suite" {
             check "Basic Check" on dataset {
                 assert num_rows() > 0
                     name "Has rows"
             }
         }
-        """
+        """)
 
         suite = VerificationSuite(
-            dql=dql_source,
+            dql=dql_file,
             db=db,
-            name="Fallback",
         )
 
         assert suite._name == "Simple Suite"
@@ -56,17 +56,17 @@ class TestDQLVerificationSuiteE2E:
         suite = VerificationSuite(
             dql=dql_file,
             db=db,
-            name="Ignored",
         )
 
         assert suite._name == "File Suite"
         assert suite._data_av_threshold == 0.85
 
-    def test_dql_with_multiple_checks(self) -> None:
+    def test_dql_with_multiple_checks(self, tmp_path: Path) -> None:
         """Test DQL with multiple checks."""
         db = InMemoryMetricDB()
 
-        dql_source = """
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
         suite "Multi Check Suite" {
             check "Check A" on ds1 {
                 assert num_rows() > 0
@@ -83,22 +83,22 @@ class TestDQLVerificationSuiteE2E:
                     name "Cross dataset check"
             }
         }
-        """
+        """)
 
         suite = VerificationSuite(
-            dql=dql_source,
+            dql=dql_file,
             db=db,
-            name="Multi",
         )
 
         assert len(suite._checks) == 3
 
     @pytest.mark.skip(reason="Tunable discovery from DQL not yet implemented")
-    def test_dql_with_tunables(self) -> None:
+    def test_dql_with_tunables(self, tmp_path: Path) -> None:
         """Test that tunables defined in DQL are discovered when used."""
         db = InMemoryMetricDB()
 
-        dql_source = """
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
         suite "Tunable Suite" {
             tunable MIN_ROWS = 10 bounds [1, 100]
 
@@ -107,32 +107,32 @@ class TestDQLVerificationSuiteE2E:
                     name "Has minimum rows"
             }
         }
-        """
+        """)
 
         suite = VerificationSuite(
-            dql=dql_source,
+            dql=dql_file,
             db=db,
-            name="Tunable",
         )
 
         # Only tunables that are referenced in expressions are discovered
         assert "MIN_ROWS" in suite._tunables
         assert suite._tunables["MIN_ROWS"].value == 10
 
-    def test_dql_with_profiles_from_api(self) -> None:
+    def test_dql_with_profiles_from_api(self, tmp_path: Path) -> None:
         """Test that profiles can be passed alongside DQL."""
         from dqx.profiles import SeasonalProfile, check as profile_check
 
         db = InMemoryMetricDB()
 
-        dql_source = """
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
         suite "Profile Suite" {
             check "My Check" on dataset {
                 assert num_rows() > 0
                     name "Has rows"
             }
         }
-        """
+        """)
 
         profile = SeasonalProfile(
             name="Test Profile",
@@ -142,9 +142,8 @@ class TestDQLVerificationSuiteE2E:
         )
 
         suite = VerificationSuite(
-            dql=dql_source,
+            dql=dql_file,
             db=db,
-            name="With Profile",
             profiles=[profile],
         )
 
@@ -156,7 +155,8 @@ class TestDQLVerificationSuiteE2E:
         """Test DQL with YAML config for tunable override."""
         db = InMemoryMetricDB()
 
-        dql_source = """
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
         suite "Config Suite" {
             tunable MAX_VALUE = 50.0 bounds [0.0, 100.0]
 
@@ -165,7 +165,7 @@ class TestDQLVerificationSuiteE2E:
                     name "Row count limit"
             }
         }
-        """
+        """)
 
         # Create config file
         config_file = tmp_path / "config.yaml"
@@ -175,9 +175,8 @@ tunables:
         """)
 
         suite = VerificationSuite(
-            dql=dql_source,
+            dql=dql_file,
             db=db,
-            name="Config Test",
             config=config_file,
         )
 
@@ -185,11 +184,12 @@ tunables:
         assert "MAX_VALUE" in suite._tunables
         assert suite._tunables["MAX_VALUE"].value == 75.0
 
-    def test_dql_assertions_with_all_condition_types(self) -> None:
+    def test_dql_assertions_with_all_condition_types(self, tmp_path: Path) -> None:
         """Test DQL with various condition types."""
         db = InMemoryMetricDB()
 
-        dql_source = """
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
         suite "Conditions Suite" {
             check "Various Conditions" on dataset {
                 assert num_rows() > 10
@@ -221,23 +221,23 @@ tunables:
                     name "Is negative"
             }
         }
-        """
+        """)
 
         suite = VerificationSuite(
-            dql=dql_source,
+            dql=dql_file,
             db=db,
-            name="Conditions",
         )
 
         # Just verify it parses and builds successfully
         assert suite._name == "Conditions Suite"
         assert len(suite._checks) == 1
 
-    def test_dql_with_tags_and_severity(self) -> None:
+    def test_dql_with_tags_and_severity(self, tmp_path: Path) -> None:
         """Test DQL assertions with tags and severity levels."""
         db = InMemoryMetricDB()
 
-        dql_source = """
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
         suite "Tags Suite" {
             check "Tagged Check" on dataset {
                 assert num_rows() > 0
@@ -251,21 +251,21 @@ tunables:
                     tags [data_quality]
             }
         }
-        """
+        """)
 
         suite = VerificationSuite(
-            dql=dql_source,
+            dql=dql_file,
             db=db,
-            name="Tags",
         )
 
         assert len(suite._checks) == 1
 
-    def test_dql_with_annotations(self) -> None:
+    def test_dql_with_annotations(self, tmp_path: Path) -> None:
         """Test DQL with @experimental, @required, and @cost annotations."""
         db = InMemoryMetricDB()
 
-        dql_source = """
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
         suite "Annotations Suite" {
             check "Annotated" on dataset {
                 @experimental
@@ -287,21 +287,21 @@ tunables:
                     name "All annotations"
             }
         }
-        """
+        """)
 
         suite = VerificationSuite(
-            dql=dql_source,
+            dql=dql_file,
             db=db,
-            name="Annotations",
         )
 
         assert len(suite._checks) == 1
 
-    def test_dql_with_collection_statements(self) -> None:
+    def test_dql_with_collection_statements(self, tmp_path: Path) -> None:
         """Test DQL with collect statements (noop assertions)."""
         db = InMemoryMetricDB()
 
-        dql_source = """
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
         suite "Collections Suite" {
             check "With Collections" on dataset {
                 assert num_rows() > 0
@@ -314,42 +314,27 @@ tunables:
                     name "Latest timestamp"
             }
         }
-        """
+        """)
 
         suite = VerificationSuite(
-            dql=dql_source,
+            dql=dql_file,
             db=db,
-            name="Collections",
         )
 
         assert len(suite._checks) == 1
 
     def test_dql_name_takes_precedence_over_parameter(self) -> None:
-        """Test that DQL suite name overrides the name parameter."""
-        db = InMemoryMetricDB()
+        """Test removed - name parameter cannot be used with dql."""
+        # This test is no longer relevant since name parameter
+        # raises error when used with dql
+        pass
 
-        dql_source = """
-        suite "DQL Name" {
-            check "Check" on dataset {
-                assert num_rows() > 0
-                    name "test"
-            }
-        }
-        """
-
-        suite = VerificationSuite(
-            dql=dql_source,
-            db=db,
-            name="Parameter Name",
-        )
-
-        assert suite._name == "DQL Name"
-
-    def test_dql_availability_threshold_override(self) -> None:
+    def test_dql_availability_threshold_override(self, tmp_path: Path) -> None:
         """Test that DQL availability_threshold overrides parameter."""
         db = InMemoryMetricDB()
 
-        dql_source = """
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
         suite "Threshold Suite" {
             availability_threshold 75%
 
@@ -358,12 +343,11 @@ tunables:
                     name "test"
             }
         }
-        """
+        """)
 
         suite = VerificationSuite(
-            dql=dql_source,
+            dql=dql_file,
             db=db,
-            name="Test",
             data_av_threshold=0.9,
         )
 
@@ -378,18 +362,18 @@ tunables:
         suite = VerificationSuite(
             dql=dql_file,
             db=db,
-            name="Commerce",
         )
 
         assert suite._name == "Simple test suite"
         assert suite._data_av_threshold == 0.8
         assert len(suite._checks) == 6  # 6 checks in commerce_suite.dql
 
-    def test_dql_with_count_values(self) -> None:
+    def test_dql_with_count_values(self, tmp_path: Path) -> None:
         """Test DQL with count_values function."""
         db = InMemoryMetricDB()
 
-        dql_source = """
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
         suite "Count Values Suite" {
             check "Count Check" on dataset {
                 assert count_values(status, "active") > 0
@@ -399,12 +383,11 @@ tunables:
                     name "No flags set"
             }
         }
-        """
+        """)
 
         suite = VerificationSuite(
-            dql=dql_source,
+            dql=dql_file,
             db=db,
-            name="Count Values",
         )
 
         assert len(suite._checks) == 1

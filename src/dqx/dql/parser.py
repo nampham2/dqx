@@ -482,8 +482,16 @@ class DQLTransformer(Transformer):
         items = tree.children
         name = items[0]
         body = items[1]
+
+        # Validate suite name is non-empty
+        if not name or not name.strip():
+            raise DQLSyntaxError(
+                'Suite name cannot be empty. Use: suite "Your Suite Name" { ... }',
+                loc=self._loc(tree),
+            )
+
         return Suite(
-            name=name,
+            name=name.strip(),
             checks=tuple(body["checks"]),
             tunables=tuple(body["tunables"]),
             availability_threshold=body["availability_threshold"],

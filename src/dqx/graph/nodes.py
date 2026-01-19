@@ -91,11 +91,19 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
 
         Args:
             parent: The RootNode parent (required)
-            name: Name for the check
+            name: Name for the check (must be non-empty, max 255 characters)
             datasets: Optional list of datasets this check applies to
+
+        Raises:
+            ValueError: If name is empty or longer than 255 characters
         """
+        if not name or not name.strip():
+            raise ValueError("Check name cannot be empty")
+        if len(name) > 255:
+            raise ValueError("Check name is too long (max 255 characters)")
+
         super().__init__(parent)
-        self.name = name
+        self.name = name.strip()
         self.datasets = datasets or []
 
     def add_assertion(

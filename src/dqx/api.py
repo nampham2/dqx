@@ -47,6 +47,9 @@ NumericTunable: TypeAlias = "Tunable[float] | Tunable[int]"
 
 
 logger = logging.getLogger(__name__)
+
+# Sentinel value to detect if name parameter was explicitly provided
+_NAME_NOT_PROVIDED = object()
 timer_registry = Registry()
 
 
@@ -745,9 +748,9 @@ class VerificationSuite:
         self,
         checks: Sequence[CheckProducer | DecoratedCheck] | None = None,
         db: "MetricDB | None" = None,
-        name: str = "",
+        name: str | object = _NAME_NOT_PROVIDED,
         *,
-        dql: str | Path | None = None,
+        dql: Path | None = None,
         log_level: int | str = logging.INFO,
         data_av_threshold: float = 0.9,
         profiles: Sequence[Profile] | None = None,
@@ -758,17 +761,18 @@ class VerificationSuite:
 
         The suite can be initialized in two ways:
         1. Python API: Pass check functions via `checks` parameter
-        2. DQL: Pass DQL source or file path via `dql` parameter
+        2. DQL: Pass DQL file path via `dql` parameter
 
         Exactly one of `checks` or `dql` must be provided.
 
         Args:
             checks: Python check functions decorated with @check. Mutually exclusive with `dql`.
-            dql: DQL source string or Path to .dql file. Mutually exclusive with `checks`.
-                 If Path, must point to a valid .dql file. If str, treated as DQL source code.
+            dql: Path to .dql file. Mutually exclusive with `checks`.
             db: Storage backend for producing and retrieving metrics used by checks and analysis.
-            name: Human-readable name for the suite. If dql is provided and defines a suite name,
-                  the DQL name takes precedence.
+            name: Human-readable name for the suite.
+                  - **Required** when using 'checks' parameter (Python API)
+                  - **Must NOT be specified** when using 'dql' parameter
+                  - DQL suites must define the suite name in the DQL file itself
             log_level: Logging level for the suite (default: logging.INFO).
             data_av_threshold: Minimum fraction of available data required to evaluate assertions (default: 0.9).
                               Can be overridden by DQL availability_threshold.
@@ -778,7 +782,9 @@ class VerificationSuite:
             config: Optional path to YAML configuration file for setting initial tunable values and profiles.
 
         Raises:
-            DQXError: If both or neither of checks/dql provided, the suite name is empty, or config file is invalid.
+            DQXError: If both or neither of checks/dql provided, if name is specified with dql,
+                      if name is missing/empty with checks, if DQL suite name is empty, or if config file is invalid.
+            DQLSyntaxError: If DQL syntax is invalid or suite name is empty in DQL.
 
         Examples:
             Python API (existing usage):
@@ -800,24 +806,7 @@ class VerificationSuite:
             >>> suite = VerificationSuite(
             >>>     dql=Path("suites/orders.dql"),
             >>>     db=db,
-            >>>     name="Orders Suite",
             >>>     config=Path("config/prod.yaml"),
-            >>> )
-
-            DQL with inline source:
-
-            >>> dql_source = '''
-            >>> suite "Orders" {
-            >>>     check "Completeness" on orders {
-            >>>         assert null_count(id) == 0
-            >>>             name "ID not null"
-            >>>     }
-            >>> }
-            >>> '''
-            >>> suite = VerificationSuite(
-            >>>     dql=dql_source,
-            >>>     db=db,
-            >>>     name="Orders Suite",
             >>> )
         """
         # Setting up the logger
@@ -826,50 +815,58 @@ class VerificationSuite:
         # Validation: exactly one of checks or dql must be provided
         if (checks is None) == (dql is None):
             raise DQXError(
-                "Exactly one of 'checks' or 'dql' must be provided. "
-                "Use 'checks' for Python API or 'dql' for DQL files/strings."
+                "Exactly one of 'checks' or 'dql' must be provided. Use 'checks' for Python API or 'dql' for DQL files."
             )
 
         # Parse DQL if provided
         if dql is not None:
-            from dqx.dql.parser import parse, parse_file
+            # Validate name parameter was NOT provided with dql
+            if name is not _NAME_NOT_PROVIDED:
+                raise DQXError(
+                    "'name' parameter cannot be specified when using 'dql'. "
+                    'The suite name must be defined in the DQL file: suite "Name" { ... }'
+                )
+
+            from dqx.dql.parser import parse_file
 
             if db is None:
                 raise DQXError("'db' parameter is required when using 'dql'")
 
-            # Parse DQL source or file
-            if isinstance(dql, Path):
-                suite_ast = parse_file(dql)
-            else:
-                suite_ast = parse(dql, filename=name or "DQL Suite")
+            # Parse DQL file (only Path supported now)
+            suite_ast = parse_file(dql)
 
-            # Extract suite properties (DQL takes precedence)
-            if suite_ast.name:
-                self._name = suite_ast.name
-            elif name:
-                self._name = name.strip()
-            else:
-                raise DQXError("Suite name must be provided either in DQL or via 'name' parameter")
+            # Parser validates non-empty suite name, but double-check
+            if not suite_ast.name or not suite_ast.name.strip():  # pragma: no cover
+                raise DQXError("DQL suite must define a non-empty name. This should have been caught by the parser.")
+
+            self._name = suite_ast.name.strip()
 
             if suite_ast.availability_threshold is not None:
                 self._data_av_threshold = suite_ast.availability_threshold
             else:
                 self._data_av_threshold = data_av_threshold
 
-            # Build checks from DQL (will be implemented in next step)
             logger.info("Building checks from DQL...")
             self._checks = self._build_dql_checks(suite_ast)
         else:
-            # Python API path
+            # Python API path - name is REQUIRED
             if not checks:
                 raise DQXError("At least one check must be provided")
             if db is None:
                 raise DQXError("'db' parameter is required")
-            if not name.strip():
+
+            # Validate name was provided and is non-empty
+            if name is _NAME_NOT_PROVIDED:
+                raise DQXError("'name' parameter is required when using 'checks'")
+            if not isinstance(name, str):  # pragma: no cover
+                raise DQXError("'name' must be a string")
+
+            name_str = str(name)  # Cast for type checker
+            if not name_str or not name_str.strip():
                 raise DQXError("Suite name cannot be empty")
 
             self._checks = list(checks)
-            self._name = name.strip()
+            self._name = name_str.strip()
             self._data_av_threshold = data_av_threshold
 
         # Generate unique execution ID
