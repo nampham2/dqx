@@ -6,15 +6,22 @@ from dqx.api import VerificationSuite, check
 from dqx.common import Context, ResultKey
 from dqx.display import print_assertion_results, print_metric_trace
 from dqx.orm.repositories import InMemoryMetricDB
-from dqx.profiles import HolidayProfile, check as profile_check, tag
+from dqx.profiles import HolidayProfile, tag
+from dqx.profiles import check as profile_check
 from dqx.provider import MetricProvider
+from dqx.tunables import TunableFloat
 from tests.fixtures.data_fixtures import CommercialDataSource
+
+MIN_QUANTITY_THRESHOLD = TunableFloat("MIN_QUANTITY_THRESHOLD", 2.5, bounds=(0.0, 4.0))
+MQ_MULT = TunableFloat("MQ_MULT", 2.0, bounds=(0.0, 2.0))
 
 
 @check(name="Simple Checks", datasets=["ds1"])
 def simple_checks(mp: MetricProvider, ctx: Context) -> None:
     ctx.assert_that(mp.null_count("delivered")).where(name="Delivered null count is less than 100").is_leq(100)
-    ctx.assert_that(mp.minimum("quantity")).where(name="Minimum quantity check").is_leq(2.5)
+    ctx.assert_that(mp.minimum("quantity") * MQ_MULT).where(name="Minimum quantity check").is_leq(
+        MIN_QUANTITY_THRESHOLD
+    )
     ctx.assert_that(mp.average("price")).where(name="Average price check").is_geq(10.0)
     ctx.assert_that(mp.ext.day_over_day(mp.average("tax"))).where(name="Tax day-over-day check").is_geq(0.5)
     ctx.assert_that(mp.duplicate_count(["name"], dataset="ds1")).where(name="No duplicates on name").is_eq(0)
