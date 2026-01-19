@@ -10,7 +10,7 @@ DQL (Data Quality Language) is designed with three goals:
 
 ## Solution
 
-DQL expresses data quality checks in a syntax built for the task. The interpreter validates and executes checks directly against your database.
+DQL expresses data quality checks in a syntax built for the task. DQX validates and executes checks directly against your database.
 
 ```dql
 suite "Order Validation" {
@@ -319,7 +319,7 @@ average(price, dataset=orders)  # Specific dataset
 | `lag` | Calendar days offset (1 = yesterday, 7 = one week ago) |
 | `dataset` | Restrict metric to named dataset |
 
-**Lag semantics:** The `lag` parameter offsets by calendar days, not partition offsets. For a weekly-partitioned table queried on Monday with `lag 1`, the interpreter computes the metric for Sunday's data (which may fall in the previous week's partition).
+**Lag semantics:** The `lag` parameter offsets by calendar days, not partition offsets. For a weekly-partitioned table queried on Monday with `lag 1`, VerificationSuite computes the metric for Sunday's data (which may fall in the previous week's partition).
 
 ### Extended Metrics
 
@@ -1286,66 +1286,27 @@ def compute_reward(self, results: dict) -> float:
 
 ### Architecture
 
-The interpreter walks the AST and calls DQX APIs directly:
+VerificationSuite parses the DQL AST and builds Python check functions dynamically:
 
 ```python
-import sympy as sp
+# DQL parsing happens in VerificationSuite.__init__()
+suite = VerificationSuite(
+    dql=Path("suite.dql"),
+    db=db,
+    name="My Suite",
+)
 
-
-class Interpreter:
-    """Executes DQL AST against DQX runtime."""
-
-    # Whitelisted sympy functions
-    MATH_FUNCTIONS = {
-        "abs": sp.Abs,
-        "sqrt": sp.sqrt,
-        "log": sp.log,
-        "exp": sp.exp,
-        "min": sp.Min,
-        "max": sp.Max,
-    }
-
-    def __init__(self, db: Database, target_date: date):
-        self.db = db
-        self.target_date = target_date
-        self.provider = MetricProvider(db)
-        self.tunables: dict[str, Any] = {}
-
-    def eval_metric_expr(self, expr_str: str) -> sp.Expr:
-        """Parse metric expression using sympy."""
-        namespace = {**self.MATH_FUNCTIONS}
-
-        # Add metric functions that call provider methods
-        for name in ["num_rows", "average", "sum", "null_count", ...]:
-            namespace[name] = self._metric_wrapper(name)
-
-        return sp.sympify(expr_str, locals=namespace, evaluate=False)
-
-    def run(self, ast: SuiteNode, datasources: list) -> list[Result]:
-        suite = VerificationSuite(ast.name, db=self.db)
-        suite.data_av_threshold = ast.threshold
-
-        # Register tunables
-        for tunable in ast.tunables:
-            self.tunables[tunable.name] = self.eval_expr(tunable.value)
-
-        # Build checks
-        for check_node in ast.checks:
-            check = self.build_check(check_node)
-            suite.add_check(check, datasets=check_node.datasets)
-
-        # Add profiles
-        for profile_node in ast.profiles:
-            suite.add_profile(self.build_profile(profile_node))
-
-        # Execute
-        key = ResultKey(self.target_date, tags={})
-        suite.run(datasources, key)
-        return suite.collect_results()
+# Internally:
+# 1. Parse DQL file to AST
+# 2. Extract tunables and create Tunable objects
+# 3. Build check functions from Check AST nodes
+# 4. Each check function evaluates metric expressions using sympy
+# 5. Assertions are registered in the dependency graph
 ```
 
-The interpreter owns the sympy namespace. When it parses `abs(day_over_day(average(price)))`:
-1. `abs` resolves to `sp.Abs` from `MATH_FUNCTIONS`
+VerificationSuite uses sympy to parse metric expressions. When it parses `abs(day_over_day(average(price)))`:
+1. `abs` resolves to `sp.Abs` from the metric namespace
+
 2. `day_over_day`, `average` resolve to provider method wrappers
 3. `sympify()` builds the expression tree
 
@@ -1483,9 +1444,9 @@ check "Test" on `from` {              # 'from' as dataset name
 
 ## Design Decisions
 
-### Interpreter-Only Architecture
+### Direct Execution Architecture
 
-DQL runs directly via the interpreter. No compilation step. Metric expressions pass to sympy for parsing, enabling full compatibility with DQX's Python runtime.
+DQL is parsed and executed directly by VerificationSuite. No compilation step. Metric expressions pass to sympy for parsing, enabling full compatibility with DQX's Python runtime.
 
 Benefits:
 - **Faster iteration** — No build step between edit and run
@@ -1506,7 +1467,7 @@ assert sqrt(variance(score)) < 10                 # no special grammar needed
 
 ### Validation Before Execution
 
-The interpreter validates before running:
+DQX validates before running:
 
 - Unknown metric functions
 - Invalid severity levels
