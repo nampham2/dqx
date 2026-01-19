@@ -238,10 +238,10 @@ class AssertionReady:
 
         if isinstance(other, Tunable):
             validator = SymbolicValidator(f"≥ {other.name}", lambda x: functions.is_geq(x, other.value, tol))
+            self._create_assertion_node_with_tunables(validator, {other.name: other})
         else:
             validator = SymbolicValidator(f"≥ {other}", lambda x: functions.is_geq(x, other, tol))
-
-        self._create_assertion_node(validator)
+            self._create_assertion_node(validator)
 
     @overload
     def is_gt(self, other: float, tol: float = functions.EPSILON) -> None: ...
@@ -255,10 +255,10 @@ class AssertionReady:
 
         if isinstance(other, Tunable):
             validator = SymbolicValidator(f"> {other.name}", lambda x: functions.is_gt(x, other.value, tol))
+            self._create_assertion_node_with_tunables(validator, {other.name: other})
         else:
             validator = SymbolicValidator(f"> {other}", lambda x: functions.is_gt(x, other, tol))
-
-        self._create_assertion_node(validator)
+            self._create_assertion_node(validator)
 
     @overload
     def is_leq(self, other: float, tol: float = functions.EPSILON) -> None: ...
@@ -298,11 +298,11 @@ class AssertionReady:
         if isinstance(other, Tunable):
             # Tunable path - closure captures tunable reference for lazy evaluation
             validator = SymbolicValidator(f"≤ {other.name}", lambda x: functions.is_leq(x, other.value, tol))
+            self._create_assertion_node_with_tunables(validator, {other.name: other})
         else:
             # Static float path - same as current implementation
             validator = SymbolicValidator(f"≤ {other}", lambda x: functions.is_leq(x, other, tol))
-
-        self._create_assertion_node(validator)
+            self._create_assertion_node(validator)
 
     @overload
     def is_lt(self, other: float, tol: float = functions.EPSILON) -> None: ...
@@ -316,10 +316,10 @@ class AssertionReady:
 
         if isinstance(other, Tunable):
             validator = SymbolicValidator(f"< {other.name}", lambda x: functions.is_lt(x, other.value, tol))
+            self._create_assertion_node_with_tunables(validator, {other.name: other})
         else:
             validator = SymbolicValidator(f"< {other}", lambda x: functions.is_lt(x, other, tol))
-
-        self._create_assertion_node(validator)
+            self._create_assertion_node(validator)
 
     @overload
     def is_eq(self, other: float, tol: float = functions.EPSILON) -> None: ...
@@ -343,10 +343,10 @@ class AssertionReady:
 
         if isinstance(other, Tunable):
             validator = SymbolicValidator(f"= {other.name}", lambda x: functions.is_eq(x, other.value, tol))
+            self._create_assertion_node_with_tunables(validator, {other.name: other})
         else:
             validator = SymbolicValidator(f"= {other}", lambda x: functions.is_eq(x, other, tol))
-
-        self._create_assertion_node(validator)
+            self._create_assertion_node(validator)
 
     @overload
     def is_neq(self, other: float, tol: float = functions.EPSILON) -> None: ...
@@ -366,10 +366,10 @@ class AssertionReady:
 
         if isinstance(other, Tunable):
             validator = SymbolicValidator(f"≠ {other.name}", lambda x: functions.is_neq(x, other.value, tol))
+            self._create_assertion_node_with_tunables(validator, {other.name: other})
         else:
             validator = SymbolicValidator(f"≠ {other}", lambda x: functions.is_neq(x, other, tol))
-
-        self._create_assertion_node(validator)
+            self._create_assertion_node(validator)
 
     @overload
     def is_between(self, lower: float, upper: float, tol: float = functions.EPSILON) -> None: ...
@@ -429,11 +429,20 @@ class AssertionReady:
                 f"in [{lower}, {upper}]",
                 lambda x: functions.is_between(x, lower, upper, tol),  # type: ignore[arg-type]
             )
+            self._create_assertion_node(validator)
         else:
             # At least one tunable - use closure to capture references
-            # Build display name
+            # Build display name and collect tunables
+            tunables_dict: dict[str, Tunable[Any]] = {}
+
             lower_name = lower.name if lower_is_tunable else str(lower)  # type: ignore[union-attr]
             upper_name = upper.name if upper_is_tunable else str(upper)  # type: ignore[union-attr]
+
+            # Register tunables
+            if lower_is_tunable:
+                tunables_dict[lower.name] = lower  # type: ignore[union-attr, assignment]
+            if upper_is_tunable:
+                tunables_dict[upper.name] = upper  # type: ignore[union-attr, assignment]
 
             # Create validator with closure that evaluates tunables at validation time
             def between_validator(x: float) -> bool:
@@ -441,12 +450,20 @@ class AssertionReady:
                 lower_val = lower.value if lower_is_tunable else lower  # type: ignore[union-attr]
                 upper_val = upper.value if upper_is_tunable else upper  # type: ignore[union-attr]
 
+                # Runtime validation for tunable bounds
+                if lower_val > upper_val:
+                    lower_display = lower.name if lower_is_tunable else lower  # type: ignore[union-attr]
+                    upper_display = upper.name if upper_is_tunable else upper  # type: ignore[union-attr]
+                    raise ValueError(
+                        f"Invalid range for {lower_display}/{upper_display}: "
+                        f"lower bound ({lower_val}) > upper bound ({upper_val})"
+                    )
+
                 # Now both are floats, use standard is_between
                 return functions.is_between(x, lower_val, upper_val, tol)  # type: ignore[arg-type]
 
             validator = SymbolicValidator(f"in [{lower_name}, {upper_name}]", between_validator)
-
-        self._create_assertion_node(validator)
+            self._create_assertion_node_with_tunables(validator, tunables_dict)
 
     def is_negative(self, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is negative."""
@@ -515,6 +532,46 @@ class AssertionReady:
             cost_fp=self._cost_fp,
             cost_fn=self._cost_fn,
             validator=validator,
+        )
+
+    def _create_assertion_node_with_tunables(
+        self, validator: SymbolicValidator, tunables: dict[str, Tunable[Any]]
+    ) -> None:
+        """
+        Attach a validator as a new assertion node, registering tunables used in closures.
+
+        This is used internally when comparison methods capture tunables in validator
+        closures that won't be visible in the symbolic expression.
+
+        Args:
+            validator: The validator that defines the assertion to attach.
+            tunables: Mapping of tunable names to Tunable objects used in validator closure.
+
+        Raises:
+            DQXError: If no active check is present in the current context.
+        """
+        if self._context is None:
+            return
+
+        current = self._context.current_check
+        if not current:
+            raise DQXError(
+                "Cannot create assertion outside of check context. "
+                "Assertions must be created within a @check decorated function."
+            )
+
+        # Use the check node's factory method to create and add the assertion
+        current.add_assertion(
+            actual=self._actual,
+            name=self._name,
+            severity=self._severity,
+            tags=self._tags,
+            experimental=self._experimental,
+            required=self._required,
+            cost_fp=self._cost_fp,
+            cost_fn=self._cost_fn,
+            validator=validator,
+            tunables=tunables,
         )
 
 
