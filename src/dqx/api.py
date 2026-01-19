@@ -1241,7 +1241,7 @@ class VerificationSuite:
 
     def _build_tunables_from_ast(self, tunables_ast: tuple[Any, ...]) -> dict[str, float]:
         """Convert DQL Tunable AST nodes to value dictionary."""
-        from dqx.tunables import TunableFloat, TunableInt, TunablePercent
+        from dqx.tunables import TunableFloat, TunableInt
 
         tunables_dict: dict[str, float] = {}
         for t in tunables_ast:
@@ -1254,9 +1254,9 @@ class VerificationSuite:
             tunables_dict[t.name] = value
 
             # Create Tunable object (will be auto-discovered from graph later)
-            if 0 <= value <= 1 and 0 <= min_val <= 1 and 0 <= max_val <= 1:
-                TunablePercent(name=t.name, value=value, bounds=(min_val, max_val))
-            elif isinstance(value, int) and isinstance(min_val, int) and isinstance(max_val, int):
+            # Note: TunablePercent requires explicit percent notation (not yet supported in DQL grammar)
+            # so we only create TunableInt or TunableFloat based on type checking
+            if isinstance(value, int) and isinstance(min_val, int) and isinstance(max_val, int):
                 TunableInt(name=t.name, value=int(value), bounds=(int(min_val), int(max_val)))
             else:
                 TunableFloat(name=t.name, value=float(value), bounds=(float(min_val), float(max_val)))
@@ -1359,7 +1359,8 @@ class VerificationSuite:
 
         # Extract cost annotation
         cost_annotation = self._get_cost_annotation(statement)
-        cost_dict = {k: float(v) for k, v in cost_annotation.items()} if cost_annotation else None
+        # cost_annotation already contains floats, no conversion needed
+        cost_dict = cost_annotation if cost_annotation else None
 
         # Build and return assertion ready object
         return ctx.assert_that(metric_value).where(
@@ -1725,14 +1726,14 @@ class VerificationSuite:
         """Check if assertion or collection has a specific annotation."""
         return any(ann.name == name for ann in statement_ast.annotations)
 
-    def _get_cost_annotation(self, statement_ast: Any) -> dict[str, int] | None:
+    def _get_cost_annotation(self, statement_ast: Any) -> dict[str, float] | None:
         """Extract cost annotation args if present."""
         for ann in statement_ast.annotations:
             if ann.name == "cost":
-                # Convert args to expected format
+                # Convert args to expected format (preserve floats for fractional costs)
                 return {
-                    "fp": int(ann.args.get("false_positive", 1)),
-                    "fn": int(ann.args.get("false_negative", 1)),
+                    "fp": float(ann.args.get("false_positive", 1.0)),
+                    "fn": float(ann.args.get("false_negative", 1.0)),
                 }
         return None
 

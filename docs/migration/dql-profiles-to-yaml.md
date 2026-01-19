@@ -278,7 +278,7 @@ for assertion in results.assertions:
 
 **After:**
 ```python
-results: list[AssertionResult] = suite.collect_results()
+results = suite.collect_results()
 for result in results:
     print(result.assertion_name, result.status == "PASSED")
 ```

@@ -4,12 +4,17 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from dqx.api import VerificationSuite, check
 from dqx.common import DQXError
 from dqx.orm.repositories import InMemoryMetricDB
+
+if TYPE_CHECKING:
+    from dqx.common import Context
+    from dqx.provider import MetricProvider
 
 
 class TestVerificationSuiteDQLParameter:
@@ -52,7 +57,7 @@ class TestVerificationSuiteDQLParameter:
         """Test error when checks are provided without db."""
 
         @check(name="Test Check", datasets=["dataset"])
-        def test_check(mp, ctx) -> None:  # type: ignore[no-untyped-def]
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
             pass
 
         with pytest.raises(DQXError, match="'db' parameter is required"):
@@ -193,7 +198,7 @@ class TestVerificationSuiteDQLParameter:
         db = InMemoryMetricDB()
 
         @check(name="Test Check", datasets=["dataset"])
-        def test_check(mp, ctx) -> None:  # type: ignore[no-untyped-def]
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
             ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
 
         # Should not raise - Python API still works
@@ -223,7 +228,7 @@ class TestVerificationSuiteDQLParameter:
         db = InMemoryMetricDB()
 
         @check(name="Test Check", datasets=["dataset"])
-        def test_check(mp, ctx) -> None:  # type: ignore[no-untyped-def]
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
             pass
 
         with pytest.raises(DQXError, match="Suite name cannot be empty"):
@@ -238,7 +243,7 @@ class TestVerificationSuiteDQLParameter:
         db = InMemoryMetricDB()
 
         @check(name="Test Check", datasets=["dataset"])
-        def test_check(mp, ctx) -> None:  # type: ignore[no-untyped-def]
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
             pass
 
         with pytest.raises(DQXError, match="'name' parameter is required when using 'checks'"):
@@ -254,7 +259,7 @@ class TestVerificationSuiteDQLParameter:
         db = InMemoryMetricDB()
 
         @check(name="Test Check", datasets=["dataset"])
-        def test_check(mp, ctx) -> None:  # type: ignore[no-untyped-def]
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
             ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
 
         profile = SeasonalProfile(
@@ -323,7 +328,7 @@ class TestCheckNameValidation:
         db = InMemoryMetricDB()
 
         @check(name="", datasets=["dataset"])
-        def empty_name_check(mp, ctx) -> None:  # type: ignore[no-untyped-def]
+        def empty_name_check(mp: MetricProvider, ctx: Context) -> None:
             ctx.assert_that(mp.num_rows()).where(name="test").is_gt(0)
 
         # Should fail when building the graph (during suite creation)
