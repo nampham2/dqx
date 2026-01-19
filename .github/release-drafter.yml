@@ -162,12 +162,12 @@ template: |
   ### 📦 Installation
 
   ```bash
-  pip install dqx==$RESOLVED_VERSION
+  pip install dqlib==$RESOLVED_VERSION
   ```
 
   ### 🔗 Links
   - [Documentation](https://dqx.readthedocs.io/en/v$RESOLVED_VERSION/)
-  - [PyPI Package](https://pypi.org/project/dqx/$RESOLVED_VERSION/)
+  - [PyPI Package](https://pypi.org/project/dqlib/$RESOLVED_VERSION/)
   - [Changelog](https://github.com/$OWNER/$REPOSITORY/blob/main/CHANGELOG.md)
 
   ---
