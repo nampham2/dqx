@@ -59,14 +59,4 @@ suite "Metric Collection Example" {
             name "unique_customers"
             tags [engagement]
     }
-
-    # Profile: Scale metrics during high-traffic periods
-    profile "Black Friday" {
-        from 2024-11-28  # Thanksgiving 2024
-        to 2024-12-01    # Through Sunday
-
-        # Collections are scaled too!
-        scale tag "volume" by 3.0
-        scale tag "revenue" by 3.0
-    }
 }

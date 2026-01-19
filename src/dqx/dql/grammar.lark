@@ -6,7 +6,7 @@ start: suite
 
 suite: "suite" STRING "{" suite_body "}"
 
-suite_body: (metadata | tunable | check | profile)*
+suite_body: (metadata | tunable | check)*
 
 metadata: "availability_threshold" PERCENT
 
@@ -102,29 +102,6 @@ list_arg: "[" ident ("," ident)* "]"
 
 qualified_ident: IDENT ("." IDENT)*
 
-// === Profiles ===
-profile: "profile" STRING "{" profile_body "}"
-
-profile_body: "from" date_expr "to" date_expr rule*
-
-date_expr: DATE
-         | date_expr "+" NUMBER -> date_add
-         | date_expr "-" NUMBER -> date_sub
-
-rule: disable_rule | scale_rule | set_rule
-
-disable_rule: "disable" disable_target
-
-disable_target: "check" STRING -> disable_check
-              | "assertion" STRING "in" STRING -> disable_assertion
-
-scale_rule: "scale" selector "by" NUMBER
-
-set_rule: "set" selector "severity" SEVERITY
-
-selector: "check" STRING -> sel_check
-        | "tag" STRING -> sel_tag
-
 // === Identifiers (with backtick escaping) ===
 ident: IDENT | ESCAPED_IDENT
 
@@ -136,8 +113,6 @@ STRING: "\"" /(?:[^"\\]|\\.)*/ "\""
 NUMBER: /[0-9]+(\.[0-9]+)?/
 
 PERCENT: /[0-9]+(\.[0-9]+)?%/
-
-DATE: /[0-9]{4}-[0-9]{2}-[0-9]{2}/
 
 SEVERITY: "P0" | "P1" | "P2" | "P3"
 

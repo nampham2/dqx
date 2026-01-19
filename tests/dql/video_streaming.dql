@@ -148,22 +148,4 @@ suite "Video Streaming Data Quality" {
             severity P2
             tags [temporal]
     }
-
-    # Profiles for special events
-    profile "Super Bowl Sunday" {
-        from 2025-02-09
-        to 2025-02-10
-
-        disable check "Viewing Activity"
-        set tag "quality" severity P3
-    }
-
-    profile "Holiday Binge Season" {
-        from 2024-12-20
-        to 2025-01-05
-
-        scale check "User Engagement" by 2.0
-        scale tag "volume" by 3.0
-        disable assertion "viewing.activity.day_over_day" in "Viewing Activity"
-    }
 }

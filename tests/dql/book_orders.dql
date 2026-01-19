@@ -106,14 +106,4 @@ suite "Book Order Processing Quality" {
             tags [consistency, pricing]
             tolerance 0.1
     }
-
-    # Profile for holiday shopping
-    profile "Holiday Shopping" {
-        from 2024-11-25
-        to 2025-01-05
-
-        scale tag "volume" by 3.0
-        scale check "Order Volume" by 2.5
-        set tag "trend" severity P3
-    }
 }

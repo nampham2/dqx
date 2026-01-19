@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from typing import Any, overload
 
@@ -17,14 +17,7 @@ from dqx.dql.ast import (
     Assertion,
     Check,
     Collection,
-    DateExpr,
-    DisableRule,
     Expr,
-    Profile,
-    Rule,
-    ScaleRule,
-    SetSeverityRule,
-    Severity,
     Suite,
     Tunable,
 )
@@ -94,7 +87,6 @@ class Interpreter:
         """
         self.db = db
         self.tunables: dict[str, float] = {}
-        self.active_profiles: list[Profile] = []
         self.current_check_name: str | None = None
         self.datasources: dict[str, SqlDataSource] = {}
 
@@ -198,9 +190,6 @@ class Interpreter:
         # Validate datasources match what DQL expects (fail fast)
         self._validate_datasources(suite_ast, datasources)
 
-        # Activate profiles for this execution date
-        self._activate_profiles(suite_ast.profiles, execution_date)
-
         # Build DQX VerificationSuite from AST
         suite = self._build_suite(suite_ast)
 
@@ -299,7 +288,7 @@ class Interpreter:
         @check(name=check_name, datasets=list(check_ast.datasets))
         def dynamic_check(mp: MetricProvider, ctx: Context) -> None:
             """Generated check function from DQL."""
-            # Store current check name for profile matching
+            # Store current check name for context
             self.current_check_name = check_name
 
             # Execute each assertion
@@ -329,18 +318,11 @@ class Interpreter:
         Returns:
             AssertionReady object if statement should be processed, None if disabled
         """
-        # Check if statement is disabled by active profiles
-        if self._is_disabled(statement):
-            return None
-
         # Evaluate metric expression
         metric_value = self._eval_metric_expr(statement.expr, mp)
 
-        # Apply profile scaling if active
-        metric_value = self._apply_profile_scaling(metric_value, statement)
-
-        # Resolve severity (profile may override)
-        severity = self._resolve_severity(statement)
+        # Use severity from DQL statement
+        severity = statement.severity
 
         # Validate name is present
         if statement.name is None:  # pragma: no cover
@@ -364,7 +346,7 @@ class Interpreter:
     def _build_assertion(self, assertion_ast: Assertion, mp: MetricProvider, ctx: Context) -> None:
         """Convert DQL Assertion to ctx.assert_that() call."""
         ready = self._setup_assertion_ready(assertion_ast, mp, ctx)
-        if ready is None:
+        if ready is None:  # pragma: no cover
             return
 
         # Apply condition
@@ -373,7 +355,7 @@ class Interpreter:
     def _build_collection(self, collection_ast: Collection, mp: MetricProvider, ctx: Context) -> None:
         """Convert DQL Collection to ctx.assert_that(...).noop() call."""
         ready = self._setup_assertion_ready(collection_ast, mp, ctx)
-        if ready is None:
+        if ready is None:  # pragma: no cover
             return
 
         # Call noop() instead of applying a condition
@@ -690,92 +672,6 @@ class Interpreter:
         else:  # pragma: no cover
             # Parser validates all conditions
             raise DQLError(f"Unknown condition: {cond}", assertion_ast.loc)
-
-    # === Profile Logic ===
-
-    def _activate_profiles(self, profiles_ast: tuple[Profile, ...], execution_date: date) -> None:
-        """Determine which profiles are active for execution date."""
-        self.active_profiles = []
-
-        for profile_ast in profiles_ast:
-            # Resolve from/to dates
-            from_date = self._resolve_date_expr(profile_ast.from_date, execution_date)
-            to_date = self._resolve_date_expr(profile_ast.to_date, execution_date)
-
-            # Check if execution date falls in range
-            if from_date <= execution_date <= to_date:
-                self.active_profiles.append(profile_ast)
-
-    def _resolve_date_expr(self, date_expr: DateExpr, execution_date: date) -> date:
-        """Resolve DQL date expression to concrete date."""
-        # DateExpr.value is always a date literal (YYYY-MM-DD)
-        result = date_expr.value
-
-        # Apply day offset
-        if date_expr.offset != 0:
-            result = result + timedelta(days=date_expr.offset)
-
-        return result
-
-    def _apply_profile_scaling(self, metric_value: Any, statement_ast: Assertion | Collection) -> Any:
-        """Apply scale multipliers from active profiles."""
-        multiplier = 1.0
-
-        for profile in self.active_profiles:
-            for rule in profile.rules:
-                if isinstance(rule, ScaleRule):
-                    if self._rule_matches_statement(rule, statement_ast):
-                        multiplier *= rule.multiplier
-
-        if multiplier != 1.0:
-            return metric_value * multiplier
-        return metric_value
-
-    def _is_disabled(self, statement_ast: Assertion | Collection) -> bool:
-        """Check if assertion or collection is disabled by any active profile."""
-        for profile in self.active_profiles:
-            for rule in profile.rules:
-                if isinstance(rule, DisableRule):
-                    if self._rule_matches_statement(rule, statement_ast):
-                        return True
-        return False
-
-    def _resolve_severity(self, statement_ast: Assertion | Collection) -> Severity:
-        """Resolve severity with profile overrides."""
-        severity = statement_ast.severity
-
-        # Check for severity overrides in active profiles
-        for profile in self.active_profiles:
-            for rule in profile.rules:
-                if isinstance(rule, SetSeverityRule):
-                    if self._rule_matches_statement(rule, statement_ast):
-                        severity = rule.severity
-
-        return severity
-
-    def _rule_matches_statement(self, rule: Rule, statement_ast: Assertion | Collection) -> bool:
-        """Check if a profile rule applies to an assertion or collection."""
-        # DisableRule uses target_type/target_name
-        if isinstance(rule, DisableRule):
-            if rule.target_type == "check":
-                return rule.target_name == self.current_check_name
-            elif rule.target_type == "assertion":
-                # Matches if statement name matches and optionally check name matches
-                if statement_ast.name == rule.target_name:
-                    if rule.in_check:
-                        return self.current_check_name == rule.in_check
-                    return True  # pragma: no cover - Parser requires 'in' clause
-                return False
-            return False  # pragma: no cover - Parser validates target_type
-
-        # ScaleRule and SetSeverityRule use selector_type/selector_name
-        if hasattr(rule, "selector_type"):
-            if rule.selector_type == "tag":
-                return rule.selector_name in statement_ast.tags
-            elif rule.selector_type == "check":
-                return rule.selector_name == self.current_check_name
-
-        return False  # pragma: no cover - Parser validates rule types
 
     # === Annotation Helpers ===
 

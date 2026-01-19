@@ -2,15 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import date
 from pathlib import Path
 
 import pytest
 
 from dqx.dql import (
-    DisableRule,
-    ScaleRule,
-    SetSeverityRule,
     Severity,
     parse,
 )
@@ -87,16 +83,6 @@ class TestBankingTransactionsDQL:
         tolerance_assertions = [a for a in recon.assertions if a.tolerance is not None]
         assert len(tolerance_assertions) >= 1
         assert tolerance_assertions[0].tolerance == 0.02
-
-    def test_profiles(self, banking_dql: str) -> None:
-        """Test profile definitions with rules."""
-        result = parse(banking_dql)
-        assert len(result.profiles) == 1
-
-        # Holiday Season profile
-        holiday = next(p for p in result.profiles if p.name == "Holiday Season")
-        disable_rules = [r for r in holiday.rules if isinstance(r, DisableRule)]
-        assert len(disable_rules) >= 1
 
     def test_severity_levels(self, banking_dql: str) -> None:
         """Test various severity levels are used."""
@@ -270,21 +256,6 @@ class TestBookInventoryDQL:
         assert "math" in all_tags
         assert "experimental" in all_tags
 
-    def test_profiles_with_fixed_dates(self, inventory_dql: str) -> None:
-        """Test profiles with fixed dates and date arithmetic."""
-        result = parse(inventory_dql)
-        assert len(result.profiles) >= 2
-
-        black_friday = next(p for p in result.profiles if p.name == "Black Friday")
-        # Black Friday now uses fixed ISO dates
-        assert black_friday.from_date.value == date(2024, 11, 29)
-
-        # Check disable assertion in check
-        disable_rules = [r for r in black_friday.rules if isinstance(r, DisableRule)]
-        assertion_disables = [r for r in disable_rules if r.target_type == "assertion"]
-        assert len(assertion_disables) >= 1
-        assert assertion_disables[0].in_check is not None
-
     def test_temporal_quality_check(self, inventory_dql: str) -> None:
         """Test temporal quality check."""
         result = parse(inventory_dql)
@@ -395,24 +366,6 @@ class TestVideoStreamingDQL:
         order_by_assertions = [a for a in cross.assertions if "order_by=" in a.expr.text]
         assert len(order_by_assertions) >= 1
 
-    def test_multiple_profiles(self, streaming_dql: str) -> None:
-        """Test multiple profile definitions."""
-        result = parse(streaming_dql)
-        assert len(result.profiles) >= 2
-
-    def test_set_severity_rule(self, streaming_dql: str) -> None:
-        """Test set severity rule in profiles."""
-        result = parse(streaming_dql)
-
-        set_severity_rules = []
-        for profile in result.profiles:
-            for rule in profile.rules:
-                if isinstance(rule, SetSeverityRule):
-                    set_severity_rules.append(rule)
-
-        assert len(set_severity_rules) >= 1
-        assert any(r.severity == Severity.P3 for r in set_severity_rules)
-
     def test_variance_metric(self, streaming_dql: str) -> None:
         """Test variance metric usage."""
         result = parse(streaming_dql)
@@ -436,16 +389,6 @@ class TestVideoStreamingDQL:
 
         sum_positive = [a for a in cross.assertions if "sum" in a.expr.text and a.keyword == "positive"]  # type: ignore[union-attr]
         assert len(sum_positive) >= 1
-
-    def test_disable_assertion_in_check(self, streaming_dql: str) -> None:
-        """Test disable assertion targeting specific check."""
-        result = parse(streaming_dql)
-        holiday = next(p for p in result.profiles if p.name == "Holiday Binge Season")
-
-        disable_rules = [r for r in holiday.rules if isinstance(r, DisableRule)]
-        assertion_disables = [r for r in disable_rules if r.target_type == "assertion"]
-        assert len(assertion_disables) >= 1
-        assert assertion_disables[0].in_check == "Viewing Activity"
 
 
 class TestAllDQLScenariosIntegration:
@@ -495,9 +438,6 @@ class TestAllDQLScenariosIntegration:
             "order_by_parameter": False,
             "dataset_parameter": False,
             "duplicate_count_list": False,
-            "scale_rule": False,
-            "disable_rule": False,
-            "set_severity_rule": False,
         }
 
         for dql in all_dqls:
@@ -545,16 +485,6 @@ class TestAllDQLScenariosIntegration:
                         all_features["dataset_parameter"] = True
                     if "duplicate_count([" in expr_text:
                         all_features["duplicate_count_list"] = True
-
-            # Check profiles
-            for profile in result.profiles:
-                for rule in profile.rules:
-                    if isinstance(rule, ScaleRule):
-                        all_features["scale_rule"] = True
-                    if isinstance(rule, DisableRule):
-                        all_features["disable_rule"] = True
-                    if isinstance(rule, SetSeverityRule):
-                        all_features["set_severity_rule"] = True
 
         # Assert all features are covered
         missing_features = [f for f, covered in all_features.items() if not covered]
@@ -716,16 +646,6 @@ class TestBookOrdersDQLWithImport:
         # Check @cost annotation
         cost_assertions = [a for a in consistency.assertions if any(ann.name == "cost" for ann in a.annotations)]
         assert len(cost_assertions) >= 1
-
-    def test_profile(self, orders_dql: str) -> None:
-        """Test profile definition."""
-        result = parse(orders_dql)
-        assert len(result.profiles) >= 1
-
-        holiday = next(p for p in result.profiles if p.name == "Holiday Shopping")
-
-        scale_rules = [r for r in holiday.rules if isinstance(r, ScaleRule)]
-        assert len(scale_rules) >= 2
 
     def test_total_assertions(self, orders_dql: str) -> None:
         """Test total assertion count."""

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import date
 from pathlib import Path
 
 import pytest
@@ -10,9 +9,6 @@ import pytest
 from dqx.dql import (
     Assertion,
     Collection,
-    DisableRule,
-    ScaleRule,
-    SetSeverityRule,
     Severity,
     Suite,
     parse,
@@ -32,7 +28,6 @@ class TestBasicSuite:
         assert isinstance(result, Suite)
         assert result.name == "Test Suite"
         assert result.checks == ()
-        assert result.profiles == ()
         assert result.tunables == ()
 
     def test_suite_with_availability_threshold(self) -> None:
@@ -514,114 +509,6 @@ class TestTunables:
         assert "0.2" in tunable.bounds[1].text
 
 
-class TestProfiles:
-    """Test profile parsing."""
-
-    def test_simple_profile(self) -> None:
-        source = """
-        suite "Test" {
-            profile "Black Friday" {
-                from 2024-11-29
-                to 2024-12-02
-            }
-        }
-        """
-        result = parse(source)
-        assert len(result.profiles) == 1
-        profile = result.profiles[0]
-        assert profile.name == "Black Friday"
-        assert profile.from_date.value == date(2024, 11, 29)
-        assert profile.to_date.value == date(2024, 12, 2)
-
-    def test_profile_with_disable(self) -> None:
-        source = """
-        suite "Test" {
-            profile "Holiday" {
-                from 2024-12-20
-                to 2025-01-05
-
-                disable check "Volume"
-            }
-        }
-        """
-        result = parse(source)
-        profile = result.profiles[0]
-        assert len(profile.rules) == 1
-        rule = profile.rules[0]
-        assert isinstance(rule, DisableRule)
-        assert rule.target_type == "check"
-        assert rule.target_name == "Volume"
-
-    def test_profile_with_disable_assertion(self) -> None:
-        source = """
-        suite "Test" {
-            profile "Holiday" {
-                from 2024-12-20
-                to 2025-01-05
-
-                disable assertion "Row count" in "Volume"
-            }
-        }
-        """
-        result = parse(source)
-        rule = result.profiles[0].rules[0]
-        assert isinstance(rule, DisableRule)
-        assert rule.target_type == "assertion"
-        assert rule.target_name == "Row count"
-        assert rule.in_check == "Volume"
-
-    def test_profile_with_scale(self) -> None:
-        source = """
-        suite "Test" {
-            profile "Holiday" {
-                from 2024-12-20
-                to 2025-01-05
-
-                scale tag "volume" by 2.0
-            }
-        }
-        """
-        result = parse(source)
-        rule = result.profiles[0].rules[0]
-        assert isinstance(rule, ScaleRule)
-        assert rule.selector_type == "tag"
-        assert rule.selector_name == "volume"
-        assert rule.multiplier == 2.0
-
-    def test_profile_with_set_severity(self) -> None:
-        source = """
-        suite "Test" {
-            profile "Holiday" {
-                from 2024-12-20
-                to 2025-01-05
-
-                set tag "non-critical" severity P3
-            }
-        }
-        """
-        result = parse(source)
-        rule = result.profiles[0].rules[0]
-        assert isinstance(rule, SetSeverityRule)
-        assert rule.selector_type == "tag"
-        assert rule.selector_name == "non-critical"
-        assert rule.severity == Severity.P3
-
-    def test_profile_with_fixed_dates(self) -> None:
-        """Test profile with fixed ISO date values."""
-        source = """
-        suite "Test" {
-            profile "Thanksgiving" {
-                from 2024-11-28
-                to 2024-12-01
-            }
-        }
-        """
-        result = parse(source)
-        profile = result.profiles[0]
-        assert profile.from_date.value == date(2024, 11, 28)
-        assert profile.to_date.value == date(2024, 12, 1)
-
-
 class TestCompleteExample:
     """Test parsing the complete example from the spec."""
 
@@ -651,21 +538,6 @@ class TestCompleteExample:
                     name "Day-over-day stable"
                     tags [volume, trend]
             }
-
-            profile "Black Friday" {
-                from 2024-11-29
-                to 2024-12-02
-
-                scale tag "volume" by 3.0
-            }
-
-            profile "Christmas" {
-                from 2024-12-20
-                to 2025-01-05
-
-                disable check "Volume"
-                set tag "trend" severity P3
-            }
         }
         """
         result = parse(source)
@@ -675,7 +547,6 @@ class TestCompleteExample:
         assert result.availability_threshold == 0.8
         assert len(result.tunables) == 2
         assert len(result.checks) == 2
-        assert len(result.profiles) == 2
 
         # Checks
         completeness = result.checks[0]
@@ -686,18 +557,23 @@ class TestCompleteExample:
         assert volume.name == "Volume"
         assert len(volume.assertions) == 2
 
-        # Profiles
-        black_friday = result.profiles[0]
-        assert black_friday.name == "Black Friday"
-        assert len(black_friday.rules) == 1
-
-        christmas = result.profiles[1]
-        assert christmas.name == "Christmas"
-        assert len(christmas.rules) == 2
-
 
 class TestSyntaxErrors:
     """Test syntax error handling."""
+
+    def test_profile_syntax_no_longer_supported(self) -> None:
+        """Test that profile syntax now produces a syntax error."""
+        source = """
+        suite "Test" {
+            profile "Holiday" {
+                from 2024-12-20
+                to 2025-01-05
+                disable check "Volume"
+            }
+        }
+        """
+        with pytest.raises(DQLSyntaxError, match="Unexpected token|profile"):
+            parse(source)
 
     def test_missing_suite_name(self) -> None:
         source = """
@@ -984,22 +860,6 @@ class TestAdditionalEdgeCases:
 
         result = _make_loc(FakeTreeWithEmptyMeta())
         assert result is None
-
-    def test_date_expr_string_fallback(self) -> None:
-        """Cover date expression with ISO date."""
-        # Covered by fixed-date parsing tests
-        source = """
-        suite "Test" {
-            profile "Test" {
-                from 2024-12-31
-                to 2024-12-31
-            }
-        }
-        """
-        result = parse(source)
-        # The date is parsed as a DateExpr
-        assert result.profiles[0].from_date is not None
-        assert result.profiles[0].from_date.value == date(2024, 12, 31)
 
     def test_factor_with_parenthesized_expr(self) -> None:
         """Cover parenthesized expression parsing."""

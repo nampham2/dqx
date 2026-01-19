@@ -6,7 +6,6 @@ All nodes are immutable dataclasses with optional source location tracking.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
 from enum import Enum
 
 
@@ -40,15 +39,6 @@ class Expr:
     """A metric expression (kept as string for sympy parsing later)."""
 
     text: str
-    loc: SourceLocation | None = None
-
-
-@dataclass(frozen=True)
-class DateExpr:
-    """A date expression with optional day offset."""
-
-    value: date  # date literal (YYYY-MM-DD)
-    offset: int = 0  # day offset (+/- N)
     loc: SourceLocation | None = None
 
 
@@ -116,57 +106,11 @@ class Tunable:
 
 
 @dataclass(frozen=True)
-class DisableRule:
-    """Disable a check or assertion."""
-
-    target_type: str  # "check" or "assertion"
-    target_name: str
-    in_check: str | None = None  # For "assertion X in Y"
-    loc: SourceLocation | None = None
-
-
-@dataclass(frozen=True)
-class ScaleRule:
-    """Scale a check or tag by a multiplier."""
-
-    selector_type: str  # "check" or "tag"
-    selector_name: str
-    multiplier: float
-    loc: SourceLocation | None = None
-
-
-@dataclass(frozen=True)
-class SetSeverityRule:
-    """Set severity for a selector."""
-
-    selector_type: str  # "check" or "tag"
-    selector_name: str
-    severity: Severity
-    loc: SourceLocation | None = None
-
-
-# Type alias for all rule types
-Rule = DisableRule | ScaleRule | SetSeverityRule
-
-
-@dataclass(frozen=True)
-class Profile:
-    """A profile for modifying checks during specific periods."""
-
-    name: str
-    from_date: DateExpr
-    to_date: DateExpr
-    rules: tuple[Rule, ...]
-    loc: SourceLocation | None = None
-
-
-@dataclass(frozen=True)
 class Suite:
     """The root AST node representing a DQL suite."""
 
     name: str
     checks: tuple[Check, ...] = ()
-    profiles: tuple[Profile, ...] = ()
     tunables: tuple[Tunable, ...] = ()
     availability_threshold: float | None = None  # e.g., 0.8 for 80%
     loc: SourceLocation | None = None
