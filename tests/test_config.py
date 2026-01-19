@@ -761,7 +761,7 @@ profiles:
         from dqx.config import load_config, load_profiles_from_config
 
         config = load_config(config_file)
-        with pytest.raises(DQXError, match="'end_date'.*must be.*'start_date'"):
+        with pytest.raises(DQXError, match=r"'end_date'.*must be.*'start_date'"):
             load_profiles_from_config(config)
 
     def test_duplicate_profile_names_in_config(self, tmp_path: Path) -> None:
@@ -978,7 +978,7 @@ profiles:
         from dqx.config import load_config, load_profiles_from_config
 
         config = load_config(config_file)
-        with pytest.raises(DQXError, match="unknown field.*unknown_field"):
+        with pytest.raises(DQXError, match=r"unknown field.*unknown_field"):
             load_profiles_from_config(config)
 
     def test_unknown_field_at_rule_level(self, tmp_path: Path) -> None:
@@ -1003,7 +1003,7 @@ profiles:
         from dqx.config import load_config, load_profiles_from_config
 
         config = load_config(config_file)
-        with pytest.raises(DQXError, match="unknown field.*unknown_field"):
+        with pytest.raises(DQXError, match=r"unknown field.*unknown_field"):
             load_profiles_from_config(config)
 
     def test_rule_not_dict(self, tmp_path: Path) -> None:
@@ -1402,7 +1402,7 @@ profiles:
         )
 
         db = InMemoryMetricDB()
-        with pytest.raises(DQXError, match="Duplicate profile name.*'Holiday'"):
+        with pytest.raises(DQXError, match=r"Duplicate profile name.*'Holiday'"):
             VerificationSuite(
                 checks=[test_check],
                 db=db,

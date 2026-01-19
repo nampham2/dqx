@@ -572,7 +572,7 @@ class TestSyntaxErrors:
             }
         }
         """
-        with pytest.raises(DQLSyntaxError, match="Unexpected token|profile"):
+        with pytest.raises(DQLSyntaxError, match=r"Unexpected token|profile"):
             parse(source)
 
     def test_missing_suite_name(self) -> None:

@@ -81,7 +81,7 @@ class TestVerificationSuiteDQLParameter:
                 name="This Should Cause Error",
             )
 
-    def test_dql_string_not_implemented_yet(self, tmp_path: Path) -> None:
+    def test_dql_path_parsing(self, tmp_path: Path) -> None:
         """Test that DQL Path parsing works."""
         db = InMemoryMetricDB()
 
@@ -105,7 +105,7 @@ class TestVerificationSuiteDQLParameter:
         assert suite._name == "Test Suite"
         assert len(suite._checks) == 1
 
-    def test_dql_file_not_implemented_yet(self, tmp_path: Path) -> None:
+    def test_dql_file_parsing(self, tmp_path: Path) -> None:
         """Test that DQL file parsing works."""
         db = InMemoryMetricDB()
 
