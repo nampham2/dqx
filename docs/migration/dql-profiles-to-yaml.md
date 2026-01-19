@@ -78,7 +78,6 @@ from dqx.common import ResultKey
 suite = VerificationSuite(
     dql=Path("suite.dql"),
     db=db,
-    name="My Suite",
     config=Path("config.yaml"),  # Add this
 )
 suite.run(datasources, key)
@@ -185,7 +184,6 @@ from pathlib import Path
 suite = VerificationSuite(
     dql=Path("banking.dql"),
     db=db,
-    name="Banking Suite",
     config=Path("banking_config.yaml"),
 )
 
@@ -221,7 +219,6 @@ holiday = SeasonalProfile(
 suite = VerificationSuite(
     dql=Path("banking.dql"),
     db=db,
-    name="Banking Suite",
     profiles=[holiday],
 )
 ```
@@ -237,7 +234,7 @@ Make sure you're using the `dql` parameter, not `checks`:
 suite = VerificationSuite(checks=Path("suite.dql"), db=db, name="Suite")
 
 # Correct:
-suite = VerificationSuite(dql=Path("suite.dql"), db=db, name="Suite")
+suite = VerificationSuite(dql=Path("suite.dql"), db=db)
 ```
 
 ### Error: "Unexpected token" or syntax error with profile

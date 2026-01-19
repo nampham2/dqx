@@ -137,7 +137,7 @@ class TestVerificationSuiteDQLParameter:
 
     def test_dql_suite_name_missing_everywhere(self, tmp_path: Path) -> None:
         """Test error when DQL has no suite name."""
-        from lark.exceptions import VisitError
+        from dqx.dql.errors import DQLSyntaxError
 
         db = InMemoryMetricDB()
 
@@ -147,9 +147,8 @@ class TestVerificationSuiteDQLParameter:
         }
         """)
 
-        # Parser should raise error for empty suite name
-        # The DQLSyntaxError is wrapped in a VisitError by Lark
-        with pytest.raises(VisitError, match="Suite name cannot be empty"):
+        # Parser should raise DQLSyntaxError for empty suite name
+        with pytest.raises(DQLSyntaxError, match="Suite name cannot be empty"):
             VerificationSuite(
                 dql=dql_file,
                 db=db,

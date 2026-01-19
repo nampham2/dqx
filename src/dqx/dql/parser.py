@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from lark import Lark, Transformer, v_args
-from lark.exceptions import UnexpectedCharacters, UnexpectedToken
+from lark.exceptions import UnexpectedCharacters, UnexpectedToken, VisitError
 
 from dqx.dql.ast import (
     Annotation,
@@ -541,6 +541,18 @@ def parse(source: str, filename: str | None = None) -> Suite:
             source_line=source_line,
             suggestion=f"Expected one of: {expected}" if expected else None,
         ) from None
+    except VisitError as e:
+        # Wrap transformer validation errors
+        orig = e.orig_exc
+        # If the original exception is already a DQLSyntaxError, re-raise it
+        if isinstance(orig, DQLSyntaxError):
+            raise orig from None
+        # Otherwise, wrap it in a DQLSyntaxError
+        raise DQLSyntaxError(  # pragma: no cover
+            message=str(orig),
+            loc=None,
+            source_line=None,
+        ) from orig
 
 
 def parse_file(path: str | Path) -> Suite:

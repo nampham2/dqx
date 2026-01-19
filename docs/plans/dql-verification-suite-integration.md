@@ -1387,7 +1387,6 @@ class Interpreter:
         suite = VerificationSuite(
             dql=source,
             db=self.db,
-            name=filename or "DQL Suite",
         )
 
         # Execute
@@ -1549,7 +1548,7 @@ def test_dql_execution(self, db, datasource):
     suite = VerificationSuite(
         dql=dql,
         db=db,
-        name="Test Suite",
+
     )
     suite.run([datasource], ResultKey(date.today(), {}))
     results = suite.collect_results()
@@ -1580,7 +1579,7 @@ class TestCollectWithProfiles:  # UPDATE THIS CLASS
         suite = VerificationSuite(
             dql=dql,
             db=db,
-            name="Test Suite",
+
             config=config,
         )
         suite.run([datasource], ResultKey(date(2024, 12, 25), {}))
@@ -1603,7 +1602,7 @@ class TestCollectWithProfiles:  # UPDATE THIS CLASS
         suite = VerificationSuite(
             dql=dql,
             db=db,
-            name="Test Suite",
+
             profiles=[profile],
         )
         suite.run([datasource], ResultKey(date(2024, 12, 25), {}))
@@ -1640,7 +1639,7 @@ def test_dql_suite_with_profiles(db, datasource):
     suite = VerificationSuite(
         dql=dql,
         db=db,
-        name="Commerce Suite",
+
         profiles=[profile],
     )
 
@@ -1800,13 +1799,13 @@ def __init__(
         >>> suite = VerificationSuite(
         >>>     dql=dql_source,
         >>>     db=db,
-        >>>     name="Orders Suite",
+        >>>
         >>> )
 
         DQL with programmatic profiles:
 
         >>> holiday = SeasonalProfile(
-        >>>     name="Holiday Season",
+        >>>
         >>>     start_date=date(2024, 12, 20),
         >>>     end_date=date(2025, 1, 5),
         >>>     rules=[check("Volume").disable()],
@@ -2283,7 +2282,7 @@ profiles:
 **After (Python API):**
 ```python
 holiday = SeasonalProfile(
-    name="Holiday",
+
     start_date=date(2024, 12, 20),
     end_date=date(2025, 1, 5),
     rules=[check("Volume").disable()],
@@ -2292,7 +2291,7 @@ holiday = SeasonalProfile(
 suite = VerificationSuite(
     dql=Path("suite.dql"),
     db=db,
-    name="Orders",
+
     profiles=[holiday],
 )
 ```

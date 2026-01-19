@@ -2,7 +2,7 @@
 
 ### BREAKING CHANGE
 
-## DQL Profiles Removed
+### DQL Profiles Removed
 
 Profile definitions (`profile "Name" { ... }`) are no longer supported in DQL syntax. Profiles must now be defined in YAML configuration files or passed programmatically via the Python API.
 
@@ -33,13 +33,13 @@ profiles:
         name: "Volume"
 ```
 
-## HolidayProfile Renamed to SeasonalProfile
+### HolidayProfile Renamed to SeasonalProfile
 
 The `HolidayProfile` class has been renamed to `SeasonalProfile` for better semantic clarity.
 
 - All imports of `HolidayProfile` must be updated to `SeasonalProfile`
 - Behavior remains unchanged - this is a naming-only change
-- The new name better reflects its purpose: seasonal date-range based profiles
+- The new name better reflects its purpose: seasonal date-range-based profiles
 
 **Migration:**
 ```python
@@ -64,7 +64,7 @@ holiday = SeasonalProfile(
 )
 ```
 
-## Interpreter Class Removed
+### Interpreter Class Removed
 
 The `dqx.dql.Interpreter` class has been removed. Use `VerificationSuite(dql=...)` instead.
 
@@ -88,7 +88,6 @@ from dqx.common import ResultKey
 suite = VerificationSuite(
     dql=Path("suite.dql"),
     db=db,
-    name="My Suite",
     config=Path("config.yaml"),
 )
 suite.run(datasources, ResultKey(date.today(), {}))

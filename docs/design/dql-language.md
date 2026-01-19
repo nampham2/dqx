@@ -564,7 +564,6 @@ holiday = SeasonalProfile(
 suite = VerificationSuite(
     dql=Path("suite.dql"),
     db=db,
-    name="My Suite",
     profiles=[holiday],
 )
 ```
@@ -626,20 +625,8 @@ suite "E-Commerce Data Quality" {
             tags [stability]
     }
 
-    profile "Black Friday" {
-        from 2024-11-29
-        to   2024-12-02
-
-        scale tag "volume" by 3.0
-    }
-
-    profile "Christmas" {
-        from 2024-12-20
-        to   2025-01-05
-
-        disable check "Volume"
-        set tag "trend" severity P3
-    }
+    # Note: Profiles are now defined in YAML configuration or via Python API
+    # See "Profiles (Removed)" section below for migration details
 }
 ```
 
@@ -779,7 +766,6 @@ from pathlib import Path
 suite = VerificationSuite(
     dql=Path("suite.dql"),
     db=db,
-    name="My Suite",
     config=Path("config.yaml"),  # Optional: load tunables + profiles
 )
 
@@ -805,7 +791,6 @@ suite "Quick Check" {
 suite = VerificationSuite(
     dql=dql_source,
     db=db,
-    name="Quick Check",
 )
 
 suite.run(datasources, key)
@@ -1293,7 +1278,6 @@ VerificationSuite parses the DQL AST and builds Python check functions dynamical
 suite = VerificationSuite(
     dql=Path("suite.dql"),
     db=db,
-    name="My Suite",
 )
 
 # Internally:
@@ -1362,7 +1346,7 @@ warning[W001]: assertion has no name
 ```ebnf
 (* === Top-level === *)
 suite       = "suite" STRING "{" suite_body "}"
-suite_body  = (metadata | tunable | check | profile)*
+suite_body  = (metadata | tunable | check)*
 
 metadata    = "availability_threshold" PERCENT
 
@@ -1400,22 +1384,11 @@ named_arg   = "lag" "=" NUMBER | "dataset" "=" ident | "order_by" "=" ident | "n
 list_arg    = "[" ident ("," ident)* "]"
 qualified_ident = IDENT ("." IDENT)*
 
-(* === Profiles === *)
-profile     = "profile" STRING "{" profile_body "}"
-profile_body= "from" date_expr "to" date_expr rule*
-date_expr   = DATE | date_expr ("+" | "-") NUMBER
-rule        = disable | scale | set_severity
-disable     = "disable" ("check" STRING | "assertion" STRING "in" STRING)
-scale       = "scale" selector "by" NUMBER
-set_severity= "set" selector "severity" SEVERITY
-selector    = "check" STRING | "tag" STRING
-
 (* === Tokens === *)
 STRING      = '"' (ESC | [^"\\])* '"'
 ESC         = '\\' ["\\nrt]           (* \" \\ \n \r \t *)
 NUMBER      = [0-9]+ ('.' [0-9]+)?
 PERCENT     = NUMBER '%'
-DATE        = [0-9]{4} '-' [0-9]{2} '-' [0-9]{2}
 SEVERITY    = 'P0' | 'P1' | 'P2' | 'P3'
 IDENT       = [a-zA-Z_] [a-zA-Z0-9_]*
 ident       = IDENT | '`' [^`]+ '`'           (* backticks escape reserved words *)

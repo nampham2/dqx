@@ -1241,25 +1241,17 @@ class VerificationSuite:
 
     def _build_tunables_from_ast(self, tunables_ast: tuple[Any, ...]) -> dict[str, float]:
         """Convert DQL Tunable AST nodes to value dictionary."""
-        from dqx.tunables import TunableFloat, TunableInt
-
         tunables_dict: dict[str, float] = {}
         for t in tunables_ast:
-            # Evaluate bounds and value
-            min_val = self._eval_simple_expr(t.bounds[0], tunables_dict)
-            max_val = self._eval_simple_expr(t.bounds[1], tunables_dict)
+            # Evaluate value (bounds are evaluated but not used here)
+            # Bounds will be discovered later via collect_tunables_from_graph()
             value = self._eval_simple_expr(t.value, tunables_dict)
 
             # Store for expression substitution
             tunables_dict[t.name] = value
 
-            # Create Tunable object (will be auto-discovered from graph later)
-            # Note: TunablePercent requires explicit percent notation (not yet supported in DQL grammar)
-            # so we only create TunableInt or TunableFloat based on type checking
-            if isinstance(value, int) and isinstance(min_val, int) and isinstance(max_val, int):
-                TunableInt(name=t.name, value=int(value), bounds=(int(min_val), int(max_val)))
-            else:
-                TunableFloat(name=t.name, value=float(value), bounds=(float(min_val), float(max_val)))
+            # Note: Tunables are auto-discovered from the dependency graph later
+            # via collect_tunables_from_graph(). We don't manually instantiate them here.
 
         return tunables_dict
 
