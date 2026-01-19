@@ -323,11 +323,14 @@ class NodeCollector(Generic[TNode]):
 
 
 class TunableCollectorVisitor:
-    """Visitor that collects Tunable objects from assertion expressions during graph traversal.
+    """Visitor that collects Tunable objects from assertion expressions and validator closures.
 
-    This visitor traverses the graph and extracts TunableSymbol instances from
-    AssertionNode expressions, collecting the underlying Tunable objects in a
-    dictionary mapping tunable names to Tunable instances.
+    This visitor traverses the graph and extracts tunables from two sources:
+    1. TunableSymbol instances from AssertionNode expressions
+    2. Tunable objects stored in AssertionNode.tunables (from validator closures)
+
+    Collects the underlying Tunable objects in a dictionary mapping tunable names
+    to Tunable instances.
 
     Attributes:
         tunables: Dictionary mapping tunable names to their Tunable objects.
@@ -347,8 +350,9 @@ class TunableCollectorVisitor:
     def visit(self, node: BaseNode) -> None:
         """Visit a node and collect TunableSymbols if it's an AssertionNode.
 
-        For AssertionNode instances, extracts all TunableSymbol atoms from the
-        assertion's actual expression and adds them to the tunables dictionary.
+        For AssertionNode instances, extracts tunables from:
+        1. TunableSymbol atoms in the assertion's actual expression
+        2. Tunables stored in node.tunables (from validator closures)
 
         Args:
             node: The node to visit.
@@ -365,6 +369,10 @@ class TunableCollectorVisitor:
                 name = tunable.name
                 # Store tunable by name (later instances override earlier ones)
                 self.tunables[name] = tunable
+
+            # Also collect tunables from validator closures
+            if hasattr(node, "tunables") and node.tunables:
+                self.tunables.update(node.tunables)
 
     async def visit_async(self, node: BaseNode) -> None:  # pragma: no cover
         """Asynchronously visit a node and collect tunables.

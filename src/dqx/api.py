@@ -7,7 +7,7 @@ import time
 import uuid
 from collections.abc import Callable, Sequence
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, TypeAlias, cast, overload, runtime_checkable
 
 import pyarrow as pa
 import sympy as sp
@@ -40,6 +40,9 @@ if TYPE_CHECKING:
 
 CheckProducer = Callable[[MetricProvider, "Context"], None]
 CheckCreator = Callable[[CheckProducer], CheckProducer]
+
+# Type alias for numeric tunables (TunableFloat, TunablePercent, TunableInt)
+NumericTunable: TypeAlias = "Tunable[float] | Tunable[int]"
 
 
 logger = logging.getLogger(__name__)
@@ -211,73 +214,256 @@ class AssertionReady:
         self._cost_fn = cost_fn
         self._context = context
 
-    def is_geq(self, other: float, tol: float = functions.EPSILON) -> None:
+    @overload
+    def is_geq(self, other: float, tol: float = functions.EPSILON) -> None: ...
+
+    @overload
+    def is_geq(self, other: NumericTunable, tol: float = functions.EPSILON) -> None: ...
+
+    def is_geq(self, other: float | NumericTunable, tol: float = functions.EPSILON) -> None:
         """
         Create an assertion that the expression is greater than or equal to the specified threshold.
 
+        When a tunable is provided, the comparison is evaluated lazily at evaluation time.
+
         Args:
-            other: Threshold value to compare the expression against.
+            other: Threshold to compare against (float or NumericTunable).
             tol: Comparison tolerance; values within `tol` of `other` are treated as equal.
+
+        Example:
+            >>> MAX_NULL = TunablePercent("MAX_NULL", value=0.05, bounds=(0.0, 0.20))
+            >>> ctx.assert_that(mp.null_count("col")).where(name="Nulls").is_geq(MAX_NULL)
         """
-        validator = SymbolicValidator(f"≥ {other}", lambda x: functions.is_geq(x, other, tol))
-        self._create_assertion_node(validator)
+        from dqx.tunables import Tunable
 
-    def is_gt(self, other: float, tol: float = functions.EPSILON) -> None:
-        """Assert that the expression is greater than the given value."""
-        validator = SymbolicValidator(f"> {other}", lambda x: functions.is_gt(x, other, tol))
-        self._create_assertion_node(validator)
+        if isinstance(other, Tunable):
+            validator = SymbolicValidator(f"≥ {other.name}", lambda x: functions.is_geq(x, other.value, tol))
+            self._create_assertion_node_with_tunables(validator, {other.name: other})
+        else:
+            validator = SymbolicValidator(f"≥ {other}", lambda x: functions.is_geq(x, other, tol))
+            self._create_assertion_node(validator)
 
-    def is_leq(self, other: float, tol: float = functions.EPSILON) -> None:
-        """Assert that the expression is less than or equal to the given value."""
-        validator = SymbolicValidator(f"≤ {other}", lambda x: functions.is_leq(x, other, tol))
-        self._create_assertion_node(validator)
+    @overload
+    def is_gt(self, other: float, tol: float = functions.EPSILON) -> None: ...
 
-    def is_lt(self, other: float, tol: float = functions.EPSILON) -> None:
-        """Assert that the expression is less than the given value."""
-        validator = SymbolicValidator(f"< {other}", lambda x: functions.is_lt(x, other, tol))
-        self._create_assertion_node(validator)
+    @overload
+    def is_gt(self, other: NumericTunable, tol: float = functions.EPSILON) -> None: ...
 
-    def is_eq(self, other: float, tol: float = functions.EPSILON) -> None:
+    def is_gt(self, other: float | NumericTunable, tol: float = functions.EPSILON) -> None:
+        """Assert that the expression is greater than the given value or tunable."""
+        from dqx.tunables import Tunable
+
+        if isinstance(other, Tunable):
+            validator = SymbolicValidator(f"> {other.name}", lambda x: functions.is_gt(x, other.value, tol))
+            self._create_assertion_node_with_tunables(validator, {other.name: other})
+        else:
+            validator = SymbolicValidator(f"> {other}", lambda x: functions.is_gt(x, other, tol))
+            self._create_assertion_node(validator)
+
+    @overload
+    def is_leq(self, other: float, tol: float = functions.EPSILON) -> None: ...
+
+    @overload
+    def is_leq(self, other: NumericTunable, tol: float = functions.EPSILON) -> None: ...
+
+    def is_leq(self, other: float | NumericTunable, tol: float = functions.EPSILON) -> None:
         """
-        Assert that the expression equals the given value within tolerance.
+        Assert that the expression is less than or equal to the given value or tunable.
+
+        When a tunable is provided, the comparison is evaluated lazily - the tunable's
+        current value is used at evaluation time, not at graph-building time. This
+        enables dynamic threshold tuning via suite.set_param() and suite.reset().
 
         Args:
-            other: Target value to compare the expression against.
+            other: Threshold to compare against. Can be:
+                   - float: Static threshold value
+                   - NumericTunable: Dynamic tunable parameter (TunableFloat, TunablePercent, TunableInt)
+            tol: Comparison tolerance for floating-point comparisons.
+
+        Example:
+            >>> # Static threshold
+            >>> ctx.assert_that(mp.minimum("qty")).where(name="Min qty").is_leq(10.0)
+            >>>
+            >>> # Dynamic tunable threshold
+            >>> MIN_QTY = TunableFloat("MIN_QTY", value=10.0, bounds=(1.0, 100.0))
+            >>> ctx.assert_that(mp.minimum("qty")).where(name="Min qty").is_leq(MIN_QTY)
+            >>>
+            >>> # Later: tune and re-run
+            >>> suite.set_param("MIN_QTY", 20.0)
+            >>> suite.reset()
+            >>> suite.run([datasource], key)
+        """
+        from dqx.tunables import Tunable
+
+        if isinstance(other, Tunable):
+            # Tunable path - closure captures tunable reference for lazy evaluation
+            validator = SymbolicValidator(f"≤ {other.name}", lambda x: functions.is_leq(x, other.value, tol))
+            self._create_assertion_node_with_tunables(validator, {other.name: other})
+        else:
+            # Static float path - same as current implementation
+            validator = SymbolicValidator(f"≤ {other}", lambda x: functions.is_leq(x, other, tol))
+            self._create_assertion_node(validator)
+
+    @overload
+    def is_lt(self, other: float, tol: float = functions.EPSILON) -> None: ...
+
+    @overload
+    def is_lt(self, other: NumericTunable, tol: float = functions.EPSILON) -> None: ...
+
+    def is_lt(self, other: float | NumericTunable, tol: float = functions.EPSILON) -> None:
+        """Assert that the expression is less than the given value or tunable."""
+        from dqx.tunables import Tunable
+
+        if isinstance(other, Tunable):
+            validator = SymbolicValidator(f"< {other.name}", lambda x: functions.is_lt(x, other.value, tol))
+            self._create_assertion_node_with_tunables(validator, {other.name: other})
+        else:
+            validator = SymbolicValidator(f"< {other}", lambda x: functions.is_lt(x, other, tol))
+            self._create_assertion_node(validator)
+
+    @overload
+    def is_eq(self, other: float, tol: float = functions.EPSILON) -> None: ...
+
+    @overload
+    def is_eq(self, other: NumericTunable, tol: float = functions.EPSILON) -> None: ...
+
+    def is_eq(self, other: float | NumericTunable, tol: float = functions.EPSILON) -> None:
+        """
+        Assert that the expression equals the given value or tunable within tolerance.
+
+        Args:
+            other: Target value to compare against (float or NumericTunable).
             tol: Absolute tolerance for the comparison; defaults to functions.EPSILON.
-        """
-        validator = SymbolicValidator(f"= {other}", lambda x: functions.is_eq(x, other, tol))
-        self._create_assertion_node(validator)
 
-    def is_neq(self, other: float, tol: float = functions.EPSILON) -> None:
+        Example:
+            >>> TARGET = TunableInt("TARGET", value=100, bounds=(50, 200))
+            >>> ctx.assert_that(mp.count("id")).where(name="Count").is_eq(TARGET)
         """
-        Assert that the expression is not equal to a specified value, allowing for a tolerance.
+        from dqx.tunables import Tunable
+
+        if isinstance(other, Tunable):
+            validator = SymbolicValidator(f"= {other.name}", lambda x: functions.is_eq(x, other.value, tol))
+            self._create_assertion_node_with_tunables(validator, {other.name: other})
+        else:
+            validator = SymbolicValidator(f"= {other}", lambda x: functions.is_eq(x, other, tol))
+            self._create_assertion_node(validator)
+
+    @overload
+    def is_neq(self, other: float, tol: float = functions.EPSILON) -> None: ...
+
+    @overload
+    def is_neq(self, other: NumericTunable, tol: float = functions.EPSILON) -> None: ...
+
+    def is_neq(self, other: float | NumericTunable, tol: float = functions.EPSILON) -> None:
+        """
+        Assert that the expression is not equal to a specified value or tunable.
 
         Args:
-            other: The value to compare against.
+            other: The value to compare against (float or NumericTunable).
             tol: Allowed tolerance; values within `tol` of `other` are considered equal.
         """
-        validator = SymbolicValidator(f"≠ {other}", lambda x: functions.is_neq(x, other, tol))
-        self._create_assertion_node(validator)
+        from dqx.tunables import Tunable
 
-    def is_between(self, lower: float, upper: float, tol: float = functions.EPSILON) -> None:
+        if isinstance(other, Tunable):
+            validator = SymbolicValidator(f"≠ {other.name}", lambda x: functions.is_neq(x, other.value, tol))
+            self._create_assertion_node_with_tunables(validator, {other.name: other})
+        else:
+            validator = SymbolicValidator(f"≠ {other}", lambda x: functions.is_neq(x, other, tol))
+            self._create_assertion_node(validator)
+
+    @overload
+    def is_between(self, lower: float, upper: float, tol: float = functions.EPSILON) -> None: ...
+
+    @overload
+    def is_between(
+        self,
+        lower: float | NumericTunable,
+        upper: float | NumericTunable,
+        tol: float = functions.EPSILON,
+    ) -> None: ...
+
+    def is_between(
+        self,
+        lower: float | NumericTunable,
+        upper: float | NumericTunable,
+        tol: float = functions.EPSILON,
+    ) -> None:
         """
         Assert that the expression lies within the inclusive interval [lower, upper].
 
+        Both bounds support static floats or dynamic tunables for runtime evaluation.
+
         Args:
-            lower: Lower bound of the allowed interval.
-            upper: Upper bound of the allowed interval.
-            tol: Numeric tolerance applied to the comparison; values within `tol` of a boundary are considered inside.
+            lower: Lower bound (float or NumericTunable).
+            upper: Upper bound (float or NumericTunable).
+            tol: Numeric tolerance applied to the comparison.
 
         Raises:
-            ValueError: If `lower` is greater than `upper`.
-        """
-        if lower > upper:
-            raise ValueError(
-                f"Invalid range: lower bound ({lower}) must be less than or equal to upper bound ({upper})"
-            )
+            ValueError: If lower > upper when both are static floats.
+                        For tunables, bound validation occurs at evaluation time.
 
-        validator = SymbolicValidator(f"in [{lower}, {upper}]", lambda x: functions.is_between(x, lower, upper, tol))
-        self._create_assertion_node(validator)
+        Example:
+            >>> # Static bounds
+            >>> ctx.assert_that(mp.average("score")).where(name="Range").is_between(0, 100)
+            >>>
+            >>> # Dynamic tunable bounds
+            >>> LOWER = TunableFloat("LOWER", value=10.0, bounds=(0, 50))
+            >>> UPPER = TunableFloat("UPPER", value=90.0, bounds=(50, 100))
+            >>> ctx.assert_that(mp.average("score")).where(name="Range").is_between(LOWER, UPPER)
+        """
+        from dqx.tunables import Tunable
+
+        # Determine if we have tunables
+        lower_is_tunable = isinstance(lower, Tunable)
+        upper_is_tunable = isinstance(upper, Tunable)
+
+        if not lower_is_tunable and not upper_is_tunable:
+            # Both static - validate bounds immediately
+            if lower > upper:  # type: ignore[operator]
+                raise ValueError(
+                    f"Invalid range: lower bound ({lower}) must be less than or equal to upper bound ({upper})"
+                )
+
+            # Static validator
+            validator = SymbolicValidator(
+                f"in [{lower}, {upper}]",
+                lambda x: functions.is_between(x, lower, upper, tol),  # type: ignore[arg-type]
+            )
+            self._create_assertion_node(validator)
+        else:
+            # At least one tunable - use closure to capture references
+            # Build display name and collect tunables
+            tunables_dict: dict[str, Tunable[Any]] = {}
+
+            lower_name = lower.name if lower_is_tunable else str(lower)  # type: ignore[union-attr]
+            upper_name = upper.name if upper_is_tunable else str(upper)  # type: ignore[union-attr]
+
+            # Register tunables
+            if lower_is_tunable:
+                tunables_dict[lower.name] = lower  # type: ignore[union-attr, assignment]
+            if upper_is_tunable:
+                tunables_dict[upper.name] = upper  # type: ignore[union-attr, assignment]
+
+            # Create validator with closure that evaluates tunables at validation time
+            def between_validator(x: float) -> bool:
+                # Get current values (tunable or static)
+                lower_val = lower.value if lower_is_tunable else lower  # type: ignore[union-attr]
+                upper_val = upper.value if upper_is_tunable else upper  # type: ignore[union-attr]
+
+                # Runtime validation for tunable bounds
+                if lower_val > upper_val:
+                    lower_display = lower.name if lower_is_tunable else lower  # type: ignore[union-attr]
+                    upper_display = upper.name if upper_is_tunable else upper  # type: ignore[union-attr]
+                    raise ValueError(
+                        f"Invalid range for {lower_display}/{upper_display}: "
+                        f"lower bound ({lower_val}) > upper bound ({upper_val})"
+                    )
+
+                # Now both are floats, use standard is_between
+                return functions.is_between(x, lower_val, upper_val, tol)  # type: ignore[arg-type]
+
+            validator = SymbolicValidator(f"in [{lower_name}, {upper_name}]", between_validator)
+            self._create_assertion_node_with_tunables(validator, tunables_dict)
 
     def is_negative(self, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is negative."""
@@ -346,6 +532,46 @@ class AssertionReady:
             cost_fp=self._cost_fp,
             cost_fn=self._cost_fn,
             validator=validator,
+        )
+
+    def _create_assertion_node_with_tunables(
+        self, validator: SymbolicValidator, tunables: dict[str, Tunable[Any]]
+    ) -> None:
+        """
+        Attach a validator as a new assertion node, registering tunables used in closures.
+
+        This is used internally when comparison methods capture tunables in validator
+        closures that won't be visible in the symbolic expression.
+
+        Args:
+            validator: The validator that defines the assertion to attach.
+            tunables: Mapping of tunable names to Tunable objects used in validator closure.
+
+        Raises:
+            DQXError: If no active check is present in the current context.
+        """
+        if self._context is None:  # pragma: no cover
+            return
+
+        current = self._context.current_check
+        if not current:  # pragma: no cover
+            raise DQXError(
+                "Cannot create assertion outside of check context. "
+                "Assertions must be created within a @check decorated function."
+            )
+
+        # Use the check node's factory method to create and add the assertion
+        current.add_assertion(
+            actual=self._actual,
+            name=self._name,
+            severity=self._severity,
+            tags=self._tags,
+            experimental=self._experimental,
+            required=self._required,
+            cost_fp=self._cost_fp,
+            cost_fn=self._cost_fn,
+            validator=validator,
+            tunables=tunables,
         )
 
 

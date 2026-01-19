@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 import sympy as sp
 from returns.result import Result
 
 from dqx.common import AssertionStatus, EvaluationFailure, SeverityLevel, SymbolicValidator
 from dqx.graph.base import BaseNode, CompositeNode
+
+if TYPE_CHECKING:
+    from dqx.tunables import Tunable
 
 
 class RootNode(CompositeNode[None, "CheckNode"]):
@@ -104,6 +109,7 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
         required: bool = False,
         cost_fp: float | None = None,
         cost_fn: float | None = None,
+        tunables: dict[str, Tunable[Any]] | None = None,
     ) -> AssertionNode:
         """
         Create and attach an AssertionNode as a child of this CheckNode.
@@ -118,6 +124,8 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
                 required (bool): Mark the assertion as non-removable by algorithms (default False).
                 cost_fp (float | None): Cost assigned to a false positive for reward computations.
                 cost_fn (float | None): Cost assigned to a false negative for reward computations.
+                tunables (dict[str, Tunable[Any]] | None): Optional mapping of tunable names to Tunable objects
+                        used in validator closures (for tunables not in symbolic expressions).
 
         Returns:
                 AssertionNode: The newly created and attached assertion node.
@@ -133,6 +141,7 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
             required=required,
             cost_fp=cost_fp,
             cost_fn=cost_fn,
+            tunables=tunables,
         )
         self.add_child(assertion)
         return assertion
@@ -157,6 +166,7 @@ class AssertionNode(BaseNode["CheckNode"]):
         required: bool = False,
         cost_fp: float | None = None,
         cost_fn: float | None = None,
+        tunables: dict[str, Tunable[Any]] | None = None,
     ) -> None:
         """
         Create an AssertionNode that encapsulates a symbolic expression, its validator, and assertion metadata.
@@ -172,6 +182,8 @@ class AssertionNode(BaseNode["CheckNode"]):
             required: If True, marks the assertion as non-removable by automated algorithms.
             cost_fp: Optional cost to attribute to false positives (used for reward/cost calculations).
             cost_fn: Optional cost to attribute to false negatives (used for reward/cost calculations).
+            tunables: Optional mapping of tunable names to Tunable objects used in validator closures
+                     (for tunables not in symbolic expressions).
         """
         super().__init__(parent)
         self.actual = actual
@@ -183,6 +195,7 @@ class AssertionNode(BaseNode["CheckNode"]):
         self.required = required
         self.cost_fp = cost_fp
         self.cost_fn = cost_fn
+        self.tunables: dict[str, Tunable[Any]] = tunables or {}
         # Stores the computed metric result
         self._metric: Result[float, list[EvaluationFailure]]
         # Stores whether the assertion passes validation
