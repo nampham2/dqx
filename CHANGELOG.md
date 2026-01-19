@@ -1,4 +1,4 @@
-## v0.6.0 (TBD)
+## v0.5.13 (2026-01-19)
 
 ### BREAKING CHANGE
 
@@ -53,7 +53,7 @@ holiday = HolidayProfile(
     rules=[...],
 )
 
-# After (v0.6.0)
+# After (v0.5.13)
 from dqx import SeasonalProfile
 
 holiday = SeasonalProfile(
@@ -96,17 +96,39 @@ results = suite.collect_results()
 
 ### Feat
 
-- **dql**: integrate DQL directly into VerificationSuite via `dql` parameter
-- **api**: add `dql` parameter accepting `str` or `Path` to VerificationSuite constructor
+- **dql**: integrate DQL directly into VerificationSuite via `dql` parameter (#60)
+- **api**: add `dql` parameter accepting `Path` to VerificationSuite constructor
 - **api**: implement mutual exclusion validation between `checks` and `dql` parameters
+- **api**: enforce that `name` parameter must not be specified when using `dql`
+- **api**: enforce that `name` parameter is required when using `checks`
 - **config**: profiles now load from YAML configuration files alongside tunables
+- **config**: add YAML profile loading with comprehensive validation
+- **dql**: make DQL tunables fully discoverable and configurable via YAML and `set_param()`
+- **dql**: support tunables in assertion thresholds, metric expressions, and between conditions
+- **dql**: support sequential tunable evaluation (tunables can reference other tunables)
+- **dql**: add automatic type inference for tunables (TunableInt vs TunableFloat)
+- **api**: accept decimal parameters in stddev functions, validate as integers
+
+### Fix
+
+- **api**: fix `reset()` to preserve DQL tunables by merging with graph tunables
+- **api**: fix cost annotation to preserve fractional costs (e.g., 0.5)
+- **dql**: add validation to prevent tunable names from shadowing metric functions
+- **graph**: use DQXError instead of ValueError for name validation
 
 ### Refactor
 
-- **dql**: remove profile syntax from DQL grammar, AST, and parser
+- **dql**: remove profile syntax from DQL grammar, AST, and parser (1039 lines removed)
 - **dql**: move all DQL execution logic from Interpreter into VerificationSuite
 - **dql**: simplify DQL language to focus exclusively on validation logic
 - **api**: unify Python and DQL APIs under single VerificationSuite class
+- **config**: rename HolidayProfile to SeasonalProfile for broader applicability
+
+### Docs
+
+- **migration**: add comprehensive DQL profiles to YAML migration guide
+- **dql**: update DQL language documentation to reflect VerificationSuite integration
+- **dql**: remove all Interpreter references from documentation
 
 ## v0.5.12 (2026-01-19)
 
