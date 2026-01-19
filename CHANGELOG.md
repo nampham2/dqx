@@ -1,3 +1,9 @@
+## v0.5.14 (2026-01-19)
+
+### Build System
+
+- **ci**: Correct package name in release drafter template (GitHub releases will now show correct installation command: `pip install dqlib`)
+
 ## v0.5.13 (2026-01-19)
 
 ### BREAKING CHANGE
