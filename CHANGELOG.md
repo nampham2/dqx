@@ -1,3 +1,35 @@
+## v0.5.12 (2026-01-19)
+
+### BREAKING CHANGE
+
+- Graph is now built during VerificationSuite initialization
+- DQL grammar syntax has been significantly simplified
+
+### Feat
+
+- **config**: add YAML configuration file support for tunable values (#58)
+- **display**: substitute tunable values in assertion result expressions (#57)
+- **api**: add tunable support to comparison methods (#56)
+- **dql**: simplify profiles by removing recurring type and date functions (#54)
+- **dql**: support dict tags in interpreter for key-value tag pairs (#52)
+- **dql**: Add collect keyword for noop assertions (#51)
+- **dql**: add interpreter with profile support and date functions (#48)
+- **dql**: replace const with tunable keyword and remove import/export (#46)
+- add reset() method to VerificationSuite for AI agent tuning (#43)
+- **dql**: add complex DQL scenarios and comprehensive tests (#41)
+- add DQL prerequisites - is_neq, is_none, is_not_none, order_by, coalesce (#39)
+- add DQL prerequisites for RL agent integration
+
+### Fix
+
+- **tunables**: resolve SymPy caching issue causing test isolation failures (#55)
+- resolve README-code discrepancies and achieve 100% coverage (#44)
+
+### Refactor
+
+- **dql**: unify run_file and run_string into single run method (#49)
+- **api**: remove is_none and is_not_none methods (#45)
+
 ## v0.5.11 (2025-12-26)
 
 ### Feat
