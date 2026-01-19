@@ -168,22 +168,4 @@ suite "Book E-Commerce Inventory Quality" {
             severity P3
             tags [math, experimental]
     }
-
-    # Profiles
-    profile "Back to School" {
-        from 2024-08-15
-        to 2024-09-15
-
-        scale tag "inventory" by 1.5
-        scale check "Inventory Health" by 2.0
-    }
-
-    profile "Black Friday" {
-        from 2024-11-29  # Black Friday 2024
-        to 2024-12-03    # Through Cyber Monday
-
-        scale tag "volume" by 3.0
-        disable assertion "books.pricing.day_over_day_stability" in "Pricing Validity"
-        set tag "pricing" severity P3
-    }
 }

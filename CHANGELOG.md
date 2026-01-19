@@ -1,3 +1,113 @@
+## v0.6.0 (TBD)
+
+### BREAKING CHANGE
+
+### DQL Profiles Removed
+
+Profile definitions (`profile "Name" { ... }`) are no longer supported in DQL syntax. Profiles must now be defined in YAML configuration files or passed programmatically via the Python API.
+
+- Migration required for any DQL files containing `profile` blocks
+- See [Migration Guide](docs/migration/dql-profiles-to-yaml.md) for step-by-step instructions
+- Rationale: Separates validation logic (DQL) from runtime behavior (profiles), enabling environment-specific configuration
+
+**Before (DQL with profiles):**
+```dql
+suite "Orders" {
+    profile "Holiday" {
+        from 2024-12-20 to 2025-01-05
+        disable check "Volume"
+    }
+}
+```
+
+**After (YAML config):**
+```yaml
+profiles:
+  - name: "Holiday"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "disable"
+        target: "check"
+        name: "Volume"
+```
+
+### HolidayProfile Renamed to SeasonalProfile
+
+The `HolidayProfile` class has been renamed to `SeasonalProfile` for better semantic clarity.
+
+- All imports of `HolidayProfile` must be updated to `SeasonalProfile`
+- Behavior remains unchanged - this is a naming-only change
+- The new name better reflects its purpose: seasonal date-range-based profiles
+
+**Migration:**
+```python
+# Before (v0.5.x)
+from dqx import HolidayProfile
+
+holiday = HolidayProfile(
+    name="Holiday",
+    start_date=date(2024, 12, 20),
+    end_date=date(2025, 1, 5),
+    rules=[...],
+)
+
+# After (v0.6.0)
+from dqx import SeasonalProfile
+
+holiday = SeasonalProfile(
+    name="Holiday",
+    start_date=date(2024, 12, 20),
+    end_date=date(2025, 1, 5),
+    rules=[...],
+)
+```
+
+### Interpreter Class Removed
+
+The `dqx.dql.Interpreter` class has been removed. Use `VerificationSuite(dql=...)` instead.
+
+- `Interpreter.run()` → `VerificationSuite(dql=...).run()`
+- `SuiteResults` and `AssertionResult` types removed from `dqx.dql`
+- All DQL execution logic now integrated directly into `VerificationSuite`
+
+**Before (Interpreter):**
+```python
+from dqx.dql import Interpreter
+
+interp = Interpreter(db=db)
+results = interp.run(Path("suite.dql"), datasources, date.today())
+```
+
+**After (VerificationSuite):**
+```python
+from dqx.api import VerificationSuite
+from dqx.common import ResultKey
+
+suite = VerificationSuite(
+    dql=Path("suite.dql"),
+    db=db,
+    config=Path("config.yaml"),
+)
+suite.run(datasources, ResultKey(date.today(), {}))
+results = suite.collect_results()
+```
+
+### Feat
+
+- **dql**: integrate DQL directly into VerificationSuite via `dql` parameter
+- **api**: add `dql` parameter accepting `str` or `Path` to VerificationSuite constructor
+- **api**: implement mutual exclusion validation between `checks` and `dql` parameters
+- **config**: profiles now load from YAML configuration files alongside tunables
+
+### Refactor
+
+- **dql**: remove profile syntax from DQL grammar, AST, and parser
+- **dql**: move all DQL execution logic from Interpreter into VerificationSuite
+- **dql**: simplify DQL language to focus exclusively on validation logic
+- **api**: unify Python and DQL APIs under single VerificationSuite class
+
 ## v0.5.12 (2026-01-19)
 
 ### BREAKING CHANGE

@@ -105,13 +105,4 @@ suite "Banking Transaction Data Quality" {
             severity P0
             tags [reconciliation, critical]
     }
-
-    # Profiles for special periods
-    profile "Holiday Season" {
-        from 2024-12-20
-        to 2025-01-05
-
-        disable check "Volume"
-        scale tag "reconciliation" by 1.5
-    }
 }

@@ -5,9 +5,9 @@ import logging
 from rich.logging import RichHandler
 
 from dqx.profiles import (
-    HolidayProfile,
     Profile,
     Rule,
+    SeasonalProfile,
     assertion,
     check,
     tag,
@@ -18,19 +18,17 @@ from dqx.tunables import (
     TunableChoice,
     TunableFloat,
     TunableInt,
-    TunablePercent,
 )
 
 __all__ = [
-    "HolidayProfile",
     "Profile",
     "Rule",
+    "SeasonalProfile",
     "Tunable",
     "TunableChange",
     "TunableChoice",
     "TunableFloat",
     "TunableInt",
-    "TunablePercent",
     "assertion",
     "check",
     "tag",

@@ -4,8 +4,8 @@ Profiles modify assertion behavior during specific periods. A profile activates
 based on the current date and applies rules: disable assertions or scale metric values.
 
 Example:
-    christmas = HolidayProfile(
-        name="Christmas 2024",
+    season = SeasonalProfile(
+        name="Holiday Season 2024",
         start_date=date(2024, 12, 20),
         end_date=date(2025, 1, 5),
         rules=[
@@ -95,12 +95,12 @@ class Profile(Protocol):
 
 
 @dataclass
-class HolidayProfile:
+class SeasonalProfile:
     """Profile active during a date range.
 
     Example:
-        christmas = HolidayProfile(
-            name="Christmas 2024",
+        season = SeasonalProfile(
+            name="Holiday Season 2024",
             start_date=date(2024, 12, 20),
             end_date=date(2025, 1, 5),
             rules=[tag("xmas").set(metric_multiplier=2.0)],

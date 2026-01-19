@@ -9,10 +9,10 @@ from dqx.api import VerificationSuite, check
 from dqx.common import Context, ResultKey
 from dqx.display import print_assertion_results, print_metric_trace
 from dqx.orm.repositories import InMemoryMetricDB
-from dqx.profiles import HolidayProfile, tag
+from dqx.profiles import SeasonalProfile, tag
 from dqx.profiles import check as profile_check
 from dqx.provider import MetricProvider
-from dqx.tunables import TunableFloat, TunablePercent
+from dqx.tunables import TunableFloat
 from tests.fixtures.data_fixtures import CommercialDataSource
 
 MIN_QUANTITY_THRESHOLD = TunableFloat("MIN_QUANTITY_THRESHOLD", 2.5, bounds=(0.0, 4.0))
@@ -163,7 +163,7 @@ def test_e2e_suite_with_profiles() -> None:
     # Create a profile that:
     # 1. Disables the "Delivered null percentage" check entirely
     # 2. Applies a metric_multiplier to assertions tagged with "xmas"
-    holiday_profile = HolidayProfile(
+    holiday_profile = SeasonalProfile(
         name="January Holiday",
         start_date=dt.date(2025, 1, 1),
         end_date=dt.date(2025, 1, 31),
@@ -266,7 +266,7 @@ def test_e2e_profile_metric_multiplier_effect() -> None:
     # Second run WITH profile - multiplier=2.0 should make assertion PASS
     # (tax average ~50-80 * 2.0 = ~100-160 > 80)
     db2 = InMemoryMetricDB()
-    profile_with_multiplier = HolidayProfile(
+    profile_with_multiplier = SeasonalProfile(
         name="Multiplier Test",
         start_date=dt.date(2025, 1, 1),
         end_date=dt.date(2025, 1, 31),
@@ -296,7 +296,7 @@ def test_e2e_profile_metric_multiplier_effect() -> None:
 
 
 # Tunables for config test
-NULL_RATE_THRESHOLD = TunablePercent("NULL_RATE_THRESHOLD", value=0.10, bounds=(0.0, 0.50))
+NULL_RATE_THRESHOLD = TunableFloat("NULL_RATE_THRESHOLD", value=0.10, bounds=(0.0, 0.50))
 MIN_AVG_PRICE = TunableFloat("MIN_AVG_PRICE", value=5.0, bounds=(0.0, 100.0))
 MAX_TAX_STDDEV = TunableFloat("MAX_TAX_STDDEV", value=5.0, bounds=(0.0, 50.0))
 

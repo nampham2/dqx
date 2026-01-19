@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 import sympy as sp
 from returns.result import Result
 
-from dqx.common import AssertionStatus, EvaluationFailure, SeverityLevel, SymbolicValidator
+from dqx.common import AssertionStatus, DQXError, EvaluationFailure, SeverityLevel, SymbolicValidator
 from dqx.graph.base import BaseNode, CompositeNode
 
 if TYPE_CHECKING:
@@ -48,9 +48,18 @@ class RootNode(CompositeNode[None, "CheckNode"]):
 
         Args:
             name: Human-readable name for the verification suite
+
+        Raises:
+            DQXError: If name is empty or longer than 255 characters
         """
+        if not name or not name.strip():
+            raise DQXError("Root name cannot be empty")
+        stripped_name = name.strip()
+        if len(stripped_name) > 255:
+            raise DQXError("Root name is too long (max 255 characters)")
+
         super().__init__(parent=None)  # Root always has None parent
-        self.name = name
+        self.name = stripped_name
         self.datasets: list[str] = []
 
     def add_check(
@@ -91,11 +100,20 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
 
         Args:
             parent: The RootNode parent (required)
-            name: Name for the check
+            name: Name for the check (must be non-empty, max 255 characters)
             datasets: Optional list of datasets this check applies to
+
+        Raises:
+            DQXError: If name is empty or longer than 255 characters
         """
+        if not name or not name.strip():
+            raise DQXError("Check name cannot be empty")
+        stripped_name = name.strip()
+        if len(stripped_name) > 255:
+            raise DQXError("Check name is too long (max 255 characters)")
+
         super().__init__(parent)
-        self.name = name
+        self.name = stripped_name
         self.datasets = datasets or []
 
     def add_assertion(
@@ -204,4 +222,5 @@ class AssertionNode(BaseNode["CheckNode"]):
         self._effective_severity: SeverityLevel | None = None
 
     def is_leaf(self) -> bool:
+        """Check if this node is a leaf node (has no children)."""
         return True

@@ -10,7 +10,7 @@ DQL (Data Quality Language) is designed with three goals:
 
 ## Solution
 
-DQL expresses data quality checks in a syntax built for the task. The interpreter validates and executes checks directly against your database.
+DQL expresses data quality checks in a syntax built for the task. DQX validates and executes checks directly against your database.
 
 ```dql
 suite "Order Validation" {
@@ -29,16 +29,14 @@ dql run suite.dql --connection databricks://... --date 2024-12-25
 
 ## Structure
 
-A DQL file contains one suite. A suite contains checks, profiles, and tunables.
+A DQL file contains one suite. A suite contains checks and tunables.
 
-```
+```text
 suite
 ├── metadata (name, threshold)
 ├── tunables
-├── checks
-│   └── assertions
-└── profiles
-    └── rules
+└── checks
+    └── assertions
 ```
 
 ### Suite
@@ -49,7 +47,7 @@ Every DQL file begins with a suite declaration:
 suite "E-Commerce Data Quality" {
     availability_threshold 80%
 
-    # checks and profiles go here
+    # checks and tunables go here
 }
 ```
 
@@ -321,7 +319,7 @@ average(price, dataset=orders)  # Specific dataset
 | `lag` | Calendar days offset (1 = yesterday, 7 = one week ago) |
 | `dataset` | Restrict metric to named dataset |
 
-**Lag semantics:** The `lag` parameter offsets by calendar days, not partition offsets. For a weekly-partitioned table queried on Monday with `lag 1`, the interpreter computes the metric for Sunday's data (which may fall in the previous week's partition).
+**Lag semantics:** The `lag` parameter offsets by calendar days, not partition offsets. For a weekly-partitioned table queried on Monday with `lag 1`, VerificationSuite computes the metric for Sunday's data (which may fall in the previous week's partition).
 
 ### Extended Metrics
 
@@ -516,114 +514,62 @@ assert coalesce(average(price), 0) >= 0
 
 ## Profiles
 
-Profiles modify assertion behavior during specific periods. Define profiles at suite level.
+## Profiles (Removed in v0.6.0)
 
-```dql
-profile "Black Friday" {
-    from 2024-11-29
-    to   2024-12-02
+**Note:** Profile definitions are no longer part of DQL syntax as of v0.6.0.
 
-    disable check "Volume"
-    scale tag "seasonal" by 3.0
-}
+Profiles are now defined in:
+- **YAML configuration files** (recommended for most use cases)
+- **Python API** using `SeasonalProfile` class (for programmatic control)
+
+See the [Migration Guide](../migration/dql-profiles-to-yaml.md) for converting existing DQL profiles to YAML or Python API.
+
+**Why the change?** Profiles define runtime behavior (when/how to modify checks), which is conceptually separate from validation logic (what to check). This separation:
+- Enables environment-specific configuration without modifying DQL
+- Allows profile reuse across multiple suites
+- Follows the same pattern as tunables
+- Makes DQL simpler and more focused on validation logic
+
+**YAML Example:**
+```yaml
+profiles:
+  - name: "Holiday Season"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "disable"
+        target: "check"
+        name: "Volume"
+      - action: "scale"
+        target: "tag"
+        name: "reconciliation"
+        multiplier: 1.5
 ```
 
-### Profile Fields
+**Python API Example:**
+```python
+from datetime import date
+from dqx.profiles import SeasonalProfile, check, tag
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | Yes | Profile identifier |
-| `from` | Yes | Start date (ISO format or expression) |
-| `to` | Yes | End date (ISO format or expression) |
+holiday = SeasonalProfile(
+    name="Holiday Season",
+    start_date=date(2024, 12, 20),
+    end_date=date(2025, 1, 5),
+    rules=[
+        check("Volume").disable(),
+        tag("reconciliation").set(metric_multiplier=1.5),
+    ],
+)
 
-### Dynamic Dates
-
-Profiles support both fixed ISO dates and date arithmetic:
-
-```dql
-profile "Holiday Season" {
-    from 2024-12-20
-    to   2025-01-05
-}
+suite = VerificationSuite(
+    dql=Path("suite.dql"),
+    db=db,
+    profiles=[holiday],
+)
 ```
 
-**Date format:** Profiles use ISO format dates (YYYY-MM-DD). Date arithmetic (`+ N` or `- N`) adds or subtracts days.
-
-Date arithmetic:
-
-| Operator | Description |
-|----------|-------------|
-| `+ N` | Adds N days to the date |
-| `- N` | Subtracts N days from the date |
-
-### Rules
-
-Rules select assertions and apply modifications:
-
-**Disable** skips matched assertions:
-
-```dql
-disable check "Volume"
-disable assertion "Order count" in "Volume"
-```
-
-**Scale** multiplies the computed metric value before comparison:
-
-```dql
-scale tag "seasonal" by 2.0
-scale check "Revenue" by 1.5
-```
-
-**Scale semantics:** The multiplier applies to the metric value, not the threshold. Use this when you expect the metric to be *lower* than normal due to reduced activity.
-
-```dql
-# Normal: assert num_rows() >= 1000
-# Holiday traffic drops to 500 rows (50% of normal)
-# Without profile: 500 >= 1000 → FAIL (false positive!)
-#
-# With scale 2.0: 500 * 2.0 = 1000 >= 1000 → PASS
-# Interpretation: "500 rows during a 0.5 traffic period is like 1000 rows normally"
-```
-
-**Mental model:** Scale answers: "What would this metric be under normal conditions?" A scale of 2.0 compensates for a period with 50% expected traffic—multiply the actual value to normalize it for comparison against normal-period thresholds.
-
-For `between A and B`, the scaled metric compares against both bounds unchanged.
-
-**Set severity** changes the severity level (can raise or lower):
-
-```dql
-set tag "non-critical" severity P3
-set check "Volume" severity P2
-```
-
-### Rule Ordering
-
-Rules apply in definition order. Multipliers compound; severity uses last match.
-
-```dql
-profile "Holiday" {
-    from 2024-12-20
-    to   2025-01-05
-
-    scale tag "volume" by 1.5
-    scale check "Orders" by 2.0
-    # Assertion with tag "volume" in "Orders": multiplier = 3.0
-}
-```
-
-### Profile Overlap
-
-When multiple profiles match the same date, rules from all matching profiles apply in profile definition order. Multipliers compound across profiles.
-
-```dql
-profile "Holiday Season" { from 2024-11-15 to 2025-01-05 scale tag "volume" by 1.5 }
-profile "Black Friday" { from 2024-11-29 to 2024-12-02 scale tag "volume" by 2.0 }
-
-# On 2024-11-30: Both profiles active
-# Combined multiplier for "volume" tag: 1.5 * 2.0 = 3.0
-```
-
-**Warning:** Overlapping profiles with compounding multipliers can produce unexpected results. The interpreter logs active profiles and combined multipliers for debugging.
+For full documentation on profiles, see [Profiles Design](profiles.md).
 
 ## Complete Example
 
@@ -680,20 +626,8 @@ suite "E-Commerce Data Quality" {
             tags [stability]
     }
 
-    profile "Black Friday" {
-        from 2024-11-29
-        to   2024-12-02
-
-        scale tag "volume" by 3.0
-    }
-
-    profile "Christmas" {
-        from 2024-12-20
-        to   2025-01-05
-
-        disable check "Volume"
-        set tag "trend" severity P3
-    }
+    # Note: Profiles are now defined in YAML configuration or via Python API
+    # See "Profiles (Removed)" section below for migration details
 }
 ```
 
@@ -746,23 +680,24 @@ The history file can be git-tracked separately or added to `.gitignore` dependin
 
 The interpreter executes DQL files directly against your database. Metric expressions pass to sympy for parsing, enabling full compatibility with DQX's Python runtime.
 
-```
+```text
 ┌─────────────────────────────────────────────────────────────┐
 │                      DQL Source                             │
 │                     (suite.dql)                             │
 └──────────────────────────────┬──────────────────────────────┘
                               │
                               ▼
-                    ┌─────────────────┐
-                    │   Interpreter   │
-                    │   (via sympy)   │
-                    └────────┬────────┘
-                             │
-                             ▼
-                    ┌─────────────────┐
-                    │   DQX Runtime   │
-                    │   (database)    │
-                    └─────────────────┘
+                    ┌──────────────────────┐
+                    │ VerificationSuite    │
+                    │ (parses & executes)  │
+                    │    (via sympy)       │
+                    └──────────┬───────────┘
+                               │
+                               ▼
+                    ┌──────────────────────┐
+                    │    DQX Runtime       │
+                    │    (database)        │
+                    └──────────────────────┘
 ```
 
 ### Installation
@@ -822,30 +757,25 @@ dql run suite.dql
 
 ### Python API
 
-Embed the interpreter in Python code:
+Execute DQL through VerificationSuite:
 
 ```python
-from dqx.dql import Interpreter
+from dqx.api import VerificationSuite
+from dqx.common import ResultKey
 from datetime import date
+from pathlib import Path
 
-interp = Interpreter(db=my_db, target_date=date.today())
-results = interp.run_file("suite.dql")
+suite = VerificationSuite(
+    dql=Path("suite.dql"),
+    db=db,
+    config=Path("config.yaml"),  # Optional: load tunables + profiles
+)
+
+suite.run(datasources, ResultKey(date.today(), {}))
+results = suite.collect_results()
 
 for r in results:
-    print(f"{r.check}/{r.assertion}: {r.status}")
-```
-
-Or run from a string:
-
-```python
-dql_source = """
-suite "Quick Check" {
-    check "Basic" on orders {
-        assert num_rows() > 0
-    }
-}
-"""
-results = interp.run_string(dql_source)
+    print(f"{r.check}/{r.assertion_name}: {r.status}")
 ```
 
 ### RL Agent Integration
@@ -1322,66 +1252,26 @@ def compute_reward(self, results: dict) -> float:
 
 ### Architecture
 
-The interpreter walks the AST and calls DQX APIs directly:
+VerificationSuite parses the DQL AST and builds Python check functions dynamically:
 
 ```python
-import sympy as sp
+# DQL parsing happens in VerificationSuite.__init__()
+suite = VerificationSuite(
+    dql=Path("suite.dql"),
+    db=db,
+)
 
-
-class Interpreter:
-    """Executes DQL AST against DQX runtime."""
-
-    # Whitelisted sympy functions
-    MATH_FUNCTIONS = {
-        "abs": sp.Abs,
-        "sqrt": sp.sqrt,
-        "log": sp.log,
-        "exp": sp.exp,
-        "min": sp.Min,
-        "max": sp.Max,
-    }
-
-    def __init__(self, db: Database, target_date: date):
-        self.db = db
-        self.target_date = target_date
-        self.provider = MetricProvider(db)
-        self.tunables: dict[str, Any] = {}
-
-    def eval_metric_expr(self, expr_str: str) -> sp.Expr:
-        """Parse metric expression using sympy."""
-        namespace = {**self.MATH_FUNCTIONS}
-
-        # Add metric functions that call provider methods
-        for name in ["num_rows", "average", "sum", "null_count", ...]:
-            namespace[name] = self._metric_wrapper(name)
-
-        return sp.sympify(expr_str, locals=namespace, evaluate=False)
-
-    def run(self, ast: SuiteNode, datasources: list) -> list[Result]:
-        suite = VerificationSuite(ast.name, db=self.db)
-        suite.data_av_threshold = ast.threshold
-
-        # Register tunables
-        for tunable in ast.tunables:
-            self.tunables[tunable.name] = self.eval_expr(tunable.value)
-
-        # Build checks
-        for check_node in ast.checks:
-            check = self.build_check(check_node)
-            suite.add_check(check, datasets=check_node.datasets)
-
-        # Add profiles
-        for profile_node in ast.profiles:
-            suite.add_profile(self.build_profile(profile_node))
-
-        # Execute
-        key = ResultKey(self.target_date, tags={})
-        suite.run(datasources, key)
-        return suite.collect_results()
+# Internally:
+# 1. Parse DQL file to AST
+# 2. Extract tunables and create Tunable objects
+# 3. Build check functions from Check AST nodes
+# 4. Each check function evaluates metric expressions using sympy
+# 5. Assertions are registered in the dependency graph
 ```
 
-The interpreter owns the sympy namespace. When it parses `abs(day_over_day(average(price)))`:
-1. `abs` resolves to `sp.Abs` from `MATH_FUNCTIONS`
+VerificationSuite uses sympy to parse metric expressions. When it parses `abs(day_over_day(average(price)))`:
+1. `abs` resolves to `sp.Abs` from the metric namespace
+
 2. `day_over_day`, `average` resolve to provider method wrappers
 3. `sympify()` builds the expression tree
 
@@ -1437,7 +1327,7 @@ warning[W001]: assertion has no name
 ```ebnf
 (* === Top-level === *)
 suite       = "suite" STRING "{" suite_body "}"
-suite_body  = (metadata | tunable | check | profile)*
+suite_body  = (metadata | tunable | check)*
 
 metadata    = "availability_threshold" PERCENT
 
@@ -1475,22 +1365,11 @@ named_arg   = "lag" "=" NUMBER | "dataset" "=" ident | "order_by" "=" ident | "n
 list_arg    = "[" ident ("," ident)* "]"
 qualified_ident = IDENT ("." IDENT)*
 
-(* === Profiles === *)
-profile     = "profile" STRING "{" profile_body "}"
-profile_body= "from" date_expr "to" date_expr rule*
-date_expr   = DATE | date_expr ("+" | "-") NUMBER
-rule        = disable | scale | set_severity
-disable     = "disable" ("check" STRING | "assertion" STRING "in" STRING)
-scale       = "scale" selector "by" NUMBER
-set_severity= "set" selector "severity" SEVERITY
-selector    = "check" STRING | "tag" STRING
-
 (* === Tokens === *)
 STRING      = '"' (ESC | [^"\\])* '"'
 ESC         = '\\' ["\\nrt]           (* \" \\ \n \r \t *)
 NUMBER      = [0-9]+ ('.' [0-9]+)?
 PERCENT     = NUMBER '%'
-DATE        = [0-9]{4} '-' [0-9]{2} '-' [0-9]{2}
 SEVERITY    = 'P0' | 'P1' | 'P2' | 'P3'
 IDENT       = [a-zA-Z_] [a-zA-Z0-9_]*
 ident       = IDENT | '`' [^`]+ '`'           (* backticks escape reserved words *)
@@ -1519,9 +1398,9 @@ check "Test" on `from` {              # 'from' as dataset name
 
 ## Design Decisions
 
-### Interpreter-Only Architecture
+### Direct Execution Architecture
 
-DQL runs directly via the interpreter. No compilation step. Metric expressions pass to sympy for parsing, enabling full compatibility with DQX's Python runtime.
+DQL is parsed and executed directly by VerificationSuite. No compilation step. Metric expressions pass to sympy for parsing, enabling full compatibility with DQX's Python runtime.
 
 Benefits:
 - **Faster iteration** — No build step between edit and run
@@ -1542,7 +1421,7 @@ assert sqrt(variance(score)) < 10                 # no special grammar needed
 
 ### Validation Before Execution
 
-The interpreter validates before running:
+DQX validates before running:
 
 - Unknown metric functions
 - Invalid severity levels
@@ -1598,14 +1477,14 @@ The following features from this design are **already implemented** in the DQX c
 
 The following features are specified in this design but **require implementation**:
 
-#### DQL Core (Parser & Interpreter)
+#### DQL Core (Parser & Execution)
 
 | Feature | Description | Priority |
 |---------|-------------|----------|
 | Lexer/Tokenizer | Tokenize DQL source into tokens | High |
 | Parser | Parse tokens into AST nodes | High |
 | AST Nodes | Suite, Check, Assertion, Profile, etc. | High |
-| Interpreter | Execute AST against DQX runtime | High |
+| ~~Interpreter~~ ✅ VerificationSuite execution | Execute AST against DQX runtime (implemented in VerificationSuite) | ~~High~~ ✅ Complete |
 | Sampling | `sample N%` / `sample N rows` with optional `seed` | Medium |
 | CLI (`dql run`, `dql check`) | Command-line interface | Medium |
 

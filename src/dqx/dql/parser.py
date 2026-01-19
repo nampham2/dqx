@@ -3,25 +3,18 @@
 Parses DQL source into AST nodes.
 """
 
-from datetime import date
 from pathlib import Path
 from typing import Any
 
 from lark import Lark, Transformer, v_args
-from lark.exceptions import UnexpectedCharacters, UnexpectedToken
+from lark.exceptions import UnexpectedCharacters, UnexpectedToken, VisitError
 
 from dqx.dql.ast import (
     Annotation,
     Assertion,
     Check,
     Collection,
-    DateExpr,
-    DisableRule,
     Expr,
-    Profile,
-    Rule,
-    ScaleRule,
-    SetSeverityRule,
     Severity,
     SourceLocation,
     Suite,
@@ -106,9 +99,6 @@ class DQLTransformer(Transformer):
 
     def PERCENT(self, token: Any) -> float:
         return _parse_percent(str(token))
-
-    def DATE(self, token: Any) -> date:
-        return date.fromisoformat(str(token))
 
     def SEVERITY(self, token: Any) -> Severity:
         return Severity(str(token))
@@ -464,86 +454,6 @@ class DQLTransformer(Transformer):
             loc=self._loc(tree),
         )
 
-    # === Profiles ===
-
-    def date_expr(self, items: list) -> DateExpr:
-        item = items[0]
-        if isinstance(item, date):
-            return DateExpr(value=item)
-        # DateExpr from date arithmetic
-        return item  # pragma: no cover
-
-    def date_add(self, items: list) -> DateExpr:
-        base = items[0]
-        offset = items[1]
-        return DateExpr(value=base.value, offset=base.offset + offset)
-
-    def date_sub(self, items: list) -> DateExpr:
-        base = items[0]
-        offset = items[1]
-        return DateExpr(value=base.value, offset=base.offset - offset)
-
-    # === Rules ===
-
-    def rule(self, items: list) -> DisableRule | ScaleRule | SetSeverityRule:
-        return items[0]
-
-    def disable_rule(self, items: list) -> DisableRule:
-        return items[0]
-
-    def disable_check(self, items: list) -> DisableRule:
-        return DisableRule(target_type="check", target_name=items[0])
-
-    def disable_assertion(self, items: list) -> DisableRule:
-        return DisableRule(target_type="assertion", target_name=items[0], in_check=items[1])
-
-    def scale_rule(self, items: list) -> ScaleRule:
-        selector = items[0]
-        multiplier = items[1]
-        return ScaleRule(
-            selector_type=selector[0],
-            selector_name=selector[1],
-            multiplier=multiplier,
-        )
-
-    def set_rule(self, items: list) -> SetSeverityRule:
-        selector = items[0]
-        severity = items[1]
-        return SetSeverityRule(
-            selector_type=selector[0],
-            selector_name=selector[1],
-            severity=severity,
-        )
-
-    def selector(self, items: list) -> tuple[str, str]:  # pragma: no cover - grammar routes to specific handlers
-        return items[0]
-
-    def sel_check(self, items: list) -> tuple[str, str]:
-        return ("check", items[0])
-
-    def sel_tag(self, items: list) -> tuple[str, str]:
-        return ("tag", items[0])
-
-    def profile_body(self, items: list) -> tuple[DateExpr, DateExpr, tuple[Rule, ...]]:
-        from_date = items[0]
-        to_date = items[1]
-        rules = tuple(items[2:])
-        return (from_date, to_date, rules)
-
-    @v_args(tree=True)
-    def profile(self, tree: Any) -> Profile:
-        items = tree.children
-        name = items[0]
-        body = items[1]
-        from_date, to_date, rules = body
-        return Profile(
-            name=name,
-            from_date=from_date,
-            to_date=to_date,
-            rules=rules,
-            loc=self._loc(tree),
-        )
-
     # === Metadata ===
 
     def metadata(self, items: list) -> dict:
@@ -554,15 +464,12 @@ class DQLTransformer(Transformer):
     def suite_body(self, items: list) -> dict:
         result: dict[str, Any] = {
             "checks": [],
-            "profiles": [],
             "tunables": [],
             "availability_threshold": None,
         }
         for item in items:
             if isinstance(item, Check):
                 result["checks"].append(item)
-            elif isinstance(item, Profile):
-                result["profiles"].append(item)
             elif isinstance(item, Tunable):
                 result["tunables"].append(item)
             elif isinstance(item, dict):
@@ -575,10 +482,17 @@ class DQLTransformer(Transformer):
         items = tree.children
         name = items[0]
         body = items[1]
+
+        # Validate suite name is non-empty
+        if not name or not name.strip():
+            raise DQLSyntaxError(
+                'Suite name cannot be empty. Use: suite "Your Suite Name" { ... }',
+                loc=self._loc(tree),
+            )
+
         return Suite(
-            name=name,
+            name=name.strip(),
             checks=tuple(body["checks"]),
-            profiles=tuple(body["profiles"]),
             tunables=tuple(body["tunables"]),
             availability_threshold=body["availability_threshold"],
             loc=self._loc(tree),
@@ -627,6 +541,18 @@ def parse(source: str, filename: str | None = None) -> Suite:
             source_line=source_line,
             suggestion=f"Expected one of: {expected}" if expected else None,
         ) from None
+    except VisitError as e:
+        # Wrap transformer validation errors
+        orig = e.orig_exc
+        # If the original exception is already a DQLSyntaxError, re-raise it
+        if isinstance(orig, DQLSyntaxError):
+            raise orig from None
+        # Otherwise, wrap it in a DQLSyntaxError
+        raise DQLSyntaxError(  # pragma: no cover
+            message=str(orig),
+            loc=None,
+            source_line=None,
+        ) from orig
 
 
 def parse_file(path: str | Path) -> Suite:
