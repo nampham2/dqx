@@ -111,7 +111,7 @@ They already support YAML configuration loading. This refactoring extends the sa
 
 ### Before (Current)
 
-```
+```text
 ┌──────────┐
 │ DQL File │ (contains checks + profiles + tunables)
 └────┬─────┘
@@ -129,7 +129,7 @@ They already support YAML configuration loading. This refactoring extends the sa
 
 ### After (Proposed)
 
-```
+```text
 ┌──────────┐  ┌────────────┐
 │ DQL File │  │ YAML Config│ (profiles + tunables)
 │(checks)  │  │            │
@@ -158,9 +158,8 @@ from dqx import VerificationSuite
 from pathlib import Path
 
 suite = VerificationSuite(
-    dql=Path("suite.dql"),  # NEW: DQL file path
+    dql=Path("suite.dql"),  # NEW: DQL file path (suite name defined in DQL)
     db=db,
-    name="My Suite",
     config=Path("config.yaml"),  # Loads profiles + tunables
 )
 suite.run(datasources, key)
@@ -182,7 +181,6 @@ holiday = SeasonalProfile(
 suite = VerificationSuite(
     dql=Path("suite.dql"),
     db=db,
-    name="My Suite",
     profiles=[holiday],  # Pass profiles programmatically
 )
 ```
@@ -1786,7 +1784,6 @@ def __init__(
         >>> suite = VerificationSuite(
         >>>     dql=Path("suites/orders.dql"),
         >>>     db=db,
-        >>>     name="Orders Suite",
         >>>     config=Path("config/prod.yaml"),
         >>> )
 
@@ -1818,7 +1815,6 @@ def __init__(
         >>> suite = VerificationSuite(
         >>>     dql=Path("suites/orders.dql"),
         >>>     db=db,
-        >>>     name="Orders Suite",
         >>>     profiles=[holiday],
         >>> )
     """
@@ -1879,7 +1875,6 @@ from pathlib import Path
 suite = VerificationSuite(
     dql=Path("suite.dql"),
     db=db,
-    name="My Suite",
     config=Path("config/prod.yaml"),  # Loads tunables + profiles
 )
 ```
@@ -1917,7 +1912,7 @@ Update structure section to remove profiles:
 
 A DQL file contains one suite. A suite contains checks and tunables.
 
-```
+```text
 suite
 ├── metadata (name, threshold)
 ├── tunables
@@ -1981,7 +1976,6 @@ holiday = SeasonalProfile(
 suite = VerificationSuite(
     dql=Path("suite.dql"),
     db=db,
-    name="Orders Suite",
     profiles=[holiday],
 )
 ```
@@ -2074,7 +2068,6 @@ from dqx import VerificationSuite
 suite = VerificationSuite(
     dql=Path("suite.dql"),
     db=db,
-    name="My Suite",
     config=Path("config.yaml"),  # Add this
 )
 suite.run(datasources, key)
@@ -2167,7 +2160,6 @@ from pathlib import Path
 suite = VerificationSuite(
     dql=Path("banking.dql"),
     db=db,
-    name="Banking Suite",
     config=Path("banking_config.yaml"),
 )
 
@@ -2197,7 +2189,6 @@ holiday = SeasonalProfile(
 suite = VerificationSuite(
     dql=Path("banking.dql"),
     db=db,
-    name="Banking Suite",
     profiles=[holiday],
 )
 ```
@@ -2213,8 +2204,10 @@ Make sure you're using the `dql` parameter, not `checks`:
 suite = VerificationSuite(checks=Path("suite.dql"), db=db, name="Suite")
 
 # Correct:
-suite = VerificationSuite(dql=Path("suite.dql"), db=db, name="Suite")
+suite = VerificationSuite(dql=Path("suite.dql"), db=db)
 ```
+
+**Note**: The `name` parameter cannot be specified when using `dql`. The suite name is defined in the DQL file itself.
 
 ### Error: "Profile configuration invalid"
 
@@ -2314,7 +2307,6 @@ suite = VerificationSuite(
 suite = VerificationSuite(
     dql=Path("suite.dql"),  # NEW
     db=db,
-    name="My Suite",
     config=Path("config.yaml"),  # Loads tunables + profiles
 )
 ```
@@ -2347,7 +2339,6 @@ Load via `config` parameter:
 suite = VerificationSuite(
     dql=Path("suite.dql"),
     db=db,
-    name="Suite",
     config=Path("config.yaml"),  # Loads profiles + tunables
 )
 ```
@@ -2358,7 +2349,6 @@ Or pass programmatically:
 suite = VerificationSuite(
     dql=Path("suite.dql"),
     db=db,
-    name="Suite",
     profiles=[holiday_profile],  # Python API
 )
 ```
