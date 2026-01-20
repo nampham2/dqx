@@ -1833,7 +1833,10 @@ class VerificationSuite:
                 ready.is_eq(threshold)
         elif cond == "!=":
             threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
-            ready.is_neq(threshold)
+            if assertion_ast.tolerance:
+                ready.is_neq(threshold, tol=assertion_ast.tolerance)
+            else:
+                ready.is_neq(threshold)
         elif cond == "between":
             if assertion_ast.threshold_upper is None:  # pragma: no cover
                 # Parser ensures upper threshold is present for between

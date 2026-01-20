@@ -98,3 +98,40 @@ class TestToleranceOnBasicComparisons:
         for statement in check.assertions:
             assert isinstance(statement, Assertion), f"Statement should be Assertion, got {type(statement)}"
             assert statement.tolerance is None, f"Assertion {statement.name} should have no tolerance"
+
+
+class TestToleranceOnNotEqual:
+    """Test tolerance modifier on != operator."""
+
+    def test_tolerance_parses_on_not_equal(self) -> None:
+        """Test tolerance modifier parses on != operator."""
+        dql = """
+        suite "Test Suite" {
+            check "NEQ Check" on test_data {
+                assert average(price) != 0
+                    tolerance 1
+                    name "Price not equal to zero"
+            }
+        }
+        """
+        suite = parse(dql)
+        check = suite.checks[0]
+        statement = check.assertions[0]
+        assert isinstance(statement, Assertion)
+        assert statement.tolerance == 1
+        assert statement.condition == "!="
+
+    def test_not_equal_without_tolerance(self) -> None:
+        """Verify != operator without tolerance has None tolerance."""
+        dql = """
+        suite "Test Suite" {
+            check "NEQ Check" on test_data {
+                assert average(price) != 0 name "NEQ"
+            }
+        }
+        """
+        suite = parse(dql)
+        check = suite.checks[0]
+        statement = check.assertions[0]
+        assert isinstance(statement, Assertion)
+        assert statement.tolerance is None
