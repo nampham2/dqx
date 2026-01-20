@@ -369,7 +369,7 @@ Declare tunables at suite level:
 
 ```dql
 suite "Orders" {
-    tunable NULL_THRESHOLD = 5% bounds [0%, 20%]
+    tunable NULL_THRESHOLD = 0.05 bounds [0.0, 0.2]
     tunable MIN_ORDERS = 1000 bounds [100, 10000]
     tunable VARIANCE_LIMIT = 0.5 bounds [0.1, 1.0]
 
@@ -390,27 +390,74 @@ tunable <NAME> = <value> bounds [<min>, <max>]
 |---------|----------|-------------|
 | `tunable` | Yes | Keyword to declare a tunable parameter |
 | `<NAME>` | Yes | Identifier for the tunable (uppercase convention) |
-| `<value>` | Yes | Initial/default value |
+| `<value>` | Yes | Initial/default value (numeric literal) |
 | `bounds` | Yes | Keyword introducing the bounds specification |
-| `[<min>, <max>]` | Yes | Valid range for optimization (inclusive) |
+| `[<min>, <max>]` | Yes | Valid range for optimization (numeric literals, inclusive) |
+
+**Restrictions:**
+- **Values and bounds must be numeric literals only** (no arithmetic, no percentages, no references)
+- Percentages (`%`) are only allowed in `availability_threshold` and assertion thresholds
+- Arithmetic expressions are not allowed in tunable values or bounds
+
+**Valid:**
+```dql
+tunable X = 5 bounds [0, 10]           # Integer literals ✓
+tunable Y = 0.5 bounds [0.0, 1.0]      # Float literals ✓
+tunable Z = 0.05 bounds [0.0, 0.2]     # Decimal for percentage ✓
+```
+
+**Invalid:**
+```dql
+tunable X = 5% bounds [0%, 10%]        # Percentages not allowed ✗
+tunable Y = 1 + 1 bounds [0, 10]       # Arithmetic not allowed ✗
+tunable Z = 10 bounds [BASE * 2, 100]  # References not allowed ✗
+```
 
 **Semantics:**
 - Algorithms can modify tunables within their declared bounds
 - Bounds are always required - no implicit or unbounded tunables
-- Bounds are inclusive: `[0%, 20%]` allows values from 0% to 20%
+- Bounds are inclusive: `[0.0, 0.2]` allows values from 0.0 to 0.2
 - Initial value must be within the specified bounds
 
 **Examples:**
 
 ```dql
-# Percentage tunables
-tunable MAX_NULL_RATE = 5% bounds [0%, 20%]
+# Decimal tunable (for percentage thresholds)
+tunable MAX_NULL_RATE = 0.05 bounds [0.0, 0.2]
 
 # Integer tunables
 tunable MIN_DAILY_ORDERS = 1000 bounds [100, 10000]
 
-# Decimal tunables
+# Float tunables
 tunable VARIANCE_THRESHOLD = 0.3 bounds [0.0, 1.0]
+```
+
+**Migration from DQX 0.5.x:**
+
+If you have percentages or arithmetic in tunables, convert them to decimal literals:
+
+```dql
+# Before (DQX 0.5.x)
+tunable MAX_NULL_RATE = 5% bounds [0%, 20%]
+tunable BASE = 10 bounds [5, 20]
+tunable SCALED = 20 bounds [BASE * 2, 100]
+
+# After (DQX 0.6.0+)
+tunable MAX_NULL_RATE = 0.05 bounds [0.0, 0.2]  # 5% = 0.05
+tunable BASE = 10 bounds [5, 20]
+tunable SCALED = 20 bounds [20, 100]  # Evaluated: 10 * 2 = 20
+```
+
+**Note:** Assertion thresholds can still use percentages:
+```dql
+suite "Orders" {
+    tunable MAX_RATE = 0.05 bounds [0.0, 0.2]  # Use decimal in tunable
+
+    check "Quality" on orders {
+        assert null_rate <= 5%  # Percentage allowed in assertion ✓
+        assert null_rate <= MAX_RATE  # Reference tunable ✓
+    }
+}
 ```
 
 #### Python Tunable API
