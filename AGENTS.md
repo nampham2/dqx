@@ -918,9 +918,9 @@ bin/               # Development scripts
 
 ## Additional Notes
 
-- Coverage target: 100% (green), 95% minimum (orange)
+- Coverage target: 100% (no exceptions)
 - Pre-commit hooks run format → lint → type check
-- Use `SKIP=mypy` to skip type checking in pre-commit for faster iteration
+- Use `SKIP=mypy` only for local exploration; do not skip mypy for commits or PRs
 - Documentation uses Google-style docstrings
 - SQL backends supported: DuckDB (primary), BigQuery, Snowflake
 
