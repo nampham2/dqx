@@ -167,7 +167,7 @@ class TestTunableLoggingChoice:
 
         # Verify log output with quoted value (choices may be truncated by Rich)
         assert "Evaluating with 1 tunable(s):" in captured.out
-        assert 'METHOD (choice) = "mean"' in captured.out
+        assert "METHOD (choice) = 'mean'" in captured.out
 
 
 class TestTunableLoggingMultiple:
@@ -250,7 +250,7 @@ class TestTunableLoggingMultiple:
         # Verify all types logged correctly (choices may be truncated by Rich)
         assert "Evaluating with 3 tunable(s):" in captured.out
         assert "A_MIN_ROWS (int) = 1000 [100-10000]" in captured.out
-        assert 'M_METHOD (choice) = "mean"' in captured.out
+        assert "M_METHOD (choice) = 'mean'" in captured.out
         assert "Z_THRESHOLD (float) = 0.05 [0.0-0.2]" in captured.out
 
 

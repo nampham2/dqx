@@ -1941,8 +1941,8 @@ class VerificationSuite:
                 elif isinstance(tunable, TunableInt):
                     logger.info(f"  - {name} (int) = {tunable.value} [{tunable.lower_bound}-{tunable.upper_bound}]")
                 elif isinstance(tunable, TunableChoice):
-                    choices_str = ", ".join(tunable.choices)
-                    logger.info(f'  - {name} (choice) = "{tunable.value}" [{choices_str}]')
+                    choices_str = ", ".join(map(str, tunable.choices))
+                    logger.info(f"  - {name} (choice) = {tunable.value!r} [{choices_str}]")
 
         # Store the key for later use in collect_results
         self._key = key
