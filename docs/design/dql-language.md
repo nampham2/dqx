@@ -432,23 +432,7 @@ tunable MIN_DAILY_ORDERS = 1000 bounds [100, 10000]
 tunable VARIANCE_THRESHOLD = 0.3 bounds [0.0, 1.0]
 ```
 
-**Migration from DQX 0.5.x:**
-
-If you have percentages or arithmetic in tunables, convert them to decimal literals:
-
-```dql
-# Before (DQX 0.5.x)
-tunable MAX_NULL_RATE = 5% bounds [0%, 20%]
-tunable BASE = 10 bounds [5, 20]
-tunable SCALED = 20 bounds [BASE * 2, 100]
-
-# After (DQX 0.6.0+)
-tunable MAX_NULL_RATE = 0.05 bounds [0.0, 0.2]  # 5% = 0.05
-tunable BASE = 10 bounds [5, 20]
-tunable SCALED = 20 bounds [20, 100]  # Evaluated: 10 * 2 = 20
-```
-
-**Note:** Assertion thresholds can still use percentages:
+**Note:** Percentages are not allowed in tunables, only in assertions:
 ```dql
 suite "Orders" {
     tunable MAX_RATE = 0.05 bounds [0.0, 0.2]  # Use decimal in tunable
