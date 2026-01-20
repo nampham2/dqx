@@ -11,8 +11,8 @@ suite_body: (metadata | tunable | check)*
 metadata: "availability_threshold" PERCENT
 
 // === Tunables ===
-// Tunables restricted to NUMBER literals only (no percentages, no arithmetic in bounds)
-tunable: "tunable" IDENT "=" NUMBER "bounds" "[" NUMBER "," NUMBER "]"
+// Tunables restricted to signed numeric literals only (no percentages, no arithmetic in bounds)
+tunable: "tunable" IDENT "=" SIGNED_NUMBER "bounds" "[" SIGNED_NUMBER "," SIGNED_NUMBER "]"
 
 // === Checks and Assertions ===
 check: "check" STRING "on" datasets "{" check_body "}"
@@ -112,6 +112,8 @@ ESCAPED_IDENT: "`" /[^`]+/ "`"
 STRING: "\"" /(?:[^"\\]|\\.)*/ "\""
 
 NUMBER: /[0-9]+(\.[0-9]+)?/
+
+SIGNED_NUMBER: /-?[0-9]+(\.[0-9]+)?/
 
 PERCENT: /[0-9]+(\.[0-9]+)?%/
 

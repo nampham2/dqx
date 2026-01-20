@@ -97,6 +97,9 @@ class DQLTransformer(Transformer):
     def NUMBER(self, token: Any) -> float | int:
         return _parse_number(str(token))
 
+    def SIGNED_NUMBER(self, token: Any) -> float | int:
+        return _parse_number(str(token))
+
     def PERCENT(self, token: Any) -> float:
         return _parse_percent(str(token))
 
@@ -441,13 +444,13 @@ class DQLTransformer(Transformer):
         items = [x for x in tree.children if x is not None]
 
         # items should be: [name, value, min_bound, max_bound]
-        # Grammar: "tunable" IDENT "=" NUMBER "bounds" "[" NUMBER "," NUMBER "]"
+        # Grammar: "tunable" IDENT "=" SIGNED_NUMBER "bounds" "[" SIGNED_NUMBER "," SIGNED_NUMBER "]"
         name = items[0]
         value_raw = items[1]
         min_bound_raw = items[2]
         max_bound_raw = items[3]
 
-        # Wrap numeric values in Expr objects (NUMBER tokens come as float/int)
+        # Wrap numeric values in Expr objects (SIGNED_NUMBER tokens come as float/int)
         value = Expr(text=str(value_raw), loc=self._loc(tree)) if isinstance(value_raw, (int, float)) else value_raw
         min_bound = (
             Expr(text=str(min_bound_raw), loc=self._loc(tree))
