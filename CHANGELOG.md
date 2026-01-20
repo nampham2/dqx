@@ -1,34 +1,15 @@
 ## Unreleased
 
-### BREAKING CHANGE
+### Features
 
-### DQL Tunables Restricted to Numeric Literals
+- **DQL**: Tolerance modifier now works with all comparison operators (`>`, `>=`, `<`, `<=`, `!=`, `between`), not just `==`
+- **Functions**: Add `pct()` helper function for percentage notation (e.g., `pct(5)` → `0.05`)
+- **DQL**: Restrict tunables to numeric literals only (no arithmetic, no percentages in tunables)
 
-Tunable values and bounds no longer support arithmetic expressions, percentages, or references to other tunables. Both value and bounds must be **NUMBER literals only**.
+### Documentation
 
-**What changed:**
-- Tunable values must be numeric literals (no percentages, no arithmetic)
-- Tunable bounds must be numeric literals (no percentages, no arithmetic, no references)
-- Percentages (`%`) are only allowed in `availability_threshold` and assertion thresholds
-
-**Example:**
-```dql
-# Valid
-tunable BASE = 10 bounds [5, 20]
-tunable MAX_NULL_RATE = 0.05 bounds [0.0, 0.2]  # Use decimal: 5% = 0.05
-
-# Invalid (will cause parse error)
-tunable SCALED = BASE * 2 bounds [BASE * 2, 100]  # ❌ No arithmetic/references
-tunable MAX_NULL_RATE = 5% bounds [0%, 20%]      # ❌ No percentages
-```
-
-**Why:**
-- Simplifies language and aligns with Python API
-- Values and bounds should be explicit constants for optimization algorithms
-- Percentages remain allowed in assertions and thresholds where they're most useful
-- Removes complexity from parser and type inference
-
-See [DQL Language Documentation](docs/design/dql-language.md#tunables) for complete details.
+- Update DQL language documentation with tunable restrictions
+- Add comprehensive design documents for all three features
 
 ## v0.5.14 (2026-01-19)
 
