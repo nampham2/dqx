@@ -60,26 +60,6 @@ class TestPct:
         assert not isinstance(result, sp.Expr)
 
 
-class TestPctAPIExport:
-    """Tests for pct() API export."""
-
-    def test_pct_available_from_api(self) -> None:
-        """Test that pct() can be imported from dqx.api."""
-        from dqx.api import pct as pct_from_api  # type: ignore[attr-defined]
-
-        assert pct_from_api(5) == 0.05
-        assert type(pct_from_api(5)) is float
-
-    def test_pct_import_from_api(self) -> None:
-        """Test importing pct from dqx.api works correctly."""
-        from dqx.api import pct as api_pct  # type: ignore[attr-defined]
-        from dqx.functions import pct as func_pct
-
-        # Both should be the same function
-        assert api_pct is func_pct
-        assert api_pct(10) == 0.1
-
-
 class TestPctDocumentation:
     """Tests for pct() documentation examples."""
 

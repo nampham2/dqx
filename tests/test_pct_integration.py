@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from dqx.api import VerificationSuite, check
-from dqx.api import pct  # type: ignore[attr-defined]
+from dqx.functions import pct
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.tunables import TunableFloat
 
@@ -203,3 +205,119 @@ class TestPctNotInNamespace:
         # Verify it's NOT SymPy
         assert not isinstance(result, sp.Basic)
         assert not isinstance(result, sp.Expr)
+
+
+class TestDQLPercentageLiterals:
+    """Test that DQL percentage literals work correctly."""
+
+    def test_dql_percentage_in_assertion(self, tmp_path: Path) -> None:
+        """Test DQL with percentage literals in assertions."""
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+        suite "Percentage Test" {
+            check "Null Rate Check" on dataset {
+                assert null_rate(customer_id) <= 5%
+                    name "Customer ID completeness"
+
+                assert null_rate(amount) <= 1%
+                    name "Amount completeness"
+
+                assert null_rate(status) <= 0.5%
+                    name "Status completeness"
+            }
+        }
+        """)
+
+        # Should parse successfully with percentage literals
+        suite = VerificationSuite(dql=dql_file, db=db)
+
+        # Verify suite was created with correct name
+        assert suite._name == "Percentage Test"
+        assert len(suite._checks) == 1
+
+        # Verify assertions were created
+        assertions = list(suite.graph.assertions())
+        assert len(assertions) == 3
+
+        # Check assertion names
+        names = {a.name for a in assertions}
+        assert "Customer ID completeness" in names
+        assert "Amount completeness" in names
+        assert "Status completeness" in names
+
+    def test_dql_percentage_in_tunable(self, tmp_path: Path) -> None:
+        """Test DQL with percentage literals in tunables."""
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+        suite "Tunable Percentage Test" {
+            tunable MAX_NULL_RATE = 5% bounds [0%, 10%]
+
+            check "Quality" on dataset {
+                assert null_rate(col) <= MAX_NULL_RATE
+                    name "Null rate check"
+            }
+        }
+        """)
+
+        # Should parse successfully with percentage literals in tunables
+        suite = VerificationSuite(dql=dql_file, db=db)
+
+        # Verify tunable was created with correct value (5% = 0.05)
+        tunables = suite.get_tunable_params()
+        assert len(tunables) == 1
+        assert tunables[0]["name"] == "MAX_NULL_RATE"
+        assert tunables[0]["value"] == 0.05
+        assert tunables[0]["bounds"] == (0.0, 0.1)
+
+    def test_dql_percentage_all_operators(self, tmp_path: Path) -> None:
+        """Test DQL percentage literals work with all comparison operators."""
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+        suite "All Operators" {
+            check "Test" on dataset {
+                assert null_rate(col1) > 5%
+                    name "Greater than"
+
+                assert null_rate(col2) >= 5%
+                    name "Greater equal"
+
+                assert null_rate(col3) < 10%
+                    name "Less than"
+
+                assert null_rate(col4) <= 10%
+                    name "Less equal"
+
+                assert null_rate(col5) == 5%
+                    name "Equal"
+
+                assert null_rate(col6) != 5%
+                    name "Not equal"
+
+                assert null_rate(col7) between 1% and 10%
+                    name "Between"
+            }
+        }
+        """)
+
+        # Should parse successfully
+        suite = VerificationSuite(dql=dql_file, db=db)
+
+        # Verify all assertions created
+        assertions = list(suite.graph.assertions())
+        assert len(assertions) == 7
+
+        # Check all assertion names present
+        names = {a.name for a in assertions}
+        assert "Greater than" in names
+        assert "Greater equal" in names
+        assert "Less than" in names
+        assert "Less equal" in names
+        assert "Equal" in names
+        assert "Not equal" in names
+        assert "Between" in names
