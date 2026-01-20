@@ -56,7 +56,7 @@ uv run pytest
 # Must exit with 0
 
 # Gate 2: Coverage is 100%
-COVERAGE=$(uv run pytest --cov=src/dqx --cov-report=term | grep "TOTAL" | awk '{print $NF}' | sed 's/%//')
+COVERAGE=$(uv run pytest --cov=src/dqx --cov-report=term-missing | grep "TOTAL" | awk '{print $NF}' | sed 's/%//')
 # Must be 100
 
 # Gate 3: Pre-commit hooks pass
@@ -157,7 +157,7 @@ PR_URL=$(gh pr view --json url -q .url)
 
 ### Step 8: Report to User
 
-```
+```text
 Pull request created successfully!
 
 🔗 PR URL: {url}
@@ -191,7 +191,7 @@ The PR description includes links to all design documents for reviewers.
 
 ### If Tests Fail
 
-```
+```text
 Cannot create PR: Tests are failing
 
 Failing tests:
@@ -203,7 +203,7 @@ Run: uv run pytest -v
 
 ### If Coverage Below 100%
 
-```
+```text
 Cannot create PR: Coverage is {coverage}%, not 100%
 
 Uncovered lines:
@@ -216,7 +216,7 @@ Run: uv run pytest --cov=src/dqx --cov-report=term-missing
 
 ### If Pre-commit Hooks Fail
 
-```
+```text
 Cannot create PR: Pre-commit hooks failing
 
 Failing hooks:
