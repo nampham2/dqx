@@ -302,7 +302,7 @@ class ResultKey:
 
 ### Coverage Requirements
 
-**Target: 100% coverage (no exceptions)**
+#### Target: 100% coverage (no exceptions)
 
 - All code changes MUST maintain 100% test coverage
 - After implementation, always verify coverage with: `uv run pytest --cov=src/dqx --cov-report=term-missing`
@@ -453,7 +453,7 @@ DQX uses specialized subagents for different phases of feature development to op
 
 ### Workflow Overview
 
-```
+```text
 User Request → Plan Agent → Implementation Agent → PR Agent → Feedback Agent
                   ↓               ↓                    ↓            ↓
             Design Docs      Code + Tests          PR Created   Fixes Applied
@@ -466,7 +466,7 @@ User Request → Plan Agent → Implementation Agent → PR Agent → Feedback A
 **Agent**: `dqx-plan`
 
 **Process**:
-```
+```text
 User: "I want to add {feature}"
 
 Core Agent:
@@ -494,7 +494,7 @@ Core Agent:
 **Agent**: `dqx-implement`
 
 **Process**:
-```
+```text
 User: "Proceed with implementation" or "Implement it"
 
 Core Agent:
@@ -529,7 +529,7 @@ Core Agent:
 **Agent**: `dqx-pr`
 
 **Process**:
-```
+```text
 User: "Create PR"
 
 Core Agent:
@@ -558,7 +558,7 @@ Core Agent:
 **Agent**: `dqx-feedback`
 
 **Process**:
-```
+```text
 User: "Address CodeRabbit feedback" or "Fix review comments"
 
 Core Agent:
@@ -675,37 +675,37 @@ To avoid context window overload, each agent loads only necessary documents:
 
 #### Supporting Agents (Use as needed)
 
-**dqx-explore**
+##### dqx-explore
 - **Role**: Fast codebase exploration
 - **When**: During planning to find similar patterns
 - **Usage**: Always use in planning, avoid in implementation
 
-**dqx-sql**
+##### dqx-sql
 - **Role**: SQL dialect and parser work
 - **When**: Feature touches SQL generation
 - **Usage**: Delegate SQL-specific implementation
 
-**dqx-docs**
+##### dqx-docs
 - **Role**: API documentation and examples
 - **When**: After implementation complete
 - **Usage**: Update docs after code is done
 
-**dqx-test**
+##### dqx-test
 - **Role**: Test generation and coverage analysis
 - **When**: Coverage gaps need detailed analysis
 - **Usage**: During implementation for missing tests
 
-**dqx-api**
+##### dqx-api
 - **Role**: API design patterns and consistency
 - **When**: During planning for API features
 - **Usage**: Ensure consistency with existing APIs
 
-**dqx-quality**
+##### dqx-quality
 - **Role**: Pre-commit hooks, linting, type checking
 - **When**: Pre-commit failures need fixing
 - **Usage**: During implementation for quality issues
 
-**dqx-graph**
+##### dqx-graph
 - **Role**: Graph processing and dependency analysis
 - **When**: Features involving graphs or traversal
 - **Usage**: Delegate graph-specific code
@@ -715,13 +715,13 @@ To avoid context window overload, each agent loads only necessary documents:
 ### Example: Complete Feature Workflow
 
 #### User Request
-```
+```text
 User: "I want to add metric caching to avoid recomputing expensive metrics"
 ```
 
 #### Step 1: Planning
 
-```
+```text
 Core Agent: "I'll help you plan metric caching."
 
 [Launches dqx-plan agent]
@@ -745,7 +745,7 @@ Ready to implement?"
 
 #### Step 2: Implementation
 
-```
+```text
 User: "Yes, implement it"
 
 Core Agent: "Starting implementation..."
@@ -790,7 +790,7 @@ Ready to create PR?"
 
 #### Step 3: PR Creation
 
-```
+```text
 User: "Create PR"
 
 Core Agent: "Creating pull request..."
@@ -815,7 +815,7 @@ CodeRabbit will review automatically."
 
 #### Step 4: Feedback Iteration
 
-```
+```text
 User: "Address CodeRabbit feedback"
 
 Core Agent: "Analyzing review comments..."
@@ -882,7 +882,7 @@ Ready for next review cycle."
 
 ## Project Structure
 
-```
+```text
 src/dqx/           # Main source code
 ├── api.py         # User-facing API (VerificationSuite, MetricProvider, Context)
 ├── validator.py   # Validation logic and suite execution
