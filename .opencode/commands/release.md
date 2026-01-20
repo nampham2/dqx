@@ -30,7 +30,7 @@ Count commit types since last release:
 - `fix:`, `perf:`, `refactor:` → suggests **patch** bump (0.5.13 → 0.5.14)
 
 **Ask user to choose:**
-```
+```text
 Based on recent commits, I suggest a {suggested_type} version bump.
 
 Choose version bump type:
@@ -102,7 +102,7 @@ Group by conventional commit type:
 6. For breaking changes, keep migration instructions to 1-2 lines max
 7. If >50 lines, prioritize: BREAKING CHANGE > Feat > Fix > Other
 
-## Step 2.5: Validate CHANGELOG with dqx-docs
+### Step 2.5: Validate CHANGELOG with dqx-docs
 
 After generating the CHANGELOG entry, delegate to the **dqx-docs agent** to validate:
 
@@ -118,7 +118,7 @@ After generating the CHANGELOG entry, delegate to the **dqx-docs agent** to vali
 - Proper markdown formatting
 
 **Expected agent response:**
-```
+```text
 ✅ CHANGELOG validation passed
 - Format: Correct (conventional commits)
 - Length: 42 lines (within 50 line limit)
@@ -127,7 +127,7 @@ After generating the CHANGELOG entry, delegate to the **dqx-docs agent** to vali
 ```
 
 **If validation fails:**
-```
+```text
 ⚠️ CHANGELOG validation issues:
 
 1. Length: 68 lines (exceeds 50 line limit by 18 lines)
@@ -178,7 +178,7 @@ Delegate to **dqx-docs agent** to verify version consistency across documentatio
 - Installation instructions
 
 **Expected agent response:**
-```
+```text
 ✅ Version consistency validated
 - README.md: Installation examples don't hardcode version ✓
 - Documentation: No hardcoded version references ✓
@@ -186,7 +186,7 @@ Delegate to **dqx-docs agent** to verify version consistency across documentatio
 ```
 
 **If issues found:**
-```
+```text
 ⚠️ Version consistency issues:
 
 1. README.md line 87: Hardcoded version in example
@@ -236,7 +236,7 @@ Delegate to **dqx-test agent** to validate test coverage:
 - No test failures or errors
 
 **Expected agent response:**
-```
+```text
 ✅ Test validation passed
 - Tests: 1659 passed, 0 failed
 - Coverage: 100% (5088/5088 statements)
@@ -244,7 +244,7 @@ Delegate to **dqx-test agent** to validate test coverage:
 ```
 
 **If validation fails:**
-```
+```text
 ❌ Test validation failed
 
 Coverage: 98.5% (5042/5088 statements)
@@ -285,7 +285,7 @@ Delegate to **dqx-quality agent** to validate code quality:
 - All 21 pre-commit hooks pass
 
 **Expected agent response:**
-```
+```text
 ✅ Quality validation passed
 - Formatting: All files formatted correctly
 - Linting: No issues found
@@ -294,7 +294,7 @@ Delegate to **dqx-quality agent** to validate code quality:
 ```
 
 **If validation fails:**
-```
+```text
 ❌ Quality validation failed
 
 Linting issues:
@@ -339,7 +339,7 @@ Delegate to **dqx-docs agent** to validate documentation completeness:
 - No missing documentation
 
 **Expected agent response:**
-```
+```text
 ✅ Documentation validation passed
 - API Documentation: All 127 public methods documented
 - README: Examples are current and accurate
@@ -349,7 +349,7 @@ Delegate to **dqx-docs agent** to validate documentation completeness:
 ```
 
 **If validation fails:**
-```
+```text
 ❌ Documentation validation failed
 
 Missing docstrings:
@@ -475,8 +475,8 @@ After merging this PR:
    - Send notifications
 
 3. **Verify publication:**
-   - PyPI: https://pypi.org/project/dqlib/{version}/
-   - GitHub Release: https://github.com/{owner}/{repo}/releases/tag/v{version}
+   - [PyPI: dqlib/{version}](https://pypi.org/project/dqlib/{version}/)
+   - [GitHub Release: v{version}](https://github.com/{owner}/{repo}/releases/tag/v{version})
 
 ## Installation
 
@@ -509,7 +509,7 @@ All validation criteria met before PR creation.
 
 ## Step 7: Display Summary and Next Steps
 
-```
+```text
 🎉 Release Preparation Complete!
 
 📊 Summary:
@@ -543,6 +543,7 @@ dqx-docs:       ✅ Documentation complete and accurate
 3. **Create and push the tag:**
    After merging, run these commands:
 
+   ```bash
    git checkout main
    git pull origin main
    git tag -a v{version} -m "Release version {version}"
@@ -551,9 +552,9 @@ dqx-docs:       ✅ Documentation complete and accurate
    Or use: /release-tag
 
 4. **Monitor the release:**
-   - GitHub Actions: https://github.com/{owner}/{repo}/actions
+   - [GitHub Actions](https://github.com/{owner}/{repo}/actions)
    - Expected time: ~2 minutes
-   - PyPI: https://pypi.org/project/dqlib/
+   - [PyPI: dqlib](https://pypi.org/project/dqlib/)
 
 ⏱️  Estimated total time: ~5 minutes (after PR merge)
 
