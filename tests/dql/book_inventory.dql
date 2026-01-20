@@ -3,7 +3,7 @@ suite "Book E-Commerce Inventory Quality" {
 
     # Tunable constants
     tunable MIN_INVENTORY_COUNT = 100 bounds [10, 1000]
-    tunable MAX_PRICE_NULL_RATE = 2% bounds [0%, 10%]
+    tunable MAX_PRICE_NULL_RATE = 0.02 bounds [0.0, 0.1]
     tunable MIN_STOCK_LEVEL = 5 bounds [0, 50]
     tunable PRICE_VOLATILITY_THRESHOLD = 0.15 bounds [0.0, 1.0]
 

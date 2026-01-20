@@ -486,7 +486,7 @@ class TestTunables:
     def test_percent_tunable(self) -> None:
         source = """
         suite "Test" {
-            tunable MAX_NULL_RATE = 5% bounds [0%, 20%]
+            tunable MAX_NULL_RATE = 0.05 bounds [0.0, 0.2]
         }
         """
         result = parse(source)
@@ -498,7 +498,7 @@ class TestTunables:
     def test_tunable_with_bounds(self) -> None:
         source = """
         suite "Test" {
-            tunable NULL_THRESHOLD = 5% bounds [0%, 20%]
+            tunable NULL_THRESHOLD = 0.05 bounds [0.0, 0.2]
         }
         """
         result = parse(source)
@@ -517,7 +517,7 @@ class TestCompleteExample:
         suite "E-Commerce Data Quality" {
             availability_threshold 80%
 
-            tunable MAX_NULL_RATE = 5% bounds [0%, 20%]
+            tunable MAX_NULL_RATE = 0.05 bounds [0.0, 0.2]
             tunable MIN_ORDERS = 1000 bounds [100, 10000]
 
             check "Completeness" on orders {

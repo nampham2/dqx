@@ -253,13 +253,13 @@ class TestDQLPercentageLiterals:
         assert "Status completeness" in names
 
     def test_dql_percentage_in_tunable(self, tmp_path: Path) -> None:
-        """Test DQL with percentage literals in tunables."""
+        """Test DQL with decimal literals in tunables (no percentages allowed)."""
         db = InMemoryMetricDB()
 
         dql_file = tmp_path / "test.dql"
         dql_file.write_text("""
-        suite "Tunable Percentage Test" {
-            tunable MAX_NULL_RATE = 5% bounds [0%, 10%]
+        suite "Tunable Decimal Test" {
+            tunable MAX_NULL_RATE = 0.05 bounds [0.0, 0.1]
 
             check "Quality" on dataset {
                 assert null_rate(col) <= MAX_NULL_RATE
@@ -268,10 +268,10 @@ class TestDQLPercentageLiterals:
         }
         """)
 
-        # Should parse successfully with percentage literals in tunables
+        # Should parse successfully with decimal literals in tunables
         suite = VerificationSuite(dql=dql_file, db=db)
 
-        # Verify tunable was created with correct value (5% = 0.05)
+        # Verify tunable was created with correct value (0.05)
         tunables = suite.get_tunable_params()
         assert len(tunables) == 1
         assert tunables[0]["name"] == "MAX_NULL_RATE"
