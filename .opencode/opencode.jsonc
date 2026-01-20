@@ -37,14 +37,26 @@
     "dqx-implement": {
       "permission": {
         "skill": {
-          "dqx-code-standards": "allow"
+          "dqx-code-standards": "allow",
+          "dqx-quality-gate": "allow",
+          "dqx-conventional-commit": "allow",
+          "dqx-tdd-cycle": "allow"
         }
       }
     },
     "dqx-feedback": {
       "permission": {
         "skill": {
-          "dqx-code-standards": "allow"
+          "dqx-code-standards": "allow",
+          "dqx-quality-gate": "allow",
+          "dqx-conventional-commit": "allow"
+        }
+      }
+    },
+    "dqx-pr": {
+      "permission": {
+        "skill": {
+          "dqx-quality-gate": "allow"
         }
       }
     },
