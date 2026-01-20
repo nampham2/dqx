@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
+import pytest
+import pyarrow as pa
+
 from dqx.api import VerificationSuite, check
+from dqx.common import ResultKey
 from dqx.functions import pct
 from dqx.orm.repositories import InMemoryMetricDB
 from dqx.tunables import TunableFloat
@@ -321,3 +326,78 @@ class TestDQLPercentageLiterals:
         assert "Equal" in names
         assert "Not equal" in names
         assert "Between" in names
+
+    def test_dql_percentage_execution_with_data(self, tmp_path: Path) -> None:
+        """Test DQL with percentage literals executes correctly with real data."""
+        from dqx.datasource import DuckRelationDataSource
+
+        db = InMemoryMetricDB()
+
+        # Create DQL file with percentage literals
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+        suite "Percentage Execution Test" {
+            check "Data Quality" on transactions {
+                assert null_count(customer_id) / num_rows() <= 5%
+                    name "Customer ID completeness"
+                    severity P0
+
+                assert null_count(amount) / num_rows() <= 1%
+                    name "Amount completeness"
+                    severity P1
+
+                assert null_count(status) / num_rows() == 0%
+                    name "Status is complete"
+                    severity P2
+            }
+        }
+        """)
+
+        # Create test data with known null rates
+        # 100 rows total:
+        # - customer_id: 3 nulls = 3% null rate (should pass <= 5%)
+        # - amount: 0 nulls = 0% null rate (should pass <= 1%)
+        # - status: 0 nulls = 0% null rate (should pass == 0%)
+        data = pa.table(
+            {
+                "customer_id": [i if i % 34 != 0 else None for i in range(100)],  # 3 nulls (3%)
+                "amount": [float(i * 10) for i in range(100)],  # 0 nulls (0%)
+                "status": ["active"] * 100,  # 0 nulls (0%)
+            }
+        )
+
+        ds = DuckRelationDataSource.from_arrow(data, "transactions")
+
+        # Parse and run the suite
+        suite = VerificationSuite(dql=dql_file, db=db)
+        key = ResultKey(yyyy_mm_dd=date(2024, 1, 1), tags={})
+        suite.run([ds], key)
+
+        # Verify suite executed successfully
+        assert suite.is_evaluated
+
+        # Collect and verify results
+        results = suite.collect_results()
+        assert len(results) == 3
+
+        # Verify all assertions passed
+        for result in results:
+            assert result.status == "PASSED", f"Assertion '{result.assertion}' failed: {result.status}"
+
+        # Verify specific results by name
+        results_by_name = {r.assertion: r for r in results}
+
+        # Customer ID: 3% null rate <= 5% threshold (should pass)
+        customer_result = results_by_name["Customer ID completeness"]
+        assert customer_result.status == "PASSED"
+        assert customer_result.metric.unwrap() == pytest.approx(0.03, abs=1e-6)  # 3% as decimal
+
+        # Amount: 0% null rate <= 1% threshold (should pass)
+        amount_result = results_by_name["Amount completeness"]
+        assert amount_result.status == "PASSED"
+        assert amount_result.metric.unwrap() == pytest.approx(0.0, abs=1e-6)
+
+        # Status: 0% null rate == 0% threshold (should pass)
+        status_result = results_by_name["Status is complete"]
+        assert status_result.status == "PASSED"
+        assert status_result.metric.unwrap() == pytest.approx(0.0, abs=1e-6)
