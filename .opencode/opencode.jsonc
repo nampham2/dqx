@@ -29,8 +29,7 @@
   },
   "permission": {
     "skill": {
-      "*": "allow",
-      "dqx-*": "allow"
+      "*": "allow"
     }
   },
   "agent": {

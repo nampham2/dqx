@@ -50,7 +50,7 @@ Choose the type that best describes your change:
 | **perf** | Performance improvements | `perf(analyzer): optimize SQL generation` |
 | **style** | Formatting changes only | `style(api): fix line length violations` |
 | **build** | Build system/dependencies | `build(deps): upgrade pyarrow to 15.0.0` |
-| **ci** | CI configuration | `ci(github): add coverage reporting` |
+| **ci** | CI configuration | `ci(GitHub): add coverage reporting` |
 | **chore** | Maintenance tasks | `chore(cleanup): remove deprecated code` |
 | **revert** | Revert previous commit | `revert: feat(cache): add LRU cache` |
 

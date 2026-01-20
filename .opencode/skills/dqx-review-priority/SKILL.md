@@ -224,7 +224,7 @@ If a comment is ambiguous:
 **Example**: "Consider refactoring this"
 
 **Your response**:
-```
+```text
 "Could you clarify what specific refactoring you'd suggest?
 The current approach follows the pattern from {existing_module}.py
 (lines {X}-{Y}) for consistency."

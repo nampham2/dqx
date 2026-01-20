@@ -149,7 +149,7 @@ Run this skill before:
 ## Success Output
 
 When all gates pass:
-```
+```text
 ✓ Gate 1: All tests passing (pytest)
 ✓ Gate 2: Coverage 100%
 ✓ Gate 3: Pre-commit hooks passing (22/22)
@@ -162,7 +162,7 @@ When all gates pass:
 ## Failure Handling
 
 ### Tests fail
-```
+```text
 ⚠️ Gate 1: Tests failing
 
 Failed tests:
@@ -173,7 +173,7 @@ Action: Fix failing tests, then re-run quality gate
 ```
 
 ### Coverage < 100%
-```
+```text
 ⚠️ Gate 2: Coverage 95% (need 100%)
 
 Uncovered lines:
@@ -184,7 +184,7 @@ Action: Add tests or use # pragma: no cover with justification
 ```
 
 ### Pre-commit fails
-```
+```text
 ⚠️ Gate 3: Pre-commit hooks failing
 
 Failed hooks:

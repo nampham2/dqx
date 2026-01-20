@@ -17,7 +17,7 @@ Execute a complete implementation phase by composing three core skills: TDD cycl
 
 This skill orchestrates the complete phase execution:
 
-```
+```text
 Phase N begins
     ↓
 1. TDD Cycle (dqx-tdd-cycle)
@@ -86,7 +86,7 @@ skill({ name: "dqx-conventional-commit" })
 
 After successful commit, report:
 
-```
+```text
 ✓ Phase {N}/{total}: {phase_name}
   • Tests written: {count} tests
   • Implementation: complete
@@ -185,7 +185,7 @@ implementation for testing."
 ```
 
 **Step 4: Report**
-```
+```text
 ✓ Phase 2/4: Cache Backend Protocol
   • Tests written: 3 tests
   • Implementation: complete
@@ -212,7 +212,7 @@ Use this skill when:
 ### If TDD Cycle Fails
 
 **Tests don't pass after implementation**:
-```
+```text
 ⚠️ Phase execution paused: Tests failing
 
 Action: Review implementation, fix logic, re-run tests
@@ -222,7 +222,7 @@ Do NOT proceed to quality gate until tests pass
 ### If Quality Gate Fails
 
 **Coverage < 100%**:
-```
+```text
 ⚠️ Phase execution paused: Coverage 95%
 
 Action: Add tests for uncovered lines or use # pragma: no cover
@@ -231,7 +231,7 @@ Do NOT commit until coverage is 100%
 ```
 
 **Pre-commit hooks fail**:
-```
+```text
 ⚠️ Phase execution paused: Mypy errors
 
 Action: Fix type errors manually, re-run pre-commit
@@ -241,7 +241,7 @@ Do NOT commit until all hooks pass
 ### If Commit Fails
 
 **Commitizen validation fails**:
-```
+```text
 ⚠️ Phase execution paused: Invalid commit message
 
 Action: Check message format against conventional commits
@@ -287,7 +287,7 @@ The implementation guide specifies phases:
 ```
 
 **Use this skill for EACH phase**:
-```
+```text
 Load implementation guide → Read Phase 1
 ↓
 skill({ name: "dqx-phase-commit" })

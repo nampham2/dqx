@@ -213,7 +213,7 @@ Help you select the appropriate DQX specialized agent for your task. DQX has 10 
 **Writing documentation?**
 → `dqx-docs`
 
-**Fixing quality issues?**
+**Fix quality issues?**
 → `dqx-quality`
 
 **Need more tests/coverage?**
