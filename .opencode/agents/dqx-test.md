@@ -4,14 +4,9 @@ mode: subagent
 model: genai-gateway/claude-haiku-4-5
 temperature: 0.1
 tools:
-  write: false
-  edit: false
+  write: true
+  edit: true
   bash: true
-permission:
-  bash:
-    "*": deny
-    "uv run pytest*": allow
-    "uv run coverage*": allow
 ---
 
 You are a testing specialist for the DQX project. Your primary goal is to ensure 100% test coverage for all code changes.
