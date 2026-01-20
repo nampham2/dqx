@@ -1803,37 +1803,37 @@ class VerificationSuite:
 
         if cond == ">":
             threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
-            if assertion_ast.tolerance:
+            if assertion_ast.tolerance is not None:
                 ready.is_gt(threshold, tol=assertion_ast.tolerance)
             else:
                 ready.is_gt(threshold)
         elif cond == ">=":
             threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
-            if assertion_ast.tolerance:
+            if assertion_ast.tolerance is not None:
                 ready.is_geq(threshold, tol=assertion_ast.tolerance)
             else:
                 ready.is_geq(threshold)
         elif cond == "<":
             threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
-            if assertion_ast.tolerance:
+            if assertion_ast.tolerance is not None:
                 ready.is_lt(threshold, tol=assertion_ast.tolerance)
             else:
                 ready.is_lt(threshold)
         elif cond == "<=":
             threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
-            if assertion_ast.tolerance:
+            if assertion_ast.tolerance is not None:
                 ready.is_leq(threshold, tol=assertion_ast.tolerance)
             else:
                 ready.is_leq(threshold)
         elif cond == "==":
             threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
-            if assertion_ast.tolerance:
+            if assertion_ast.tolerance is not None:
                 ready.is_eq(threshold, tol=assertion_ast.tolerance)
             else:
                 ready.is_eq(threshold)
         elif cond == "!=":
             threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
-            if assertion_ast.tolerance:
+            if assertion_ast.tolerance is not None:
                 ready.is_neq(threshold, tol=assertion_ast.tolerance)
             else:
                 ready.is_neq(threshold)
@@ -1845,7 +1845,7 @@ class VerificationSuite:
                 raise DQLError("Condition 'between' requires upper threshold", assertion_ast.loc)
             lower = self._eval_simple_expr(assertion_ast.threshold, tunables)
             upper = self._eval_simple_expr(assertion_ast.threshold_upper, tunables)
-            if assertion_ast.tolerance:
+            if assertion_ast.tolerance is not None:
                 ready.is_between(lower, upper, tol=assertion_ast.tolerance)
             else:
                 ready.is_between(lower, upper)
