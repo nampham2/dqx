@@ -40,7 +40,9 @@
           "dqx-code-standards": "allow",
           "dqx-quality-gate": "allow",
           "dqx-conventional-commit": "allow",
-          "dqx-tdd-cycle": "allow"
+          "dqx-tdd-cycle": "allow",
+          "dqx-phase-commit": "allow",
+          "dqx-coverage-fix": "allow"
         }
       }
     },
@@ -49,7 +51,8 @@
         "skill": {
           "dqx-code-standards": "allow",
           "dqx-quality-gate": "allow",
-          "dqx-conventional-commit": "allow"
+          "dqx-conventional-commit": "allow",
+          "dqx-review-priority": "allow"
         }
       }
     },
@@ -91,7 +94,8 @@
     "dqx-test": {
       "permission": {
         "skill": {
-          "dqx-code-standards": "allow"
+          "dqx-code-standards": "allow",
+          "dqx-coverage-fix": "allow"
         }
       }
     }
