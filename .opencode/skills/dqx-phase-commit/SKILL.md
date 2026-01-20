@@ -103,7 +103,7 @@ After successful commit, report:
 ### Scenario: Implement Phase 2 - Cache Backend Protocol
 
 #### Input from Implementation Guide
-```
+```markdown
 Phase 2: Cache Backend Protocol
 Goal: Define protocol for cache backends
 Files to create:
