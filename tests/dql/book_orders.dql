@@ -3,7 +3,7 @@ suite "Book Order Processing Quality" {
 
     # Local tunables
     tunable MIN_DAILY_ORDERS = 500 bounds [100, 5000]
-    tunable MAX_REFUND_RATE = 10% bounds [5%, 25%]
+    tunable MAX_REFUND_RATE = 0.1 bounds [0.05, 0.25]
     tunable ORDER_VALUE_THRESHOLD = 15.0 bounds [5.0, 50.0]
     tunable PRICE_VOLATILITY_THRESHOLD = 0.15 bounds [0.0, 1.0]
 
