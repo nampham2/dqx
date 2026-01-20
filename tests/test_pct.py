@@ -78,3 +78,19 @@ class TestPctAPIExport:
         # Both should be the same function
         assert api_pct is func_pct
         assert api_pct(10) == 0.1
+
+
+class TestPctDocumentation:
+    """Tests for pct() documentation examples."""
+
+    def test_pct_docstring_examples_work(self) -> None:
+        """Verify all examples in pct() docstring are correct."""
+        # Basic conversions from docstring
+        assert pct(5) == 0.05
+        assert pct(0.5) == 0.005
+        assert pct(100) == 1.0
+        assert pct(150) == 1.5
+        assert pct(-10) == -0.1
+
+        # Type verification
+        assert type(pct(5)) is float
