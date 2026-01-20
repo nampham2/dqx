@@ -247,3 +247,51 @@ def coalesce(*args: Any) -> sp.Expr:
         sp.Expr: A sympy expression equal to the first argument that is not None and not NaN, or NaN if no such argument exists.
     """
     return Coalesce(*args)
+
+
+def pct(value: float | int) -> float:
+    """Convert percentage notation to decimal.
+
+    This is a pure Python utility function for converting percentage values
+    to their decimal equivalents. It evaluates immediately and returns a
+    plain float (not a SymPy symbol).
+
+    Usage is limited to thresholds (right-hand side of comparisons) and
+    tunable values in the Python API. It is NOT available in DQL metric
+    expressions.
+
+    Args:
+        value: Percentage value (e.g., 5 for 5%, 0.5 for 0.5%, 100 for 100%).
+               Accepts any numeric value including negative, zero, >100, decimals.
+
+    Returns:
+        Decimal equivalent as a plain Python float.
+
+    Examples:
+        >>> pct(5)
+        0.05
+        >>> pct(0.5)
+        0.005
+        >>> pct(100)
+        1.0
+        >>> pct(150)
+        1.5
+        >>> pct(-10)
+        -0.1
+
+        # In assertions
+        >>> from dqx.api import check, pct
+        >>> @check(name="Nulls")
+        ... def check_nulls(mp, ctx):
+        ...     ctx.assert_that(mp.null_rate("col")).where(name="Null rate").is_leq(pct(5))
+
+        # In tunables
+        >>> from dqx.tunables import TunableFloat
+        >>> THRESHOLD = TunableFloat("THRESHOLD", value=pct(5), bounds=(pct(0), pct(10)))
+        >>> # Equivalent to: value=0.05, bounds=(0.0, 0.1)
+
+    Note:
+        Returns immediately evaluated float, NOT a SymPy expression.
+        Do not use in metric definitions - only for thresholds and tunable values.
+    """
+    return float(value) / 100.0

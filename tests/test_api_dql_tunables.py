@@ -195,31 +195,6 @@ tunables:
         tunables = {t["name"]: t for t in suite.get_tunable_params()}
         assert tunables["THRESHOLD"]["value"] == 0.10
 
-    def test_arithmetic_in_tunable_bounds(self, tmp_path: Path) -> None:
-        """Tunable bounds can use arithmetic expressions."""
-        db = InMemoryMetricDB()
-
-        dql_file = tmp_path / "test.dql"
-        dql_file.write_text("""
-            suite "Test" {
-                tunable BASE = 10 bounds [5, 20]
-                tunable SCALED = 20 bounds [BASE * 2, 100]
-
-                check "Basic" on dataset {
-                    assert num_rows() > 0
-                        name "Has rows"
-                }
-            }
-        """)
-
-        suite = VerificationSuite(dql=dql_file, db=db)
-
-        # Verify bounds evaluated correctly
-        tunables = {t["name"]: t for t in suite.get_tunable_params()}
-        scaled_tunable = tunables["SCALED"]
-        assert scaled_tunable["value"] == 20
-        assert scaled_tunable["bounds"] == (20, 100)  # BASE * 2 = 10 * 2 = 20
-
     def test_dql_and_python_tunables_both_in_suite(self, tmp_path: Path) -> None:
         """DQL tunables are stored separately from Python API checks."""
         db = InMemoryMetricDB()

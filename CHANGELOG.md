@@ -1,3 +1,16 @@
+## Unreleased
+
+### Features
+
+- **DQL**: Tolerance modifier now works with all comparison operators (`>`, `>=`, `<`, `<=`, `!=`, `between`), not just `==`
+- **Functions**: Add `pct()` helper function for percentage notation (e.g., `pct(5)` → `0.05`)
+- **DQL**: Restrict tunables to numeric literals only (no arithmetic, no percentages in tunables)
+
+### Documentation
+
+- Update DQL language documentation with tunable restrictions
+- Add comprehensive design documents for all three features
+
 ## v0.5.14 (2026-01-19)
 
 ### Build System
