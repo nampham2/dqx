@@ -29,7 +29,7 @@ For each phase in the implementation guide:
 
 #### 1. Setup Phase
 
-```
+```text
 Load documents:
 - Implementation guide → Current phase section only
 - Technical spec → Relevant API/architecture sections only
@@ -145,7 +145,7 @@ git commit -m "{commit_message_from_guide}"
 
 #### 8. Report Progress
 
-```
+```text
 ✓ Phase {N}/{total}: {phase_name}
   • Tests written: {count} tests
   • Implementation: complete
@@ -157,7 +157,7 @@ git commit -m "{commit_message_from_guide}"
 
 ### After All Phases Complete
 
-```
+```text
 Implementation complete!
 
 Summary:
