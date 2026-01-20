@@ -17,7 +17,7 @@ These documents are **modular** to avoid context window overload and enable effi
 
 Launch parallel exploration tasks to gather context:
 
-```
+```text
 Task(subagent_type="explore", prompt="Quick search: Find existing code similar to {feature_name}. Look for: similar patterns, integration points, related tests. Return: file paths and key insights.")
 
 Task(subagent_type="dqx-api", prompt="Review API design patterns relevant to {feature_name}. Check for: naming conventions, protocol usage, error handling patterns. Return: patterns to follow.")
