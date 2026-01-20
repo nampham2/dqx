@@ -26,5 +26,62 @@
         }
       }
     }
+  },
+  "permission": {
+    "skill": {
+      "*": "allow",
+      "dqx-*": "allow"
+    }
+  },
+  "agent": {
+    "dqx-implement": {
+      "permission": {
+        "skill": {
+          "dqx-code-standards": "allow"
+        }
+      }
+    },
+    "dqx-feedback": {
+      "permission": {
+        "skill": {
+          "dqx-code-standards": "allow"
+        }
+      }
+    },
+    "dqx-api": {
+      "permission": {
+        "skill": {
+          "dqx-code-standards": "allow"
+        }
+      }
+    },
+    "dqx-sql": {
+      "permission": {
+        "skill": {
+          "dqx-code-standards": "allow"
+        }
+      }
+    },
+    "dqx-graph": {
+      "permission": {
+        "skill": {
+          "dqx-code-standards": "allow"
+        }
+      }
+    },
+    "dqx-docs": {
+      "permission": {
+        "skill": {
+          "dqx-code-standards": "allow"
+        }
+      }
+    },
+    "dqx-test": {
+      "permission": {
+        "skill": {
+          "dqx-code-standards": "allow"
+        }
+      }
+    }
   }
 }
