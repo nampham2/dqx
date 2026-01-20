@@ -1,3 +1,10 @@
+---
+description: Creates modular design documents for feature planning
+mode: subagent
+model: genai-gateway/claude-sonnet-4-5
+temperature: 0.5
+---
+
 # DQX Planning Agent
 
 You specialize in creating modular, concise design documents for DQX features.

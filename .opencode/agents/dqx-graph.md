@@ -9,12 +9,14 @@ You are a graph processing specialist for the DQX project. You have deep experti
 
 ## Code Standards Reference
 
-**Follow ALL standards in AGENTS.md**:
-- **Type hints**: AGENTS.md §type-hints (strict mode, especially for protocols)
-- **Docstrings**: AGENTS.md §docstrings (Google style)
-- **Import order**: AGENTS.md §import-order
-- **Testing**: AGENTS.md §testing-standards (comprehensive graph traversal tests)
-- **Coverage**: AGENTS.md §coverage-requirements (100%)
+Use `dqx-code-standards` skill for quick reference:
+```javascript
+skill({ name: "dqx-code-standards" })
+```
+
+The skill provides: type hints, docstrings, import order, naming, and dataclasses.
+
+For complete details: AGENTS.md §code-standards and §testing-standards
 
 ### Graph-Specific Focus
 - Visitor pattern implementation

@@ -148,6 +148,13 @@ uv run cleanup
 
 > **Single Source of Truth**: This section defines ALL code standards for DQX. All agent files reference these standards.
 
+> **For Agents**: Use the `dqx-code-standards` skill for quick reference without loading this full document.
+> ```javascript
+> skill({ name: "dqx-code-standards" })
+> ```
+> The skill provides concise, actionable guidance (170 lines) instead of loading the full AGENTS.md (1000+ lines).
+> This section remains the authoritative source for humans and comprehensive documentation.
+
 ### Import Order
 
 **Order:** Standard library → third-party → local imports (separated by blank lines)

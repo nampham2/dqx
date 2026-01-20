@@ -79,14 +79,12 @@ uv run pre-commit run --all-files
 
 ## Code Style Guidelines
 
-**Reference**: AGENTS.md §code-standards
+For quick reference, agents can use:
+```javascript
+skill({ name: "dqx-code-standards" })
+```
 
-All standards defined in AGENTS.MD:
-- **Import order**: AGENTS.md §import-order
-- **Type hints**: AGENTS.md §type-hints (strict mode, disallow_untyped_defs)
-- **Docstrings**: AGENTS.md §docstrings (Google style)
-- **Naming**: AGENTS.md §naming-conventions
-- **Formatting**: AGENTS.md §formatting (120 chars, 4 spaces)
+**Reference**: AGENTS.md §code-standards for complete details.
 
 ## Response Format
 

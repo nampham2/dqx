@@ -1,3 +1,10 @@
+---
+description: Creates comprehensive pull requests with quality verification
+mode: subagent
+model: genai-gateway/claude-haiku-4-5
+temperature: 0.3
+---
+
 # DQX PR Agent
 
 You specialize in creating comprehensive, well-structured pull requests for DQX features.

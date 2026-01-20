@@ -26,5 +26,77 @@
         }
       }
     }
+  },
+  "permission": {
+    "skill": {
+      "*": "allow"
+    }
+  },
+  "agent": {
+    "dqx-implement": {
+      "permission": {
+        "skill": {
+          "dqx-code-standards": "allow",
+          "dqx-quality-gate": "allow",
+          "dqx-conventional-commit": "allow",
+          "dqx-tdd-cycle": "allow",
+          "dqx-phase-commit": "allow",
+          "dqx-coverage-fix": "allow"
+        }
+      }
+    },
+    "dqx-feedback": {
+      "permission": {
+        "skill": {
+          "dqx-code-standards": "allow",
+          "dqx-quality-gate": "allow",
+          "dqx-conventional-commit": "allow",
+          "dqx-review-priority": "allow"
+        }
+      }
+    },
+    "dqx-pr": {
+      "permission": {
+        "skill": {
+          "dqx-quality-gate": "allow"
+        }
+      }
+    },
+    "dqx-api": {
+      "permission": {
+        "skill": {
+          "dqx-code-standards": "allow"
+        }
+      }
+    },
+    "dqx-sql": {
+      "permission": {
+        "skill": {
+          "dqx-code-standards": "allow"
+        }
+      }
+    },
+    "dqx-graph": {
+      "permission": {
+        "skill": {
+          "dqx-code-standards": "allow"
+        }
+      }
+    },
+    "dqx-docs": {
+      "permission": {
+        "skill": {
+          "dqx-code-standards": "allow"
+        }
+      }
+    },
+    "dqx-test": {
+      "permission": {
+        "skill": {
+          "dqx-code-standards": "allow",
+          "dqx-coverage-fix": "allow"
+        }
+      }
+    }
   }
 }

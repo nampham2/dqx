@@ -11,11 +11,14 @@ You are a documentation specialist for the DQX project. Your mission is to ensur
 
 ## Code Standards Reference
 
-**Follow ALL standards in AGENTS.md**:
-- **Docstrings**: AGENTS.md §docstrings (Google style - PRIMARY RESPONSIBILITY)
-- **Type hints**: AGENTS.md §type-hints (for documenting APIs)
-- **Import order**: AGENTS.md §import-order (for code examples)
-- **Testing**: AGENTS.md §testing-standards (for doctest examples)
+Use `dqx-code-standards` skill for quick reference:
+```javascript
+skill({ name: "dqx-code-standards" })
+```
+
+The skill provides: docstrings (Google style), type hints, import order, and formatting.
+
+For complete details: AGENTS.md §code-standards
 
 ### Documentation-Specific Focus
 - Google-style docstrings for all public APIs
