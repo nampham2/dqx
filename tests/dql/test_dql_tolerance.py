@@ -135,3 +135,40 @@ class TestToleranceOnNotEqual:
         statement = check.assertions[0]
         assert isinstance(statement, Assertion)
         assert statement.tolerance is None
+
+
+class TestToleranceOnBetween:
+    """Test tolerance modifier on between operator."""
+
+    def test_tolerance_parses_on_between(self) -> None:
+        """Test tolerance modifier parses on between operator."""
+        dql = """
+        suite "Test Suite" {
+            check "Between Check" on test_data {
+                assert num_rows() between 90 and 110
+                    tolerance 5
+                    name "Row count in range"
+            }
+        }
+        """
+        suite = parse(dql)
+        check = suite.checks[0]
+        statement = check.assertions[0]
+        assert isinstance(statement, Assertion)
+        assert statement.tolerance == 5
+        assert statement.condition == "between"
+
+    def test_between_without_tolerance(self) -> None:
+        """Verify between operator without tolerance has None tolerance."""
+        dql = """
+        suite "Test Suite" {
+            check "Between Check" on test_data {
+                assert num_rows() between 90 and 110 name "Between"
+            }
+        }
+        """
+        suite = parse(dql)
+        check = suite.checks[0]
+        statement = check.assertions[0]
+        assert isinstance(statement, Assertion)
+        assert statement.tolerance is None

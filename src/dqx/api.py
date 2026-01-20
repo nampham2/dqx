@@ -1845,7 +1845,10 @@ class VerificationSuite:
                 raise DQLError("Condition 'between' requires upper threshold", assertion_ast.loc)
             lower = self._eval_simple_expr(assertion_ast.threshold, tunables)
             upper = self._eval_simple_expr(assertion_ast.threshold_upper, tunables)
-            ready.is_between(lower, upper)
+            if assertion_ast.tolerance:
+                ready.is_between(lower, upper, tol=assertion_ast.tolerance)
+            else:
+                ready.is_between(lower, upper)
         elif cond == "is":
             if assertion_ast.keyword == "positive":
                 ready.is_positive()
