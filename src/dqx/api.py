@@ -1803,16 +1803,28 @@ class VerificationSuite:
 
         if cond == ">":
             threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
-            ready.is_gt(threshold)
+            if assertion_ast.tolerance:
+                ready.is_gt(threshold, tol=assertion_ast.tolerance)
+            else:
+                ready.is_gt(threshold)
         elif cond == ">=":
             threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
-            ready.is_geq(threshold)
+            if assertion_ast.tolerance:
+                ready.is_geq(threshold, tol=assertion_ast.tolerance)
+            else:
+                ready.is_geq(threshold)
         elif cond == "<":
             threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
-            ready.is_lt(threshold)
+            if assertion_ast.tolerance:
+                ready.is_lt(threshold, tol=assertion_ast.tolerance)
+            else:
+                ready.is_lt(threshold)
         elif cond == "<=":
             threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
-            ready.is_leq(threshold)
+            if assertion_ast.tolerance:
+                ready.is_leq(threshold, tol=assertion_ast.tolerance)
+            else:
+                ready.is_leq(threshold)
         elif cond == "==":
             threshold = self._eval_simple_expr(assertion_ast.threshold, tunables)
             if assertion_ast.tolerance:
