@@ -99,6 +99,24 @@ class TestToleranceOnBasicComparisons:
             assert isinstance(statement, Assertion), f"Statement should be Assertion, got {type(statement)}"
             assert statement.tolerance is None, f"Assertion {statement.name} should have no tolerance"
 
+    def test_tolerance_zero_is_preserved(self) -> None:
+        """Verify tolerance 0 is preserved and not treated as None."""
+        dql = """
+        suite "Test Suite" {
+            check "Zero Tolerance Check" on test_data {
+                assert average(price) > 100
+                    tolerance 0
+                    name "Exact GT"
+            }
+        }
+        """
+        suite = parse(dql)
+        check = suite.checks[0]
+        statement = check.assertions[0]
+        assert isinstance(statement, Assertion)
+        assert statement.tolerance == 0, "Tolerance 0 should be preserved, not None"
+        assert statement.condition == ">"
+
 
 class TestToleranceOnNotEqual:
     """Test tolerance modifier on != operator."""

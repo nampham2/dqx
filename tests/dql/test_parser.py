@@ -483,7 +483,7 @@ class TestTunables:
         assert "0.0" in tunable.bounds[0].text
         assert "0.2" in tunable.bounds[1].text
 
-    def test_percent_tunable(self) -> None:
+    def test_decimal_tunable(self) -> None:
         source = """
         suite "Test" {
             tunable MAX_NULL_RATE = 0.05 bounds [0.0, 0.2]
