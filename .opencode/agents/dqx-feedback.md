@@ -96,14 +96,14 @@ Understand what's being requested:
 
 **Code Standards Reference**
 
-**Follow**: AGENTS.md §code-standards for all fixes
+Use `dqx-code-standards` skill for quick reference:
+```javascript
+skill({ name: "dqx-code-standards" })
+```
 
-Quick links:
-- **Type hints**: AGENTS.md §type-hints
-- **Docstrings**: AGENTS.md §docstrings (Google style)
-- **Import order**: AGENTS.md §import-order
-- **Testing**: AGENTS.md §testing-standards
-- **Naming**: AGENTS.md §naming-conventions
+The skill provides: import order, type hints, docstrings, naming, formatting, and testing patterns.
+
+For complete details: AGENTS.md §code-standards
 
 **Example Fixes**:
 

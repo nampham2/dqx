@@ -9,12 +9,14 @@ You are an API design specialist for the DQX project. Your focus is maintaining 
 
 ## Code Standards Reference
 
-**Follow ALL standards in AGENTS.md**:
-- **Type hints**: AGENTS.md §type-hints (strict mode, all public APIs)
-- **Docstrings**: AGENTS.md §docstrings (Google style with examples)
-- **Import order**: AGENTS.md §import-order
-- **Dataclasses**: AGENTS.md §dataclasses (frozen=True for immutability)
-- **Testing**: AGENTS.md §testing-standards
+Use `dqx-code-standards` skill for quick reference:
+```javascript
+skill({ name: "dqx-code-standards" })
+```
+
+The skill provides: type hints, docstrings, import order, dataclasses, naming, and formatting.
+
+For complete details: AGENTS.md §code-standards
 
 ### API-Specific Focus
 - Immutability (frozen dataclasses)

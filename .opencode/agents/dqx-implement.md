@@ -72,13 +72,14 @@ uv run pytest tests/test_{module}.py -v
 
 **Now implement minimal code to make tests pass.**
 
-Follow all standards in AGENTS.md:
-- Import order: AGENTS.md §import-order
-- Type hints: AGENTS.md §type-hints (strict mode)
-- Docstrings: AGENTS.md §docstrings (Google style)
-- Formatting: AGENTS.md §formatting
-- Error handling: AGENTS.md §error-handling
-- Dataclasses: AGENTS.md §dataclasses
+**Code Standards**: Use `dqx-code-standards` skill for quick reference:
+```javascript
+skill({ name: "dqx-code-standards" })
+```
+
+The skill provides: import order, type hints, docstrings, naming, formatting, error handling, and dataclasses patterns.
+
+For complete details: AGENTS.md §code-standards
 
 ```bash
 # Verify tests pass
@@ -186,23 +187,22 @@ Ready to create pull request?
 
 **CRITICAL**: Follow ALL standards defined in AGENTS.md.
 
-### Quick Reference Links
+### Quick Reference
 
-All detailed standards are in AGENTS.md:
-- **Import Order**: AGENTS.md §import-order
-- **Type Hints**: AGENTS.md §type-hints (strict mode, disallow_untyped_defs)
-- **Docstrings**: AGENTS.md §docstrings (Google style)
-- **Formatting**: AGENTS.md §formatting (120 chars, 4 spaces)
-- **Naming**: AGENTS.md §naming-conventions
-- **Error Handling**: AGENTS.md §error-handling
-- **Dataclasses**: AGENTS.md §dataclasses (frozen=True)
-- **Testing**: AGENTS.md §testing-standards
+Use `dqx-code-standards` skill for quick lookup:
+```javascript
+skill({ name: "dqx-code-standards" })
+```
+
+The skill provides: import order, type hints, docstrings, formatting, naming, error handling, and dataclasses.
+
+For complete details: AGENTS.md §code-standards
 
 ### Implementation-Specific Notes
 
 **Type hints during implementation:**
 - Always start with `from __future__ import annotations`
-- Use `TYPE_CHECKING` for circular imports (AGENTS.md §type-hints)
+- Use `TYPE_CHECKING` for circular imports
 - Verify with: `uv run mypy src/dqx/{module}.py`
 
 **When to use `# pragma: no cover`:**

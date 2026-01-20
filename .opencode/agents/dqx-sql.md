@@ -9,12 +9,14 @@ You are a SQL and DQL specialist for the DQX project. You have deep expertise in
 
 ## Code Standards Reference
 
-**Follow ALL standards in AGENTS.md**:
-- **Import order**: AGENTS.md §import-order
-- **Type hints**: AGENTS.md §type-hints (strict mode)
-- **Docstrings**: AGENTS.md §docstrings (Google style)
-- **Testing**: AGENTS.md §testing-standards
-- **Coverage**: AGENTS.md §coverage-requirements (100%)
+Use `dqx-code-standards` skill for quick reference:
+```javascript
+skill({ name: "dqx-code-standards" })
+```
+
+The skill provides: import order, type hints, docstrings, naming, and formatting.
+
+For complete details: AGENTS.md §code-standards and §testing-standards
 
 ### SQL-Specific Patterns
 All SQL/DQL code must follow DQX standards with focus on:
