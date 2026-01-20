@@ -17,9 +17,9 @@ This document provides background context for implementing the removal of arithm
 - `errors.py` - DQL-specific error types (DQLSyntaxError, DQLError)
 
 **How this feature relates:**
-- Grammar defines tunable syntax: `tunable IDENT = expr bounds [expr, expr]`
+- Grammar defines tunable syntax: `tunable IDENT = SIGNED_NUMBER bounds [SIGNED_NUMBER, SIGNED_NUMBER]`
 - Parser transforms grammar tokens into `Tunable` AST nodes
-- This change restricts the bounds `expr` to `bound_value` (literals only)
+- This change restricts the value and bounds to signed numeric literals only (no percentages, no arithmetic)
 
 #### Tunable Evaluator (`src/dqx/api.py`)
 
@@ -73,9 +73,9 @@ bound_value: NUMBER | PERCENT
 **Reference:** See AGENTS.md §formatting for grammar file conventions
 
 **Apply to this feature:**
-- Add `bound_value` rule that accepts only `NUMBER | PERCENT`
-- Update `tunable` rule to use `bound_value` instead of `expr` for bounds
-- Keep `expr` for tunable value (can still reference other tunables)
+- Restrict tunable values and bounds to signed numeric literals only
+- Change tunable grammar to use `SIGNED_NUMBER` token instead of `expr`
+- No longer accept percentages or arithmetic expressions in tunables
 
 ### Pattern 2: Immutable AST Nodes
 

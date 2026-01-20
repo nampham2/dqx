@@ -2,9 +2,9 @@
 
 ## Overview
 
-This guide provides step-by-step instructions for removing arithmetic expression support from DQL tunable bounds. The change simplifies the language by restricting bounds to numeric literals only, aligning with the Python API and improving clarity for optimization algorithms.
+This guide provides step-by-step instructions for removing arithmetic expression support from DQL tunable bounds. The change simplifies the language by restricting tunable values and bounds to signed numeric literals only, aligning with the Python API and improving clarity for optimization algorithms.
 
-**Goal:** Restrict tunable bounds to `NUMBER` or `PERCENT` tokens only (no arithmetic, no tunable references).
+**Goal:** Restrict tunable values and bounds to `SIGNED_NUMBER` tokens only (no arithmetic, no percentages, no tunable references).
 
 **Approach:** Grammar-level enforcement with clear error messages.
 
@@ -64,9 +64,24 @@ class TestTunableBoundsValidation:
 tunable: "tunable" IDENT "=" expr "bounds" "[" expr "," expr "]"
 
 # After
-tunable: "tunable" IDENT "=" expr "bounds" "[" bound_value "," bound_value "]"
+tunable: "tunable" IDENT "=" SIGNED_NUMBER "bounds" "[" SIGNED_NUMBER "," SIGNED_NUMBER "]"
 
-bound_value: NUMBER | PERCENT
+# New token
+SIGNED_NUMBER: /-?[0-9]+(\.[0-9]+)?/
+```
+
+**Examples now supported:**
+```dql
+tunable BASE = 100 bounds [50, 150]      # Positive values
+tunable OFFSET = -10 bounds [-20, 0]     # Negative values and bounds
+tunable THRESHOLD = 5.5 bounds [-10.0, 20.0]  # Float values
+```
+
+**Examples now rejected:**
+```dql
+tunable BASE = 100 bounds [50, 150%]     # No percentages
+tunable SCALED = 100 bounds [BASE * 0.8, BASE * 1.2]  # No arithmetic
+tunable REF = OTHER bounds [10, 20]      # No tunable references in value
 ```
 
 **Success criteria:**
@@ -330,7 +345,7 @@ Phase 1 (Grammar + Validation Tests)
    - Hot-patch documentation
    - No code rollback needed
 
-**Risk assessment:** Low risk
+**Risk assessment:** Low-risk
 - Grammar change is isolated and well-defined
 - All existing DQL files use literals (verified)
 - Test coverage ensures no regressions
@@ -382,7 +397,8 @@ Migration: Evaluate arithmetic manually and hardcode the result.
 Closes #XXX
 ```
 
-**Changelog entry (docs/changelog.md):**
+### Changelog entry (docs/changelog.md)
+
 ```markdown
 ## [0.6.0] - 2026-01-XX
 

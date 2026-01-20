@@ -40,7 +40,7 @@ tunable COMPUTED = 5 bounds [1 + 1, 10 * 2]  # Currently allowed
 2. **Add validation to warn but not error** - Doesn't achieve simplification goal
 3. **Support only simple arithmetic (no references)** - Inconsistent, still complex
 
-**Decision:** Remove all arithmetic in bounds. Only accept `NUMBER` or `PERCENT` tokens.
+**Decision:** Remove all arithmetic in bounds and values. Only accept signed numeric literals (`SIGNED_NUMBER` tokens).
 
 ### Decision 2: Grammar-Level Enforcement
 
@@ -51,7 +51,8 @@ tunable COMPUTED = 5 bounds [1 + 1, 10 * 2]  # Currently allowed
 - Users get immediate feedback
 
 **Implementation:**
-- Grammar rule change from `expr` to `bound_value`
+- Grammar rule change from `expr` to `SIGNED_NUMBER` for tunable value and bounds
+- Added `SIGNED_NUMBER` token to support negative literals
 - Parser generates descriptive syntax errors
 - No changes needed in evaluator (already handles literals)
 
@@ -83,14 +84,15 @@ tunable: "tunable" IDENT "=" expr "bounds" "[" expr "," expr "]"
 
 **After:**
 ```lark
-tunable: "tunable" IDENT "=" expr "bounds" "[" bound_value "," bound_value "]"
+tunable: "tunable" IDENT "=" SIGNED_NUMBER "bounds" "[" SIGNED_NUMBER "," SIGNED_NUMBER "]"
 
-bound_value: NUMBER | PERCENT
+SIGNED_NUMBER: /-?[0-9]+(\.[0-9]+)?/
 ```
 
 **Key changes:**
-- New rule `bound_value` restricts bounds to literals
-- Value expression remains `expr` (can still reference tunables)
+- Tunable value and bounds now use `SIGNED_NUMBER` token (signed numeric literals only)
+- No longer accepts percentages, arithmetic expressions, or tunable references
+- Supports negative values: `tunable OFFSET = -10 bounds [-20, 0]`
 - Bounds are now syntactically restricted at grammar level
 
 ### Parser Changes
@@ -169,7 +171,7 @@ class Tunable:
 
 ### Validation Rules
 
-**Rule 1: No arithmetic operators in bounds**
+#### Rule 1: No arithmetic operators in bounds
 
 **Invalid DQL:**
 ```dql
@@ -177,7 +179,7 @@ tunable X = 5 bounds [1 + 1, 10]
 ```
 
 **Error message:**
-```
+```text
 DQL Syntax Error at line 2, column 27:
     tunable X = 5 bounds [1 + 1, 10]
                           ^^^^^
@@ -191,7 +193,7 @@ Example:
     tunable X = 5% bounds [0%, 10%]
 ```
 
-**Rule 2: No tunable references in bounds**
+#### Rule 2: No tunable references in bounds
 
 **Invalid DQL:**
 ```dql
@@ -200,7 +202,7 @@ tunable SCALED = 20 bounds [BASE * 2, 100]
 ```
 
 **Error message:**
-```
+```text
 DQL Syntax Error at line 3, column 32:
     tunable SCALED = 20 bounds [BASE * 2, 100]
                                 ^^^^^^^^
@@ -214,7 +216,7 @@ If you need to use the value of BASE, calculate it manually:
     tunable SCALED = 20 bounds [20, 100]
 ```
 
-**Rule 3: No function calls in bounds**
+#### Rule 3: No function calls in bounds
 
 **Invalid DQL:**
 ```dql
@@ -222,7 +224,7 @@ tunable X = 5 bounds [min(1, 2), 10]
 ```
 
 **Error message:**
-```
+```text
 DQL Syntax Error at line 2, column 27:
     tunable X = 5 bounds [min(1, 2), 10]
                           ^^^^^^^^^^
@@ -323,15 +325,15 @@ Example:
 
 ### Migration Guide
 
-**For users with arithmetic in bounds:**
+#### For users with arithmetic in bounds
 
-**Step 1: Identify affected DQL files**
+#### Step 1: Identify affected DQL files
 ```bash
 # Search for tunables with non-literal bounds
 grep -E "tunable.*bounds.*[\+\-\*/]" **/*.dql
 ```
 
-**Step 2: Evaluate arithmetic manually**
+#### Step 2: Evaluate arithmetic manually
 ```dql
 # Before (DQX 0.5.x)
 tunable BASE = 10 bounds [5, 20]
@@ -342,11 +344,11 @@ tunable BASE = 10 bounds [5, 20]
 tunable SCALED = 20 bounds [20, 100]  # Calculated: 10 * 2 = 20
 ```
 
-**Step 3: Update DQL files**
+#### Step 3: Update DQL files
 - Replace arithmetic expressions with evaluated results
 - Use comments to document the calculation
 
-**Step 4: Test updated files**
+#### Step 4: Test updated files
 ```python
 suite = VerificationSuite(dql="path/to/updated.dql", db=db)
 params = suite.get_tunable_params()
