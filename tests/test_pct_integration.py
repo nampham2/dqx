@@ -401,3 +401,25 @@ class TestDQLPercentageLiterals:
         status_result = results_by_name["Status is complete"]
         assert status_result.status == "PASSED"
         assert status_result.metric.unwrap() == pytest.approx(0.0, abs=1e-6)
+
+    def test_dql_availability_threshold_with_percentage(self, tmp_path: Path) -> None:
+        """Test that availability_threshold works with percentage literals."""
+        db = InMemoryMetricDB()
+
+        dql_file = tmp_path / "test.dql"
+        dql_file.write_text("""
+        suite "Availability Test" {
+            availability_threshold 85%
+
+            check "Basic Check" on dataset {
+                assert num_rows() > 0
+                    name "Has rows"
+            }
+        }
+        """)
+
+        # Parse the suite
+        suite = VerificationSuite(dql=dql_file, db=db)
+
+        # Verify availability_threshold was correctly parsed as 0.85
+        assert suite._data_av_threshold == 0.85
