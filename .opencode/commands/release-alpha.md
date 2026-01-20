@@ -76,7 +76,7 @@ Delegate to **dqx-docs agent** to validate the alpha CHANGELOG entry:
 - Proper markdown formatting
 
 **Expected agent response:**
-```
+```text
 ✅ CHANGELOG validation passed (alpha release)
 - Format: Correct
 - Length: 28 lines (within 50 line limit)
@@ -85,7 +85,7 @@ Delegate to **dqx-docs agent** to validate the alpha CHANGELOG entry:
 ```
 
 **If validation fails:**
-```
+```text
 ⚠️ CHANGELOG validation issues:
 
 1. Missing prerelease indicator
@@ -156,14 +156,14 @@ Delegate to **dqx-test agent** to validate test coverage:
 - Coverage is exactly 100% (5088/5088 statements expected)
 
 **Expected agent response:**
-```
+```text
 ✅ Test validation passed
 - Tests: 1659 passed, 0 failed
 - Coverage: 100% (5088/5088 statements)
 ```
 
 **If validation fails:**
-```
+```text
 ❌ Test validation failed
 
 {detailed_agent_feedback}
@@ -191,7 +191,7 @@ Delegate to **dqx-quality agent** to validate code quality:
 - No formatting, linting, or type errors
 
 **Expected agent response:**
-```
+```text
 ✅ Quality validation passed
 - Formatting: All files correct
 - Linting: No issues
@@ -200,7 +200,7 @@ Delegate to **dqx-quality agent** to validate code quality:
 ```
 
 **If validation fails:**
-```
+```text
 ❌ Quality validation failed
 
 {detailed_agent_feedback}
@@ -227,7 +227,7 @@ Delegate to **dqx-docs agent** to validate documentation:
 - New features documented (even if experimental)
 
 **Expected agent response:**
-```
+```text
 ✅ Documentation validation passed (alpha)
 - CHANGELOG: Clearly marked as alpha release
 - New features: Documented with experimental notes
@@ -235,7 +235,7 @@ Delegate to **dqx-docs agent** to validate documentation:
 ```
 
 **If validation fails:**
-```
+```text
 ❌ Documentation validation failed
 
 {detailed_agent_feedback}
@@ -249,14 +249,14 @@ Ensure alpha status is clearly communicated in documentation.
 
 **All three agents must report success:**
 
-```
+```text
 ✅ dqx-test: All tests pass, 100% coverage
 ✅ dqx-quality: All quality checks pass
 ✅ dqx-docs: Documentation complete (alpha marked)
 ```
 
 **If any validation fails:**
-```
+```text
 ❌ Alpha Release Validation Failed
 
 Agent results:
@@ -345,7 +345,7 @@ pip install dqlib=={alpha_version}
 
 ## Step 7: Display Summary and Next Steps
 
-```
+```text
 🎉 Alpha Release Preparation Complete!
 
 📊 Summary:
@@ -377,6 +377,7 @@ dqx-docs:       ✅ Documentation complete (alpha marked)
 3. **Create and push the tag:**
    After merging, run:
 
+   ```bash
    git checkout main
    git pull origin main
    git tag -a v{alpha_version} -m "Alpha release {alpha_version}"
@@ -385,8 +386,8 @@ dqx-docs:       ✅ Documentation complete (alpha marked)
    Or use: /release-tag
 
 4. **Monitor the release:**
-   - GitHub Actions: https://github.com/{owner}/{repo}/actions
-   - PyPI: https://pypi.org/project/dqlib/
+   - [GitHub Actions](https://github.com/{owner}/{repo}/actions)
+   - [PyPI: dqlib](https://pypi.org/project/dqlib/)
    - Will be marked as prerelease
 
 ⏱️  Estimated publish time: ~2 minutes after tag push
