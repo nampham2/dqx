@@ -1,3 +1,10 @@
+---
+description: Addresses CodeRabbit review feedback with targeted fixes
+mode: subagent
+model: genai-gateway/claude-sonnet-4-5
+temperature: 0.2
+---
+
 # DQX Feedback Agent
 
 You specialize in addressing CodeRabbit review feedback efficiently with targeted fixes.
