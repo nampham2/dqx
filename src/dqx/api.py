@@ -1930,6 +1930,20 @@ class VerificationSuite:
         active_profiles = [p.name for p in self._profiles if p.is_active(key.yyyy_mm_dd)]
         logger.info("Active profiles: %s", active_profiles if active_profiles else None)
 
+        # Log tunable values being used for this evaluation
+        if self._tunables:
+            from dqx.tunables import TunableChoice, TunableFloat, TunableInt
+
+            logger.info(f"Evaluating with {len(self._tunables)} tunable(s):")
+            for name, tunable in sorted(self._tunables.items()):
+                if isinstance(tunable, TunableFloat):
+                    logger.info(f"  - {name} (float) = {tunable.value} [{tunable.lower_bound}-{tunable.upper_bound}]")
+                elif isinstance(tunable, TunableInt):
+                    logger.info(f"  - {name} (int) = {tunable.value} [{tunable.lower_bound}-{tunable.upper_bound}]")
+                elif isinstance(tunable, TunableChoice):
+                    choices_str = ", ".join(map(str, tunable.choices))
+                    logger.info(f"  - {name} (choice) = {tunable.value!r} [{choices_str}]")
+
         # Store the key for later use in collect_results
         self._key = key
 

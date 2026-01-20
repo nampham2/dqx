@@ -2,16 +2,61 @@
 
 This document provides coding guidelines and commands for AI agents working on the DQX codebase.
 
+## Table of Contents
+
+- [Project Overview](#project-overview)
+- [Commands Reference](#commands-reference)
+  - [Package Management](#package-management)
+  - [Testing Commands](#testing-commands)
+  - [Code Quality Commands](#code-quality-commands)
+  - [Documentation Commands](#documentation-commands)
+  - [Custom Commands](#custom-commands)
+- [Code Standards](#code-standards) (Single Source of Truth)
+  - [Import Order](#import-order)
+  - [Type Hints](#type-hints)
+  - [Docstrings](#docstrings)
+  - [Formatting](#formatting)
+  - [Naming Conventions](#naming-conventions)
+  - [Error Handling](#error-handling)
+  - [Dataclasses](#dataclasses)
+- [Testing Standards](#testing-standards)
+  - [Test Structure](#test-structure)
+  - [Coverage Requirements](#coverage-requirements)
+  - [Testing Patterns](#testing-patterns)
+  - [Fixtures and Mocking](#fixtures-and-mocking)
+- [Quality Gates](#quality-gates)
+  - [Implementation Checklist](#implementation-checklist)
+  - [Pre-commit Requirements](#pre-commit-requirements)
+- [Commit Conventions](#commit-conventions)
+- [Feature Development Workflow](#feature-development-workflow)
+- [Project Structure](#project-structure)
+- [Version Management](#version-management)
+
+---
+
 ## Project Overview
 
 DQX (Data Quality Excellence) is a Python 3.11+ library for data quality validation. The package name is `dqlib` but the module name is `dqx`. It allows writing validation logic as testable Python functions that execute efficiently on SQL backends (DuckDB, BigQuery, Snowflake).
 
 **Key Technologies:** Python 3.11+, DuckDB, PyArrow, SymPy, SQLAlchemy, Lark parser, Rich (terminal UI)
 
-## Build, Test, and Lint Commands
+---
+
+## Commands Reference
+
+All commands use `uv` (fast Python package manager).
+
+**Command Quick Reference Card:**
+```bash
+# Most common (memorize these)
+uv run pytest                                    # All tests
+uv run pytest --cov=src/dqx --cov-report=term  # Coverage check
+uv run ruff format                               # Format code
+uv run mypy src tests                            # Type check
+uv run pre-commit run --all-files                # All hooks
+```
 
 ### Package Management
-All commands use `uv` (fast Python package manager):
 
 ```bash
 # Install development environment
@@ -24,7 +69,7 @@ uv pip install -e .
 uv sync --all-extras
 ```
 
-### Testing
+### Testing Commands
 
 ```bash
 # Run all tests
@@ -55,16 +100,7 @@ uv run pytest -s
 uv run pytest -m demo -s
 ```
 
-### IMPORTANT: 100% Test Coverage Required
-
-- All code changes MUST maintain 100% test coverage
-- After implementation, always verify coverage with: `uv run pytest --cov=src/dqx --cov-report=term-missing`
-- If any lines are uncovered, either:
-  1. Add tests to cover them, OR
-  2. Add `# pragma: no cover` comment for unreachable/defensive code
-- Coverage target: 100% (no exceptions)
-
-### Code Quality
+### Code Quality Commands
 
 ```bash
 # Format code (run this first)
@@ -83,6 +119,16 @@ uv run pre-commit run --all-files
 uv run pre-commit install
 ```
 
+### Documentation Commands
+
+```bash
+# Serve docs locally
+uv run mkdocs serve
+
+# Build documentation
+uv run mkdocs build
+```
+
 ### Custom Commands
 
 ```bash
@@ -96,21 +142,15 @@ uv run hooks
 uv run cleanup
 ```
 
-### Documentation
+---
 
-```bash
-# Serve docs locally
-uv run mkdocs serve
+## Code Standards
 
-# Build documentation
-uv run mkdocs build
-```
+> **Single Source of Truth**: This section defines ALL code standards for DQX. All agent files reference these standards.
 
-## Code Style Guidelines
+### Import Order
 
-### Imports
-
-**Order:** Standard library, third-party, local imports (separated by blank lines)
+**Order:** Standard library → third-party → local imports (separated by blank lines)
 
 ```python
 from __future__ import annotations  # Always first for forward references
@@ -162,13 +202,9 @@ class SqlDataSource(Protocol):
 - Use `|` for union types (not `Union`)
 - Use `Protocol` for structural subtyping
 
-### Formatting
+### Docstrings
 
-**Ruff configuration:**
-- Line length: 120 characters
-- Indentation: 4 spaces
-- Target: Python 3.11
-- Docstring convention: Google style
+**Convention:** Google style (required for all public APIs)
 
 ```python
 def where(
@@ -194,6 +230,14 @@ def where(
         ValueError: If name is empty or longer than 255 characters.
     """
 ```
+
+### Formatting
+
+**Ruff configuration:**
+- Line length: 120 characters
+- Indentation: 4 spaces
+- Target: Python 3.11
+- Docstring convention: Google style
 
 ### Naming Conventions
 
@@ -246,16 +290,81 @@ class ResultKey:
         return hash((self.yyyy_mm_dd, tuple(self.tags)))
 ```
 
-## Testing Guidelines
+---
+
+## Testing Standards
+
+### Test Structure
 
 - Test files mirror source structure: `src/dqx/foo.py` → `tests/test_foo.py`
-- Use pytest fixtures in `tests/fixtures/`
 - Organize tests in classes: `class TestGraphPrintTree:`
 - Use descriptive test names: `test_print_tree_with_default_formatter`
+
+### Coverage Requirements
+
+#### Target: 100% coverage (no exceptions)
+
+- All code changes MUST maintain 100% test coverage
+- After implementation, always verify coverage with: `uv run pytest --cov=src/dqx --cov-report=term-missing`
+- If any lines are uncovered, either:
+  1. Add tests to cover them, OR
+  2. Add `# pragma: no cover` comment for unreachable/defensive code
+
+**When to use `# pragma: no cover`:**
+- Defensive code that should never execute
+- Abstract methods that must be overridden
+- Trivial `__repr__` or `__str__` methods
+
+### Testing Patterns
+
+```python
+# Test class organization
+class TestFeatureName:
+    """Tests for feature functionality."""
+
+    def test_creation_with_valid_input(self) -> None:
+        """Test creating instance with valid input."""
+        feature = MyFeature(valid_arg="test")
+        assert feature.property == "test"
+
+    def test_creation_with_invalid_input(self) -> None:
+        """Test error handling for invalid input."""
+        with pytest.raises(ValueError, match="Invalid arg"):
+            MyFeature(valid_arg=None)
+
+    def test_edge_case_empty(self) -> None:
+        """Test behavior with empty input."""
+        feature = MyFeature(valid_arg="")
+        assert feature.is_empty()
+```
+
+### Fixtures and Mocking
+
+- Use pytest fixtures in `tests/fixtures/`
 - Mock external dependencies with `unittest.mock`
 - Use `pytest.mark.demo` for demonstration tests requiring visual output
 
-## Implementation Workflow
+```python
+from unittest.mock import Mock, patch
+
+
+def test_with_mock() -> None:
+    """Test with mocked database."""
+    mock_db = Mock(spec=MetricDB)
+    mock_db.fetch.return_value = expected_data
+
+    feature = MyFeature(db=mock_db)
+    result = feature.fetch_data()
+
+    mock_db.fetch.assert_called_once()
+    assert result == expected_data
+```
+
+---
+
+## Quality Gates
+
+### Implementation Checklist
 
 After implementing code changes, **always** follow this checklist before reporting completion:
 
@@ -277,32 +386,19 @@ After implementing code changes, **always** follow this checklist before reporti
 
 **Summary**: Implementation is only complete when tests pass, coverage is 100%, and pre-commit checks pass.
 
-## Project Structure
+### Pre-commit Requirements
 
-```
-src/dqx/           # Main source code
-├── api.py         # User-facing API (VerificationSuite, MetricProvider, Context)
-├── validator.py   # Validation logic and suite execution
-├── analyzer.py    # SQL analysis engine
-├── dialect.py     # SQL dialect implementations (DuckDB, BigQuery, Snowflake)
-├── provider.py    # Metric provider implementation
-├── common.py      # Shared types and protocols
-├── display.py     # Result visualization with Rich
-├── graph/         # Graph processing for dependency analysis
-├── dql/           # Data Quality Language parser
-└── orm/           # Object-relational mapping for metrics
+Pre-commit hooks run in this order:
+1. **ruff format** - Auto-fixes formatting
+2. **ruff check** - Auto-fixes linting issues
+3. **mypy** - Type checking (must fix manually)
+4. **commitizen** - Validates commit messages
 
-tests/             # Test suite (110+ files)
-├── dql/           # DQL tests
-├── e2e/           # End-to-end tests
-├── graph/         # Graph processing tests
-└── fixtures/      # Shared fixtures
+All hooks must pass before committing.
 
-docs/              # MkDocs documentation
-bin/               # Development scripts
-```
+---
 
-## Commit Message Convention
+## Commit Conventions
 
 Use Conventional Commits format (enforced by pre-commit hook):
 
@@ -349,6 +445,468 @@ perf(analyzer): optimize SQL generation
 - Footer: optional, reference issues (e.g., "Closes #123")
 - Breaking changes: use "BREAKING CHANGE:" in footer or commit body
 
+---
+
+## Feature Development Workflow
+
+DQX uses specialized subagents for different phases of feature development to optimize context usage and efficiency.
+
+### Workflow Overview
+
+```text
+User Request → Plan Agent → Implementation Agent → PR Agent → Feedback Agent
+                  ↓               ↓                    ↓            ↓
+            Design Docs      Code + Tests          PR Created   Fixes Applied
+```
+
+### Phase 1: Planning (Automatic)
+
+**When**: User requests a new feature
+
+**Agent**: `dqx-plan`
+
+**Process**:
+```text
+User: "I want to add {feature}"
+
+Core Agent:
+  1. Launch dqx-plan agent
+  2. dqx-plan creates 3 modular design docs:
+     - Technical Specification (architecture, APIs)
+     - Implementation Guide (TDD phases)
+     - Context Document (DQX patterns, background)
+  3. Present summary to user
+  4. Wait for approval
+```
+
+**Output**: 3 design documents in `docs/plans/` (~600-1100 lines total)
+
+**Key Benefits**:
+- Modular docs avoid context overload
+- Clear separation: what (spec) vs how (guide) vs why (context)
+- Documents are reusable across sessions
+- Specialized agents handle exploration efficiently
+
+### Phase 2: Implementation (Automatic after approval)
+
+**When**: User approves design
+
+**Agent**: `dqx-implement`
+
+**Process**:
+```text
+User: "Proceed with implementation" or "Implement it"
+
+Core Agent:
+  1. Launch dqx-implement agent
+  2. dqx-implement executes each phase automatically:
+     For each phase:
+       a. Write tests FIRST (TDD)
+       b. Implement code to pass tests
+       c. Verify 100% coverage
+       d. Pass pre-commit hooks
+       e. Commit with conventional message
+       f. Brief progress report
+  3. Present completion summary
+  4. Wait for PR approval
+```
+
+**Output**:
+- Working code with 100% test coverage
+- Multiple atomic commits (one per phase)
+- All quality gates passed
+
+**Key Benefits**:
+- Fully automated TDD cycle
+- Quality enforcement (coverage, pre-commit) built-in
+- Loads only relevant docs per phase (reduces context)
+- Independent, committable phases
+
+### Phase 3: PR Creation (Automatic after approval)
+
+**When**: User approves PR creation
+
+**Agent**: `dqx-pr`
+
+**Process**:
+```text
+User: "Create PR"
+
+Core Agent:
+  1. Launch dqx-pr agent
+  2. dqx-pr:
+     a. Analyzes all commits in branch
+     b. Verifies quality gates (tests, coverage, pre-commit)
+     c. Generates comprehensive PR description
+     d. Creates PR with gh CLI
+     e. Returns PR URL
+  3. Present PR details to user
+```
+
+**Output**: GitHub PR with comprehensive description
+
+**Key Benefits**:
+- Automatic quality gate verification
+- PR includes design doc links (not full content)
+- Phase breakdown for reviewers
+- Conventional commit format
+
+### Phase 4: Feedback Iteration (On-demand)
+
+**When**: User needs to address review feedback
+
+**Agent**: `dqx-feedback`
+
+**Process**:
+```text
+User: "Address CodeRabbit feedback" or "Fix review comments"
+
+Core Agent:
+  1. Launch dqx-feedback agent
+  2. dqx-feedback:
+     a. Fetches all review comments from GitHub
+     b. Groups and prioritizes (P0 → P1 → P2)
+     c. For each comment:
+        - Load only relevant file + context
+        - Make targeted fix
+        - Run affected tests
+        - Commit with descriptive message
+     d. Final verification (full test suite)
+     e. Push all fixes
+  3. Present fix summary to user
+```
+
+**Output**:
+- Targeted fixes for each comment
+- Clear commit history
+- All quality gates still passing
+
+**Key Benefits**:
+- Minimal context reload per fix
+- Fast iteration cycle
+- Clear commit history for reviewers
+- Prioritized fixes (blockers first)
+
+---
+
+### Agent Context Management
+
+To avoid context window overload, each agent loads only necessary documents:
+
+#### Planning Phase (dqx-plan)
+**Load**:
+- AGENTS.md (coding guidelines)
+- Exploration results (from dqx-explore, dqx-api agents)
+
+**Avoid**:
+- Implementation details
+- Full code examples
+- Test implementations
+
+#### Implementation Phase (dqx-implement)
+**Load per phase**:
+- Technical spec (relevant sections only)
+- Implementation guide (current phase only)
+- Context doc (relevant patterns only)
+
+**Avoid**:
+- Other phases from implementation guide
+- Full technical spec
+- Full context doc
+- Unrelated files
+
+#### PR Phase (dqx-pr)
+**Load**:
+- Design docs (summary extraction only)
+- Git commit history
+- Quality gate results
+
+**Avoid**:
+- Full implementation code
+- Test files
+- Full design doc content
+
+#### Feedback Phase (dqx-feedback)
+**Load per comment**:
+- Specific file with comment
+- Related tests for that file
+- Relevant technical spec section (if needed)
+
+**Avoid**:
+- Design docs (already implemented)
+- Unrelated files
+- Other comments' context
+
+**Context Reduction**: ~60% less context per phase compared to monolithic approach
+
+---
+
+### Subagent Specialization
+
+#### Core Workflow Agents (New)
+
+**dqx-plan** (Proactive: Use for all feature requests)
+- **Role**: Create modular design documents
+- **Input**: Feature request, exploration results
+- **Output**: 3 design documents (spec, guide, context)
+- **When**: User requests new feature
+- **Context**: Minimal - AGENTS.md + exploration results
+
+**dqx-implement** (Proactive: Use after plan approval)
+- **Role**: Execute TDD implementation phases
+- **Input**: Design documents, current phase
+- **Output**: Code, tests, commits per phase
+- **When**: After design approval
+- **Context**: Minimal - current phase + relevant patterns
+
+**dqx-pr** (Proactive: Use after implementation)
+- **Role**: Create comprehensive pull requests
+- **Input**: Design docs, git history
+- **Output**: GitHub PR with description
+- **When**: After implementation complete
+- **Context**: Minimal - doc summaries + commits
+
+**dqx-feedback** (On-demand: Use when requested)
+- **Role**: Address review feedback efficiently
+- **Input**: PR number, review comments
+- **Output**: Targeted fixes, commits
+- **When**: User requests feedback iteration
+- **Context**: Minimal - specific files per comment
+
+#### Supporting Agents (Use as needed)
+
+##### dqx-explore
+- **Role**: Fast codebase exploration
+- **When**: During planning to find similar patterns
+- **Usage**: Always use in planning, avoid in implementation
+
+##### dqx-sql
+- **Role**: SQL dialect and parser work
+- **When**: Feature touches SQL generation
+- **Usage**: Delegate SQL-specific implementation
+
+##### dqx-docs
+- **Role**: API documentation and examples
+- **When**: After implementation complete
+- **Usage**: Update docs after code is done
+
+##### dqx-test
+- **Role**: Test generation and coverage analysis
+- **When**: Coverage gaps need detailed analysis
+- **Usage**: During implementation for missing tests
+
+##### dqx-api
+- **Role**: API design patterns and consistency
+- **When**: During planning for API features
+- **Usage**: Ensure consistency with existing APIs
+
+##### dqx-quality
+- **Role**: Pre-commit hooks, linting, type checking
+- **When**: Pre-commit failures need fixing
+- **Usage**: During implementation for quality issues
+
+##### dqx-graph
+- **Role**: Graph processing and dependency analysis
+- **When**: Features involving graphs or traversal
+- **Usage**: Delegate graph-specific code
+
+---
+
+### Example: Complete Feature Workflow
+
+#### User Request
+```text
+User: "I want to add metric caching to avoid recomputing expensive metrics"
+```
+
+#### Step 1: Planning
+
+```text
+Core Agent: "I'll help you plan metric caching."
+
+[Launches dqx-plan agent]
+
+dqx-plan:
+  - Explores codebase (delegates to dqx-explore)
+  - Reviews API patterns (delegates to dqx-api)
+  - Creates 3 design docs:
+    ✓ metric_caching_technical_spec.md (312 lines)
+    ✓ metric_caching_implementation_guide.md (478 lines)
+    ✓ metric_caching_context.md (245 lines)
+
+Core Agent: "Design complete. Key decisions:
+- LRU cache with TTL support
+- Protocol-based cache backend
+- 4 implementation phases
+- Estimated: ~5 hours
+
+Ready to implement?"
+```
+
+#### Step 2: Implementation
+
+```text
+User: "Yes, implement it"
+
+Core Agent: "Starting implementation..."
+
+[Launches dqx-implement agent]
+
+dqx-implement:
+  Phase 1/4: Core cache data structures
+    ✓ Tests written (8 tests)
+    ✓ Implementation complete
+    ✓ Coverage: 100%
+    ✓ Pre-commit: passing
+    ✓ Committed: feat(cache): add core cache data structures
+
+  Phase 2/4: Cache backend protocol
+    ✓ Tests written (12 tests)
+    ✓ Implementation complete
+    ✓ Coverage: 100%
+    ✓ Pre-commit: passing
+    ✓ Committed: feat(cache): implement cache backend protocol
+
+  Phase 3/4: MetricProvider integration
+    ✓ Tests written (15 tests)
+    ✓ Implementation complete
+    ✓ Coverage: 100%
+    ✓ Pre-commit: passing
+    ✓ Committed: feat(cache): integrate caching with MetricProvider
+
+  Phase 4/4: E2E tests + docs
+    ✓ Tests written (6 tests)
+    ✓ Implementation complete
+    ✓ Coverage: 100%
+    ✓ Pre-commit: passing
+    ✓ Committed: docs(cache): add caching documentation
+
+Core Agent: "Implementation complete!
+- 4 phases, 41 tests, 100% coverage
+- 4 commits created
+
+Ready to create PR?"
+```
+
+#### Step 3: PR Creation
+
+```text
+User: "Create PR"
+
+Core Agent: "Creating pull request..."
+
+[Launches dqx-pr agent]
+
+dqx-pr:
+  ✓ Quality gates verified
+  ✓ PR description generated
+  ✓ Created PR #123
+
+Core Agent: "PR created: https://github.com/repo/pull/123
+
+Summary:
+- 4 commits
+- 41 tests added
+- Coverage: 100%
+- Design docs: 3 files linked
+
+CodeRabbit will review automatically."
+```
+
+#### Step 4: Feedback Iteration
+
+```text
+User: "Address CodeRabbit feedback"
+
+Core Agent: "Analyzing review comments..."
+
+[Launches dqx-feedback agent]
+
+dqx-feedback:
+  ✓ Fetched 8 review comments
+  ✓ Prioritized: 2 P0, 4 P1, 2 P2
+
+  Fixing P0 issues:
+    ✓ src/dqx/cache.py:78 - Added type hint
+    ✓ tests/test_cache.py:45 - Added edge case test
+
+  Fixing P1 issues:
+    ✓ src/dqx/cache.py:102 - Improved naming
+    ✓ src/dqx/cache.py:156 - Added docstring
+    ✓ tests/test_cache.py:89 - Added integration test
+    ✓ docs/plans/cache_technical_spec.md - Clarified decision
+
+  Fixing P2 issues:
+    ✓ src/dqx/cache.py:134 - Refactored helper method
+    ✓ tests/test_cache.py:112 - Added performance test
+
+  ✓ Full test suite: passing
+  ✓ Coverage: 100%
+  ✓ Pushed 8 fix commits
+
+Core Agent: "All 8 review comments addressed!
+- P0 (blockers): 2 fixed
+- P1 (important): 4 fixed
+- P2 (nice-to-have): 2 fixed
+
+Ready for next review cycle."
+```
+
+---
+
+### Best Practices for Using Workflow
+
+#### DO:
+- ✓ Use dqx-plan for all new features (automatic)
+- ✓ Review design docs before implementation
+- ✓ Let dqx-implement run phases automatically
+- ✓ Trust quality gates (100% coverage, pre-commit)
+- ✓ Use dqx-feedback for iterative improvements
+- ✓ Keep commits atomic and focused
+
+#### DON'T:
+- ✗ Skip planning phase for features
+- ✗ Modify design docs during implementation (finish first, then update)
+- ✗ Manually implement without using agents (less efficient)
+- ✗ Skip quality gates (coverage, pre-commit)
+- ✗ Combine multiple phases in one commit
+- ✗ Address feedback without using dqx-feedback agent
+
+#### When to Deviate:
+- **Small bug fixes**: Skip planning, implement directly
+- **Documentation updates**: Skip planning, edit docs directly
+- **Simple refactors**: Skip planning if scope is clear
+- **Urgent hotfixes**: Streamline process, but maintain quality gates
+
+---
+
+## Project Structure
+
+```text
+src/dqx/           # Main source code
+├── api.py         # User-facing API (VerificationSuite, MetricProvider, Context)
+├── validator.py   # Validation logic and suite execution
+├── analyzer.py    # SQL analysis engine
+├── dialect.py     # SQL dialect implementations (DuckDB, BigQuery, Snowflake)
+├── provider.py    # Metric provider implementation
+├── common.py      # Shared types and protocols
+├── display.py     # Result visualization with Rich
+├── graph/         # Graph processing for dependency analysis
+├── dql/           # Data Quality Language parser
+└── orm/           # Object-relational mapping for metrics
+
+tests/             # Test suite (110+ files)
+├── dql/           # DQL tests
+├── e2e/           # End-to-end tests
+├── graph/         # Graph processing tests
+└── fixtures/      # Shared fixtures
+
+docs/              # MkDocs documentation
+bin/               # Development scripts
+```
+
+---
+
 ## Version Management
 
 - Tool: Commitizen with conventional commits
@@ -356,10 +914,20 @@ perf(analyzer): optimize SQL generation
 - Current version: 0.5.11
 - Automated via GitHub Actions release workflow
 
+---
+
 ## Additional Notes
 
-- Coverage target: 100% (green), 95% minimum (orange)
+- Coverage target: 100% (no exceptions)
 - Pre-commit hooks run format → lint → type check
-- Use `SKIP=mypy` to skip type checking in pre-commit for faster iteration
+- Use `SKIP=mypy` only for local exploration; do not skip mypy for commits or PRs
 - Documentation uses Google-style docstrings
 - SQL backends supported: DuckDB (primary), BigQuery, Snowflake
+
+---
+
+## Quick Reference
+
+For a quick lookup of common commands and standards, see [docs/quick_reference.md](docs/quick_reference.md).
+
+For a complete end-to-end workflow example, see [docs/workflow_example.md](docs/workflow_example.md).
