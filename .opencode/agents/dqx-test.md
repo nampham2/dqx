@@ -123,9 +123,9 @@ Review the test failure and fix the implementation or test.
 
 ## Important Notes
 
-- You can ONLY run pytest and coverage commands
-- You CANNOT write or edit files
-- Your role is to identify issues and suggest solutions
+- You can run pytest, coverage commands, and edit test files when needed
+- You have write/edit permissions to implement test solutions
+- Your role is to identify coverage gaps and implement test fixes
 - Always verify 100% coverage before declaring success
 - Reference AGENTS.md for all testing standards
 - Test file structure: 127 test files organized by module
