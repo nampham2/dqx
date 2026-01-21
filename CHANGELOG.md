@@ -1,15 +1,29 @@
-## Unreleased
+## v0.5.15 (2026-01-21)
 
 ### Features
 
-- **DQL**: Tolerance modifier now works with all comparison operators (`>`, `>=`, `<`, `<=`, `!=`, `between`), not just `==`
-- **Functions**: Add `pct()` helper function for percentage notation (e.g., `pct(5)` → `0.05`)
-- **DQL**: Restrict tunables to numeric literals only (no arithmetic, no percentages in tunables)
+- **dql**: Add tolerance modifier support for all comparison operators (`>`, `>=`, `<`, `<=`, `!=`, `between`) (#66)
+- **functions**: Add `pct()` helper for percentage notation (e.g., `pct(5)` → `0.05`)
+- **dql**: Restrict tunables to numeric literals only (simplifies DQL parsing)
+- **api**: Log tunable values during evaluation phase for visibility (#64)
+
+### Fixes
+
+- **api**: Make TunableChoice logging robust to non-string choices
+
+### Tests
+
+- **coverage**: Achieve 100% test coverage (5,118/5,118 statements, 1,737 tests) (#68)
 
 ### Documentation
 
-- Update DQL language documentation with tunable restrictions
-- Add comprehensive design documents for all three features
+- Fix linting issues across documentation (MD036, MD040, MD034 violations)
+- Clarify 100% coverage requirement and SKIP=mypy usage in development workflow
+- Improve documentation structure and consistency
+
+### Chore
+
+- **opencode**: Add OpenCode configuration and documentation
 
 ## v0.5.14 (2026-01-19)
 
