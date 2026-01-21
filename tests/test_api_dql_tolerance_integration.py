@@ -176,7 +176,7 @@ class TestDQLToleranceIntegration:
         assert suite._name == "Comprehensive Tolerance Suite"
         assert len(suite._checks) == 1
 
-    def test_tolerance_without_coverage_operators(self, tmp_path: Path) -> None:
+    def test_operators_without_tolerance_backward_compatibility(self, tmp_path: Path) -> None:
         """Test operators without tolerance to ensure backward compatibility."""
         db = InMemoryMetricDB()
 
