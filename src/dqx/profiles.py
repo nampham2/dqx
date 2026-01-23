@@ -117,7 +117,7 @@ class SeasonalProfile:
         return self.start_date <= target_date <= self.end_date
 
 
-@dataclass(frozen=True)
+@dataclass
 class PermanentProfile:
     """Profile that is always active (no date-based activation).
 
