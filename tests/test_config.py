@@ -1285,6 +1285,322 @@ profiles:
         with pytest.raises(DQXError, match="'rules' must be a list"):
             load_profiles_from_config(config)
 
+    def test_load_permanent_profile_basic(self, tmp_path: Path) -> None:
+        """Load a basic permanent profile."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Production Baseline"
+    type: "permanent"
+    rules:
+      - action: "disable"
+        target: "check"
+        name: "Dev Check"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+        from dqx.profiles import PermanentProfile
+
+        config = load_config(config_file)
+        profiles = load_profiles_from_config(config)
+
+        assert len(profiles) == 1
+        assert isinstance(profiles[0], PermanentProfile)
+        assert profiles[0].name == "Production Baseline"
+        assert len(profiles[0].rules) == 1
+        assert profiles[0].rules[0].disabled is True
+
+    def test_load_permanent_profile_with_multiple_rules(self, tmp_path: Path) -> None:
+        """Load permanent profile with multiple rules."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Baseline"
+    type: "permanent"
+    rules:
+      - action: "disable"
+        target: "check"
+        name: "Check1"
+      - action: "scale"
+        target: "tag"
+        name: "volume"
+        multiplier: 0.9
+      - action: "set_severity"
+        target: "tag"
+        name: "critical"
+        severity: "P0"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        profiles = load_profiles_from_config(config)
+
+        assert len(profiles) == 1
+        assert len(profiles[0].rules) == 3
+
+    def test_load_permanent_profile_with_tag_rules(self, tmp_path: Path) -> None:
+        """Load permanent profile with tag selector rules."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Tag Profile"
+    type: "permanent"
+    rules:
+      - action: "scale"
+        target: "tag"
+        name: "test_tag"
+        multiplier: 1.5
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        profiles = load_profiles_from_config(config)
+
+        assert len(profiles) == 1
+        assert profiles[0].rules[0].metric_multiplier == 1.5
+
+    def test_load_permanent_profile_with_check_rules(self, tmp_path: Path) -> None:
+        """Load permanent profile with check selector rules."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Check Profile"
+    type: "permanent"
+    rules:
+      - action: "disable"
+        target: "check"
+        name: "TestCheck"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+        from dqx.profiles import AssertionSelector
+
+        config = load_config(config_file)
+        profiles = load_profiles_from_config(config)
+
+        assert len(profiles) == 1
+        assert isinstance(profiles[0].rules[0].selector, AssertionSelector)
+        assert profiles[0].rules[0].selector.check == "TestCheck"
+
+    def test_load_permanent_profile_with_assertion_rules(self, tmp_path: Path) -> None:
+        """Load permanent profile with assertion selector rules."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Assertion Profile"
+    type: "permanent"
+    rules:
+      - action: "disable"
+        target: "check"
+        name: "MyCheck"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+        from dqx.profiles import AssertionSelector
+
+        config = load_config(config_file)
+        profiles = load_profiles_from_config(config)
+
+        assert len(profiles) == 1
+        assert isinstance(profiles[0].rules[0].selector, AssertionSelector)
+        assert profiles[0].rules[0].selector.check == "MyCheck"
+        assert profiles[0].rules[0].selector.assertion is None
+
+    def test_load_mixed_seasonal_and_permanent_profiles(self, tmp_path: Path) -> None:
+        """Load config with both seasonal and permanent profiles."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Permanent Baseline"
+    type: "permanent"
+    rules:
+      - action: "disable"
+        target: "check"
+        name: "DevCheck"
+
+  - name: "Holiday Season"
+    type: "seasonal"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules:
+      - action: "scale"
+        target: "tag"
+        name: "volume"
+        multiplier: 2.0
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+        from dqx.profiles import PermanentProfile, SeasonalProfile
+
+        config = load_config(config_file)
+        profiles = load_profiles_from_config(config)
+
+        assert len(profiles) == 2
+        assert isinstance(profiles[0], PermanentProfile)
+        assert isinstance(profiles[1], SeasonalProfile)
+
+    def test_permanent_profile_missing_name(self, tmp_path: Path) -> None:
+        """Permanent profile without name should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - type: "permanent"
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'name' is required"):
+            load_profiles_from_config(config)
+
+    def test_permanent_profile_missing_rules(self, tmp_path: Path) -> None:
+        """Permanent profile without rules should default to empty list."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "permanent"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        profiles = load_profiles_from_config(config)
+
+        assert len(profiles) == 1
+        assert profiles[0].rules == []
+
+    def test_permanent_profile_with_start_date_error(self, tmp_path: Path) -> None:
+        """Permanent profile with start_date should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "permanent"
+    start_date: "2024-12-20"
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'start_date' not allowed for permanent profiles"):
+            load_profiles_from_config(config)
+
+    def test_permanent_profile_with_end_date_error(self, tmp_path: Path) -> None:
+        """Permanent profile with end_date should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "permanent"
+    end_date: "2025-01-05"
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'end_date' not allowed for permanent profiles"):
+            load_profiles_from_config(config)
+
+    def test_permanent_profile_invalid_rules(self, tmp_path: Path) -> None:
+        """Permanent profile with invalid rules should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "permanent"
+    rules:
+      - action: "invalid_action"
+        target: "check"
+        name: "Test"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="invalid action 'invalid_action'"):
+            load_profiles_from_config(config)
+
+    def test_default_type_is_seasonal(self, tmp_path: Path) -> None:
+        """Profile without type should default to seasonal."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    start_date: "2024-12-20"
+    end_date: "2025-01-05"
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+        from dqx.profiles import SeasonalProfile
+
+        config = load_config(config_file)
+        profiles = load_profiles_from_config(config)
+
+        assert len(profiles) == 1
+        assert isinstance(profiles[0], SeasonalProfile)
+
+    def test_unknown_profile_type_error(self, tmp_path: Path) -> None:
+        """Profile with unknown type should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test"
+    type: "temporary"
+    rules: []
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="unknown type 'temporary'"):
+            load_profiles_from_config(config)
+
 
 class TestSuiteWithProfilesFromConfig:
     """Tests for VerificationSuite with profiles loaded from config."""
