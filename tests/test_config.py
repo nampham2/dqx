@@ -1559,6 +1559,25 @@ profiles:
         with pytest.raises(DQXError, match="invalid action 'invalid_action'"):
             load_profiles_from_config(config)
 
+    def test_permanent_profile_rules_not_list(self, tmp_path: Path) -> None:
+        """Permanent profile with rules that's not a list should raise DQXError."""
+        config_file = tmp_path / "config.yaml"
+        config_file.write_text(
+            """
+tunables: {}
+profiles:
+  - name: "Test Permanent"
+    type: "permanent"
+    rules: "not a list"
+"""
+        )
+
+        from dqx.config import load_config, load_profiles_from_config
+
+        config = load_config(config_file)
+        with pytest.raises(DQXError, match="'rules' must be a list"):
+            load_profiles_from_config(config)
+
     def test_default_type_is_seasonal(self, tmp_path: Path) -> None:
         """Profile without type should default to seasonal."""
         config_file = tmp_path / "config.yaml"
