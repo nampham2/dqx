@@ -106,6 +106,79 @@ class TestSeasonalProfile:
         assert profile.rules == rules
 
 
+class TestPermanentProfile:
+    """Tests for PermanentProfile."""
+
+    def test_creation_with_valid_name_and_rules(self) -> None:
+        """Test creating PermanentProfile with name and rules."""
+        from dqx.profiles import PermanentProfile
+
+        rules = [
+            Rule(selector=TagSelector(tag="xmas"), metric_multiplier=2.0),
+            Rule(selector=AssertionSelector(check="Check"), disabled=True),
+        ]
+        profile = PermanentProfile(name="Production Baseline", rules=rules)
+        assert profile.name == "Production Baseline"
+        assert profile.rules == rules
+
+    def test_creation_with_empty_rules(self) -> None:
+        """Test creating PermanentProfile with empty rules list."""
+        from dqx.profiles import PermanentProfile
+
+        profile = PermanentProfile(name="Test Profile", rules=[])
+        assert profile.name == "Test Profile"
+        assert profile.rules == []
+
+    def test_is_active_always_returns_true(self) -> None:
+        """Test that is_active always returns True."""
+        from dqx.profiles import PermanentProfile
+
+        profile = PermanentProfile(
+            name="Test Profile",
+            rules=[Rule(selector=TagSelector(tag="test"))],
+        )
+        assert profile.is_active(date(2024, 1, 1))
+        assert profile.is_active(date(2024, 12, 25))
+        assert profile.is_active(date(2025, 6, 15))
+
+    def test_is_active_ignores_target_date(self) -> None:
+        """Test that is_active returns True for any date."""
+        from dqx.profiles import PermanentProfile
+
+        profile = PermanentProfile(name="Test Profile")
+        # Test various dates - past, present, future
+        assert profile.is_active(date(2000, 1, 1))
+        assert profile.is_active(date(2024, 12, 25))
+        assert profile.is_active(date(2099, 12, 31))
+
+    def test_protocol_compliance(self) -> None:
+        """Test that PermanentProfile satisfies Profile protocol."""
+        from dqx.profiles import PermanentProfile
+
+        profile = PermanentProfile(name="Test Profile")
+        assert isinstance(profile, Profile)
+        assert hasattr(profile, "name")
+        assert hasattr(profile, "is_active")
+        assert hasattr(profile, "rules")
+
+    def test_immutability(self) -> None:
+        """Test that PermanentProfile is immutable (frozen dataclass)."""
+        from dqx.profiles import PermanentProfile
+
+        profile = PermanentProfile(name="Test Profile")
+        with pytest.raises(AttributeError):
+            profile.name = "Changed Name"  # type: ignore
+
+    def test_rules_property(self) -> None:
+        """Test rules property access."""
+        from dqx.profiles import PermanentProfile
+
+        rules = [Rule(selector=TagSelector(tag="test"), metric_multiplier=1.5)]
+        profile = PermanentProfile(name="Test Profile", rules=rules)
+        assert profile.rules == rules
+        assert len(profile.rules) == 1
+
+
 class TestRuleBuilder:
     """Tests for RuleBuilder and builder functions."""
 
