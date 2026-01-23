@@ -1396,8 +1396,8 @@ profiles:
         assert isinstance(profiles[0].rules[0].selector, AssertionSelector)
         assert profiles[0].rules[0].selector.check == "TestCheck"
 
-    def test_load_permanent_profile_with_assertion_rules(self, tmp_path: Path) -> None:
-        """Load permanent profile with assertion selector rules."""
+    def test_load_permanent_profile_with_check_selector_alternative(self, tmp_path: Path) -> None:
+        """Load permanent profile with check-level selector (alternative test)."""
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
             """
