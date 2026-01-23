@@ -106,6 +106,80 @@ class TestSeasonalProfile:
         assert profile.rules == rules
 
 
+class TestPermanentProfile:
+    """Tests for PermanentProfile."""
+
+    def test_creation_with_valid_name_and_rules(self) -> None:
+        """Test creating PermanentProfile with name and rules."""
+        from dqx.profiles import PermanentProfile
+
+        rules = [
+            Rule(selector=TagSelector(tag="xmas"), metric_multiplier=2.0),
+            Rule(selector=AssertionSelector(check="Check"), disabled=True),
+        ]
+        profile = PermanentProfile(name="Production Baseline", rules=rules)
+        assert profile.name == "Production Baseline"
+        assert profile.rules == rules
+
+    def test_creation_with_empty_rules(self) -> None:
+        """Test creating PermanentProfile with empty rules list."""
+        from dqx.profiles import PermanentProfile
+
+        profile = PermanentProfile(name="Test Profile", rules=[])
+        assert profile.name == "Test Profile"
+        assert profile.rules == []
+
+    def test_is_active_always_returns_true(self) -> None:
+        """Test that is_active always returns True."""
+        from dqx.profiles import PermanentProfile
+
+        profile = PermanentProfile(
+            name="Test Profile",
+            rules=[Rule(selector=TagSelector(tag="test"))],
+        )
+        assert profile.is_active(date(2024, 1, 1))
+        assert profile.is_active(date(2024, 12, 25))
+        assert profile.is_active(date(2025, 6, 15))
+
+    def test_is_active_ignores_target_date(self) -> None:
+        """Test that is_active returns True for any date."""
+        from dqx.profiles import PermanentProfile
+
+        profile = PermanentProfile(name="Test Profile")
+        # Test various dates - past, present, future
+        assert profile.is_active(date(2000, 1, 1))
+        assert profile.is_active(date(2024, 12, 25))
+        assert profile.is_active(date(2099, 12, 31))
+
+    def test_protocol_compliance(self) -> None:
+        """Test that PermanentProfile satisfies Profile protocol."""
+        from dqx.profiles import PermanentProfile
+
+        profile = PermanentProfile(name="Test Profile")
+        assert isinstance(profile, Profile)
+        assert hasattr(profile, "name")
+        assert hasattr(profile, "is_active")
+        assert hasattr(profile, "rules")
+
+    def test_immutability(self) -> None:
+        """Test that PermanentProfile dataclass can be modified (not frozen)."""
+        from dqx.profiles import PermanentProfile
+
+        profile = PermanentProfile(name="Test Profile")
+        # PermanentProfile is not frozen (matches SeasonalProfile)
+        profile.name = "Changed Name"
+        assert profile.name == "Changed Name"
+
+    def test_rules_property(self) -> None:
+        """Test rules property access."""
+        from dqx.profiles import PermanentProfile
+
+        rules = [Rule(selector=TagSelector(tag="test"), metric_multiplier=1.5)]
+        profile = PermanentProfile(name="Test Profile", rules=rules)
+        assert profile.rules == rules
+        assert len(profile.rules) == 1
+
+
 class TestRuleBuilder:
     """Tests for RuleBuilder and builder functions."""
 
@@ -693,5 +767,285 @@ class TestEvaluatorWithProfiles:
         assertion_node = AssertionNode(check_node, actual=x, name="Orders", validator=validator, severity="P1")
 
         await evaluator.visit_async(assertion_node)
+
+        assert assertion_node._result == "SKIPPED"
+
+    def test_evaluator_with_permanent_profile_metric_multiplier(self) -> None:
+        """Test evaluator applies metric_multiplier from permanent profile."""
+        from dqx.profiles import PermanentProfile
+
+        x = sp.Symbol("x")
+        profile = PermanentProfile(
+            name="Production Baseline",
+            rules=[tag("volume").set(metric_multiplier=0.9)],
+        )
+
+        evaluator, _ = self._create_evaluator_with_metric(
+            symbol=x,
+            metric_name="count(orders)",
+            metric_value=100.0,  # 100 * 0.9 = 90 > 50 = PASSED
+            target_date=date(2024, 12, 25),
+            profiles=[profile],
+        )
+
+        root = RootNode("test")
+        check_node = CheckNode(root, "Volume Check")
+        validator = SymbolicValidator("> 50", lambda v: v > 50)
+        assertion_node = AssertionNode(
+            check_node,
+            actual=x,
+            name="Orders above 50",
+            validator=validator,
+            severity="P1",
+            tags=frozenset({"volume"}),
+        )
+
+        evaluator.visit(assertion_node)
+
+        # 100 * 0.9 = 90 > 50 = PASSED
+        assert assertion_node._result == "PASSED"
+
+    def test_evaluator_with_permanent_profile_disabled(self) -> None:
+        """Test evaluator skips assertions disabled by permanent profile."""
+        from dqx.profiles import PermanentProfile
+
+        x = sp.Symbol("x")
+        profile = PermanentProfile(
+            name="Production Baseline",
+            rules=[check("Dev Check").disable()],
+        )
+
+        evaluator, _ = self._create_evaluator_with_metric(
+            symbol=x,
+            metric_name="count(orders)",
+            metric_value=60.0,
+            target_date=date(2024, 12, 25),
+            profiles=[profile],
+        )
+
+        root = RootNode("test")
+        check_node = CheckNode(root, "Dev Check")
+        validator = SymbolicValidator("> 50", lambda v: v > 50)
+        assertion_node = AssertionNode(check_node, actual=x, name="Orders", validator=validator, severity="P1")
+
+        evaluator.visit(assertion_node)
+
+        assert assertion_node._result == "SKIPPED"
+
+    def test_evaluator_with_permanent_profile_severity_override(self) -> None:
+        """Test evaluator resolves severity override from permanent profile."""
+        from dqx.profiles import PermanentProfile
+
+        x = sp.Symbol("x")
+        profile = PermanentProfile(
+            name="Production Baseline",
+            rules=[tag("critical").set(severity="P0")],
+        )
+
+        evaluator, _ = self._create_evaluator_with_metric(
+            symbol=x,
+            metric_name="count(orders)",
+            metric_value=60.0,
+            target_date=date(2024, 12, 25),
+            profiles=[profile],
+        )
+
+        root = RootNode("test")
+        check_node = CheckNode(root, "Check")
+        validator = SymbolicValidator("> 50", lambda v: v > 50)
+        assertion_node = AssertionNode(
+            check_node,
+            actual=x,
+            name="Orders",
+            validator=validator,
+            severity="P1",
+            tags=frozenset({"critical"}),
+        )
+
+        evaluator.visit(assertion_node)
+
+        # Test that evaluation completes successfully with severity override
+        assert assertion_node._result == "PASSED"
+
+    def test_permanent_and_seasonal_profiles_compound(self) -> None:
+        """Test permanent and seasonal profiles compound their multipliers."""
+        from dqx.profiles import PermanentProfile
+
+        x = sp.Symbol("x")
+        permanent = PermanentProfile(
+            name="Baseline",
+            rules=[tag("volume").set(metric_multiplier=0.9)],
+        )
+        seasonal = SeasonalProfile(
+            name="Holiday",
+            start_date=date(2024, 12, 20),
+            end_date=date(2025, 1, 5),
+            rules=[tag("volume").set(metric_multiplier=2.0)],
+        )
+
+        evaluator, _ = self._create_evaluator_with_metric(
+            symbol=x,
+            metric_name="count(orders)",
+            metric_value=60.0,  # 60 * 0.9 * 2.0 = 108 > 100 = PASSED
+            target_date=date(2024, 12, 25),
+            profiles=[permanent, seasonal],
+        )
+
+        root = RootNode("test")
+        check_node = CheckNode(root, "Volume Check")
+        validator = SymbolicValidator("> 100", lambda v: v > 100)
+        assertion_node = AssertionNode(
+            check_node,
+            actual=x,
+            name="Orders above 100",
+            validator=validator,
+            severity="P1",
+            tags=frozenset({"volume"}),
+        )
+
+        evaluator.visit(assertion_node)
+
+        # 60 * 0.9 * 2.0 = 108 > 100 = PASSED
+        assert assertion_node._result == "PASSED"
+
+    def test_permanent_and_seasonal_seasonal_inactive(self) -> None:
+        """Test permanent profile applies when seasonal is inactive."""
+        from dqx.profiles import PermanentProfile
+
+        x = sp.Symbol("x")
+        permanent = PermanentProfile(
+            name="Baseline",
+            rules=[tag("volume").set(metric_multiplier=2.0)],
+        )
+        seasonal = SeasonalProfile(
+            name="Holiday",
+            start_date=date(2024, 12, 20),
+            end_date=date(2025, 1, 5),
+            rules=[tag("volume").set(metric_multiplier=3.0)],
+        )
+
+        # Date outside seasonal profile range
+        evaluator, _ = self._create_evaluator_with_metric(
+            symbol=x,
+            metric_name="count(orders)",
+            metric_value=60.0,  # 60 * 2.0 = 120 > 100 (only permanent applies)
+            target_date=date(2024, 11, 1),  # Before holiday season
+            profiles=[permanent, seasonal],
+        )
+
+        root = RootNode("test")
+        check_node = CheckNode(root, "Volume Check")
+        validator = SymbolicValidator("> 100", lambda v: v > 100)
+        assertion_node = AssertionNode(
+            check_node,
+            actual=x,
+            name="Orders above 100",
+            validator=validator,
+            severity="P1",
+            tags=frozenset({"volume"}),
+        )
+
+        evaluator.visit(assertion_node)
+
+        # 60 * 2.0 = 120 > 100 = PASSED (only permanent applies)
+        assert assertion_node._result == "PASSED"
+
+    def test_multiple_permanent_profiles_compound(self) -> None:
+        """Test multiple permanent profiles compound their multipliers."""
+        from dqx.profiles import PermanentProfile
+
+        x = sp.Symbol("x")
+        profile1 = PermanentProfile(
+            name="Baseline 1",
+            rules=[tag("volume").set(metric_multiplier=1.5)],
+        )
+        profile2 = PermanentProfile(
+            name="Baseline 2",
+            rules=[tag("volume").set(metric_multiplier=2.0)],
+        )
+
+        evaluator, _ = self._create_evaluator_with_metric(
+            symbol=x,
+            metric_name="count(orders)",
+            metric_value=40.0,  # 40 * 1.5 * 2.0 = 120 > 100
+            target_date=date(2024, 12, 25),
+            profiles=[profile1, profile2],
+        )
+
+        root = RootNode("test")
+        check_node = CheckNode(root, "Volume Check")
+        validator = SymbolicValidator("> 100", lambda v: v > 100)
+        assertion_node = AssertionNode(
+            check_node,
+            actual=x,
+            name="Orders above 100",
+            validator=validator,
+            severity="P1",
+            tags=frozenset({"volume"}),
+        )
+
+        evaluator.visit(assertion_node)
+
+        # 40 * 1.5 * 2.0 = 120 > 100 = PASSED
+        assert assertion_node._result == "PASSED"
+
+    def test_permanent_profile_with_tag_selector(self) -> None:
+        """Test permanent profile with tag selector."""
+        from dqx.profiles import PermanentProfile
+
+        x = sp.Symbol("x")
+        profile = PermanentProfile(
+            name="Tag Profile",
+            rules=[tag("test_tag").set(metric_multiplier=2.0)],
+        )
+
+        evaluator, _ = self._create_evaluator_with_metric(
+            symbol=x,
+            metric_name="count(orders)",
+            metric_value=60.0,  # 60 * 2.0 = 120 > 100
+            target_date=date(2024, 12, 25),
+            profiles=[profile],
+        )
+
+        root = RootNode("test")
+        check_node = CheckNode(root, "Check")
+        validator = SymbolicValidator("> 100", lambda v: v > 100)
+        assertion_node = AssertionNode(
+            check_node,
+            actual=x,
+            name="Orders",
+            validator=validator,
+            severity="P1",
+            tags=frozenset({"test_tag"}),
+        )
+
+        evaluator.visit(assertion_node)
+
+        assert assertion_node._result == "PASSED"
+
+    def test_permanent_profile_with_check_selector(self) -> None:
+        """Test permanent profile with check selector."""
+        from dqx.profiles import PermanentProfile
+
+        x = sp.Symbol("x")
+        profile = PermanentProfile(
+            name="Check Profile",
+            rules=[check("Specific Check").disable()],
+        )
+
+        evaluator, _ = self._create_evaluator_with_metric(
+            symbol=x,
+            metric_name="count(orders)",
+            metric_value=60.0,
+            target_date=date(2024, 12, 25),
+            profiles=[profile],
+        )
+
+        root = RootNode("test")
+        check_node = CheckNode(root, "Specific Check")
+        validator = SymbolicValidator("> 50", lambda v: v > 50)
+        assertion_node = AssertionNode(check_node, actual=x, name="Orders", validator=validator, severity="P1")
+
+        evaluator.visit(assertion_node)
 
         assert assertion_node._result == "SKIPPED"

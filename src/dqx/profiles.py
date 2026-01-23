@@ -117,6 +117,59 @@ class SeasonalProfile:
         return self.start_date <= target_date <= self.end_date
 
 
+@dataclass
+class PermanentProfile:
+    """Profile that is always active (no date-based activation).
+
+    Useful for account-specific or environment-specific baseline configurations
+    that don't change seasonally.
+
+    Example:
+        Python API:
+            from dqx.profiles import PermanentProfile, check, tag
+
+            baseline = PermanentProfile(
+                name="Production Baseline",
+                rules=[
+                    check("Dev Only Check").disable(),
+                    tag("critical").set(severity="P0"),
+                ],
+            )
+
+        YAML Config:
+            profiles:
+              - name: "Production Baseline"
+                type: "permanent"
+                rules:
+                  - action: "disable"
+                    target: "check"
+                    name: "Dev Only Check"
+
+        Use Cases:
+            - Account-specific baseline configurations
+            - Environment-specific overrides (dev/staging/prod)
+            - Permanently disabled legacy checks
+
+    Attributes:
+        name: Descriptive name for the profile.
+        rules: List of rules to apply when profile is active.
+    """
+
+    name: str
+    rules: list[Rule] = field(default_factory=list)
+
+    def is_active(self, target_date: date) -> bool:
+        """Return True (always active).
+
+        Args:
+            target_date: Date to check activation (ignored for permanent profiles).
+
+        Returns:
+            Always True.
+        """
+        return True
+
+
 class RuleBuilder:
     """Constructs rules with a fluent interface.
 

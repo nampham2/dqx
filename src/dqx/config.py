@@ -282,26 +282,55 @@ def load_profiles_from_config(config: dict[str, Any]) -> list[Any]:
     """Load profiles from YAML config dictionary.
 
     Parses the 'profiles' section of the config and creates SeasonalProfile
-    objects with Rule instances. Validates all required fields and data types.
+    or PermanentProfile objects with Rule instances. Validates all required
+    fields and data types.
 
     Args:
         config: Parsed YAML config dictionary (from load_config).
 
     Returns:
-        List of SeasonalProfile objects (empty if no profiles defined).
+        List of Profile objects (SeasonalProfile or PermanentProfile).
+        Returns empty list if no profiles defined.
 
     Raises:
         DQXError: If profile configuration is invalid (missing fields,
                  bad dates, invalid rule actions, duplicate names, etc.).
 
     Example:
-        >>> config = load_config(Path("config.yaml"))
-        >>> profiles = load_profiles_from_config(config)
-        >>> print(f"Loaded {len(profiles)} profile(s)")
+        YAML Configuration:
+            profiles:
+              # Permanent profile - always active
+              - name: "Production Baseline"
+                type: "permanent"
+                rules:
+                  - action: "disable"
+                    target: "check"
+                    name: "Dev Only Check"
+                  - action: "set_severity"
+                    target: "tag"
+                    name: "critical"
+                    severity: "P0"
+
+              # Seasonal profile - date-based activation
+              - name: "Holiday Season 2024"
+                type: "seasonal"
+                start_date: "2024-12-20"
+                end_date: "2025-01-05"
+                rules:
+                  - action: "scale"
+                    target: "tag"
+                    name: "volume"
+                    multiplier: 2.0
+
+        Python Usage:
+            >>> config = load_config(Path("config.yaml"))
+            >>> profiles = load_profiles_from_config(config)
+            >>> print(f"Loaded {len(profiles)} profile(s)")
+            Loaded 2 profile(s)
     """
     from datetime import date as dt_date
 
-    from dqx.profiles import SeasonalProfile
+    from dqx.profiles import PermanentProfile, SeasonalProfile
 
     # Get profiles section (may be None or missing)
     profiles_data = config.get("profiles")
@@ -336,61 +365,90 @@ def load_profiles_from_config(config: dict[str, Any]) -> list[Any]:
 
             # Validate type (optional, defaults to "seasonal")
             profile_type = profile_dict.get("type", "seasonal")
-            if profile_type != "seasonal":
-                raise DQXError(f"Profile '{name}': unknown type '{profile_type}' (only 'seasonal' supported)")
 
-            # Parse dates
-            start_date_str = profile_dict.get("start_date")
-            if not start_date_str:
-                raise DQXError(f"Profile '{name}': 'start_date' is required")
-            if not isinstance(start_date_str, str):
-                raise DQXError(f"Profile '{name}': 'start_date' must be a string in ISO 8601 format (YYYY-MM-DD)")
+            profile: Any  # Union of SeasonalProfile | PermanentProfile
 
-            end_date_str = profile_dict.get("end_date")
-            if not end_date_str:
-                raise DQXError(f"Profile '{name}': 'end_date' is required")
-            if not isinstance(end_date_str, str):
-                raise DQXError(f"Profile '{name}': 'end_date' must be a string in ISO 8601 format (YYYY-MM-DD)")
+            if profile_type == "seasonal":
+                # Parse dates
+                start_date_str = profile_dict.get("start_date")
+                if not start_date_str:
+                    raise DQXError(f"Profile '{name}': 'start_date' is required")
+                if not isinstance(start_date_str, str):
+                    raise DQXError(f"Profile '{name}': 'start_date' must be a string in ISO 8601 format (YYYY-MM-DD)")
 
-            try:
-                start_date = dt_date.fromisoformat(start_date_str)
-            except ValueError as e:
-                raise DQXError(
-                    f"Profile '{name}': invalid 'start_date' format '{start_date_str}'. "
-                    f"Use ISO 8601 format (YYYY-MM-DD). Error: {e}"
-                ) from e
+                end_date_str = profile_dict.get("end_date")
+                if not end_date_str:
+                    raise DQXError(f"Profile '{name}': 'end_date' is required")
+                if not isinstance(end_date_str, str):
+                    raise DQXError(f"Profile '{name}': 'end_date' must be a string in ISO 8601 format (YYYY-MM-DD)")
 
-            try:
-                end_date = dt_date.fromisoformat(end_date_str)
-            except ValueError as e:
-                raise DQXError(
-                    f"Profile '{name}': invalid 'end_date' format '{end_date_str}'. "
-                    f"Use ISO 8601 format (YYYY-MM-DD). Error: {e}"
-                ) from e
+                try:
+                    start_date = dt_date.fromisoformat(start_date_str)
+                except ValueError as e:
+                    raise DQXError(
+                        f"Profile '{name}': invalid 'start_date' format '{start_date_str}'. "
+                        f"Use ISO 8601 format (YYYY-MM-DD). Error: {e}"
+                    ) from e
 
-            # Validate date range
-            if end_date < start_date:
-                raise DQXError(f"Profile '{name}': 'end_date' ({end_date}) must be >= 'start_date' ({start_date})")
+                try:
+                    end_date = dt_date.fromisoformat(end_date_str)
+                except ValueError as e:
+                    raise DQXError(
+                        f"Profile '{name}': invalid 'end_date' format '{end_date_str}'. "
+                        f"Use ISO 8601 format (YYYY-MM-DD). Error: {e}"
+                    ) from e
 
-            # Parse rules
-            rules_data = profile_dict.get("rules", [])
-            if not isinstance(rules_data, list):
-                raise DQXError(f"Profile '{name}': 'rules' must be a list")
+                # Validate date range
+                if end_date < start_date:
+                    raise DQXError(f"Profile '{name}': 'end_date' ({end_date}) must be >= 'start_date' ({start_date})")
 
-            rules = _parse_rules(name, rules_data)
+                # Parse rules
+                rules_data = profile_dict.get("rules", [])
+                if not isinstance(rules_data, list):
+                    raise DQXError(f"Profile '{name}': 'rules' must be a list")
 
-            # Validate no unknown fields at profile level
-            valid_fields = {"name", "type", "start_date", "end_date", "rules"}
-            _validate_no_unknown_fields(profile_dict, valid_fields, f"Profile '{name}'")
+                rules = _parse_rules(name, rules_data)
 
-            # Create SeasonalProfile
-            profile = SeasonalProfile(
-                name=name,
-                start_date=start_date,
-                end_date=end_date,
-                rules=rules,
-            )
-            profiles.append(profile)
+                # Validate no unknown fields at profile level
+                valid_fields = {"name", "type", "start_date", "end_date", "rules"}
+                _validate_no_unknown_fields(profile_dict, valid_fields, f"Profile '{name}'")
+
+                # Create SeasonalProfile
+                profile = SeasonalProfile(
+                    name=name,
+                    start_date=start_date,
+                    end_date=end_date,
+                    rules=rules,
+                )
+                profiles.append(profile)
+
+            elif profile_type == "permanent":
+                # Validate no date fields present
+                if "start_date" in profile_dict:
+                    raise DQXError(f"Profile '{name}': 'start_date' not allowed for permanent profiles")
+                if "end_date" in profile_dict:
+                    raise DQXError(f"Profile '{name}': 'end_date' not allowed for permanent profiles")
+
+                # Parse rules
+                rules_data = profile_dict.get("rules", [])
+                if not isinstance(rules_data, list):
+                    raise DQXError(f"Profile '{name}': 'rules' must be a list")
+
+                rules = _parse_rules(name, rules_data)
+
+                # Validate no unknown fields at profile level
+                valid_fields = {"name", "type", "rules"}
+                _validate_no_unknown_fields(profile_dict, valid_fields, f"Profile '{name}'")
+
+                # Create PermanentProfile
+                profile = PermanentProfile(
+                    name=name,
+                    rules=rules,
+                )
+                profiles.append(profile)
+
+            else:
+                raise DQXError(f"Profile '{name}': unknown type '{profile_type}' (must be 'seasonal' or 'permanent')")
 
         except DQXError:
             raise  # Re-raise DQXError as-is
