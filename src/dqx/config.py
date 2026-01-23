@@ -297,9 +297,36 @@ def load_profiles_from_config(config: dict[str, Any]) -> list[Any]:
                  bad dates, invalid rule actions, duplicate names, etc.).
 
     Example:
-        >>> config = load_config(Path("config.yaml"))
-        >>> profiles = load_profiles_from_config(config)
-        >>> print(f"Loaded {len(profiles)} profile(s)")
+        YAML Configuration:
+            profiles:
+              # Permanent profile - always active
+              - name: "Production Baseline"
+                type: "permanent"
+                rules:
+                  - action: "disable"
+                    target: "check"
+                    name: "Dev Only Check"
+                  - action: "set_severity"
+                    target: "tag"
+                    name: "critical"
+                    severity: "P0"
+
+              # Seasonal profile - date-based activation
+              - name: "Holiday Season 2024"
+                type: "seasonal"
+                start_date: "2024-12-20"
+                end_date: "2025-01-05"
+                rules:
+                  - action: "scale"
+                    target: "tag"
+                    name: "volume"
+                    multiplier: 2.0
+
+        Python Usage:
+            >>> config = load_config(Path("config.yaml"))
+            >>> profiles = load_profiles_from_config(config)
+            >>> print(f"Loaded {len(profiles)} profile(s)")
+            Loaded 2 profile(s)
     """
     from datetime import date as dt_date
 
