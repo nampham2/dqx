@@ -161,29 +161,64 @@ class PluginManager:
         return name in self._plugins
 
     @overload
-    def register_plugin(self, plugin: str) -> None:
-        """Register a plugin by its fully qualified class name."""
+    def register_plugin(self, plugin: str | PostProcessor) -> None:
+        """Register a single plugin."""
         ...
 
     @overload
-    def register_plugin(self, plugin: PostProcessor) -> None:
-        """Register a plugin by passing a PostProcessor instance directly."""
+    def register_plugin(self, plugin: str | PostProcessor, *plugins: str | PostProcessor) -> None:
+        """Register multiple plugins."""
         ...
 
-    def register_plugin(self, plugin: str | PostProcessor) -> None:
+    def register_plugin(self, plugin: str | PostProcessor, *plugins: str | PostProcessor) -> None:
         """
-        Register a plugin either by class name or PostProcessor instance.
+        Register one or more plugins by class name or PostProcessor instance.
+
+        Plugins can be mixed types. Registration proceeds sequentially and fails
+        fast on the first error without rolling back previously registered plugins.
 
         Args:
-            plugin: Either a fully qualified class name string or a PostProcessor instance
+            plugin: First plugin (required) - class name string or PostProcessor instance
+            *plugins: Additional plugins (optional), same types as plugin
 
         Raises:
-            ValueError: If the plugin is invalid or doesn't implement PostProcessor
+            ValueError: If any plugin is invalid. Previously registered plugins
+                remain registered (no rollback).
+
+        Examples:
+            >>> # Single plugin (backward compatible)
+            >>> manager.register_plugin("dqx.plugins.AuditPlugin")
+
+            >>> # Multiple plugins
+            >>> manager.register_plugin(
+            ...     "com.example.Plugin1",
+            ...     "com.example.Plugin2"
+            ... )
+
+            >>> # Mixed types
+            >>> manager.register_plugin("pkg.Plugin", custom_instance)
         """
-        if isinstance(plugin, str):
-            self._register_from_class(plugin)
-        else:
-            self._register_from_instance(plugin)
+        # Combine first plugin with optional additional plugins
+        all_plugins = (plugin,) + plugins
+
+        # Single plugin: preserve existing behavior exactly
+        if len(all_plugins) == 1:
+            p = all_plugins[0]
+            if isinstance(p, str):
+                self._register_from_class(p)
+            else:
+                self._register_from_instance(p)
+            return
+
+        # Multiple plugins: new behavior
+        for p in all_plugins:
+            if isinstance(p, str):
+                self._register_from_class(p)
+            else:
+                self._register_from_instance(p)
+
+        # Log summary for multi-plugin calls
+        logger.info(f"Successfully registered {len(all_plugins)} plugin(s)")
 
     def unregister_plugin(self, name: str) -> None:
         """

@@ -198,3 +198,123 @@ class TestPluginTypeChecking:
         # If we know the concrete type, we can cast
         typed_plugin = cast(TypedPlugin, retrieved)
         assert typed_plugin is plugin
+
+
+class TestMultiPluginTypeChecking:
+    """Tests for type checking of multi-plugin registration overloads."""
+
+    def test_overload_single_string(self) -> None:
+        """Test single string registration type checking."""
+        manager = PluginManager()
+
+        # Should accept single string
+        manager.register_plugin("dqx.plugins.AuditPlugin")
+
+        # Type checker should infer correct signature
+
+    def test_overload_single_instance(self) -> None:
+        """Test single instance registration type checking."""
+        manager = PluginManager()
+
+        # Should accept single instance
+        plugin = TypedPlugin()
+        manager.register_plugin(plugin)
+
+        # Type checker should infer correct signature
+
+    def test_overload_multiple_mixed(self) -> None:
+        """Test multiple mixed-type plugins type checking."""
+        manager = PluginManager()
+
+        # Should accept multiple plugins of mixed types
+        plugin = TypedPlugin()
+        manager.register_plugin("dqx.plugins.AuditPlugin", plugin, "dqx.plugins.AuditPlugin")
+
+        # Type checker should accept variadic args
+
+    def test_invalid_type_rejected(self) -> None:
+        """Test that invalid types are rejected by type checker."""
+        manager = PluginManager()
+
+        # These would fail type checking:
+        # manager.register_plugin(123)  # type: ignore[call-overload]
+        # manager.register_plugin([])   # type: ignore[call-overload]
+        # manager.register_plugin({})   # type: ignore[call-overload]
+
+        # Runtime validation also catches these
+        with pytest.raises((ValueError, AttributeError)):
+            manager.register_plugin(123)  # type: ignore[call-overload]
+
+    def test_list_argument_rejected(self) -> None:
+        """Test that passing a list directly is rejected by type checker."""
+        manager = PluginManager()
+
+        # This would fail type checking (list is not valid arg type):
+        # plugins_list = ["dqx.plugins.AuditPlugin", TypedPlugin()]
+        # manager.register_plugin(plugins_list)  # type: ignore[call-overload]
+
+        # But unpacking works:
+        plugins_typed: list[str | TypedPlugin] = ["dqx.plugins.AuditPlugin", TypedPlugin()]
+        manager.register_plugin(*plugins_typed)
+
+    def test_mixed_types_accepted(self) -> None:
+        """Test that mixed string and instance types are accepted."""
+        manager = PluginManager()
+
+        plugin1 = TypedPlugin()
+        plugin2 = TypedPlugin()
+
+        # All valid combinations
+        manager.clear_plugins()
+        manager.register_plugin("dqx.plugins.AuditPlugin", plugin1)
+
+        manager.clear_plugins()
+        manager.register_plugin(plugin1, "dqx.plugins.AuditPlugin")
+
+        manager.clear_plugins()
+        manager.register_plugin("dqx.plugins.AuditPlugin", plugin1, plugin2)
+
+        manager.clear_plugins()
+        manager.register_plugin(plugin1, plugin2, "dqx.plugins.AuditPlugin")
+
+    def test_empty_call_rejected_by_mypy(self) -> None:
+        """Test that empty calls are rejected by mypy at type-check time.
+
+        This test documents that register_plugin() with no arguments is
+        forbidden by the type signature. MyPy will catch this at static
+        analysis time.
+        """
+        # This would fail type checking (no arguments provided):
+        # manager = PluginManager()
+        # manager.register_plugin()  # type: ignore[call-overload]
+
+        # The implementation signature requires first argument:
+        # def register_plugin(self, plugin: str | PostProcessor, *plugins: ...) -> None
+
+        # Therefore empty calls are impossible at both type-check and runtime level
+        pass
+
+    def test_unpacking_with_correct_types(self) -> None:
+        """Test unpacking works with properly typed sequences."""
+        manager = PluginManager()
+
+        # Tuple with correct types
+        plugins_tuple: tuple[str, TypedPlugin] = ("dqx.plugins.AuditPlugin", TypedPlugin())
+        manager.register_plugin(*plugins_tuple)
+
+        # List with correct types
+        manager.clear_plugins()
+        plugins_list: list[str | TypedPlugin] = ["dqx.plugins.AuditPlugin", TypedPlugin()]
+        manager.register_plugin(*plugins_list)
+
+    def test_return_type_is_none(self) -> None:
+        """Test that register_plugin returns None (no return value)."""
+        manager = PluginManager()
+
+        # Return type should be None
+        result = manager.register_plugin("dqx.plugins.AuditPlugin")
+        assert result is None
+
+        # Multi-plugin also returns None
+        result2 = manager.register_plugin("dqx.plugins.AuditPlugin", TypedPlugin())
+        assert result2 is None

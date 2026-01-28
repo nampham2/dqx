@@ -580,6 +580,8 @@ Core Agent:
         - Commit with descriptive message
      d. Final verification (full test suite)
      e. Push all fixes
+     f. Add PR comment with summary
+     g. Request CodeRabbit re-review with @coderabbitai
   3. Present fix summary to user
 ```
 
@@ -587,12 +589,15 @@ Core Agent:
 - Targeted fixes for each comment
 - Clear commit history
 - All quality gates still passing
+- PR comment summarizing all fixes
+- CodeRabbit re-review requested
 
 **Key Benefits**:
 - Minimal context reload per fix
 - Fast iteration cycle
 - Clear commit history for reviewers
 - Prioritized fixes (blockers first)
+- Automatic re-review triggers next iteration
 
 ---
 
@@ -676,7 +681,7 @@ To avoid context window overload, each agent loads only necessary documents:
 **dqx-feedback** (On-demand: Use when requested)
 - **Role**: Address review feedback efficiently
 - **Input**: PR number, review comments
-- **Output**: Targeted fixes, commits
+- **Output**: Targeted fixes, commits, PR comment, re-review request
 - **When**: User requests feedback iteration
 - **Context**: Minimal - specific files per comment
 
@@ -850,13 +855,15 @@ dqx-feedback:
   ✓ Full test suite: passing
   ✓ Coverage: 100%
   ✓ Pushed 8 fix commits
+  ✓ Added PR comment with fix summary
+  ✓ Requested CodeRabbit re-review with @coderabbitai
 
 Core Agent: "All 8 review comments addressed!
 - P0 (blockers): 2 fixed
 - P1 (important): 4 fixed
 - P2 (nice-to-have): 2 fixed
 
-Ready for next review cycle."
+CodeRabbit has been notified for re-review."
 ```
 
 ---
