@@ -40,8 +40,8 @@ FILE_COUNT=$(git diff main...HEAD --name-only | wc -l)
 ### Step 2: Load Design Documents
 
 Load and extract key information from:
-- `docs/plans/{feature}_technical_spec.md`
-- `docs/plans/{feature}_implementation_guide.md`
+- `docs/design/{feature}_technical_spec.md`
+- `docs/.plans/{feature}_implementation_guide.md`
 
 Extract:
 - Problem statement (from technical spec)
@@ -120,9 +120,9 @@ TEST_COUNT=$(git diff main...HEAD tests/ | grep "^+.*def test_" | wc -l)
 ## Design Documentation
 
 Design docs provide detailed context for reviewers:
-- **Technical Specification**: `docs/plans/{feature}_technical_spec.md`
-- **Implementation Guide**: `docs/plans/{feature}_implementation_guide.md`
-- **Context Document**: `docs/plans/{feature}_context.md`
+- **Technical Specification**: `docs/design/{feature}_technical_spec.md`
+- **Implementation Guide**: `docs/.plans/{feature}_implementation_guide.md` (temporary, not in repo)
+- **Context Document**: `docs/.plans/{feature}_context.md` (temporary, not in repo)
 
 ## Breaking Changes
 
@@ -175,10 +175,10 @@ Pull request created successfully!
 • Tests added: {test_count}
 • Coverage: 100%
 
-📁 Design docs: 3 files in docs/plans/
-• Technical spec: {filename}
-• Implementation guide: {filename}
-• Context doc: {filename}
+📁 Design docs:
+• Technical spec: {filename} (in docs/design/)
+• Implementation guide: {filename} (temporary, local only)
+• Context doc: {filename} (temporary, local only)
 
 ✅ Quality gates:
 • All tests passing

@@ -194,7 +194,7 @@ Comment: "Why not use a simple dict here?"
 
 Your response:
 "We use OrderedDict to maintain insertion order for LRU eviction.
-This is specified in the technical spec (docs/plans/cache_technical_spec.md,
+This is specified in the technical spec (docs/design/cache_technical_spec.md,
 line 45) as a core requirement."
 ```
 

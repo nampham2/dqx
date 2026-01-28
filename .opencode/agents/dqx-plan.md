@@ -34,7 +34,7 @@ Task(subagent_type="dqx-api", prompt="Review API design patterns relevant to {fe
 
 ### Step 2: Create Technical Specification
 
-Generate `docs/plans/{feature}_technical_spec.md`:
+Generate `docs/design/{feature}_technical_spec.md`:
 
 **Structure** (Target: 200-400 lines):
 
@@ -75,7 +75,7 @@ Generate `docs/plans/{feature}_technical_spec.md`:
 
 ### Step 3: Create Implementation Guide
 
-Generate `docs/plans/{feature}_implementation_guide.md`:
+Generate `docs/.plans/{feature}_implementation_guide.md`:
 
 **Structure** (Target: 300-600 lines):
 
@@ -147,7 +147,7 @@ def test_key_operation(): ...
 
 ### Step 4: Create Context Document
 
-Generate `docs/plans/{feature}_context.md`:
+Generate `docs/.plans/{feature}_context.md`:
 
 **Structure** (Target: 200-300 lines):
 
@@ -261,23 +261,25 @@ After creating all three documents, present a summary:
 ```
 Design documents created for {feature}:
 
-📄 Technical Specification: docs/plans/{feature}_technical_spec.md ({line_count} lines)
+📄 Technical Specification: docs/design/{feature}_technical_spec.md ({line_count} lines)
    Key decisions:
    - {Decision 1}: {brief summary}
    - {Decision 2}: {brief summary}
 
-📋 Implementation Guide: docs/plans/{feature}_implementation_guide.md ({line_count} lines)
+📋 Implementation Guide: docs/.plans/{feature}_implementation_guide.md ({line_count} lines)
    - {phase_count} phases
    - Estimated time: ~{hours} hours
    - Phase 1: {name}
    - Phase 2: {name}
 
-📚 Context Document: docs/plans/{feature}_context.md ({line_count} lines)
+📚 Context Document: docs/.plans/{feature}_context.md ({line_count} lines)
    - {key_components} DQX components covered
    - {pattern_count} code patterns documented
    - References AGENTS.md for complete standards
 
 Total: {total_lines} lines across 3 modular documents
+
+Note: Technical spec is committed (docs/design/), while implementation guide and context are temporary (docs/.plans/, gitignored)
 
 Ready to proceed with implementation? Or would you like to review/modify the design first?
 ```
