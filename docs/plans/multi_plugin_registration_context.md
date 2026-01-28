@@ -44,7 +44,7 @@ This document provides background context for implementing multi-plugin registra
 #### Plugin Registration Flow
 
 **Current flow** (single plugin):
-```
+```text
 register_plugin(plugin)
     ↓
 isinstance check: str or PostProcessor?
@@ -67,7 +67,7 @@ PostProcessor → _register_from_instance(plugin)
 ```
 
 **New flow** (multi-plugin):
-```
+```text
 register_plugin(plugin1, plugin2, plugin3)
     ↓
 Loop over plugins:
@@ -625,7 +625,6 @@ except ValueError as e:
     # valid.Plugin1 is registered
     # invalid.Plugin2 and never.reached.Plugin3 are not
     print(f"Registration failed: {e}")
-```
 ```
 
 ## Quality Checklist
