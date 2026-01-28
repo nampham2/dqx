@@ -1376,3 +1376,95 @@ class TestMultiPluginRegistration:
         assert manager.plugin_exists("instance_plugin")
         assert manager.plugin_exists("configured_plugin")
         assert len(manager.get_plugins()) == 3
+
+
+class TestMultiPluginBackwardCompatibility:
+    """Tests to verify backward compatibility with single-plugin registration."""
+
+    def test_single_string_registration_unchanged(self) -> None:
+        """Test single string registration behavior is unchanged."""
+        manager = PluginManager()
+        manager.clear_plugins()
+
+        # Register single plugin by string (original API)
+        manager.register_plugin("dqx.plugins.AuditPlugin")
+
+        # Verify exact same behavior
+        assert manager.plugin_exists("audit")
+        plugins = manager.get_plugins()
+        assert len(plugins) == 1
+        assert isinstance(plugins["audit"], AuditPlugin)
+
+    def test_single_instance_registration_unchanged(self) -> None:
+        """Test single instance registration behavior is unchanged."""
+        manager = PluginManager()
+        manager.clear_plugins()
+
+        # Create and register plugin instance (original API)
+        plugin = ValidInstancePlugin()
+        manager.register_plugin(plugin)
+
+        # Verify exact same behavior
+        assert manager.plugin_exists("instance_plugin")
+        plugins = manager.get_plugins()
+        assert len(plugins) == 1
+        assert plugins["instance_plugin"] is plugin
+
+    def test_init_still_registers_audit_plugin(self) -> None:
+        """Test PluginManager.__init__() still registers built-in plugins."""
+        manager = PluginManager()
+
+        # Should have audit plugin registered by default
+        assert manager.plugin_exists("audit")
+        assert isinstance(manager.get_plugins()["audit"], AuditPlugin)
+
+    def test_logging_format_unchanged_for_single(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test logging format is unchanged for single plugin registration."""
+        manager = PluginManager()
+        manager.clear_plugins()
+
+        # Capture log messages
+        import logging
+
+        log_messages: list[str] = []
+
+        class TestHandler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                log_messages.append(record.getMessage())
+
+        handler = TestHandler()
+        logger = logging.getLogger("dqx.plugins")
+        logger.addHandler(handler)
+        original_level = logger.level
+        logger.setLevel(logging.INFO)
+
+        try:
+            # Register single plugin
+            manager.register_plugin("dqx.plugins.AuditPlugin")
+
+            # Should NOT have summary log for single plugin
+            summary_logs = [msg for msg in log_messages if "Successfully registered" in msg and "plugin(s)" in msg]
+            assert len(summary_logs) == 0
+
+            # Should have per-plugin log
+            plugin_logs = [msg for msg in log_messages if "Registered plugin: audit" in msg]
+            assert len(plugin_logs) == 1
+        finally:
+            logger.removeHandler(handler)
+            logger.setLevel(original_level)
+
+    def test_error_messages_unchanged_for_single(self) -> None:
+        """Test error messages are unchanged for single plugin registration."""
+        manager = PluginManager()
+
+        # Test invalid class name format (existing error)
+        with pytest.raises(ValueError, match="Invalid class name format: InvalidName"):
+            manager.register_plugin("InvalidName")
+
+        # Test non-existent module (existing error)
+        with pytest.raises(ValueError, match="Cannot import module nonexistent.module"):
+            manager.register_plugin("nonexistent.module.Plugin")
+
+        # Test non-existent class (existing error)
+        with pytest.raises(ValueError, match="Module dqx.plugins has no class NonExistentClass"):
+            manager.register_plugin("dqx.plugins.NonExistentClass")
