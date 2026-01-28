@@ -486,7 +486,10 @@ Core Agent:
   4. Wait for approval
 ```
 
-**Output**: 3 design documents in `docs/plans/` (~600-1100 lines total)
+**Output**: 3 design documents:
+- Technical spec in `docs/design/` (committed, ~200-400 lines)
+- Implementation guide in `docs/.plans/` (gitignored, ~300-600 lines)
+- Context document in `docs/.plans/` (gitignored, ~200-300 lines)
 
 **Key Benefits**:
 - Modular docs avoid context overload
@@ -742,15 +745,17 @@ dqx-plan:
   - Explores codebase (delegates to dqx-explore)
   - Reviews API patterns (delegates to dqx-api)
   - Creates 3 design docs:
-    ✓ metric_caching_technical_spec.md (312 lines)
-    ✓ metric_caching_implementation_guide.md (478 lines)
-    ✓ metric_caching_context.md (245 lines)
+    ✓ docs/design/metric_caching_technical_spec.md (312 lines)
+    ✓ docs/.plans/metric_caching_implementation_guide.md (478 lines)
+    ✓ docs/.plans/metric_caching_context.md (245 lines)
 
 Core Agent: "Design complete. Key decisions:
 - LRU cache with TTL support
 - Protocol-based cache backend
 - 4 implementation phases
 - Estimated: ~5 hours
+
+Technical spec committed to docs/design/, execution plans in docs/.plans/ (gitignored)
 
 Ready to implement?"
 ```
@@ -846,7 +851,7 @@ dqx-feedback:
     ✓ src/dqx/cache.py:102 - Improved naming
     ✓ src/dqx/cache.py:156 - Added docstring
     ✓ tests/test_cache.py:89 - Added integration test
-    ✓ docs/plans/cache_technical_spec.md - Clarified decision
+    ✓ docs/design/cache_technical_spec.md - Clarified decision
 
   Fixing P2 issues:
     ✓ src/dqx/cache.py:134 - Refactored helper method

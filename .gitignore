@@ -29,3 +29,6 @@ bin/sync-to-gitlab.sh
 
 # AI assistant memory files
 memory-bank/
+
+# Temporary execution plans (not committed)
+docs/.plans/
