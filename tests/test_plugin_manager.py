@@ -1282,3 +1282,97 @@ class TestPluginIntegration:
         current = manager.get_plugins()["audit"]
         assert current is custom
         assert current is not original
+
+
+class TestMultiPluginRegistration:
+    """Tests for multi-plugin registration using variadic arguments."""
+
+    def test_register_single_string_backward_compat(self) -> None:
+        """Test single string registration maintains backward compatibility."""
+        manager = PluginManager()
+        manager.clear_plugins()
+
+        # Register single plugin by string
+        manager.register_plugin("dqx.plugins.AuditPlugin")
+
+        # Verify it was registered
+        assert manager.plugin_exists("audit")
+        assert isinstance(manager.get_plugins()["audit"], AuditPlugin)
+
+    def test_register_single_instance_backward_compat(self) -> None:
+        """Test single instance registration maintains backward compatibility."""
+        manager = PluginManager()
+        manager.clear_plugins()
+
+        # Register single plugin by instance
+        plugin = ValidInstancePlugin()
+        manager.register_plugin(plugin)
+
+        # Verify it was registered
+        assert manager.plugin_exists("instance_plugin")
+        assert manager.get_plugins()["instance_plugin"] is plugin
+
+    def test_register_two_strings(self) -> None:
+        """Test registering two plugins by string."""
+        manager = PluginManager()
+        manager.clear_plugins()
+
+        # Register two plugins by string
+        manager.register_plugin("dqx.plugins.AuditPlugin", "dqx.plugins.AuditPlugin")
+
+        # Should have registered both (second overwrites first with same name)
+        assert manager.plugin_exists("audit")
+        assert isinstance(manager.get_plugins()["audit"], AuditPlugin)
+
+    def test_register_two_instances(self) -> None:
+        """Test registering two plugins by instance."""
+        manager = PluginManager()
+        manager.clear_plugins()
+
+        # Create two different plugin instances
+        plugin1 = ValidInstancePlugin()
+        plugin2 = PluginWithConstructor(threshold=0.8, debug=True)
+
+        # Register both
+        manager.register_plugin(plugin1, plugin2)
+
+        # Verify both were registered
+        assert manager.plugin_exists("instance_plugin")
+        assert manager.plugin_exists("configured_plugin")
+        assert manager.get_plugins()["instance_plugin"] is plugin1
+        assert manager.get_plugins()["configured_plugin"] is plugin2
+
+    def test_register_mixed_string_and_instance(self) -> None:
+        """Test registering mixed string and instance plugins."""
+        manager = PluginManager()
+        manager.clear_plugins()
+
+        # Create instance
+        plugin = ValidInstancePlugin()
+
+        # Register mixed types
+        manager.register_plugin("dqx.plugins.AuditPlugin", plugin)
+
+        # Verify both were registered
+        assert manager.plugin_exists("audit")
+        assert manager.plugin_exists("instance_plugin")
+        assert isinstance(manager.get_plugins()["audit"], AuditPlugin)
+        assert manager.get_plugins()["instance_plugin"] is plugin
+
+    def test_register_three_mixed_types(self) -> None:
+        """Test registering three plugins with mixed types."""
+        manager = PluginManager()
+        manager.clear_plugins()
+
+        # Create instances
+        plugin1 = ValidInstancePlugin()
+        plugin2 = PluginWithConstructor(threshold=0.95, debug=False)
+
+        # Register three plugins: string, instance, instance
+        manager.register_plugin("dqx.plugins.AuditPlugin", plugin1, plugin2)
+
+        # Verify all three were registered
+        assert manager.plugin_exists("audit")
+        assert manager.plugin_exists("instance_plugin")
+        assert manager.plugin_exists("configured_plugin")
+        assert len(manager.get_plugins()) == 3
