@@ -1,3 +1,10 @@
+## v0.5.16 (2026-01-28)
+
+### Feat
+
+- **plugins**: Register multiple plugins at once using `register(*plugins)` syntax (#71)
+- **profiles**: Add PermanentProfile that remains active across all verification runs (#70)
+
 ## v0.5.15 (2026-01-21)
 
 ### Features
