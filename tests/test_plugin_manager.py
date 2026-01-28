@@ -268,7 +268,7 @@ class TestPluginManager:
         manager = PluginManager()
 
         # Try to register a plugin from a non-existent module
-        with pytest.raises(ValueError, match="Cannot import module nonexistent.module"):
+        with pytest.raises(ValueError, match=r"Cannot import module nonexistent\.module"):
             manager.register_plugin("nonexistent.module.Plugin")
 
     def test_register_plugin_invalid_class_name_format(self) -> None:
@@ -288,7 +288,7 @@ class TestPluginManager:
         manager = PluginManager()
 
         # Try to register a non-existent class from an existing module
-        with pytest.raises(ValueError, match="Module dqx.plugins has no class NonExistentClass"):
+        with pytest.raises(ValueError, match=r"Module dqx\.plugins has no class NonExistentClass"):
             manager.register_plugin("dqx.plugins.NonExistentClass")
 
     def test_register_plugin_generic_exception_handling(self) -> None:
@@ -1336,7 +1336,7 @@ class TestMultiPluginErrorHandling:
         p1 = ValidInstancePlugin()
         p2 = PluginWithConstructor(threshold=0.8)
 
-        with pytest.raises(ValueError, match="Module dqx.plugins has no class NonExistent"):
+        with pytest.raises(ValueError, match=r"Module dqx\.plugins has no class NonExistent"):
             manager.register_plugin("dqx.plugins.AuditPlugin", p1, p2, "dqx.plugins.NonExistent")
 
         # First 3 should be registered
@@ -1749,9 +1749,9 @@ class TestMultiPluginBackwardCompatibility:
             manager.register_plugin("InvalidName")
 
         # Test non-existent module (existing error)
-        with pytest.raises(ValueError, match="Cannot import module nonexistent.module"):
+        with pytest.raises(ValueError, match=r"Cannot import module nonexistent\.module"):
             manager.register_plugin("nonexistent.module.Plugin")
 
         # Test non-existent class (existing error)
-        with pytest.raises(ValueError, match="Module dqx.plugins has no class NonExistentClass"):
+        with pytest.raises(ValueError, match=r"Module dqx\.plugins has no class NonExistentClass"):
             manager.register_plugin("dqx.plugins.NonExistentClass")
