@@ -12,16 +12,16 @@ Pre-commit hooks run automatically before each commit to catch issues early.
 
 ```bash
 # Run all hooks on staged files
-uv run hooks
+uv run pre-commit run
 
 # Run all hooks on all files
-uv run hooks --all
+uv run pre-commit run --all-files
 
 # Run specific hook
-uv run hooks mypy
+uv run pre-commit run mypy
 
 # See available options
-uv run hooks --help
+uv run pre-commit run --help
 ```
 
 #### Common Hook Failures and Fixes
@@ -397,8 +397,8 @@ gh run download <run-id> -n <artifact-name>
 
 ```bash
 # Pre-commit hooks
-uv run hooks --all           # Run all hooks
-uv run hooks --help          # Show options
+uv run pre-commit run --all-files  # Run all hooks
+uv run pre-commit run --help       # Show options
 
 # GitHub CLI
 gh pr create                 # Create PR
