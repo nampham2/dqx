@@ -1387,7 +1387,7 @@ class TestMultiPluginErrorHandling:
         assert len(manager.get_plugins()) == 1
         assert manager.plugin_exists("instance_plugin")
 
-    def test_no_summary_log_on_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_summary_log_on_error(self) -> None:
         """Test no summary log is generated when error occurs."""
         manager = PluginManager()
         manager.clear_plugins()
@@ -1579,7 +1579,7 @@ class TestMultiPluginRegistration:
         assert manager.plugin_exists("configured_plugin")
         assert len(manager.get_plugins()) == 3
 
-    def test_summary_log_for_multi_plugin(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_summary_log_for_multi_plugin(self) -> None:
         """Test summary log appears for multi-plugin registration."""
         manager = PluginManager()
         manager.clear_plugins()
@@ -1610,7 +1610,7 @@ class TestMultiPluginRegistration:
             logger.removeHandler(handler)
             logger.setLevel(original_level)
 
-    def test_no_summary_log_for_single_plugin(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_no_summary_log_for_single_plugin(self) -> None:
         """Test no summary log for single plugin registration."""
         manager = PluginManager()
         manager.clear_plugins()
@@ -1705,7 +1705,7 @@ class TestMultiPluginBackwardCompatibility:
         assert manager.plugin_exists("audit")
         assert isinstance(manager.get_plugins()["audit"], AuditPlugin)
 
-    def test_logging_format_unchanged_for_single(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_logging_format_unchanged_for_single(self) -> None:
         """Test logging format is unchanged for single plugin registration."""
         manager = PluginManager()
         manager.clear_plugins()
