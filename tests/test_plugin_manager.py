@@ -1377,6 +1377,145 @@ class TestMultiPluginRegistration:
         assert manager.plugin_exists("configured_plugin")
         assert len(manager.get_plugins()) == 3
 
+    def test_register_five_plugins(self) -> None:
+        """Test registering five plugins in one call."""
+        manager = PluginManager()
+        manager.clear_plugins()
+
+        # Create instances
+        p1 = ValidInstancePlugin()
+        p2 = PluginWithConstructor(threshold=0.8)
+        p3 = StatefulPlugin()
+
+        # Register 5 plugins: string, instance, string, instance, instance
+        manager.register_plugin("dqx.plugins.AuditPlugin", p1, "dqx.plugins.AuditPlugin", p2, p3)
+
+        # Verify all are registered (note: two audit plugins, second overwrites first)
+        assert manager.plugin_exists("audit")
+        assert manager.plugin_exists("instance_plugin")
+        assert manager.plugin_exists("configured_plugin")
+        assert manager.plugin_exists("stateful_plugin")
+        # Total unique plugins = 4 (audit counted once)
+        assert len(manager.get_plugins()) == 4
+
+    def test_unpack_list_of_plugins(self) -> None:
+        """Test unpacking a list of plugins using * syntax."""
+        manager = PluginManager()
+        manager.clear_plugins()
+
+        # Create list of plugins
+        plugins_list: list[str | ValidInstancePlugin] = ["dqx.plugins.AuditPlugin", ValidInstancePlugin()]
+
+        # Unpack and register
+        manager.register_plugin(*plugins_list)
+
+        # Verify both were registered
+        assert manager.plugin_exists("audit")
+        assert manager.plugin_exists("instance_plugin")
+        assert len(manager.get_plugins()) == 2
+
+    def test_unpack_tuple_of_plugins(self) -> None:
+        """Test unpacking a tuple of plugins using * syntax."""
+        manager = PluginManager()
+        manager.clear_plugins()
+
+        # Create tuple of plugins
+        plugins_tuple = ("dqx.plugins.AuditPlugin", ValidInstancePlugin(), PluginWithConstructor(threshold=0.9))
+
+        # Unpack and register
+        manager.register_plugin(*plugins_tuple)
+
+        # Verify all were registered
+        assert manager.plugin_exists("audit")
+        assert manager.plugin_exists("instance_plugin")
+        assert manager.plugin_exists("configured_plugin")
+        assert len(manager.get_plugins()) == 3
+
+    def test_summary_log_for_multi_plugin(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test summary log appears for multi-plugin registration."""
+        manager = PluginManager()
+        manager.clear_plugins()
+
+        # Capture log messages
+        import logging
+
+        log_messages: list[str] = []
+
+        class TestHandler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                log_messages.append(record.getMessage())
+
+        handler = TestHandler()
+        logger = logging.getLogger("dqx.plugins")
+        logger.addHandler(handler)
+        original_level = logger.level
+        logger.setLevel(logging.INFO)
+
+        try:
+            # Register two plugins
+            manager.register_plugin("dqx.plugins.AuditPlugin", ValidInstancePlugin())
+
+            # Should have summary log for multiple plugins
+            summary_logs = [msg for msg in log_messages if "Successfully registered 2 plugin(s)" in msg]
+            assert len(summary_logs) == 1
+        finally:
+            logger.removeHandler(handler)
+            logger.setLevel(original_level)
+
+    def test_no_summary_log_for_single_plugin(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Test no summary log for single plugin registration."""
+        manager = PluginManager()
+        manager.clear_plugins()
+
+        # Capture log messages
+        import logging
+
+        log_messages: list[str] = []
+
+        class TestHandler(logging.Handler):
+            def emit(self, record: logging.LogRecord) -> None:
+                log_messages.append(record.getMessage())
+
+        handler = TestHandler()
+        logger = logging.getLogger("dqx.plugins")
+        logger.addHandler(handler)
+        original_level = logger.level
+        logger.setLevel(logging.INFO)
+
+        try:
+            # Register single plugin
+            manager.register_plugin(ValidInstancePlugin())
+
+            # Should NOT have summary log for single plugin
+            summary_logs = [msg for msg in log_messages if "Successfully registered" in msg and "plugin(s)" in msg]
+            assert len(summary_logs) == 0
+
+            # Should have per-plugin log
+            plugin_logs = [msg for msg in log_messages if "Registered plugin:" in msg]
+            assert len(plugin_logs) == 1
+        finally:
+            logger.removeHandler(handler)
+            logger.setLevel(original_level)
+
+    def test_duplicate_names_last_wins(self) -> None:
+        """Test duplicate plugin names: last registration wins."""
+        manager = PluginManager()
+        manager.clear_plugins()
+
+        # Create two instances with same name
+        plugin1 = ValidInstancePlugin()
+        plugin2 = ValidInstancePlugin()
+
+        # Register both in multi-plugin call
+        manager.register_plugin(plugin1, plugin2)
+
+        # Should have only one instance, the last one
+        assert manager.plugin_exists("instance_plugin")
+        plugins = manager.get_plugins()
+        assert len(plugins) == 1
+        assert plugins["instance_plugin"] is plugin2
+        assert plugins["instance_plugin"] is not plugin1
+
 
 class TestMultiPluginBackwardCompatibility:
     """Tests to verify backward compatibility with single-plugin registration."""
