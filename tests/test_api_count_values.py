@@ -4,6 +4,8 @@ This module tests the CountValues feature through the high-level API,
 ensuring it works correctly with VerificationSuite and check decorator.
 """
 
+from __future__ import annotations
+
 import datetime
 import uuid
 

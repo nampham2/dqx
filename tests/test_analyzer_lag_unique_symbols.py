@@ -6,6 +6,8 @@ the same metric computed for different dates (e.g., current and lag)
 was getting the same symbol.
 """
 
+from __future__ import annotations
+
 import datetime
 from typing import Any
 

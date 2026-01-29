@@ -1,5 +1,7 @@
 """Integration tests for metadata functionality."""
 
+from __future__ import annotations
+
 from datetime import date
 
 import pyarrow as pa

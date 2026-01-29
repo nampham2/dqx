@@ -1,5 +1,7 @@
 """Test integration of clone() method with provider."""
 
+from __future__ import annotations
+
 import datetime
 
 import pyarrow as pa

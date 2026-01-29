@@ -673,7 +673,7 @@ class Context:
         """
         Create an assertion draft for the given expression.
 
-        You must provide a name using where() before making assertions:
+        You must provide a name using config() before making assertions:
 
         Example:
             ctx.assert_that(mp.average("price"))
@@ -684,7 +684,7 @@ class Context:
             expr: Symbolic expression to assert on
 
         Returns:
-            AssertionDraft that requires where() to be called
+            AssertionDraft that requires config() to be called
         """
         return AssertionDraft(actual=expr, context=self)
 

@@ -1,5 +1,7 @@
 """Tests for metrics_by_execution_id functionality."""
 
+from __future__ import annotations
+
 from datetime import date
 
 import pyarrow as pa

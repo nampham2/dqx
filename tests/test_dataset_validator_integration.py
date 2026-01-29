@@ -1,5 +1,7 @@
 """Integration tests for DatasetValidator within VerificationSuite."""
 
+from __future__ import annotations
+
 import pytest
 
 from dqx.api import Context, MetricProvider, VerificationSuite, check

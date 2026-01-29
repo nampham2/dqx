@@ -1,5 +1,7 @@
 """Test date exclusion API integration with VerificationSuite."""
 
+from __future__ import annotations
+
 import datetime
 
 import pyarrow as pa

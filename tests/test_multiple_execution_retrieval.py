@@ -1,5 +1,7 @@
 """Integration test for metric retrieval after multiple suite executions."""
 
+from __future__ import annotations
+
 from datetime import date
 from typing import Any
 

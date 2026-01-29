@@ -1,5 +1,7 @@
 """Integration tests for DuplicateCount functionality."""
 
+from __future__ import annotations
+
 import uuid
 from typing import Any
 

@@ -1,5 +1,7 @@
 """Integration test for execution_id flow through the entire system."""
 
+from __future__ import annotations
+
 import datetime
 import uuid
 

@@ -1,5 +1,7 @@
 """Tests to complete coverage for analyzer.py, api.py, and plugins.py."""
 
+from __future__ import annotations
+
 import datetime
 from typing import Any
 from unittest.mock import Mock, patch

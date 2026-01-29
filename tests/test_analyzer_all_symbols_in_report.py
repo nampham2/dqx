@@ -6,6 +6,8 @@ metrics without explicit dataset assignment were filtered out
 from the analysis report.
 """
 
+from __future__ import annotations
+
 import datetime
 from typing import Any
 

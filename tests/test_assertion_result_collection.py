@@ -1,5 +1,7 @@
 """Tests for assertion result collection functionality."""
 
+from __future__ import annotations
+
 import datetime
 
 import pyarrow as pa

@@ -1,5 +1,7 @@
 """Test the enable_plugins parameter in VerificationSuite.run()."""
 
+from __future__ import annotations
+
 from datetime import datetime
 from typing import Any
 

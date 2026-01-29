@@ -1,5 +1,7 @@
 """Tests for VerificationSuite critical level detection."""
 
+from __future__ import annotations
+
 from datetime import date
 
 import pyarrow as pa
