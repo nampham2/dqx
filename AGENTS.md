@@ -10,7 +10,7 @@ This document provides coding guidelines and commands for AI agents working on t
   - [Testing Commands](#testing-commands)
   - [Code Quality Commands](#code-quality-commands)
   - [Documentation Commands](#documentation-commands)
-  - [Custom Commands](#custom-commands)
+  - [Development Commands](#development-commands)
 - [Code Standards](#code-standards) (Single Source of Truth)
   - [Import Order](#import-order)
   - [Type Hints](#type-hints)
