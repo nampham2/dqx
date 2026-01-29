@@ -73,7 +73,7 @@ class Collection:
     """A collection statement within a check (noop assertion).
 
     Collections compute metrics without validation, always passing.
-    Equivalent to Python API: ctx.assert_that(metric).where(...).noop()
+    Equivalent to Python API: ctx.assert_that(metric).config(...).noop()
     """
 
     expr: Expr
