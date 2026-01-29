@@ -194,7 +194,7 @@ def enforce_slas(mp: MetricProvider, ctx: Context) -> None:
 ### Available Metrics
 
 | Metric | Description | Example |
-|--------|-------------|---------|
+| -------- | ----------- | -------- |
 | `num_rows()` | Total row count | `mp.num_rows()` |
 | `sum(col)` | Sum of values | `mp.sum("revenue")` |
 | `average(col)` | Mean value | `mp.average("price")` |
@@ -209,7 +209,7 @@ def enforce_slas(mp: MetricProvider, ctx: Context) -> None:
 ### Extended Metrics
 
 | Metric | Description | Example |
-|--------|-------------|---------|
+| -------- | ----------- | -------- |
 | `ext.day_over_day(metric)` | Day-over-day change | `mp.ext.day_over_day(mp.sum("revenue"))` |
 | `ext.week_over_week(metric)` | Week-over-week change | `mp.ext.week_over_week(mp.average("price"))` |
 | `ext.stddev(metric, offset, n)` | Standard deviation over window | `mp.ext.stddev(mp.sum("sales"), offset=0, n=7)` |
@@ -217,7 +217,7 @@ def enforce_slas(mp: MetricProvider, ctx: Context) -> None:
 ### Available Assertions
 
 | Assertion | Description | Example |
-|-----------|-------------|---------|
+| ----------- | ----------- | -------- |
 | `is_eq(value, tol)` | Equals with tolerance | `.is_eq(100, tol=0.01)` |
 | `is_neq(value, tol)` | Not equals with tolerance | `.is_neq(100, tol=0.01)` |
 | `is_between(min, max)` | In range (inclusive) | `.is_between(0, 100)` |

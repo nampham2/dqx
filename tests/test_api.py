@@ -204,7 +204,7 @@ def test_check_decorator_with_name_works() -> None:
 
 
 def test_assertion_draft_creation() -> None:
-    """AssertionDraft should only expose where() method."""
+    """AssertionDraft should only expose config() method."""
     from dqx.api import AssertionDraft
 
     expr = sp.Symbol("x")
@@ -290,8 +290,8 @@ def test_cannot_use_assertion_methods_on_draft() -> None:
         draft.is_positive()  # type: ignore
 
 
-def test_where_requires_name_parameter() -> None:
-    """The where() method should require name parameter."""
+def test_config_requires_name_parameter() -> None:
+    """The config() method should require name parameter."""
     from dqx.api import AssertionDraft
 
     draft = AssertionDraft(sp.Symbol("x"), context=None)
@@ -322,8 +322,8 @@ def test_assertion_ready_always_has_name() -> None:
     VerificationSuite([test_check], db, "test")
 
 
-def test_where_validates_name() -> None:
-    """The where() method should validate name parameter."""
+def test_config_validates_name() -> None:
+    """The config() method should validate name parameter."""
     from dqx.api import AssertionDraft
 
     draft = AssertionDraft(sp.Symbol("x"), context=None)
@@ -637,8 +637,8 @@ def test_assertion_tags() -> None:
     assert node_no_tags.tags == frozenset()
 
 
-def test_assertion_tags_via_where() -> None:
-    """Tags can be specified via the where() method."""
+def test_assertion_tags_via_config() -> None:
+    """Tags can be specified via the config() method."""
     db = InMemoryMetricDB()
     context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
@@ -670,8 +670,8 @@ def test_assertion_tags_via_where() -> None:
     assert untagged.tags == frozenset()
 
 
-def test_experimental_annotation_via_where() -> None:
-    """Experimental annotation can be specified via the where() method."""
+def test_experimental_annotation_via_config() -> None:
+    """Experimental annotation can be specified via the config() method."""
     db = InMemoryMetricDB()
     context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
@@ -738,8 +738,8 @@ def test_experimental_annotation_in_assertion_result() -> None:
     assert result_experimental.experimental is True
 
 
-def test_required_annotation_via_where() -> None:
-    """Required annotation can be specified via the where() method."""
+def test_required_annotation_via_config() -> None:
+    """Required annotation can be specified via the config() method."""
     db = InMemoryMetricDB()
     context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
@@ -771,8 +771,8 @@ def test_required_annotation_via_where() -> None:
     assert non_required.required is False
 
 
-def test_cost_annotation_via_where() -> None:
-    """Cost annotation can be specified via the where() method."""
+def test_cost_annotation_via_config() -> None:
+    """Cost annotation can be specified via the config() method."""
     db = InMemoryMetricDB()
     context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
@@ -810,7 +810,7 @@ def test_cost_validation_requires_dict() -> None:
     """
     Verifies that specifying a non-dict cost in an assertion raises a ValueError.
 
-    This test ensures where(..., cost=...) requires a dict containing 'fp' and 'fn'.
+    This test ensures config(..., cost=...) requires a dict containing 'fp' and 'fn'.
 
     Raises:
         ValueError: if cost is not a dict with 'fp' and 'fn' keys.

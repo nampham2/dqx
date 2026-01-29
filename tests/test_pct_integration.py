@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import pyarrow as pa
 
-from dqx.api import VerificationSuite, check
+from dqx.api import Context, MetricProvider, VerificationSuite, check
 from dqx.common import ResultKey
 from dqx.functions import pct
 from dqx.orm.repositories import InMemoryMetricDB
@@ -23,7 +23,7 @@ class TestPctWithAssertions:
         db = InMemoryMetricDB()
 
         @check(name="Test is_leq")
-        def test_check(mp, ctx):  # type: ignore[no-untyped-def]
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
             metric = mp.num_rows()
             ctx.assert_that(metric).config(name="leq").is_leq(pct(5))
 
@@ -35,7 +35,7 @@ class TestPctWithAssertions:
         db = InMemoryMetricDB()
 
         @check(name="Test is_lt")
-        def test_check(mp, ctx):  # type: ignore[no-untyped-def]
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
             metric = mp.num_rows()
             ctx.assert_that(metric).config(name="lt").is_lt(pct(5))
 
@@ -47,7 +47,7 @@ class TestPctWithAssertions:
         db = InMemoryMetricDB()
 
         @check(name="Test is_geq")
-        def test_check(mp, ctx):  # type: ignore[no-untyped-def]
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
             metric = mp.num_rows()
             ctx.assert_that(metric).config(name="geq").is_geq(pct(1))
 
@@ -59,7 +59,7 @@ class TestPctWithAssertions:
         db = InMemoryMetricDB()
 
         @check(name="Test is_gt")
-        def test_check(mp, ctx):  # type: ignore[no-untyped-def]
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
             metric = mp.num_rows()
             ctx.assert_that(metric).config(name="gt").is_gt(pct(1))
 
@@ -71,7 +71,7 @@ class TestPctWithAssertions:
         db = InMemoryMetricDB()
 
         @check(name="Test is_eq")
-        def test_check(mp, ctx):  # type: ignore[no-untyped-def]
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
             metric = mp.num_rows()
             ctx.assert_that(metric).config(name="eq").is_eq(pct(0))
 
@@ -83,7 +83,7 @@ class TestPctWithAssertions:
         db = InMemoryMetricDB()
 
         @check(name="Test is_neq")
-        def test_check(mp, ctx):  # type: ignore[no-untyped-def]
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
             metric = mp.num_rows()
             ctx.assert_that(metric).config(name="neq").is_neq(pct(100))
 
@@ -95,7 +95,7 @@ class TestPctWithAssertions:
         db = InMemoryMetricDB()
 
         @check(name="Test is_between")
-        def test_check(mp, ctx):  # type: ignore[no-untyped-def]
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
             metric = mp.num_rows()
             ctx.assert_that(metric).config(name="between").is_between(pct(0), pct(10))
 
@@ -107,7 +107,7 @@ class TestPctWithAssertions:
         db = InMemoryMetricDB()
 
         @check(name="Test All Assertions")
-        def test_check(mp, ctx):  # type: ignore[no-untyped-def]
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
             metric = mp.num_rows()
             ctx.assert_that(metric).config(name="leq").is_leq(pct(5))
             ctx.assert_that(metric).config(name="lt").is_lt(pct(5))
@@ -157,7 +157,7 @@ class TestPctWithTunables:
         )
 
         @check(name="Test Tunable")
-        def test_check(mp, ctx):  # type: ignore[no-untyped-def]
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
             ctx.assert_that(mp.num_rows()).config(name="Null rate").is_leq(threshold)
 
         suite = VerificationSuite([test_check], db, "Test")
@@ -171,7 +171,7 @@ class TestPctWithTunables:
         upper = TunableFloat("UPPER", value=pct(10), bounds=(pct(0), pct(50)))
 
         @check(name="Test Mixed")
-        def test_check(mp, ctx):  # type: ignore[no-untyped-def]
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
             ctx.assert_that(mp.num_rows()).config(name="Range").is_between(lower, upper)
 
         suite = VerificationSuite([test_check], db, "Test")
@@ -186,7 +186,7 @@ class TestPctNotInNamespace:
         db = InMemoryMetricDB()
 
         @check(name="Test Namespace")
-        def test_check(mp, ctx):  # type: ignore[no-untyped-def]
+        def test_check(mp: MetricProvider, ctx: Context) -> None:
             # This should work - pct() used as threshold (immediate evaluation)
             ctx.assert_that(mp.num_rows()).config(name="Test").is_leq(pct(5))
 
