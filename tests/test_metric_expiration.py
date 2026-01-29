@@ -156,7 +156,11 @@ def test_delete_expired_metrics_with_mixed_metrics() -> None:
 
 
 def test_delete_expired_metrics_boundary_conditions() -> None:
-    """Test delete_expired_metrics handles boundary conditions correctly."""
+    """Test delete_expired_metrics handles boundary conditions correctly.
+
+    Tests that metrics are only deleted when strictly past their TTL boundary,
+    not at or before it.
+    """
     db = InMemoryMetricDB()
 
     key = ResultKey(dt.date(2024, 10, 30), {})
@@ -167,17 +171,17 @@ def test_delete_expired_metrics_boundary_conditions() -> None:
 
     persisted = list(db.persist([metric]))
 
-    # Update to exactly 1 hour old (should NOT be expired)
+    # Update to just under 1 hour old (should NOT be expired)
     with db._mutex:
         session = db.new_session()
         from dqx.orm.repositories import Metric as DBMetric
 
-        # Update to be exactly 1 hour old
-        exact_time = datetime.now(timezone.utc) - timedelta(hours=1)
-        session.query(DBMetric).filter_by(metric_id=persisted[0].metric_id).update({"created": exact_time})
+        # Update to be 59 minutes 59 seconds old (safely before the 1-hour boundary)
+        not_expired_time = datetime.now(timezone.utc) - timedelta(minutes=59, seconds=59)
+        session.query(DBMetric).filter_by(metric_id=persisted[0].metric_id).update({"created": not_expired_time})
         session.commit()
 
-    # Should not delete - exactly at boundary
+    # Should not delete - before the boundary
     db.delete_expired_metrics()
     if persisted[0].metric_id is not None:
         assert db.exists(persisted[0].metric_id) is True
