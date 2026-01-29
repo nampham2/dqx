@@ -26,11 +26,6 @@ build-backend = "uv_build"
 [tool.uv.build-backend]
 module-name = "dqx"
 
-[project.scripts]
-coverage = "scripts.commands:run_coverage"
-hooks = "scripts.commands:run_hooks"
-cleanup = "scripts.commands:run_cleanup"
-
 [dependency-groups]
 dev = [
     "commitizen>=3.29.0",

@@ -45,7 +45,7 @@ jobs:
         run: |
           # Get PR title as it will be the commit message
           echo "${{ github.event.pull_request.title }}" > .commit_msg
-          uv run python src/scripts/check_commit_msg.py .commit_msg
+          uv run python bin/check_commit_msg.py .commit_msg
 
       - name: Run type checking with mypy
         run: uv run mypy src tests

@@ -123,7 +123,7 @@ repos:
       # Commitizen - Conventional commit validation
       - id: commitizen-check
         name: Check commit message follows conventional format
-        entry: uv run python src/scripts/check_commit_msg.py
+        entry: uv run python bin/check_commit_msg.py
         language: system
         stages: [commit-msg]
         pass_filenames: true

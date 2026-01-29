@@ -10,7 +10,7 @@ This document provides coding guidelines and commands for AI agents working on t
   - [Testing Commands](#testing-commands)
   - [Code Quality Commands](#code-quality-commands)
   - [Documentation Commands](#documentation-commands)
-  - [Custom Commands](#custom-commands)
+  - [Development Commands](#development-commands)
 - [Code Standards](#code-standards) (Single Source of Truth)
   - [Import Order](#import-order)
   - [Type Hints](#type-hints)
@@ -129,17 +129,17 @@ uv run mkdocs serve
 uv run mkdocs build
 ```
 
-### Custom Commands
+### Development Commands
 
 ```bash
-# Run coverage with HTML report
-uv run coverage
+# Run tests with coverage
+uv run pytest --cov=src/dqx --cov-report=html --cov-report=xml
 
-# Set up pre-commit hooks
-uv run hooks
+# Run pre-commit hooks on all files
+uv run pre-commit run --all-files
 
-# Clean up cache and build artifacts
-uv run cleanup
+# Run pre-commit hooks on staged files only
+uv run pre-commit run
 ```
 
 ---

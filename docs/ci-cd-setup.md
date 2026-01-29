@@ -140,7 +140,7 @@ Recommended branch protection rules for `main`:
 pre-commit install
 
 # Run hooks manually
-uv run hooks --all
+uv run pre-commit run --all-files
 
 # Skip specific hooks
 SKIP=mypy git commit -m "..."
