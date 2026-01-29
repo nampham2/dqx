@@ -17,7 +17,7 @@ def test_verification_suite_cleanup_expired_metrics() -> None:
     # Create a simple check
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Count is positive").is_positive()
+        ctx.assert_that(mp.num_rows()).config(name="Count is positive").is_positive()
 
     # Create test data
     data = pa.Table.from_pydict({"id": [1, 2, 3]})
@@ -85,7 +85,7 @@ def test_verification_suite_cleanup_no_expired() -> None:
 
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Count is positive").is_positive()
+        ctx.assert_that(mp.num_rows()).config(name="Count is positive").is_positive()
 
     # Create test data
     data = pa.Table.from_pydict({"id": [1, 2, 3]})
@@ -110,9 +110,9 @@ def test_verification_suite_cleanup_mixed_ttl() -> None:
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
         # This will create multiple metrics
-        ctx.assert_that(mp.num_rows()).where(name="Row count check").is_positive()
-        ctx.assert_that(mp.sum("value")).where(name="Sum check").is_positive()
-        ctx.assert_that(mp.average("value")).where(name="Avg check").is_positive()
+        ctx.assert_that(mp.num_rows()).config(name="Row count check").is_positive()
+        ctx.assert_that(mp.sum("value")).config(name="Sum check").is_positive()
+        ctx.assert_that(mp.average("value")).config(name="Avg check").is_positive()
 
     # Create test data
     data = pa.Table.from_pydict({"id": [1, 2, 3], "value": [10.0, 20.0, 30.0]})

@@ -50,10 +50,10 @@ def test_provider_with_cloned_specs() -> None:
         count_vals = mp.metric(cloned_specs[3])  # CountValues("category", ["A", "B"])
 
         # Make assertions to ensure metrics are computed
-        ctx.assert_that(num_rows).where(name="Row count", severity="P1").is_eq(5)
-        ctx.assert_that(avg_price).where(name="Average price", severity="P1").is_eq(30.0)
-        ctx.assert_that(sum_qty).where(name="Sum quantity", severity="P1").is_eq(15)
-        ctx.assert_that(count_vals).where(name="Count A+B", severity="P1").is_eq(4)
+        ctx.assert_that(num_rows).config(name="Row count", severity="P1").is_eq(5)
+        ctx.assert_that(avg_price).config(name="Average price", severity="P1").is_eq(30.0)
+        ctx.assert_that(sum_qty).config(name="Sum quantity", severity="P1").is_eq(15)
+        ctx.assert_that(count_vals).config(name="Count A+B", severity="P1").is_eq(4)
 
     # Create another check with original specs
     @check(name="Test with original specs")
@@ -65,10 +65,10 @@ def test_provider_with_cloned_specs() -> None:
         count_vals = mp.metric(original_specs[3])  # CountValues("category", ["A", "B"])
 
         # Make same assertions
-        ctx.assert_that(num_rows).where(name="Row count orig", severity="P1").is_eq(5)
-        ctx.assert_that(avg_price).where(name="Average price orig", severity="P1").is_eq(30.0)
-        ctx.assert_that(sum_qty).where(name="Sum quantity orig", severity="P1").is_eq(15)
-        ctx.assert_that(count_vals).where(name="Count A+B orig", severity="P1").is_eq(4)
+        ctx.assert_that(num_rows).config(name="Row count orig", severity="P1").is_eq(5)
+        ctx.assert_that(avg_price).config(name="Average price orig", severity="P1").is_eq(30.0)
+        ctx.assert_that(sum_qty).config(name="Sum quantity orig", severity="P1").is_eq(15)
+        ctx.assert_that(count_vals).config(name="Count A+B orig", severity="P1").is_eq(4)
 
     # Run both suites
     db = InMemoryMetricDB()
@@ -133,14 +133,14 @@ def test_cloned_specs_independent_execution() -> None:
     def check_original(mp: MetricProvider, ctx: Context) -> None:
         avg = mp.average("value")
         # Make assertion so metric gets computed
-        ctx.assert_that(avg).where(name="Average value", severity="P1").is_eq(3.0)
+        ctx.assert_that(avg).config(name="Average value", severity="P1").is_eq(3.0)
 
     @check(name="Check with cloned spec", datasets=["data2"])
     def check_cloned(mp: MetricProvider, ctx: Context) -> None:
         # Use the cloned spec via provider
         avg = mp.metric(cloned)
         # Make assertion so metric gets computed
-        ctx.assert_that(avg).where(name="Average value cloned", severity="P1").is_eq(30.0)
+        ctx.assert_that(avg).config(name="Average value cloned", severity="P1").is_eq(30.0)
 
     # Run both suites
     db = InMemoryMetricDB()

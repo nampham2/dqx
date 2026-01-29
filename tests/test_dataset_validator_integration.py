@@ -15,7 +15,7 @@ def test_verification_suite_detects_dataset_mismatch() -> None:
     def price_check(mp: MetricProvider, ctx: Context) -> None:
         # Mismatched dataset
         avg_price = mp.average("price", dataset="testing")
-        ctx.assert_that(avg_price).where(name="Price is positive").is_positive()
+        ctx.assert_that(avg_price).config(name="Price is positive").is_positive()
 
     # Build graph should fail validation during suite creation
     with pytest.raises(DQXError) as exc_info:
@@ -32,13 +32,13 @@ def test_multiple_checks_with_dataset_issues() -> None:
     def valid_check(mp: MetricProvider, ctx: Context) -> None:
         # Matching dataset
         avg_price = mp.average("price", dataset="production")
-        ctx.assert_that(avg_price).where(name="Price OK").is_positive()
+        ctx.assert_that(avg_price).config(name="Price OK").is_positive()
 
     @check(name="Invalid Check", datasets=["staging"])
     def invalid_check(mp: MetricProvider, ctx: Context) -> None:
         # Mismatched dataset
         avg_cost = mp.average("cost", dataset="testing")
-        ctx.assert_that(avg_cost).where(name="Cost OK").is_positive()
+        ctx.assert_that(avg_cost).config(name="Cost OK").is_positive()
 
     # Validation should report errors during suite creation due to second check
     with pytest.raises(DQXError) as exc_info:

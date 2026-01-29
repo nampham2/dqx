@@ -55,7 +55,7 @@ def test_enable_plugins_true_by_default(test_data: pa.Table, test_db: InMemoryMe
     # Create check
     @check(name="test_check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_positive()
+        ctx.assert_that(mp.num_rows()).config(name="Has rows").is_positive()
 
     # Create suite
     suite = VerificationSuite([test_check], test_db, "TestSuite")
@@ -91,7 +91,7 @@ def test_enable_plugins_false_disables_plugins(test_data: pa.Table, test_db: InM
     # Create check
     @check(name="test_check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_positive()
+        ctx.assert_that(mp.num_rows()).config(name="Has rows").is_positive()
 
     # Create suite
     suite = VerificationSuite([test_check], test_db, "TestSuite")
@@ -127,7 +127,7 @@ def test_enable_plugins_true_explicit(test_data: pa.Table, test_db: InMemoryMetr
     # Create check
     @check(name="test_check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_positive()
+        ctx.assert_that(mp.num_rows()).config(name="Has rows").is_positive()
 
     # Create suite
     suite = VerificationSuite([test_check], test_db, "TestSuite")
@@ -153,7 +153,7 @@ def test_process_plugins_not_called_when_disabled(test_data: pa.Table, test_db: 
     # Create check
     @check(name="test_check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_positive()
+        ctx.assert_that(mp.num_rows()).config(name="Has rows").is_positive()
 
     # Create suite
     suite = VerificationSuite([test_check], test_db, "TestSuite")
@@ -198,8 +198,8 @@ def test_plugin_receives_correct_context(test_data: pa.Table, test_db: InMemoryM
     # Create check with assertions that will pass
     @check(name="test_check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Row count check", severity="P0").is_eq(5.0)
-        ctx.assert_that(mp.sum("value")).where(name="Sum check", severity="P1").is_eq(15.0)
+        ctx.assert_that(mp.num_rows()).config(name="Row count check", severity="P0").is_eq(5.0)
+        ctx.assert_that(mp.sum("value")).config(name="Sum check", severity="P1").is_eq(15.0)
 
     # Create suite
     suite = VerificationSuite([test_check], test_db, "TestSuite")

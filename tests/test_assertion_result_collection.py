@@ -20,7 +20,7 @@ class TestAssertionResultCollection:
 
         @check(name="dummy check")
         def dummy_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="rows > 0").is_gt(0)
+            ctx.assert_that(mp.num_rows()).config(name="rows > 0").is_gt(0)
 
         db = InMemoryMetricDB()
         suite = VerificationSuite([dummy_check], db, "Test Suite")
@@ -39,7 +39,7 @@ class TestAssertionResultCollection:
 
         @check(name="dummy check")
         def dummy_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="rows > 0").is_gt(0)
+            ctx.assert_that(mp.num_rows()).config(name="rows > 0").is_gt(0)
 
         db = InMemoryMetricDB()
         suite = VerificationSuite([dummy_check], db, "Test Suite")
@@ -64,7 +64,7 @@ class TestAssertionResultCollection:
 
         @check(name="simple check")
         def simple_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="row count").is_eq(3)
+            ctx.assert_that(mp.num_rows()).config(name="row count").is_eq(3)
 
         db = InMemoryMetricDB()
         suite = VerificationSuite([simple_check], db, "Test Suite")
@@ -94,13 +94,13 @@ class TestAssertionResultCollection:
         @check(name="data validation")
         def validate_data(mp: MetricProvider, ctx: Context) -> None:
             # This should pass
-            ctx.assert_that(mp.num_rows()).where(name="Has 5 rows", severity="P0").is_eq(5)
+            ctx.assert_that(mp.num_rows()).config(name="Has 5 rows", severity="P0").is_eq(5)
 
             # This should also pass
-            ctx.assert_that(mp.average("value")).where(name="Average value is 30", severity="P1").is_eq(30.0)
+            ctx.assert_that(mp.average("value")).config(name="Average value is 30", severity="P1").is_eq(30.0)
 
             # This should fail
-            ctx.assert_that(mp.minimum("value")).where(name="Minimum value check", severity="P2").is_gt(
+            ctx.assert_that(mp.minimum("value")).config(name="Minimum value check", severity="P2").is_gt(
                 20.0
             )  # Will fail since min is 10
 
@@ -164,7 +164,7 @@ class TestAssertionResultCollection:
 
         @check(name="test check", datasets=["data"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="rows").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="rows").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite([test_check], db, "Test Suite")
@@ -193,7 +193,7 @@ class TestAssertionResultCollection:
 
         @check(name="result preservation")
         def check_results(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.average("x")).where(name="avg check").is_eq(2.0)
+            ctx.assert_that(mp.average("x")).config(name="avg check").is_eq(2.0)
 
         db = InMemoryMetricDB()
         suite = VerificationSuite([check_results], db, "Suite")
@@ -252,7 +252,7 @@ class TestAssertionResultCollection:
         @check(name="failure test")
         def failure_check(mp: MetricProvider, ctx: Context) -> None:
             # Create an assertion that will fail - we have 1 row, not more than 10
-            ctx.assert_that(mp.num_rows()).where(name="impossible check").is_gt(10)
+            ctx.assert_that(mp.num_rows()).config(name="impossible check").is_gt(10)
 
         db = InMemoryMetricDB()
         suite = VerificationSuite([failure_check], db, "Test Suite")

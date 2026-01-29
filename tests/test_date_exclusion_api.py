@@ -42,8 +42,8 @@ class TestVerificationSuiteSkipDates:
             mp.sum("revenue", lag=1, dataset="sales")  # Creates lag=1 metric for testing
             revenue_dod = mp.ext.day_over_day(revenue_0, dataset="sales")
 
-            ctx.assert_that(revenue_0).where(name="Revenue > 0").is_positive()
-            ctx.assert_that(revenue_dod).where(name="DoD > 0.8").is_gt(0.8)
+            ctx.assert_that(revenue_0).config(name="Revenue > 0").is_positive()
+            ctx.assert_that(revenue_dod).config(name="DoD > 0.8").is_gt(0.8)
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(checks=[revenue_check], db=db, name="Test Suite")
@@ -78,7 +78,7 @@ class TestVerificationSuiteSkipDates:
         @check(name="Simple Check")
         def simple_check(mp: MetricProvider, ctx: Context) -> None:
             avg = mp.average("value", dataset="data")
-            ctx.assert_that(avg).where(name="Average > 0").is_positive()
+            ctx.assert_that(avg).config(name="Average > 0").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(checks=[simple_check], db=db, name="Test Suite")
@@ -103,8 +103,8 @@ class TestVerificationSuiteSkipDates:
             sales_sum = mp.sum("amount", lag=0, dataset="sales")
             costs_sum = mp.sum("amount", lag=1, dataset="costs")
 
-            ctx.assert_that(sales_sum).where(name="Sales > 0").is_positive()
-            ctx.assert_that(costs_sum).where(name="Costs > 0").is_positive()
+            ctx.assert_that(sales_sum).config(name="Sales > 0").is_positive()
+            ctx.assert_that(costs_sum).config(name="Costs > 0").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(checks=[multi_check], db=db, name="Test Suite")
@@ -147,8 +147,8 @@ class TestVerificationSuiteSkipDates:
             # Week over week
             price_wow = mp.ext.week_over_week(price, dataset="products")
 
-            ctx.assert_that(price_stddev).where(name="Price volatility").is_lt(10.0)
-            ctx.assert_that(price_wow).where(name="Weekly growth").is_gt(0.9)
+            ctx.assert_that(price_stddev).config(name="Price volatility").is_lt(10.0)
+            ctx.assert_that(price_wow).config(name="Weekly growth").is_gt(0.9)
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(checks=[complex_check], db=db, name="Test Suite")
@@ -186,7 +186,7 @@ class TestVerificationSuiteSkipDates:
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             avg = mp.average("value", dataset="data")
-            ctx.assert_that(avg).where(name="Average > 0").is_positive()
+            ctx.assert_that(avg).config(name="Average > 0").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(checks=[test_check], db=db, name="Test Suite")
@@ -213,8 +213,8 @@ class TestVerificationSuiteSkipDates:
             sum2 = mp.sum("amount", lag=0, dataset="data")  # Duplicate
             sum3 = mp.sum("amount", lag=1, dataset="data")
 
-            ctx.assert_that(sum1 + sum2).where(name="Sum check").is_positive()
-            ctx.assert_that(sum3).where(name="Yesterday sum").is_positive()
+            ctx.assert_that(sum1 + sum2).config(name="Sum check").is_positive()
+            ctx.assert_that(sum3).config(name="Yesterday sum").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(checks=[dup_check], db=db, name="Test Suite")
@@ -246,10 +246,10 @@ class TestVerificationSuiteSkipDates:
             revenue_us_yesterday = mp.sum("amount", lag=1, dataset="us_sales")
             revenue_eu_yesterday = mp.sum("amount", lag=1, dataset="eu_sales")
 
-            ctx.assert_that(revenue_us).where(name="US Revenue Today").is_positive()
-            ctx.assert_that(revenue_eu).where(name="EU Revenue Today").is_positive()
-            ctx.assert_that(revenue_us_yesterday).where(name="US Revenue Yesterday").is_positive()
-            ctx.assert_that(revenue_eu_yesterday).where(name="EU Revenue Yesterday").is_positive()
+            ctx.assert_that(revenue_us).config(name="US Revenue Today").is_positive()
+            ctx.assert_that(revenue_eu).config(name="EU Revenue Today").is_positive()
+            ctx.assert_that(revenue_us_yesterday).config(name="US Revenue Yesterday").is_positive()
+            ctx.assert_that(revenue_eu_yesterday).config(name="EU Revenue Yesterday").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(checks=[cross_check], db=db, name="Test Suite")

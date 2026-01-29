@@ -194,7 +194,7 @@ class TestVerificationSuiteDQLParameter:
 
         @check(name="Test Check", datasets=["dataset"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+            ctx.assert_that(mp.num_rows()).config(name="Has rows").is_gt(0)
 
         # Should not raise - Python API still works
         suite = VerificationSuite(
@@ -255,7 +255,7 @@ class TestVerificationSuiteDQLParameter:
 
         @check(name="Test Check", datasets=["dataset"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+            ctx.assert_that(mp.num_rows()).config(name="Has rows").is_gt(0)
 
         profile = SeasonalProfile(
             name="Test Profile",
@@ -324,7 +324,7 @@ class TestCheckNameValidation:
 
         @check(name="", datasets=["dataset"])
         def empty_name_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="test").is_gt(0)
+            ctx.assert_that(mp.num_rows()).config(name="test").is_gt(0)
 
         # Should fail when building the graph (during suite creation)
         with pytest.raises(DQXError, match="Check name cannot be empty"):

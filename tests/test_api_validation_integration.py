@@ -16,11 +16,11 @@ def test_suite_validation_on_build_graph_success() -> None:
 
     @check(name="Valid Check 1")
     def check1(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Has data").is_gt(0)
+        ctx.assert_that(mp.num_rows()).config(name="Has data").is_gt(0)
 
     @check(name="Valid Check 2")
     def check2(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.average("price")).where(name="Price check").is_positive()
+        ctx.assert_that(mp.average("price")).config(name="Price check").is_positive()
 
     # Should not raise any errors during suite creation (graph is built in __init__)
     suite = VerificationSuite([check1, check2], db, "Valid Suite")
@@ -33,11 +33,11 @@ def test_suite_validation_on_build_graph_failure() -> None:
 
     @check(name="Duplicate Name")
     def check1(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Test").is_gt(0)
+        ctx.assert_that(mp.num_rows()).config(name="Test").is_gt(0)
 
     @check(name="Duplicate Name")  # Same name!
     def check2(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.average("price")).where(name="Test").is_positive()
+        ctx.assert_that(mp.average("price")).config(name="Test").is_positive()
 
     # Should raise DQXError during suite creation (graph built in __init__)
     with pytest.raises(DQXError) as exc_info:
@@ -91,7 +91,7 @@ def test_noop_assertion_always_succeeds() -> None:
 
     @check(name="Noop Test")
     def noop_test(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.average("value")).where(name="Collect average without validation").noop()
+        ctx.assert_that(mp.average("value")).config(name="Collect average without validation").noop()
 
     suite = VerificationSuite([noop_test], db, "Noop Suite")
 

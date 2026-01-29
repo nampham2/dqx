@@ -25,7 +25,7 @@ class TestPctWithAssertions:
         @check(name="Test is_leq")
         def test_check(mp, ctx):  # type: ignore[no-untyped-def]
             metric = mp.num_rows()
-            ctx.assert_that(metric).where(name="leq").is_leq(pct(5))
+            ctx.assert_that(metric).config(name="leq").is_leq(pct(5))
 
         suite = VerificationSuite([test_check], db, "Test")
         assert len(list(suite.graph.checks())) == 1
@@ -37,7 +37,7 @@ class TestPctWithAssertions:
         @check(name="Test is_lt")
         def test_check(mp, ctx):  # type: ignore[no-untyped-def]
             metric = mp.num_rows()
-            ctx.assert_that(metric).where(name="lt").is_lt(pct(5))
+            ctx.assert_that(metric).config(name="lt").is_lt(pct(5))
 
         suite = VerificationSuite([test_check], db, "Test")
         assert len(list(suite.graph.checks())) == 1
@@ -49,7 +49,7 @@ class TestPctWithAssertions:
         @check(name="Test is_geq")
         def test_check(mp, ctx):  # type: ignore[no-untyped-def]
             metric = mp.num_rows()
-            ctx.assert_that(metric).where(name="geq").is_geq(pct(1))
+            ctx.assert_that(metric).config(name="geq").is_geq(pct(1))
 
         suite = VerificationSuite([test_check], db, "Test")
         assert len(list(suite.graph.checks())) == 1
@@ -61,7 +61,7 @@ class TestPctWithAssertions:
         @check(name="Test is_gt")
         def test_check(mp, ctx):  # type: ignore[no-untyped-def]
             metric = mp.num_rows()
-            ctx.assert_that(metric).where(name="gt").is_gt(pct(1))
+            ctx.assert_that(metric).config(name="gt").is_gt(pct(1))
 
         suite = VerificationSuite([test_check], db, "Test")
         assert len(list(suite.graph.checks())) == 1
@@ -73,7 +73,7 @@ class TestPctWithAssertions:
         @check(name="Test is_eq")
         def test_check(mp, ctx):  # type: ignore[no-untyped-def]
             metric = mp.num_rows()
-            ctx.assert_that(metric).where(name="eq").is_eq(pct(0))
+            ctx.assert_that(metric).config(name="eq").is_eq(pct(0))
 
         suite = VerificationSuite([test_check], db, "Test")
         assert len(list(suite.graph.checks())) == 1
@@ -85,7 +85,7 @@ class TestPctWithAssertions:
         @check(name="Test is_neq")
         def test_check(mp, ctx):  # type: ignore[no-untyped-def]
             metric = mp.num_rows()
-            ctx.assert_that(metric).where(name="neq").is_neq(pct(100))
+            ctx.assert_that(metric).config(name="neq").is_neq(pct(100))
 
         suite = VerificationSuite([test_check], db, "Test")
         assert len(list(suite.graph.checks())) == 1
@@ -97,7 +97,7 @@ class TestPctWithAssertions:
         @check(name="Test is_between")
         def test_check(mp, ctx):  # type: ignore[no-untyped-def]
             metric = mp.num_rows()
-            ctx.assert_that(metric).where(name="between").is_between(pct(0), pct(10))
+            ctx.assert_that(metric).config(name="between").is_between(pct(0), pct(10))
 
         suite = VerificationSuite([test_check], db, "Test")
         assert len(list(suite.graph.checks())) == 1
@@ -109,13 +109,13 @@ class TestPctWithAssertions:
         @check(name="Test All Assertions")
         def test_check(mp, ctx):  # type: ignore[no-untyped-def]
             metric = mp.num_rows()
-            ctx.assert_that(metric).where(name="leq").is_leq(pct(5))
-            ctx.assert_that(metric).where(name="lt").is_lt(pct(5))
-            ctx.assert_that(metric).where(name="geq").is_geq(pct(1))
-            ctx.assert_that(metric).where(name="gt").is_gt(pct(1))
-            ctx.assert_that(metric).where(name="eq").is_eq(pct(0))
-            ctx.assert_that(metric).where(name="neq").is_neq(pct(100))
-            ctx.assert_that(metric).where(name="between").is_between(pct(0), pct(10))
+            ctx.assert_that(metric).config(name="leq").is_leq(pct(5))
+            ctx.assert_that(metric).config(name="lt").is_lt(pct(5))
+            ctx.assert_that(metric).config(name="geq").is_geq(pct(1))
+            ctx.assert_that(metric).config(name="gt").is_gt(pct(1))
+            ctx.assert_that(metric).config(name="eq").is_eq(pct(0))
+            ctx.assert_that(metric).config(name="neq").is_neq(pct(100))
+            ctx.assert_that(metric).config(name="between").is_between(pct(0), pct(10))
 
         suite = VerificationSuite([test_check], db, "Test")
         assert len(list(suite.graph.checks())) == 1
@@ -158,7 +158,7 @@ class TestPctWithTunables:
 
         @check(name="Test Tunable")
         def test_check(mp, ctx):  # type: ignore[no-untyped-def]
-            ctx.assert_that(mp.num_rows()).where(name="Null rate").is_leq(threshold)
+            ctx.assert_that(mp.num_rows()).config(name="Null rate").is_leq(threshold)
 
         suite = VerificationSuite([test_check], db, "Test")
         assert len(list(suite.graph.checks())) == 1
@@ -172,7 +172,7 @@ class TestPctWithTunables:
 
         @check(name="Test Mixed")
         def test_check(mp, ctx):  # type: ignore[no-untyped-def]
-            ctx.assert_that(mp.num_rows()).where(name="Range").is_between(lower, upper)
+            ctx.assert_that(mp.num_rows()).config(name="Range").is_between(lower, upper)
 
         suite = VerificationSuite([test_check], db, "Test")
         assert len(list(suite.graph.checks())) == 1
@@ -188,7 +188,7 @@ class TestPctNotInNamespace:
         @check(name="Test Namespace")
         def test_check(mp, ctx):  # type: ignore[no-untyped-def]
             # This should work - pct() used as threshold (immediate evaluation)
-            ctx.assert_that(mp.num_rows()).where(name="Test").is_leq(pct(5))
+            ctx.assert_that(mp.num_rows()).config(name="Test").is_leq(pct(5))
 
         suite = VerificationSuite([test_check], db, "Test")
 

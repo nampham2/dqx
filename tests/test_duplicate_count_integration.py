@@ -124,7 +124,7 @@ class TestDuplicateCountIntegration:
         @check(name="no_duplicate_orders")
         def check_no_duplicates(mp: MetricProvider, ctx: Any) -> None:
             duplicate_count = mp.duplicate_count(["order_id"])
-            ctx.assert_that(duplicate_count).where(name="No duplicate orders").is_eq(0.0)
+            ctx.assert_that(duplicate_count).config(name="No duplicate orders").is_eq(0.0)
 
         # Create suite
         suite = VerificationSuite(checks=[check_no_duplicates], db=db, name="test_suite")

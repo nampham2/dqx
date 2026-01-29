@@ -20,9 +20,9 @@ def test_metrics_by_execution_id_basic() -> None:
         min_price = mp.minimum("price")
         max_price = mp.maximum("price")
 
-        ctx.assert_that(avg_price).where(name="Avg price check").is_positive()
-        ctx.assert_that(min_price).where(name="Min price check").is_positive()
-        ctx.assert_that(max_price).where(name="Max price check").is_gt(10)
+        ctx.assert_that(avg_price).config(name="Avg price check").is_positive()
+        ctx.assert_that(min_price).config(name="Min price check").is_positive()
+        ctx.assert_that(max_price).config(name="Max price check").is_gt(10)
 
     # Create test data
     table = pa.table({"price": [10.0, 20.0, 30.0]})
@@ -64,7 +64,7 @@ def test_metrics_by_execution_id_with_extended_ops() -> None:
         avg_price = mp.average("price")
         dod_avg = mp.ext.day_over_day(avg_price)
 
-        ctx.assert_that(dod_avg).where(name="DoD check").noop()
+        ctx.assert_that(dod_avg).config(name="DoD check").noop()
 
     # Create test data for multiple days
     table1 = pa.table({"price": [10.0, 20.0, 30.0]})
@@ -119,7 +119,7 @@ def test_metrics_by_execution_id_isolation() -> None:
     @check(name="Simple Check")
     def simple_check(mp: MetricProvider, ctx: Context) -> None:
         avg = mp.average("value")
-        ctx.assert_that(avg).where(name="Avg check").is_positive()
+        ctx.assert_that(avg).config(name="Avg check").is_positive()
 
     # Create test data
     table = pa.table({"value": [1.0, 2.0, 3.0]})

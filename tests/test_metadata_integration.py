@@ -19,9 +19,9 @@ def test_metadata_persistence_flow() -> None:
         min_price = mp.minimum("price")
         max_price = mp.maximum("price")
 
-        ctx.assert_that(avg_price).where(name="Avg price check").is_positive()
-        ctx.assert_that(min_price).where(name="Min price check").is_positive()
-        ctx.assert_that(max_price).where(name="Max price check").is_gt(10)
+        ctx.assert_that(avg_price).config(name="Avg price check").is_positive()
+        ctx.assert_that(min_price).config(name="Min price check").is_positive()
+        ctx.assert_that(max_price).config(name="Max price check").is_gt(10)
 
     # Create test data
     table = pa.table({"price": [10.0, 20.0, 30.0]})
@@ -94,7 +94,7 @@ def test_metadata_isolation_between_suites() -> None:
     @check(name="Simple Check")
     def simple_check(mp: MetricProvider, ctx: Context) -> None:
         avg = mp.average("value")
-        ctx.assert_that(avg).where(name="Value check").is_positive()
+        ctx.assert_that(avg).config(name="Value check").is_positive()
 
     # Create test data
     table = pa.table({"value": [1.0, 2.0, 3.0]})
@@ -135,7 +135,7 @@ def test_no_execution_id_tag_injection() -> None:
     @check(name="Tag Check")
     def tag_check(mp: MetricProvider, ctx: Context) -> None:
         avg = mp.average("value")
-        ctx.assert_that(avg).where(name="Value check").is_positive()
+        ctx.assert_that(avg).config(name="Value check").is_positive()
 
     # Create test data
     table = pa.table({"value": [1.0, 2.0, 3.0]})

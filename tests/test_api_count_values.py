@@ -33,9 +33,9 @@ def test_count_values_with_check() -> None:
     # Create check using count_values
     @check(name="Count Values Check")
     def count_values_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.count_values("status", "active")).where(name="Count of active status should be 3").is_eq(3)
+        ctx.assert_that(mp.count_values("status", "active")).config(name="Count of active status should be 3").is_eq(3)
 
-        ctx.assert_that(mp.count_values("priority", [1, 2])).where(
+        ctx.assert_that(mp.count_values("priority", [1, 2])).config(
             name="Count of priority 1 or 2 should be at least 5"
         ).is_geq(5)
 
@@ -64,11 +64,11 @@ def test_count_values_multiple_values() -> None:
 
     @check(name="Multiple Values Check")
     def multiple_values_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.count_values("region", ["US", "EU", "APAC"])).where(
+        ctx.assert_that(mp.count_values("region", ["US", "EU", "APAC"])).config(
             name="Count of main regions should be 6"
         ).is_eq(6)
 
-        ctx.assert_that(mp.count_values("category", ["A", "B"])).where(
+        ctx.assert_that(mp.count_values("category", ["A", "B"])).config(
             name="Count of categories A or B should be greater than 4"
         ).is_gt(4)
 
@@ -95,9 +95,9 @@ def test_count_values_with_integers() -> None:
 
     @check(name="Integer Values Check")
     def integer_values_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.count_values("score", 100)).where(name="Count of score 100 should be 3").is_eq(3)
+        ctx.assert_that(mp.count_values("score", 100)).config(name="Count of score 100 should be 3").is_eq(3)
 
-        ctx.assert_that(mp.count_values("level", [1, 2, 3])).where(
+        ctx.assert_that(mp.count_values("level", [1, 2, 3])).config(
             name="Count of levels 1-3 should be at least 6"
         ).is_geq(6)
 
@@ -125,11 +125,11 @@ def test_count_values_with_nulls() -> None:
     # CountValues should not count nulls
     @check(name="Nulls Check")
     def nulls_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.count_values("status", "active")).where(
+        ctx.assert_that(mp.count_values("status", "active")).config(
             name="Count of active status should be 3 (ignoring nulls)"
         ).is_eq(3)
 
-        ctx.assert_that(mp.count_values("code", 1)).where(name="Count of code 1 should be 2 (ignoring nulls)").is_eq(2)
+        ctx.assert_that(mp.count_values("code", 1)).config(name="Count of code 1 should be 2 (ignoring nulls)").is_eq(2)
 
     db = InMemoryMetricDB()
     suite = VerificationSuite([nulls_check], db, "Test Suite")
@@ -156,7 +156,7 @@ def test_count_values_with_spec_directly() -> None:
 
     @check(name="Spec Direct Check")
     def spec_direct_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.metric(count_values_spec)).where(name="Count of type A should be 3").is_eq(3)
+        ctx.assert_that(mp.metric(count_values_spec)).config(name="Count of type A should be 3").is_eq(3)
 
     db = InMemoryMetricDB()
     suite = VerificationSuite([spec_direct_check], db, "Test Suite")
@@ -180,7 +180,7 @@ def test_count_values_failure_case() -> None:
 
     @check(name="Failure Check")
     def failure_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.count_values("status", "active")).where(
+        ctx.assert_that(mp.count_values("status", "active")).config(
             name="Count of active status should be greater than 2"
         ).is_gt(2)
 
@@ -202,7 +202,7 @@ def test_count_values_with_empty_list() -> None:
     @check(name="Empty List Check")
     def empty_list_check(mp: MetricProvider, ctx: Context) -> None:
         # This should raise ValueError during graph building
-        ctx.assert_that(mp.count_values("col", [])).where(name="Count with empty list should be 0").is_eq(0)
+        ctx.assert_that(mp.count_values("col", [])).config(name="Count with empty list should be 0").is_eq(0)
 
     db = InMemoryMetricDB()
 
@@ -224,9 +224,9 @@ def test_count_values_with_special_characters() -> None:
 
     @check(name="Special Characters Check")
     def special_chars_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.count_values("name", "O'Brien")).where(name="Count of O'Brien should be 2").is_eq(2)
+        ctx.assert_that(mp.count_values("name", "O'Brien")).config(name="Count of O'Brien should be 2").is_eq(2)
 
-        ctx.assert_that(mp.count_values("path", ["C:\\Users\\test", "D:\\Data"])).where(
+        ctx.assert_that(mp.count_values("path", ["C:\\Users\\test", "D:\\Data"])).config(
             name="Count of Windows paths should be 3"
         ).is_eq(3)
 
@@ -252,7 +252,7 @@ def test_count_values_case_sensitive() -> None:
 
     @check(name="Case Sensitive Check")
     def case_sensitive_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.count_values("status", "active")).where(name="Count should be case sensitive").is_eq(1)
+        ctx.assert_that(mp.count_values("status", "active")).config(name="Count should be case sensitive").is_eq(1)
 
     db = InMemoryMetricDB()
     suite = VerificationSuite([case_sensitive_check], db, "Test Suite")
@@ -296,13 +296,13 @@ def test_count_values_with_booleans() -> None:
 
     @check(name="Boolean Values Check")
     def boolean_values_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.count_values("is_active", True)).where(
+        ctx.assert_that(mp.count_values("is_active", True)).config(
             name="Count of True values should be 4 (ignoring nulls)"
         ).is_eq(4)
 
-        ctx.assert_that(mp.count_values("is_active", False)).where(name="Count of False values should be 2").is_eq(2)
+        ctx.assert_that(mp.count_values("is_active", False)).config(name="Count of False values should be 2").is_eq(2)
 
-        ctx.assert_that(mp.count_values("verified", True)).where(name="Count of verified True should be 4").is_eq(4)
+        ctx.assert_that(mp.count_values("verified", True)).config(name="Count of verified True should be 4").is_eq(4)
 
     db = InMemoryMetricDB()
     suite = VerificationSuite([boolean_values_check], db, "Test Suite")

@@ -32,9 +32,9 @@ class TestLagUniqueSymbols:
             lag2_tax = mp.average("tax", lag=2)
 
             # Use all three in assertions
-            ctx.assert_that(current_tax).where(name="Current tax positive").is_positive()
-            ctx.assert_that(lag1_tax).where(name="Previous day tax positive").is_positive()
-            ctx.assert_that(lag2_tax).where(name="Two days ago tax positive").is_positive()
+            ctx.assert_that(current_tax).config(name="Current tax positive").is_positive()
+            ctx.assert_that(lag1_tax).config(name="Previous day tax positive").is_positive()
+            ctx.assert_that(lag2_tax).config(name="Two days ago tax positive").is_positive()
 
         # Create data with tax values for multiple dates
         data = pa.table(
@@ -98,10 +98,10 @@ class TestLagUniqueSymbols:
             sum_quantity = mp.sum("quantity")
             sum_quantity_lag = mp.sum("quantity", lag=1)
 
-            ctx.assert_that(avg_price).where(name="Avg price positive").is_positive()
-            ctx.assert_that(avg_price_lag).where(name="Yesterday avg price positive").is_positive()
-            ctx.assert_that(sum_quantity).where(name="Sum quantity positive").is_positive()
-            ctx.assert_that(sum_quantity_lag).where(name="Yesterday sum quantity positive").is_positive()
+            ctx.assert_that(avg_price).config(name="Avg price positive").is_positive()
+            ctx.assert_that(avg_price_lag).config(name="Yesterday avg price positive").is_positive()
+            ctx.assert_that(sum_quantity).config(name="Sum quantity positive").is_positive()
+            ctx.assert_that(sum_quantity_lag).config(name="Yesterday sum quantity positive").is_positive()
 
         # Create test data
         data = pa.table(
@@ -143,8 +143,8 @@ class TestLagUniqueSymbols:
         def simple_check(mp: MetricProvider, ctx: Any) -> None:
             avg = mp.average("value")
             avg_lag = mp.average("value", lag=1)
-            ctx.assert_that(avg).where(name="Current average").is_positive()
-            ctx.assert_that(avg_lag).where(name="Previous average").is_positive()
+            ctx.assert_that(avg).config(name="Current average").is_positive()
+            ctx.assert_that(avg_lag).config(name="Previous average").is_positive()
 
         data = pa.table(
             {
