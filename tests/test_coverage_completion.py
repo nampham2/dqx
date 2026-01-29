@@ -1,5 +1,7 @@
 """Tests to complete coverage for analyzer.py, api.py, and plugins.py."""
 
+from __future__ import annotations
+
 import datetime
 from typing import Any
 from unittest.mock import Mock, patch
@@ -76,7 +78,7 @@ class TestApiCoverage:
         """Test assertion edge cases - covers lines 173, 177, 303-306."""
         # Test 1: Assertion with None context (line 173)
         draft = AssertionDraft(actual=Mock(), context=None)
-        ready = draft.where(name="Test assertion")
+        ready = draft.config(name="Test assertion")
         # This should not raise an error, just return early
         ready._create_assertion_node(Mock())
 
@@ -84,14 +86,14 @@ class TestApiCoverage:
         db = Mock()
         context = Context(suite="Test", db=db, execution_id="test-id", data_av_threshold=0.9)
         draft2 = AssertionDraft(actual=Mock(), context=context)
-        ready2 = draft2.where(name="Test assertion 2")
+        ready2 = draft2.config(name="Test assertion 2")
 
         with pytest.raises(DQXError, match="Cannot create assertion outside of check context"):
             ready2._create_assertion_node(Mock())
 
         # Test 3: is_between with invalid bounds (lines 303-306)
         draft3 = AssertionDraft(actual=Mock(), context=Mock())
-        ready3 = draft3.where(name="Test range")
+        ready3 = draft3.config(name="Test range")
 
         with pytest.raises(ValueError, match="Invalid range: lower bound .* must be less than or equal to upper bound"):
             ready3.is_between(10.0, 5.0)  # lower > upper
@@ -123,7 +125,7 @@ class TestApiCoverage:
         # Create a simple check function
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.sum("revenue")).where(name="Revenue check", severity="P0").is_positive()
+            ctx.assert_that(mp.sum("revenue")).config(name="Revenue check", severity="P0").is_positive()
 
         suite = VerificationSuite([test_check], db, "Test Suite")
 
@@ -134,7 +136,7 @@ class TestApiCoverage:
         # Create a new suite for this test to avoid duplicate checks
         @check(name="Warning Test Check")
         def warning_test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.sum("cost")).where(name="Cost check").is_positive()
+            ctx.assert_that(mp.sum("cost")).config(name="Cost check").is_positive()
 
         suite2 = VerificationSuite([warning_test_check], db, "Test Suite 2")
 

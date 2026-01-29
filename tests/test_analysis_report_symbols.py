@@ -9,6 +9,8 @@ Tests cover:
 5. Symbol lookup integration with provider
 """
 
+from __future__ import annotations
+
 import datetime
 from typing import Any
 from unittest.mock import MagicMock, Mock, patch
@@ -121,7 +123,7 @@ class TestAnalysisReportSymbols:
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
             total = mp.sum("value")
-            ctx.assert_that(total).where(name="Total positive").is_positive()
+            ctx.assert_that(total).config(name="Total positive").is_positive()
 
         # Create sample data
         data_table = pa.table({"value": [10.0, 20.0, 30.0]})
@@ -156,8 +158,8 @@ class TestAnalysisReportSymbols:
             total_amount = mp.sum("amount")
             unique_users = mp.null_count("user_id")  # Using null_count as an example metric
 
-            ctx.assert_that(total_amount).where(name="Total positive").is_positive()
-            ctx.assert_that(unique_users).where(name="Has users").is_geq(0)  # Changed to >=0 since null_count can be 0
+            ctx.assert_that(total_amount).config(name="Total positive").is_positive()
+            ctx.assert_that(unique_users).config(name="Has users").is_geq(0)  # Changed to >=0 since null_count can be 0
 
         # Create data
         test_data = pa.table({"amount": [100.0, 200.0, 150.0], "user_id": [1, 2, 1]})

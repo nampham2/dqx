@@ -21,48 +21,48 @@ MQ_MULT = TunableFloat("MQ_MULT", 2.0, bounds=(0.0, 2.0))
 
 @check(name="Simple Checks", datasets=["ds1"])
 def simple_checks(mp: MetricProvider, ctx: Context) -> None:
-    ctx.assert_that(mp.null_count("delivered")).where(name="Delivered null count is less than 100").is_leq(100)
-    ctx.assert_that(mp.minimum("quantity") * MQ_MULT).where(name="Minimum quantity check").is_leq(
+    ctx.assert_that(mp.null_count("delivered")).config(name="Delivered null count is less than 100").is_leq(100)
+    ctx.assert_that(mp.minimum("quantity") * MQ_MULT).config(name="Minimum quantity check").is_leq(
         MIN_QUANTITY_THRESHOLD
     )
-    ctx.assert_that(mp.average("price")).where(name="Average price check").is_geq(10.0)
-    ctx.assert_that(mp.ext.day_over_day(mp.average("tax"))).where(name="Tax day-over-day check").is_geq(0.5)
-    ctx.assert_that(mp.duplicate_count(["name"], dataset="ds1")).where(name="No duplicates on name").is_eq(0)
+    ctx.assert_that(mp.average("price")).config(name="Average price check").is_geq(10.0)
+    ctx.assert_that(mp.ext.day_over_day(mp.average("tax"))).config(name="Tax day-over-day check").is_geq(0.5)
+    ctx.assert_that(mp.duplicate_count(["name"], dataset="ds1")).config(name="No duplicates on name").is_eq(0)
     ctx.assert_that(
         mp.minimum(
             "quantity",
             dataset="ds1",
             parameters={"min_quantity": 10},
         )
-    ).where(name="Quantity minimum is between 1 and 5").is_between(1, 5.0)
-    ctx.assert_that(mp.count_values("name", "np", dataset="ds1")).where(name="NP never buys here").is_eq(0)
-    ctx.assert_that(mp.unique_count("name")).where(name="At least 5 unique customers").is_geq(5)
+    ).config(name="Quantity minimum is between 1 and 5").is_between(1, 5.0)
+    ctx.assert_that(mp.count_values("name", "np", dataset="ds1")).config(name="NP never buys here").is_eq(0)
+    ctx.assert_that(mp.unique_count("name")).config(name="At least 5 unique customers").is_geq(5)
 
 
 @check(name="Custom checks", datasets=["ds1"])
 def custom_checks(mp: MetricProvider, ctx: Context) -> None:
-    ctx.assert_that(mp.custom_sql("count(*)", parameters={"min_quantity": 20})).where(name="Count orders").is_gt(100)
+    ctx.assert_that(mp.custom_sql("count(*)", parameters={"min_quantity": 20})).config(name="Count orders").is_gt(100)
 
 
 @check(name="complex metrics", datasets=["ds1"])
 def complex_metrics(mp: MetricProvider, ctx: Context) -> None:
     tax = mp.average("tax")
     tax_stddev = mp.ext.stddev(mp.ext.day_over_day(tax), offset=1, n=7)
-    ctx.assert_that(tax_stddev).where(name="Tax stddev is small").is_leq(10.0)
+    ctx.assert_that(tax_stddev).config(name="Tax stddev is small").is_leq(10.0)
 
 
 @check(name="Delivered null percentage", datasets=["ds1"])
 def null_percentage(mp: MetricProvider, ctx: Context) -> None:
     null_count = mp.null_count("delivered", dataset="ds1")
     nr = mp.num_rows()
-    ctx.assert_that(null_count / nr).where(name="null percentage is less than 40%").is_leq(0.4)
+    ctx.assert_that(null_count / nr).config(name="null percentage is less than 40%").is_leq(0.4)
 
 
 @check(name="Manual Day Over Day", datasets=["ds1"])
 def manual_day_over_day(mp: MetricProvider, ctx: Context) -> None:
     tax_avg = mp.average("tax")
     tax_avg_lag = mp.average("tax", lag=1)
-    ctx.assert_that(tax_avg / tax_avg_lag).where(name="Tax average day-over-day equals 1.0", tags={"xmas"}).is_eq(
+    ctx.assert_that(tax_avg / tax_avg_lag).config(name="Tax average day-over-day equals 1.0", tags={"xmas"}).is_eq(
         1.0, tol=0.01
     )
 
@@ -72,8 +72,8 @@ def rate_of_change(mp: MetricProvider, ctx: Context) -> None:
     tax_dod = mp.ext.day_over_day(mp.maximum("tax"))
     tax_wow = mp.ext.week_over_week(mp.average("tax"))
     rate = sp.Abs(tax_dod - 1.0)
-    ctx.assert_that(rate).where(name="Maximum tax rate change is less than 20%").is_leq(0.2)
-    ctx.assert_that(tax_wow).where(name="Average tax week-over-week change is less than 30%").is_leq(0.3)
+    ctx.assert_that(rate).config(name="Maximum tax rate change is less than 20%").is_leq(0.2)
+    ctx.assert_that(tax_wow).config(name="Average tax week-over-week change is less than 30%").is_leq(0.3)
 
 
 @check(name="Cross Dataset Check", datasets=["ds1", "ds2"])
@@ -81,10 +81,10 @@ def cross_dataset_check(mp: MetricProvider, ctx: Context) -> None:
     tax_avg_1 = mp.average("tax", dataset="ds1")
     tax_avg_2 = mp.average("tax", dataset="ds2")
 
-    ctx.assert_that(sp.Abs(tax_avg_1 / tax_avg_2 - 1)).where(name="Tax average ratio between datasets").is_lt(
+    ctx.assert_that(sp.Abs(tax_avg_1 / tax_avg_2 - 1)).config(name="Tax average ratio between datasets").is_lt(
         0.2, tol=0.01
     )
-    ctx.assert_that(mp.first("tax", dataset="ds1")).where(name="random tax value").noop()
+    ctx.assert_that(mp.first("tax", dataset="ds1")).config(name="random tax value").noop()
 
 
 def test_e2e_suite() -> None:
@@ -229,7 +229,7 @@ def multiplier_test_check(mp: MetricProvider, ctx: Context) -> None:
     tax_avg = mp.average("tax")
     # Tax average with this seed is around 50-80
     # Threshold 80: raw ~70 < 80 = FAILED, scaled ~140 > 80 = PASSED
-    ctx.assert_that(tax_avg).where(name="Tax average exceeds threshold", tags={"multiplier-test"}).is_gt(80)
+    ctx.assert_that(tax_avg).config(name="Tax average exceeds threshold", tags={"multiplier-test"}).is_gt(80)
 
 
 def test_e2e_profile_metric_multiplier_effect() -> None:
@@ -306,15 +306,15 @@ def config_test_data_quality(mp: MetricProvider, ctx: Context) -> None:
     """Data quality checks using tunables from config file."""
     # Check null rate is below threshold
     null_rate = mp.null_count("delivered") / mp.num_rows()
-    ctx.assert_that(null_rate - NULL_RATE_THRESHOLD).where(name="Null rate below threshold").is_lt(0)
+    ctx.assert_that(null_rate - NULL_RATE_THRESHOLD).config(name="Null rate below threshold").is_lt(0)
 
     # Check average price meets minimum
     avg_price = mp.average("price")
-    ctx.assert_that(avg_price).where(name="Average price meets minimum").is_geq(MIN_AVG_PRICE)
+    ctx.assert_that(avg_price).config(name="Average price meets minimum").is_geq(MIN_AVG_PRICE)
 
     # Check tax standard deviation is within bounds
     tax_stddev = mp.ext.stddev(mp.average("tax"), offset=1, n=7)
-    ctx.assert_that(tax_stddev).where(name="Tax stddev within bounds").is_leq(MAX_TAX_STDDEV)
+    ctx.assert_that(tax_stddev).config(name="Tax stddev within bounds").is_leq(MAX_TAX_STDDEV)
 
 
 def test_e2e_suite_with_config(tmp_path: Path) -> None:

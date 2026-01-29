@@ -219,8 +219,8 @@ class TestSuiteWithConfig:
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - threshold).where(name="threshold_test").is_gt(0)
-            ctx.assert_that(x - min_rows).where(name="min_rows_test").is_gt(0)
+            ctx.assert_that(x - threshold).config(name="threshold_test").is_gt(0)
+            ctx.assert_that(x - min_rows).config(name="min_rows_test").is_gt(0)
 
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
@@ -245,7 +245,7 @@ tunables:
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - threshold).where(name="test").is_gt(0)
+            ctx.assert_that(x - threshold).config(name="test").is_gt(0)
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(checks=[test_check], db=db, name="Test Suite", config=None)
@@ -261,8 +261,8 @@ tunables:
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - threshold).where(name="t1").is_gt(0)
-            ctx.assert_that(x - min_rows).where(name="t2").is_gt(0)
+            ctx.assert_that(x - threshold).config(name="t1").is_gt(0)
+            ctx.assert_that(x - min_rows).config(name="t2").is_gt(0)
 
         config_file = tmp_path / "config.yaml"
         config_file.write_text("tunables:\n  THRESHOLD: 0.05")
@@ -280,7 +280,7 @@ tunables:
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - threshold).where(name="test").is_gt(0)
+            ctx.assert_that(x - threshold).config(name="test").is_gt(0)
 
         config_file = tmp_path / "invalid.yaml"
         config_file.write_text("tunables:\n  THRESHOLD: [bad")
@@ -300,7 +300,7 @@ class TestConfigResetCompatibility:
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - threshold).where(name="test").is_gt(0)
+            ctx.assert_that(x - threshold).config(name="test").is_gt(0)
 
         config_file = tmp_path / "config.yaml"
         config_file.write_text("tunables:\n  THRESHOLD: 0.05")
@@ -323,7 +323,7 @@ class TestConfigResetCompatibility:
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - threshold).where(name="test").is_gt(0)
+            ctx.assert_that(x - threshold).config(name="test").is_gt(0)
 
         config_file = tmp_path / "config.yaml"
         config_file.write_text("tunables:\n  THRESHOLD: 0.05")
@@ -353,7 +353,7 @@ class TestConfigResetCompatibility:
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - threshold).where(name="test").is_gt(0)
+            ctx.assert_that(x - threshold).config(name="test").is_gt(0)
 
         config_file = tmp_path / "config.yaml"
         config_file.write_text("tunables:\n  THRESHOLD: 0.05")
@@ -383,7 +383,7 @@ class TestConfigIntegration:
         @check(name="Null Rate Check", datasets=["orders"])
         def null_rate_check(mp: MetricProvider, ctx: Context) -> None:
             null_rate = mp.null_count("delivered") / mp.num_rows()
-            ctx.assert_that(null_rate - threshold).where(name="null_rate_assertion").is_lt(0)
+            ctx.assert_that(null_rate - threshold).config(name="null_rate_assertion").is_lt(0)
 
         config_file = tmp_path / "config.yaml"
         config_file.write_text("tunables:\n  THRESHOLD: 0.20")
@@ -422,7 +422,7 @@ class TestConfigIntegration:
         @check(name="Null Rate Check", datasets=["orders"])
         def null_rate_check(mp: MetricProvider, ctx: Context) -> None:
             null_rate = mp.null_count("delivered") / mp.num_rows()
-            ctx.assert_that(null_rate - threshold).where(name="null_rate_assertion").is_lt(0)
+            ctx.assert_that(null_rate - threshold).config(name="null_rate_assertion").is_lt(0)
 
         # Config with strict threshold (should fail)
         config_file = tmp_path / "config.yaml"
@@ -454,7 +454,7 @@ class TestEdgeCases:
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             # No tunables used
-            ctx.assert_that(mp.num_rows()).where(name="test").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="test").is_positive()
 
         config_file = tmp_path / "config.yaml"
         config_file.write_text("tunables:\n  UNKNOWN: 0.05")
@@ -1629,7 +1629,7 @@ class TestSuiteWithProfilesFromConfig:
 
         @check(name="Test Check", datasets=["ds"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="test", tags={"volume"}).is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="test", tags={"volume"}).is_positive()
 
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
@@ -1666,7 +1666,7 @@ profiles:
 
         @check(name="Test Check", datasets=["ds"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="test").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="test").is_positive()
 
         config_file = tmp_path / "config.yaml"
         config_file.write_text(
@@ -1711,7 +1711,7 @@ profiles:
 
         @check(name="Test Check", datasets=["ds"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="test").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="test").is_positive()
 
         config_file = tmp_path / "config.yaml"
         config_file.write_text(

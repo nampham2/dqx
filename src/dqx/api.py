@@ -87,12 +87,12 @@ class AssertionDraft:
     """
     Initial assertion builder that requires a name before making assertions.
 
-    This is the first stage of assertion building. You must call where()
+    This is the first stage of assertion building. You must call config()
     with a name before you can make any assertions.
 
     Example:
         draft = ctx.assert_that(mp.average("price"))
-        ready = draft.where(name="Price is positive")
+        ready = draft.config(name="Price is positive")
         ready.is_positive()
     """
 
@@ -107,7 +107,7 @@ class AssertionDraft:
         self._actual = actual
         self._context = context
 
-    def where(
+    def config(
         self,
         *,
         name: str,
@@ -118,7 +118,7 @@ class AssertionDraft:
         cost: dict[str, float] | None = None,
     ) -> AssertionReady:
         """
-        Create an AssertionReady bound to this expression with the given name and metadata.
+        Configure assertion metadata and return an AssertionReady instance.
 
         Args:
             name: Descriptive name for the assertion (1–255 characters).
@@ -236,7 +236,7 @@ class AssertionReady:
 
         Example:
             >>> MAX_NULL = TunableFloat("MAX_NULL", value=0.05, bounds=(0.0, 0.20))
-            >>> ctx.assert_that(mp.null_count("col")).where(name="Nulls").is_geq(MAX_NULL)
+            >>> ctx.assert_that(mp.null_count("col")).config(name="Nulls").is_geq(MAX_NULL)
         """
         from dqx.tunables import Tunable
 
@@ -286,11 +286,11 @@ class AssertionReady:
 
         Example:
             >>> # Static threshold
-            >>> ctx.assert_that(mp.minimum("qty")).where(name="Min qty").is_leq(10.0)
+            >>> ctx.assert_that(mp.minimum("qty")).config(name="Min qty").is_leq(10.0)
             >>>
             >>> # Dynamic tunable threshold
             >>> MIN_QTY = TunableFloat("MIN_QTY", value=10.0, bounds=(1.0, 100.0))
-            >>> ctx.assert_that(mp.minimum("qty")).where(name="Min qty").is_leq(MIN_QTY)
+            >>> ctx.assert_that(mp.minimum("qty")).config(name="Min qty").is_leq(MIN_QTY)
             >>>
             >>> # Later: tune and re-run
             >>> suite.set_param("MIN_QTY", 20.0)
@@ -341,7 +341,7 @@ class AssertionReady:
 
         Example:
             >>> TARGET = TunableInt("TARGET", value=100, bounds=(50, 200))
-            >>> ctx.assert_that(mp.count("id")).where(name="Count").is_eq(TARGET)
+            >>> ctx.assert_that(mp.count("id")).config(name="Count").is_eq(TARGET)
         """
         from dqx.tunables import Tunable
 
@@ -408,12 +408,12 @@ class AssertionReady:
 
         Example:
             >>> # Static bounds
-            >>> ctx.assert_that(mp.average("score")).where(name="Range").is_between(0, 100)
+            >>> ctx.assert_that(mp.average("score")).config(name="Range").is_between(0, 100)
             >>>
             >>> # Dynamic tunable bounds
             >>> LOWER = TunableFloat("LOWER", value=10.0, bounds=(0, 50))
             >>> UPPER = TunableFloat("UPPER", value=90.0, bounds=(50, 100))
-            >>> ctx.assert_that(mp.average("score")).where(name="Range").is_between(LOWER, UPPER)
+            >>> ctx.assert_that(mp.average("score")).config(name="Range").is_between(LOWER, UPPER)
         """
         from dqx.tunables import Tunable
 
@@ -673,18 +673,18 @@ class Context:
         """
         Create an assertion draft for the given expression.
 
-        You must provide a name using where() before making assertions:
+        You must provide a name using config() before making assertions:
 
         Example:
             ctx.assert_that(mp.average("price"))
-               .where(name="Average price is positive")
+               .config(name="Average price is positive")
                .is_positive()
 
         Args:
             expr: Symbolic expression to assert on
 
         Returns:
-            AssertionDraft that requires where() to be called
+            AssertionDraft that requires config() to be called
         """
         return AssertionDraft(actual=expr, context=self)
 
@@ -727,7 +727,7 @@ class VerificationSuite:
         >>> def my_check(mp, ctx):
         >>>     null_rate = mp.null_count("col") / mp.num_rows()
         >>>     # Use tunable directly in expression (no .value needed!)
-        >>>     ctx.assert_that(null_rate - threshold).where(name="Null rate check").is_lt(0)
+        >>>     ctx.assert_that(null_rate - threshold).config(name="Null rate check").is_lt(0)
         >>>
         >>> suite = VerificationSuite([my_check], db, "My Suite")
         >>> # Tunables are automatically discovered from the checks
@@ -792,7 +792,7 @@ class VerificationSuite:
 
             >>> @check(name="Completeness", datasets=["orders"])
             >>> def check_completeness(mp, ctx):
-            >>>     ctx.assert_that(mp.null_count("id")).where(
+            >>>     ctx.assert_that(mp.null_count("id")).config(
             >>>         name="ID not null"
             >>>     ).is_eq(0)
             >>>
@@ -1438,7 +1438,7 @@ class VerificationSuite:
         cost_dict = cost_annotation if cost_annotation else None
 
         # Build and return assertion ready object
-        return ctx.assert_that(metric_value).where(
+        return ctx.assert_that(metric_value).config(
             name=statement.name,
             severity=severity.value,
             tags=set(statement.tags),

@@ -20,7 +20,7 @@ class TestCollectTunablesFromGraph:
             x = mp.num_rows()
             # Tunable must be in the expression, not passed to is_gt
             expr = x - threshold
-            ctx.assert_that(expr).where(name="Test").is_gt(0)
+            ctx.assert_that(expr).config(name="Test").is_gt(0)
 
         suite = VerificationSuite([test_check], db, "Test Suite")
         context = Context("test", db, execution_id="test-exec", data_av_threshold=0.9)
@@ -42,8 +42,8 @@ class TestCollectTunablesFromGraph:
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - threshold1).where(name="Test1").is_gt(0)
-            ctx.assert_that(x + threshold2).where(name="Test2").is_lt(1000)
+            ctx.assert_that(x - threshold1).config(name="Test1").is_gt(0)
+            ctx.assert_that(x + threshold2).config(name="Test2").is_lt(1000)
 
         suite = VerificationSuite([test_check], db, "Test Suite")
         context = Context("test", db, execution_id="test-exec", data_av_threshold=0.9)
@@ -68,8 +68,8 @@ class TestCollectTunablesFromGraph:
             x = mp.num_rows()
             y = mp.null_count("col")
             # Use same tunable in two different assertions
-            ctx.assert_that(x - threshold).where(name="Test1").is_gt(0)
-            ctx.assert_that(y + threshold).where(name="Test2").is_lt(1)
+            ctx.assert_that(x - threshold).config(name="Test1").is_gt(0)
+            ctx.assert_that(y + threshold).config(name="Test2").is_lt(1)
 
         suite = VerificationSuite([test_check], db, "Test Suite")
         context = Context("test", db, execution_id="test-exec", data_av_threshold=0.9)
@@ -93,7 +93,7 @@ class TestCollectTunablesFromGraph:
             x = mp.num_rows()
             # Use tunable in an expression
             expr = x + threshold * 2
-            ctx.assert_that(expr).where(name="Test").is_gt(0)
+            ctx.assert_that(expr).config(name="Test").is_gt(0)
 
         suite = VerificationSuite([test_check], db, "Test Suite")
         context = Context("test", db, execution_id="test-exec", data_av_threshold=0.9)
@@ -114,7 +114,7 @@ class TestCollectTunablesFromGraph:
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
             # No tunable, just constant
-            ctx.assert_that(x).where(name="Test").is_gt(100)
+            ctx.assert_that(x).config(name="Test").is_gt(100)
 
         suite = VerificationSuite([test_check], db, "Test Suite")
         context = Context("test", db, execution_id="test-exec", data_av_threshold=0.9)
@@ -136,9 +136,9 @@ class TestCollectTunablesFromGraph:
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - percent).where(name="Test1").is_gt(0)
-            ctx.assert_that(x + int_val).where(name="Test2").is_lt(1000)
-            ctx.assert_that(x - float_val).where(name="Test3").is_gt(0)
+            ctx.assert_that(x - percent).config(name="Test1").is_gt(0)
+            ctx.assert_that(x + int_val).config(name="Test2").is_lt(1000)
+            ctx.assert_that(x - float_val).config(name="Test3").is_gt(0)
 
         suite = VerificationSuite([test_check], db, "Test Suite")
         context = Context("test", db, execution_id="test-exec", data_av_threshold=0.9)
@@ -170,8 +170,8 @@ class TestCollectTunablesFromGraph:
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
             # Use different instances with same name
-            ctx.assert_that(x - threshold1).where(name="Test1").is_gt(0)
-            ctx.assert_that(x + threshold2).where(name="Test2").is_lt(1000)
+            ctx.assert_that(x - threshold1).config(name="Test1").is_gt(0)
+            ctx.assert_that(x + threshold2).config(name="Test2").is_lt(1000)
 
         suite = VerificationSuite([test_check], db, "Test Suite")
         context = Context("test", db, execution_id="test-exec", data_av_threshold=0.9)
@@ -194,12 +194,12 @@ class TestCollectTunablesFromGraph:
         @check(name="Check 1")
         def check1(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - t1).where(name="Test1").is_gt(0)
+            ctx.assert_that(x - t1).config(name="Test1").is_gt(0)
 
         @check(name="Check 2")
         def check2(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x + t2).where(name="Test2").is_lt(1000)
+            ctx.assert_that(x + t2).config(name="Test2").is_lt(1000)
 
         suite = VerificationSuite([check1, check2], db, "Test Suite")
         context = Context("test", db, execution_id="test-exec", data_av_threshold=0.9)
@@ -220,12 +220,12 @@ class TestCollectTunablesFromGraph:
         @check(name="Check 1")
         def check1(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - threshold).where(name="Test1").is_gt(0)
+            ctx.assert_that(x - threshold).config(name="Test1").is_gt(0)
 
         @check(name="Check 2")
         def check2(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x + threshold * 2).where(name="Test2").is_lt(1000)
+            ctx.assert_that(x + threshold * 2).config(name="Test2").is_lt(1000)
 
         suite = VerificationSuite([check1, check2], db, "Test Suite")
         context = Context("test", db, execution_id="test-exec", data_av_threshold=0.9)

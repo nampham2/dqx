@@ -1,5 +1,7 @@
 """Integration test for execution_id flow through the entire system."""
 
+from __future__ import annotations
+
 import datetime
 import uuid
 
@@ -20,14 +22,14 @@ def test_execution_id_end_to_end() -> None:
     @check(name="Data Quality Check", datasets=["sales"])
     def quality_check(mp: MetricProvider, ctx: Context) -> None:
         # Basic metrics
-        ctx.assert_that(mp.num_rows()).where(name="Has data").is_gt(0)
-        ctx.assert_that(mp.average("amount")).where(name="Average amount is positive").is_positive()
-        ctx.assert_that(mp.null_count("customer_id")).where(name="No null customer IDs").is_eq(0)
+        ctx.assert_that(mp.num_rows()).config(name="Has data").is_gt(0)
+        ctx.assert_that(mp.average("amount")).config(name="Average amount is positive").is_positive()
+        ctx.assert_that(mp.null_count("customer_id")).config(name="No null customer IDs").is_eq(0)
 
         # Extended metrics
         avg_amount = mp.average("amount")
         dod = mp.ext.day_over_day(avg_amount)
-        ctx.assert_that(dod).where(name="Day over day change is reasonable").is_between(-0.5, 0.5)
+        ctx.assert_that(dod).config(name="Day over day change is reasonable").is_between(-0.5, 0.5)
 
     # Create suite
     suite = VerificationSuite([quality_check], db, "Sales Quality Suite")
@@ -98,7 +100,7 @@ def test_multiple_suites_different_execution_ids() -> None:
 
     @check(name="Simple Check", datasets=["data"])
     def simple_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+        ctx.assert_that(mp.num_rows()).config(name="Has rows").is_gt(0)
 
     # Create two suites
     suite1 = VerificationSuite([simple_check], db, "Suite 1")
@@ -153,9 +155,9 @@ def test_execution_id_in_lazy_retrieval() -> None:
         dod = mp.ext.day_over_day(avg_price)
         wow = mp.ext.week_over_week(max_price)
 
-        ctx.assert_that(avg_price).where(name="Average price check").is_gt(0)
-        ctx.assert_that(dod).where(name="DoD check").is_between(-1, 1)
-        ctx.assert_that(wow).where(name="WoW check").is_between(-1, 1)
+        ctx.assert_that(avg_price).config(name="Average price check").is_gt(0)
+        ctx.assert_that(dod).config(name="DoD check").is_between(-1, 1)
+        ctx.assert_that(wow).config(name="WoW check").is_between(-1, 1)
 
     suite = VerificationSuite([lazy_check], db, "Lazy Test Suite")
     execution_id = suite.execution_id
@@ -188,13 +190,13 @@ def test_execution_id_with_multiple_datasets() -> None:
 
     @check(name="Orders Check", datasets=["orders"])
     def orders_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Orders exist").is_gt(0)
-        ctx.assert_that(mp.sum("total")).where(name="Total is positive").is_positive()
+        ctx.assert_that(mp.num_rows()).config(name="Orders exist").is_gt(0)
+        ctx.assert_that(mp.sum("total")).config(name="Total is positive").is_positive()
 
     @check(name="Customers Check", datasets=["customers"])
     def customers_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Customers exist").is_gt(0)
-        ctx.assert_that(mp.unique_count("customer_id")).where(name="Has unique customers").is_gt(0)
+        ctx.assert_that(mp.num_rows()).config(name="Customers exist").is_gt(0)
+        ctx.assert_that(mp.unique_count("customer_id")).config(name="Has unique customers").is_gt(0)
 
     suite = VerificationSuite([orders_check, customers_check], db, "Multi-Dataset Suite")
     execution_id = suite.execution_id

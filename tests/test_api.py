@@ -44,18 +44,18 @@ def test_assertion_methods_return_none() -> None:
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
         draft = ctx.assert_that(sp.Symbol("x"))
-        ready = draft.where(name="Test assertion 1")
+        ready = draft.config(name="Test assertion 1")
 
         # These should return None, not AssertBuilder
         result = ready.is_gt(0)  # type: ignore[func-returns-value]
         assert result is None  # Should return None
 
         # Try other assertion methods
-        ready2 = ctx.assert_that(sp.Symbol("y")).where(name="Test assertion 2")
+        ready2 = ctx.assert_that(sp.Symbol("y")).config(name="Test assertion 2")
         result2 = ready2.is_eq(5)  # type: ignore[func-returns-value]
         assert result2 is None  # Should return None
 
-        result3 = ctx.assert_that(sp.Symbol("z")).where(name="Test assertion 3").is_leq(10)  # type: ignore[func-returns-value]
+        result3 = ctx.assert_that(sp.Symbol("z")).config(name="Test assertion 3").is_leq(10)  # type: ignore[func-returns-value]
         assert result3 is None  # Should return None
 
     # Set up suite with the check
@@ -71,7 +71,7 @@ def test_no_assertion_chaining() -> None:
     def test_check(mp: MetricProvider, ctx: Context) -> None:
         metric = sp.Symbol("x")
         # This should fail - can't chain assertions
-        result = ctx.assert_that(metric).where(name="Test assertion").is_gt(0)  # type: ignore[func-returns-value]
+        result = ctx.assert_that(metric).config(name="Test assertion").is_gt(0)  # type: ignore[func-returns-value]
         # Result should be None, so calling is_lt on it should fail
         with pytest.raises(AttributeError):
             result.is_lt(100)  # type: ignore[attr-defined]
@@ -90,8 +90,8 @@ def test_multiple_assertions_on_same_metric() -> None:
         metric = sp.Symbol("x")
 
         # Multiple assertions on same metric (not chained)
-        ctx.assert_that(metric).where(name="Greater than 40").is_gt(40)
-        ctx.assert_that(metric).where(name="Less than 60").is_lt(60)
+        ctx.assert_that(metric).config(name="Greater than 40").is_gt(40)
+        ctx.assert_that(metric).config(name="Less than 60").is_lt(60)
 
         # Verify we have 2 separate assertions
         check_node = ctx.current_check
@@ -111,7 +111,7 @@ def test_simple_check_uses_function_name() -> None:
     # Create a simple check without parameters
     @check(name="validate_orders")
     def validate_orders(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+        ctx.assert_that(mp.num_rows()).config(name="Has rows").is_gt(0)
 
     # No metadata is stored anymore, just verify the function works
     assert validate_orders.__name__ == "validate_orders"
@@ -122,7 +122,7 @@ def test_parametrized_check_uses_provided_name() -> None:
 
     @check(name="Order Validation Check")
     def validate_orders(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+        ctx.assert_that(mp.num_rows()).config(name="Has rows").is_gt(0)
 
     # No metadata is stored anymore, just verify the function works
     assert validate_orders.__name__ == "validate_orders"
@@ -133,7 +133,7 @@ def test_simple_check_works_in_suite() -> None:
 
     @check(name="my_simple_check")
     def my_simple_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+        ctx.assert_that(mp.num_rows()).config(name="Has rows").is_gt(0)
 
     # Should be able to use in a suite without errors
     db = InMemoryMetricDB()
@@ -154,7 +154,7 @@ def test_parametrized_check_with_empty_parens() -> None:
 
     @check(name="empty_paren_check")
     def empty_paren_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+        ctx.assert_that(mp.num_rows()).config(name="Has rows").is_gt(0)
 
     # No metadata is stored anymore, just verify the function works
     assert empty_paren_check.__name__ == "empty_paren_check"
@@ -184,7 +184,7 @@ def test_check_decorator_with_name_works() -> None:
 
     @check(name="Valid Check")
     def my_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+        ctx.assert_that(mp.num_rows()).config(name="Has rows").is_gt(0)
 
     # Verify the check can be used in a suite
     suite = VerificationSuite([my_check], db, "Test Suite")
@@ -204,14 +204,14 @@ def test_check_decorator_with_name_works() -> None:
 
 
 def test_assertion_draft_creation() -> None:
-    """AssertionDraft should only expose where() method."""
+    """AssertionDraft should only expose config() method."""
     from dqx.api import AssertionDraft
 
     expr = sp.Symbol("x")
     draft = AssertionDraft(actual=expr, context=None)
 
-    # Should have where method
-    assert hasattr(draft, "where")
+    # Should have config method
+    assert hasattr(draft, "config")
 
     # Should NOT have assertion methods
     assert not hasattr(draft, "is_gt")
@@ -237,8 +237,8 @@ def test_assertion_ready_has_all_methods() -> None:
     assert hasattr(ready, "is_between")
     assert hasattr(ready, "noop")
 
-    # Should NOT have where method
-    assert not hasattr(ready, "where")
+    # Should NOT have config method
+    assert not hasattr(ready, "config")
 
 
 def test_context_assert_that_returns_draft() -> None:
@@ -263,7 +263,7 @@ def test_assertion_workflow_end_to_end() -> None:
         draft = ctx.assert_that(sp.Symbol("x"))
 
         # Convert to ready with name
-        ready = draft.where(name="X is positive")
+        ready = draft.config(name="X is positive")
 
         # Make assertion
         ready.is_positive()
@@ -290,18 +290,18 @@ def test_cannot_use_assertion_methods_on_draft() -> None:
         draft.is_positive()  # type: ignore
 
 
-def test_where_requires_name_parameter() -> None:
-    """The where() method should require name parameter."""
+def test_config_requires_name_parameter() -> None:
+    """The config() method should require name parameter."""
     from dqx.api import AssertionDraft
 
     draft = AssertionDraft(sp.Symbol("x"), context=None)
 
     # Should fail without name
     with pytest.raises(TypeError, match="missing 1 required keyword-only argument: 'name'"):
-        draft.where()  # type: ignore
+        draft.config()  # type: ignore
 
     # Should work with name
-    ready = draft.where(name="Valid name")
+    ready = draft.config(name="Valid name")
     assert ready is not None
 
 
@@ -312,7 +312,7 @@ def test_assertion_ready_always_has_name() -> None:
 
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(sp.Symbol("x")).where(name="My assertion").is_positive()
+        ctx.assert_that(sp.Symbol("x")).config(name="My assertion").is_positive()
 
         # Check that the assertion node has the name
         assert ctx.current_check is not None
@@ -322,30 +322,30 @@ def test_assertion_ready_always_has_name() -> None:
     VerificationSuite([test_check], db, "test")
 
 
-def test_where_validates_name() -> None:
-    """The where() method should validate name parameter."""
+def test_config_validates_name() -> None:
+    """The config() method should validate name parameter."""
     from dqx.api import AssertionDraft
 
     draft = AssertionDraft(sp.Symbol("x"), context=None)
 
     # Empty string should fail
     with pytest.raises(ValueError, match="Assertion name cannot be empty"):
-        draft.where(name="")
+        draft.config(name="")
 
     # Whitespace only should fail
     with pytest.raises(ValueError, match="Assertion name cannot be empty"):
-        draft.where(name="   ")
+        draft.config(name="   ")
 
     # Too long name should fail
     with pytest.raises(ValueError, match="Assertion name is too long"):
-        draft.where(name="x" * 256)
+        draft.config(name="x" * 256)
 
     # Valid name should work
-    ready = draft.where(name="Valid assertion name")
+    ready = draft.config(name="Valid assertion name")
     assert ready is not None
 
     # Name should be stripped
-    ready2 = draft.where(name="  Trimmed name  ")
+    ready2 = draft.config(name="  Trimmed name  ")
     assert ready2._name == "Trimmed name"
 
 
@@ -359,13 +359,13 @@ def test_assertion_severity_is_mandatory_with_p1_default() -> None:
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
         # Create assertion without severity - should default to P1
-        ctx.assert_that(sp.Symbol("x")).where(name="Default severity test").is_gt(0)
+        ctx.assert_that(sp.Symbol("x")).config(name="Default severity test").is_gt(0)
 
         # Create assertion with explicit P0 severity
-        ctx.assert_that(sp.Symbol("y")).where(name="Explicit P0 test", severity="P0").is_gt(0)
+        ctx.assert_that(sp.Symbol("y")).config(name="Explicit P0 test", severity="P0").is_gt(0)
 
         # Create assertion with explicit P2 severity
-        ctx.assert_that(sp.Symbol("z")).where(name="Explicit P2 test", severity="P2").is_gt(0)
+        ctx.assert_that(sp.Symbol("z")).config(name="Explicit P2 test", severity="P2").is_gt(0)
 
     # Execute the check
     test_check(context.provider, context)
@@ -393,7 +393,7 @@ def test_verification_suite_graph_property() -> None:
     # Create a simple check for testing
     @check(name="Simple Check")
     def simple_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+        ctx.assert_that(mp.num_rows()).config(name="Has rows").is_gt(0)
 
     db = InMemoryMetricDB()
     suite = VerificationSuite([simple_check], db, "Test Suite")
@@ -413,7 +413,7 @@ def test_verification_suite_build_graph_method() -> None:
     # Create a simple check for testing
     @check(name="Simple Check")
     def simple_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+        ctx.assert_that(mp.num_rows()).config(name="Has rows").is_gt(0)
 
     db = InMemoryMetricDB()
     suite = VerificationSuite([simple_check], db, "Test Suite")
@@ -445,10 +445,10 @@ def test_is_between_assertion_workflow() -> None:
     @check(name="Range Check")
     def range_check(mp: MetricProvider, ctx: Context) -> None:
         # Test normal range
-        ctx.assert_that(sp.Symbol("x")).where(name="X is between 10 and 20").is_between(10.0, 20.0)
+        ctx.assert_that(sp.Symbol("x")).config(name="X is between 10 and 20").is_between(10.0, 20.0)
 
         # Test with same bounds
-        ctx.assert_that(sp.Symbol("y")).where(name="Y equals 5").is_between(5.0, 5.0)
+        ctx.assert_that(sp.Symbol("y")).config(name="Y equals 5").is_between(5.0, 5.0)
 
         # Verify assertions were created
         assert ctx.current_check is not None
@@ -468,7 +468,7 @@ def test_is_between_invalid_bounds() -> None:
     def invalid_check(mp: MetricProvider, ctx: Context) -> None:
         # This should raise ValueError
         with pytest.raises(ValueError, match="Invalid range: lower bound .* must be less than or equal to upper bound"):
-            ctx.assert_that(sp.Symbol("x")).where(name="Invalid range").is_between(20.0, 10.0)
+            ctx.assert_that(sp.Symbol("x")).config(name="Invalid range").is_between(20.0, 10.0)
 
     # Execute the check to verify the error is raised
     invalid_check(context.provider, context)
@@ -493,9 +493,9 @@ def test_noop_assertion_workflow() -> None:
     @check(name="Metric Collection Check")
     def collection_check(mp: MetricProvider, ctx: Context) -> None:
         # Test noop on various metrics
-        ctx.assert_that(mp.num_rows()).where(name="Collect row count").noop()
-        ctx.assert_that(mp.average("price")).where(name="Collect average price").noop()
-        ctx.assert_that(mp.sum("amount") + mp.sum("tax")).where(name="Collect total revenue").noop()
+        ctx.assert_that(mp.num_rows()).config(name="Collect row count").noop()
+        ctx.assert_that(mp.average("price")).config(name="Collect average price").noop()
+        ctx.assert_that(mp.sum("amount") + mp.sum("tax")).config(name="Collect total revenue").noop()
 
         # Verify assertions were created
         assert ctx.current_check is not None
@@ -514,8 +514,8 @@ def test_verification_suite_metric_trace() -> None:
 
     @check(name="Test Check", datasets=["test_data"])
     def test_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Row count is positive").is_gt(0)
-        ctx.assert_that(mp.average("value")).where(name="Average is reasonable").is_between(0, 100)
+        ctx.assert_that(mp.num_rows()).config(name="Row count is positive").is_gt(0)
+        ctx.assert_that(mp.average("value")).config(name="Average is reasonable").is_between(0, 100)
 
     suite = VerificationSuite([test_check], db, "Test Suite")
 
@@ -574,7 +574,7 @@ def test_verification_suite_metric_trace_stats() -> None:
 
     @check(name="Test Check", datasets=["test_data"])
     def test_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(mp.num_rows()).where(name="Row count check").is_gt(0)
+        ctx.assert_that(mp.num_rows()).config(name="Row count check").is_gt(0)
 
     suite = VerificationSuite([test_check], db, "Test Suite")
 
@@ -637,19 +637,19 @@ def test_assertion_tags() -> None:
     assert node_no_tags.tags == frozenset()
 
 
-def test_assertion_tags_via_where() -> None:
-    """Tags can be specified via the where() method."""
+def test_assertion_tags_via_config() -> None:
+    """Tags can be specified via the config() method."""
     db = InMemoryMetricDB()
     context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
     @check(name="Test Check")
-    def test_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(sp.Symbol("x")).where(
+    def test_check(_mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(sp.Symbol("x")).config(
             name="Tagged assertion",
             tags={"xmas", "critical"},
         ).is_gt(0)
 
-        ctx.assert_that(sp.Symbol("y")).where(
+        ctx.assert_that(sp.Symbol("y")).config(
             name="Untagged assertion",
         ).is_gt(0)
 
@@ -670,8 +670,8 @@ def test_assertion_tags_via_where() -> None:
     assert untagged.tags == frozenset()
 
 
-def test_experimental_annotation_via_where() -> None:
-    """Experimental annotation can be specified via the where() method."""
+def test_experimental_annotation_via_config() -> None:
+    """Experimental annotation can be specified via the config() method."""
     db = InMemoryMetricDB()
     context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
@@ -682,12 +682,12 @@ def test_experimental_annotation_via_where() -> None:
 
         The first assertion targets symbol "x" and is annotated experimental=True; the second targets symbol "y" and uses the default (production) annotation.
         """
-        ctx.assert_that(sp.Symbol("x")).where(
+        ctx.assert_that(sp.Symbol("x")).config(
             name="Experimental assertion",
             experimental=True,
         ).is_gt(0)
 
-        ctx.assert_that(sp.Symbol("y")).where(
+        ctx.assert_that(sp.Symbol("y")).config(
             name="Production assertion",
         ).is_gt(0)
 
@@ -738,19 +738,19 @@ def test_experimental_annotation_in_assertion_result() -> None:
     assert result_experimental.experimental is True
 
 
-def test_required_annotation_via_where() -> None:
-    """Required annotation can be specified via the where() method."""
+def test_required_annotation_via_config() -> None:
+    """Required annotation can be specified via the config() method."""
     db = InMemoryMetricDB()
     context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
     @check(name="Test Check")
-    def test_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(sp.Symbol("x")).where(
+    def test_check(_mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(sp.Symbol("x")).config(
             name="Required assertion",
             required=True,
         ).is_gt(0)
 
-        ctx.assert_that(sp.Symbol("y")).where(
+        ctx.assert_that(sp.Symbol("y")).config(
             name="Non-required assertion",
         ).is_gt(0)
 
@@ -771,19 +771,19 @@ def test_required_annotation_via_where() -> None:
     assert non_required.required is False
 
 
-def test_cost_annotation_via_where() -> None:
-    """Cost annotation can be specified via the where() method."""
+def test_cost_annotation_via_config() -> None:
+    """Cost annotation can be specified via the config() method."""
     db = InMemoryMetricDB()
     context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
     @check(name="Test Check")
-    def test_check(mp: MetricProvider, ctx: Context) -> None:
-        ctx.assert_that(sp.Symbol("x")).where(
+    def test_check(_mp: MetricProvider, ctx: Context) -> None:
+        ctx.assert_that(sp.Symbol("x")).config(
             name="Assertion with cost",
             cost={"fp": 1.0, "fn": 100.0},
         ).is_gt(0)
 
-        ctx.assert_that(sp.Symbol("y")).where(
+        ctx.assert_that(sp.Symbol("y")).config(
             name="Assertion without cost",
         ).is_gt(0)
 
@@ -810,7 +810,7 @@ def test_cost_validation_requires_dict() -> None:
     """
     Verifies that specifying a non-dict cost in an assertion raises a ValueError.
 
-    This test ensures where(..., cost=...) requires a dict containing 'fp' and 'fn'.
+    This test ensures config(..., cost=...) requires a dict containing 'fp' and 'fn'.
 
     Raises:
         ValueError: if cost is not a dict with 'fp' and 'fn' keys.
@@ -820,7 +820,7 @@ def test_cost_validation_requires_dict() -> None:
 
     # Not a dict (tuple)
     with pytest.raises(ValueError, match="cost must be a dict with 'fp' and 'fn' keys"):
-        context.assert_that(sp.Symbol("x")).where(
+        context.assert_that(sp.Symbol("x")).config(
             name="Test",
             cost=(1.0, 100.0),  # type: ignore[arg-type]
         )
@@ -833,14 +833,14 @@ def test_cost_validation_requires_both_fp_and_fn() -> None:
 
     # Missing fn
     with pytest.raises(ValueError, match="must have exactly 'fp' and 'fn' keys"):
-        context.assert_that(sp.Symbol("x")).where(
+        context.assert_that(sp.Symbol("x")).config(
             name="Test",
             cost={"fp": 1.0},
         )
 
     # Extra key
     with pytest.raises(ValueError, match="must have exactly 'fp' and 'fn' keys"):
-        context.assert_that(sp.Symbol("x")).where(
+        context.assert_that(sp.Symbol("x")).config(
             name="Test",
             cost={"fp": 1.0, "fn": 2.0, "extra": 3.0},
         )
@@ -853,7 +853,7 @@ def test_cost_validation_numeric() -> None:
 
     # String values
     with pytest.raises(ValueError, match="cost values must be numeric"):
-        context.assert_that(sp.Symbol("x")).where(
+        context.assert_that(sp.Symbol("x")).config(
             name="Test",
             cost={"fp": "high", "fn": 100.0},  # type: ignore[dict-item]
         )
@@ -866,14 +866,14 @@ def test_cost_validation_non_negative() -> None:
 
     # Negative fp
     with pytest.raises(ValueError, match="cost values must be non-negative"):
-        context.assert_that(sp.Symbol("x")).where(
+        context.assert_that(sp.Symbol("x")).config(
             name="Test",
             cost={"fp": -1.0, "fn": 100.0},
         )
 
     # Negative fn
     with pytest.raises(ValueError, match="cost values must be non-negative"):
-        context.assert_that(sp.Symbol("x")).where(
+        context.assert_that(sp.Symbol("x")).config(
             name="Test",
             cost={"fp": 1.0, "fn": -100.0},
         )
@@ -938,8 +938,8 @@ class TestNewAssertionMethods:
 
             This function registers an assertion that `x` is not equal to 0 (named "X is not zero") and an assertion that `y` is not equal to 100 (named "Y is not 100"), then asserts that the context's current check exists and has exactly those two child assertions in order.
             """
-            ctx.assert_that(sp.Symbol("x")).where(name="X is not zero").is_neq(0)
-            ctx.assert_that(sp.Symbol("y")).where(name="Y is not 100").is_neq(100)
+            ctx.assert_that(sp.Symbol("x")).config(name="X is not zero").is_neq(0)
+            ctx.assert_that(sp.Symbol("y")).config(name="Y is not 100").is_neq(100)
 
             assert ctx.current_check is not None
             assert len(ctx.current_check.children) == 2
@@ -955,7 +955,7 @@ class TestNewAssertionMethods:
 
         @check(name="Validator Check")
         def val_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(sp.Symbol("x")).where(name="Test neq").is_neq(42)
+            ctx.assert_that(sp.Symbol("x")).config(name="Test neq").is_neq(42)
 
             assert ctx.current_check is not None
             assertion = ctx.current_check.children[0]
@@ -980,9 +980,9 @@ class TestNewAssertionMethods:
                 mp (MetricProvider): Metric provider used to resolve metrics (not modified).
                 ctx (Context): Assertion context where checks are created and stored.
             """
-            ctx.assert_that(sp.Symbol("x")).where(name="Default tol").is_neq(0)
+            ctx.assert_that(sp.Symbol("x")).config(name="Default tol").is_neq(0)
             # Custom tolerance
-            ctx.assert_that(sp.Symbol("y")).where(name="Custom tol").is_neq(0, tol=0.1)
+            ctx.assert_that(sp.Symbol("y")).config(name="Custom tol").is_neq(0, tol=0.1)
 
             assert ctx.current_check is not None
             assert len(ctx.current_check.children) == 2
@@ -1004,7 +1004,7 @@ class TestNewAssertionMethods:
 
         @check(name="Zero Check")
         def zero_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(sp.Symbol("x")).where(name="X is zero").is_zero()
+            ctx.assert_that(sp.Symbol("x")).config(name="X is zero").is_zero()
 
             assert ctx.current_check is not None
             assert len(ctx.current_check.children) == 1
@@ -1019,7 +1019,7 @@ class TestNewAssertionMethods:
 
         @check(name="Validator Check")
         def val_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(sp.Symbol("x")).where(name="Test zero").is_zero()
+            ctx.assert_that(sp.Symbol("x")).config(name="Test zero").is_zero()
 
             assert ctx.current_check is not None
             assertion = ctx.current_check.children[0]
@@ -1035,9 +1035,9 @@ class TestNewAssertionMethods:
         @check(name="Tolerance Check")
         def tol_check(mp: MetricProvider, ctx: Context) -> None:
             # Default tolerance
-            ctx.assert_that(sp.Symbol("x")).where(name="Default tol").is_zero()
+            ctx.assert_that(sp.Symbol("x")).config(name="Default tol").is_zero()
             # Custom tolerance
-            ctx.assert_that(sp.Symbol("y")).where(name="Custom tol").is_zero(tol=0.1)
+            ctx.assert_that(sp.Symbol("y")).config(name="Custom tol").is_zero(tol=0.1)
 
             assert ctx.current_check is not None
             assert len(ctx.current_check.children) == 2
@@ -1082,7 +1082,7 @@ class TestIsLeqWithTunable:
 
         @check(name="Quantity Check")
         def quantity_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.maximum("quantity")).where(name="Max quantity").is_leq(MAX_QTY)
+            ctx.assert_that(mp.maximum("quantity")).config(name="Max quantity").is_leq(MAX_QTY)
 
         suite = VerificationSuite([quantity_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1100,7 +1100,7 @@ class TestIsLeqWithTunable:
 
         @check(name="Quantity Check")
         def quantity_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.maximum("quantity")).where(name="Max quantity").is_leq(MAX_QTY)
+            ctx.assert_that(mp.maximum("quantity")).config(name="Max quantity").is_leq(MAX_QTY)
 
         suite = VerificationSuite([quantity_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1118,7 +1118,7 @@ class TestIsLeqWithTunable:
 
         @check(name="Quantity Check")
         def quantity_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.maximum("quantity")).where(name="Max quantity").is_leq(MAX_QTY)
+            ctx.assert_that(mp.maximum("quantity")).config(name="Max quantity").is_leq(MAX_QTY)
 
         # Run 1: MAX_QTY = 30, maximum = 25 -> PASS
         suite = VerificationSuite([quantity_check], db, "Test Suite")
@@ -1143,7 +1143,7 @@ class TestIsLeqWithTunable:
 
         @check(name="Quantity Check")
         def quantity_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.maximum("quantity")).where(name="Max quantity").is_leq(30.0)
+            ctx.assert_that(mp.maximum("quantity")).config(name="Max quantity").is_leq(30.0)
 
         suite = VerificationSuite([quantity_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1167,7 +1167,7 @@ class TestIsGeqWithTunable:
         def score_check(mp: MetricProvider, ctx: Context) -> None:
             # Average score is 85, which as decimal is 85.0
             # We compare: 85.0 >= 0.70 (tunable stores fraction, not percentage)
-            ctx.assert_that(mp.average("score")).where(name="Min score").is_geq(MIN_SCORE)
+            ctx.assert_that(mp.average("score")).config(name="Min score").is_geq(MIN_SCORE)
 
         suite = VerificationSuite([score_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1184,7 +1184,7 @@ class TestIsGeqWithTunable:
 
         @check(name="Price Check")
         def price_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.average("price")).where(name="Min price").is_geq(MIN_PRICE)
+            ctx.assert_that(mp.average("price")).config(name="Min price").is_geq(MIN_PRICE)
 
         suite = VerificationSuite([price_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1205,7 +1205,7 @@ class TestIsGtWithTunable:
 
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.average("price")).where(name="Price check").is_gt(THRESHOLD)
+            ctx.assert_that(mp.average("price")).config(name="Price check").is_gt(THRESHOLD)
 
         suite = VerificationSuite([test_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1225,7 +1225,7 @@ class TestIsLtWithTunable:
 
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.average("price")).where(name="Price check").is_lt(THRESHOLD)
+            ctx.assert_that(mp.average("price")).config(name="Price check").is_lt(THRESHOLD)
 
         suite = VerificationSuite([test_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1245,7 +1245,7 @@ class TestIsEqWithTunable:
 
         @check(name="Count Check")
         def count_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.average("count")).where(name="Avg count").is_eq(TARGET_COUNT)
+            ctx.assert_that(mp.average("count")).config(name="Avg count").is_eq(TARGET_COUNT)
 
         suite = VerificationSuite([count_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1261,7 +1261,7 @@ class TestIsEqWithTunable:
 
         @check(name="Count Check")
         def count_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.average("count")).where(name="Avg count").is_eq(TARGET_COUNT)
+            ctx.assert_that(mp.average("count")).config(name="Avg count").is_eq(TARGET_COUNT)
 
         suite = VerificationSuite([count_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1281,7 +1281,7 @@ class TestIsNeqWithTunable:
 
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.average("price")).where(name="Price check").is_neq(INVALID_VALUE)
+            ctx.assert_that(mp.average("price")).config(name="Price check").is_neq(INVALID_VALUE)
 
         suite = VerificationSuite([test_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1300,7 +1300,7 @@ class TestIsBetweenWithTunable:
 
         @check(name="Score Check")
         def score_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.average("score")).where(name="Score range").is_between(70.0, 100.0)
+            ctx.assert_that(mp.average("score")).config(name="Score range").is_between(70.0, 100.0)
 
         suite = VerificationSuite([score_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1318,7 +1318,7 @@ class TestIsBetweenWithTunable:
 
         @check(name="Score Check")
         def score_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.average("score")).where(name="Score range").is_between(LOWER, UPPER)
+            ctx.assert_that(mp.average("score")).config(name="Score range").is_between(LOWER, UPPER)
 
         suite = VerificationSuite([score_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1336,7 +1336,7 @@ class TestIsBetweenWithTunable:
 
         @check(name="Score Check")
         def score_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.average("score")).where(name="Score range").is_between(LOWER, UPPER)
+            ctx.assert_that(mp.average("score")).config(name="Score range").is_between(LOWER, UPPER)
 
         suite = VerificationSuite([score_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1352,7 +1352,7 @@ class TestIsBetweenWithTunable:
 
         @check(name="Score Check")
         def score_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.average("score")).where(name="Score range").is_between(70.0, UPPER)
+            ctx.assert_that(mp.average("score")).config(name="Score range").is_between(70.0, UPPER)
 
         suite = VerificationSuite([score_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1368,7 +1368,7 @@ class TestIsBetweenWithTunable:
 
         @check(name="Score Check")
         def score_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.average("score")).where(name="Score range").is_between(LOWER, 100.0)
+            ctx.assert_that(mp.average("score")).config(name="Score range").is_between(LOWER, 100.0)
 
         suite = VerificationSuite([score_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1385,7 +1385,7 @@ class TestIsBetweenWithTunable:
 
         @check(name="Score Check")
         def score_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.average("score")).where(name="Score range").is_between(LOWER, UPPER)
+            ctx.assert_that(mp.average("score")).config(name="Score range").is_between(LOWER, UPPER)
 
         # Run 1: average score = 85, bounds = [70, 100] -> PASS
         suite = VerificationSuite([score_check], db, "Test Suite")
@@ -1408,7 +1408,7 @@ class TestIsBetweenWithTunable:
         @check(name="Bad Check")
         def bad_check(mp: MetricProvider, ctx: Context) -> None:
             with pytest.raises(ValueError, match="Invalid range"):
-                ctx.assert_that(mp.average("score")).where(name="Bad range").is_between(100.0, 70.0)
+                ctx.assert_that(mp.average("score")).config(name="Bad range").is_between(100.0, 70.0)
 
         # The suite can be created, but the check will raise when executed
         _suite = VerificationSuite([bad_check], db, "Test Suite")
@@ -1422,7 +1422,7 @@ class TestIsBetweenWithTunable:
 
         @check(name="Range Check")
         def range_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.average("score")).where(name="Range").is_between(LOWER, UPPER)
+            ctx.assert_that(mp.average("score")).config(name="Range").is_between(LOWER, UPPER)
 
         suite = VerificationSuite([range_check], db, "Test Suite")
 
@@ -1448,8 +1448,8 @@ class TestMultipleTunablesInSuite:
 
         @check(name="Multi Check")
         def multi_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.minimum("quantity")).where(name="Min qty").is_geq(MIN_QTY)
-            ctx.assert_that(mp.maximum("price")).where(name="Max price").is_leq(MAX_PRICE)
+            ctx.assert_that(mp.minimum("quantity")).config(name="Min qty").is_geq(MIN_QTY)
+            ctx.assert_that(mp.maximum("price")).config(name="Max price").is_leq(MAX_PRICE)
 
         suite = VerificationSuite([multi_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1475,7 +1475,7 @@ class TestTunableComparisonEdgeCases:
 
         @check(name="Exact Check")
         def exact_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.maximum("quantity")).where(name="Exact").is_leq(EXACT_VALUE)
+            ctx.assert_that(mp.maximum("quantity")).config(name="Exact").is_leq(EXACT_VALUE)
 
         suite = VerificationSuite([exact_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1493,9 +1493,9 @@ class TestTunableComparisonEdgeCases:
         def tolerance_check(mp: MetricProvider, ctx: Context) -> None:
             # maximum(quantity) = 25.0, TARGET = 25.001
             # With default tolerance (1e-9), should fail
-            ctx.assert_that(mp.maximum("quantity")).where(name="Default tol").is_eq(TARGET)
+            ctx.assert_that(mp.maximum("quantity")).config(name="Default tol").is_eq(TARGET)
             # With larger tolerance (0.01), should pass
-            ctx.assert_that(mp.maximum("quantity")).where(name="Large tol").is_eq(TARGET, tol=0.01)
+            ctx.assert_that(mp.maximum("quantity")).config(name="Large tol").is_eq(TARGET, tol=0.01)
 
         suite = VerificationSuite([tolerance_check], db, "Test Suite")
         suite.run([datasource], key)
@@ -1565,7 +1565,7 @@ class TestTagValidation:
         context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
         with pytest.raises(ValueError, match="alphanumerics, dashes, and underscores"):
-            context.assert_that(sp.Symbol("x")).where(name="Test", tags={"invalid tag"})
+            context.assert_that(sp.Symbol("x")).config(name="Test", tags={"invalid tag"})
 
 
 class TestVerificationSuiteValidation:
@@ -1583,7 +1583,7 @@ class TestVerificationSuiteValidation:
 
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+            ctx.assert_that(mp.num_rows()).config(name="Has rows").is_gt(0)
 
         with pytest.raises(DQXError, match="Suite name cannot be empty"):
             VerificationSuite([test_check], db, "")
@@ -1601,7 +1601,7 @@ class TestVerificationSuiteValidation:
 
         @check(name="Test Check")
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="Has rows").is_gt(0)
+            ctx.assert_that(mp.num_rows()).config(name="Has rows").is_gt(0)
 
         suite = VerificationSuite([test_check], db, "Test Suite")
         key = ResultKey(yyyy_mm_dd=datetime.date.today(), tags={})

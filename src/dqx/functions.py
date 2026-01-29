@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Any
 
 import sympy as sp
@@ -283,7 +285,7 @@ def pct(value: float | int) -> float:
         >>> from dqx.api import check, pct
         >>> @check(name="Nulls")
         ... def check_nulls(mp, ctx):
-        ...     ctx.assert_that(mp.null_rate("col")).where(name="Null rate").is_leq(pct(5))
+        ...     ctx.assert_that(mp.null_rate("col")).config(name="Null rate").is_leq(pct(5))
 
         # In tunables
         >>> from dqx.tunables import TunableFloat

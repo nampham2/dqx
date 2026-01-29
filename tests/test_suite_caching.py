@@ -1,5 +1,7 @@
 """Tests for VerificationSuite caching functionality."""
 
+from __future__ import annotations
+
 from datetime import date
 
 import pyarrow as pa
@@ -22,7 +24,7 @@ class TestSuiteCaching:
         @check(name="Price Check")
         def price_check(mp: MetricProvider, ctx: Context) -> None:
             price = mp.average("price")
-            ctx.assert_that(price).where(name="Price is positive").is_positive()
+            ctx.assert_that(price).config(name="Price is positive").is_positive()
 
         suite = VerificationSuite([price_check], db, "Test Suite")
         data = pa.table({"price": [10, 20, 30]})
@@ -45,7 +47,7 @@ class TestSuiteCaching:
         @check(name="Simple Check")
         def simple_check(mp: MetricProvider, ctx: Context) -> None:
             total = mp.sum("value")
-            ctx.assert_that(total).where(name="Total is 100").is_eq(100)
+            ctx.assert_that(total).config(name="Total is 100").is_eq(100)
 
         suite = VerificationSuite([simple_check], db, "Test Suite")
         data = pa.table({"value": [25, 25, 25, 25]})

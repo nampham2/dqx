@@ -1,5 +1,7 @@
 """Tests for execution ID functionality in VerificationSuite."""
 
+from __future__ import annotations
+
 import uuid
 from datetime import date
 
@@ -42,7 +44,7 @@ def test_execution_id_in_metadata() -> None:
     @check(name="Test Check")
     def test_check(mp: MetricProvider, ctx: Context) -> None:
         avg_price = mp.average("price")
-        ctx.assert_that(avg_price).where(name="Price average check").is_positive()
+        ctx.assert_that(avg_price).config(name="Price average check").is_positive()
 
     # Create test data
     table = pa.table({"price": [10.0, 20.0, 30.0]})

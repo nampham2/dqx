@@ -46,7 +46,7 @@ A check contains one or more assertions. Each assertion compares a metric agains
 ```python
 @check(name="Volume Check")
 def volume_check(mp, ctx):
-    ctx.assert_that(mp.sum("orders")).where(
+    ctx.assert_that(mp.sum("orders")).config(
         name="Daily orders above minimum", tags={"volume", "xmas"}
     ).is_gt(100)
 ```
@@ -302,7 +302,7 @@ The severity override changes an assertion's priority level. Use it to reduce al
 
 ```python
 # Assertion defined with severity P1
-ctx.assert_that(orders).where(name="Order count", severity="P1", tags={"non-critical"})
+ctx.assert_that(orders).config(name="Order count", severity="P1", tags={"non-critical"})
 
 # During Christmas, downgrade to P3
 tag("non-critical").set(severity="P3")
@@ -354,14 +354,14 @@ christmas = HolidayProfile(
 ```python
 @check(name="Volume Check")
 def volume_check(mp, ctx):
-    ctx.assert_that(mp.sum("orders")).where(
+    ctx.assert_that(mp.sum("orders")).config(
         name="Daily orders above minimum", tags={"volume", "xmas"}
     ).is_gt(100)
 
 
 @check(name="Quality Check")
 def quality_check(mp, ctx):
-    ctx.assert_that(mp.average("error_rate")).where(
+    ctx.assert_that(mp.average("error_rate")).config(
         name="Error rate below threshold", tags={"quality"}
     ).is_lt(0.05)
 ```

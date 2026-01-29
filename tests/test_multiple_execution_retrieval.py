@@ -1,5 +1,7 @@
 """Integration test for metric retrieval after multiple suite executions."""
 
+from __future__ import annotations
+
 from datetime import date
 from typing import Any
 
@@ -191,8 +193,8 @@ def test_multiple_execution_metric_retrieval() -> None:
     def test_check(mp: MetricProvider, ctx: Context) -> None:
         avg_price = mp.average("price")
         sum_quantity = mp.sum("quantity")
-        ctx.assert_that(avg_price).where(name="Average price check").is_positive()
-        ctx.assert_that(sum_quantity).where(name="Sum quantity check").is_positive()
+        ctx.assert_that(avg_price).config(name="Average price check").is_positive()
+        ctx.assert_that(sum_quantity).config(name="Sum quantity check").is_positive()
 
     # Setup
     db = InMemoryMetricDB()

@@ -1,5 +1,7 @@
 """Tests for VerificationSuite critical level detection."""
 
+from __future__ import annotations
+
 from datetime import date
 
 import pyarrow as pa
@@ -23,7 +25,7 @@ class TestSuiteCritical:
         def critical_check(mp: MetricProvider, ctx: Context) -> None:
             total = mp.sum("value")
             # This will fail - expecting 1000 but sum is 100
-            ctx.assert_that(total).where(name="Critical metric", severity="P0").is_eq(1000)
+            ctx.assert_that(total).config(name="Critical metric", severity="P0").is_eq(1000)
 
         suite = VerificationSuite([critical_check], db, "Test Suite")
         data = pa.table({"value": [25, 25, 25, 25]})
@@ -43,9 +45,9 @@ class TestSuiteCritical:
         def non_critical_checks(mp: MetricProvider, ctx: Context) -> None:
             total = mp.sum("value")
             # P1 assertion that passes
-            ctx.assert_that(total).where(name="P1 check", severity="P1").is_eq(100)
+            ctx.assert_that(total).config(name="P1 check", severity="P1").is_eq(100)
             # P2 assertion that fails
-            ctx.assert_that(total).where(name="P2 check", severity="P2").is_eq(200)
+            ctx.assert_that(total).config(name="P2 check", severity="P2").is_eq(200)
 
         suite = VerificationSuite([non_critical_checks], db, "Test Suite")
         data = pa.table({"value": [25, 25, 25, 25]})
@@ -65,11 +67,11 @@ class TestSuiteCritical:
         def mixed_check(mp: MetricProvider, ctx: Context) -> None:
             total = mp.sum("value")
             # P0 that fails
-            ctx.assert_that(total).where(name="Critical check", severity="P0").is_eq(1000)
+            ctx.assert_that(total).config(name="Critical check", severity="P0").is_eq(1000)
             # P1 that passes
-            ctx.assert_that(total).where(name="Important check", severity="P1").is_positive()
+            ctx.assert_that(total).config(name="Important check", severity="P1").is_positive()
             # P2 that fails
-            ctx.assert_that(total).where(name="Minor check", severity="P2").is_negative()
+            ctx.assert_that(total).config(name="Minor check", severity="P2").is_negative()
 
         suite = VerificationSuite([mixed_check], db, "Test Suite")
         data = pa.table({"value": [25, 25, 25, 25]})
@@ -120,7 +122,7 @@ class TestSuiteCritical:
         @check(name="P0 Failure")
         def p0_failure(mp: MetricProvider, ctx: Context) -> None:
             total = mp.sum("value")
-            ctx.assert_that(total).where(name="Will fail", severity="P0").is_eq(999)
+            ctx.assert_that(total).config(name="Will fail", severity="P0").is_eq(999)
 
         suite = VerificationSuite([p0_failure], db, "Test Suite")
         data = pa.table({"value": [1, 2, 3]})

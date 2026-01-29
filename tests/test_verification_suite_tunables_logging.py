@@ -55,7 +55,7 @@ class TestTunableLoggingFloat:
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
             expr = x - threshold  # Use tunable in expression
-            ctx.assert_that(expr).where(name="Test").is_gt(0)
+            ctx.assert_that(expr).config(name="Test").is_gt(0)
 
         suite = VerificationSuite(
             checks=[test_check],
@@ -84,7 +84,7 @@ class TestTunableLoggingFloat:
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x * threshold).where(name="Test").is_lt(100)
+            ctx.assert_that(x * threshold).config(name="Test").is_lt(100)
 
         suite = VerificationSuite(
             checks=[test_check],
@@ -116,7 +116,7 @@ class TestTunableLoggingInt:
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
             expr = x - min_rows
-            ctx.assert_that(expr).where(name="Test").is_gt(0)
+            ctx.assert_that(expr).config(name="Test").is_gt(0)
 
         suite = VerificationSuite(
             checks=[test_check],
@@ -149,7 +149,7 @@ class TestTunableLoggingChoice:
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             # Store method in context to ensure it's tracked
             # Use in assertion via closure
-            ctx.assert_that(mp.num_rows()).where(name="Test").is_gt(0)
+            ctx.assert_that(mp.num_rows()).config(name="Test").is_gt(0)
             # Add tunable reference so it's collected
             _ = method.value  # Reference tunable to ensure collection
 
@@ -188,9 +188,9 @@ class TestTunableLoggingMultiple:
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - threshold).where(name="Test1").is_gt(0)
-            ctx.assert_that(x - min_rows).where(name="Test2").is_gt(0)
-            ctx.assert_that(x * max_error).where(name="Test3").is_lt(100)
+            ctx.assert_that(x - threshold).config(name="Test1").is_gt(0)
+            ctx.assert_that(x - min_rows).config(name="Test2").is_gt(0)
+            ctx.assert_that(x * max_error).config(name="Test3").is_lt(100)
 
         suite = VerificationSuite(
             checks=[test_check],
@@ -231,8 +231,8 @@ class TestTunableLoggingMultiple:
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - threshold).where(name="Test1").is_gt(0)
-            ctx.assert_that(x - min_rows).where(name="Test2").is_gt(0)
+            ctx.assert_that(x - threshold).config(name="Test1").is_gt(0)
+            ctx.assert_that(x - min_rows).config(name="Test2").is_gt(0)
             _ = method.value  # Reference to ensure collection
 
         suite = VerificationSuite(
@@ -268,7 +268,7 @@ class TestTunableLoggingEdgeCases:
 
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="Test").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="Test").is_positive()
 
         suite = VerificationSuite(
             checks=[test_check],
@@ -296,7 +296,7 @@ class TestTunableLoggingEdgeCases:
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - threshold).where(name="Test").is_gt(0)
+            ctx.assert_that(x - threshold).config(name="Test").is_gt(0)
 
         suite = VerificationSuite(
             checks=[test_check],
@@ -333,7 +333,7 @@ class TestTunableLoggingClosureBased:
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             # Closure-based: tunable used in comparison method
-            ctx.assert_that(mp.num_rows()).where(name="Test").is_gt(threshold)
+            ctx.assert_that(mp.num_rows()).config(name="Test").is_gt(threshold)
 
         suite = VerificationSuite(
             checks=[test_check],

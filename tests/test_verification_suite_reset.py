@@ -54,7 +54,7 @@ class TestResetBasicFunctionality:
 
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="row_count").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="row_count").is_positive()
 
         suite = VerificationSuite(
             checks=[test_check],
@@ -90,7 +90,7 @@ class TestResetBasicFunctionality:
 
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="row_count").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="row_count").is_positive()
 
         suite = VerificationSuite(
             checks=[test_check],
@@ -125,7 +125,7 @@ class TestResetBasicFunctionality:
 
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="row_count").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="row_count").is_positive()
 
         suite = VerificationSuite(
             checks=[test_check],
@@ -148,7 +148,7 @@ class TestResetBasicFunctionality:
 
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="row_count").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="row_count").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(
@@ -193,7 +193,7 @@ class TestResetWithTunables:
         @check(name="Null Rate Check", datasets=["orders"])
         def null_rate_check(mp: MetricProvider, ctx: Context) -> None:
             null_rate = mp.null_count("delivered") / mp.num_rows()
-            ctx.assert_that(null_rate - null_threshold).where(name="null_rate_assertion").is_lt(0)
+            ctx.assert_that(null_rate - null_threshold).config(name="null_rate_assertion").is_lt(0)
 
         ds = CommercialDataSource(
             start_date=dt.date(2025, 1, 1),
@@ -247,7 +247,7 @@ class TestResetExecutionId:
 
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="row_count").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="row_count").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(
@@ -296,7 +296,7 @@ class TestResetExecutionId:
         @check(name="Null Rate Check", datasets=["orders"])
         def null_rate_check(mp: MetricProvider, ctx: Context) -> None:
             null_rate = mp.null_count("delivered") / mp.num_rows()
-            ctx.assert_that(null_rate - threshold).where(name="null_rate_assertion").is_lt(0)
+            ctx.assert_that(null_rate - threshold).config(name="null_rate_assertion").is_lt(0)
 
         ds = CommercialDataSource(
             start_date=dt.date(2025, 1, 1),
@@ -350,11 +350,11 @@ class TestResetPreservesConfiguration:
 
         @check(name="Check 1", datasets=["orders"])
         def check1(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="rows_positive").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="rows_positive").is_positive()
 
         @check(name="Check 2", datasets=["orders"])
         def check2(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.average("price")).where(name="avg_price_positive").is_positive()
+            ctx.assert_that(mp.average("price")).config(name="avg_price_positive").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(
@@ -391,7 +391,7 @@ class TestResetPreservesConfiguration:
 
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="row_count").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="row_count").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(
@@ -423,7 +423,7 @@ class TestResetPreservesConfiguration:
 
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="row_count").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="row_count").is_positive()
 
         db = InMemoryMetricDB()
         suite_name = "My Custom Suite Name"
@@ -460,7 +460,7 @@ class TestResetPluginManager:
 
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="row_count").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="row_count").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(
@@ -504,7 +504,7 @@ class TestResetPluginManager:
 
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="row_count").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="row_count").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(
@@ -583,7 +583,7 @@ class TestResetErrorHandling:
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
             # This will fail because price is always > 0
-            ctx.assert_that(mp.average("price")).where(name="price_negative").is_negative()
+            ctx.assert_that(mp.average("price")).config(name="price_negative").is_negative()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(
@@ -620,7 +620,7 @@ class TestResetErrorHandling:
 
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="row_count").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="row_count").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(
@@ -656,7 +656,7 @@ class TestResetErrorHandling:
 
         @check(name="Test Check", datasets=["orders"])
         def test_check(mp: MetricProvider, ctx: Context) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="row_count").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="row_count").is_positive()
 
         suite = VerificationSuite(
             checks=[test_check],

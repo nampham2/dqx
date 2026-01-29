@@ -1,5 +1,7 @@
 """Integration tests for DayOverDay functionality."""
 
+from __future__ import annotations
+
 from datetime import date
 
 import pyarrow as pa
@@ -26,7 +28,7 @@ def test_day_over_day_integration() -> None:
         dod = mp.ext.day_over_day(revenue)
 
         # Use noop to collect without validation
-        ctx.assert_that(dod).where(name="Collect revenue DoD").noop()
+        ctx.assert_that(dod).config(name="Collect revenue DoD").noop()
 
     # Create verification suite
     suite = VerificationSuite([revenue_dod_check], db, "DoD Test Suite")

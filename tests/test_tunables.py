@@ -1,5 +1,7 @@
 """Tests for tunable constants."""
 
+from __future__ import annotations
+
 import datetime
 from typing import Any
 
@@ -186,8 +188,8 @@ class TestVerificationSuiteTunables:
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - threshold).where(name="threshold_test").is_gt(0)
-            ctx.assert_that(x - min_rows).where(name="min_rows_test").is_gt(0)
+            ctx.assert_that(x - threshold).config(name="threshold_test").is_gt(0)
+            ctx.assert_that(x - min_rows).config(name="min_rows_test").is_gt(0)
 
         db = InMemoryMetricDB()
 
@@ -212,7 +214,7 @@ class TestVerificationSuiteTunables:
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - threshold).where(name="test").is_gt(0)
+            ctx.assert_that(x - threshold).config(name="test").is_gt(0)
 
         db = InMemoryMetricDB()
 
@@ -231,7 +233,7 @@ class TestVerificationSuiteTunables:
 
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="test").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="test").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(
@@ -257,7 +259,7 @@ class TestVerificationSuiteTunables:
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - threshold).where(name="test").is_gt(0)
+            ctx.assert_that(x - threshold).config(name="test").is_gt(0)
 
         db = InMemoryMetricDB()
 
@@ -280,7 +282,7 @@ class TestVerificationSuiteTunables:
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - threshold).where(name="test").is_gt(0)
+            ctx.assert_that(x - threshold).config(name="test").is_gt(0)
 
         db = InMemoryMetricDB()
 
@@ -303,7 +305,7 @@ class TestVerificationSuiteTunables:
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
             x = mp.num_rows()
-            ctx.assert_that(x - threshold).where(name="test").is_gt(0)
+            ctx.assert_that(x - threshold).config(name="test").is_gt(0)
 
         db = InMemoryMetricDB()
 
@@ -335,8 +337,8 @@ class TestVerificationSuiteTunables:
         def test_check(mp: Any, ctx: Any) -> None:
             x = mp.num_rows()
             # Use both tunables in the check - SymPy should deduplicate by name
-            ctx.assert_that(x - t1).where(name="test1").is_gt(0)
-            ctx.assert_that(x - t2).where(name="test2").is_gt(0)
+            ctx.assert_that(x - t1).config(name="test1").is_gt(0)
+            ctx.assert_that(x - t2).config(name="test2").is_gt(0)
 
         db = InMemoryMetricDB()
 
@@ -358,7 +360,7 @@ class TestVerificationSuiteTunables:
 
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="test").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="test").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(
@@ -377,7 +379,7 @@ class TestVerificationSuiteTunables:
 
         @check(name="Test Check")
         def test_check(mp: Any, ctx: Any) -> None:
-            ctx.assert_that(mp.num_rows()).where(name="test").is_positive()
+            ctx.assert_that(mp.num_rows()).config(name="test").is_positive()
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(
@@ -445,7 +447,7 @@ class TestTunableRuntimeBehavior:
         def null_rate_check(mp: MetricProvider, ctx: Context) -> None:
             null_rate = mp.null_count("delivered") / mp.num_rows()
             # Use tunable directly in expression (not .value)
-            ctx.assert_that(null_rate - null_threshold).where(name="null_rate_assertion").is_lt(0)
+            ctx.assert_that(null_rate - null_threshold).config(name="null_rate_assertion").is_lt(0)
 
         db = InMemoryMetricDB()
         suite = VerificationSuite(

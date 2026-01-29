@@ -6,6 +6,8 @@ metrics without explicit dataset assignment were filtered out
 from the analysis report.
 """
 
+from __future__ import annotations
+
 import datetime
 from typing import Any
 
@@ -31,8 +33,8 @@ class TestAllSymbolsInReport:
             avg_tax = mp.average("tax")
 
             # Use metrics in assertions
-            ctx.assert_that(null_delivered).where(name="Delivered nulls < 100").is_lt(100)
-            ctx.assert_that(avg_tax).where(name="Tax positive").is_positive()
+            ctx.assert_that(null_delivered).config(name="Delivered nulls < 100").is_lt(100)
+            ctx.assert_that(avg_tax).config(name="Tax positive").is_positive()
 
         @check(name="Products Check", datasets=["products"])
         def products_check(mp: MetricProvider, ctx: Any) -> None:
@@ -41,8 +43,8 @@ class TestAllSymbolsInReport:
             sum_quantity = mp.sum("quantity")
 
             # Use metrics in assertions
-            ctx.assert_that(avg_price).where(name="Price positive").is_positive()
-            ctx.assert_that(sum_quantity).where(name="Quantity positive").is_positive()
+            ctx.assert_that(avg_price).config(name="Price positive").is_positive()
+            ctx.assert_that(sum_quantity).config(name="Quantity positive").is_positive()
 
         # Create two datasets
         orders_data = pa.table(
@@ -96,9 +98,9 @@ class TestAllSymbolsInReport:
             nulls = mp.null_count("id")
             avg = mp.average("value")
 
-            ctx.assert_that(rows).where(name="Has rows").is_positive()
-            ctx.assert_that(nulls).where(name="No nulls").is_eq(0)
-            ctx.assert_that(avg).where(name="Positive average").is_positive()
+            ctx.assert_that(rows).config(name="Has rows").is_positive()
+            ctx.assert_that(nulls).config(name="No nulls").is_eq(0)
+            ctx.assert_that(avg).config(name="Positive average").is_positive()
 
         data = pa.table(
             {
@@ -140,16 +142,16 @@ class TestAllSymbolsInReport:
             # Metrics with explicit dataset
             sales_avg = mp.average("amount", dataset="sales")
 
-            ctx.assert_that(total_rows).where(name="Total rows positive").is_positive()
-            ctx.assert_that(sales_avg).where(name="Sales avg positive").is_positive()
-            ctx.assert_that(generic_sum).where(name="Generic sum positive").is_positive()
+            ctx.assert_that(total_rows).config(name="Total rows positive").is_positive()
+            ctx.assert_that(sales_avg).config(name="Sales avg positive").is_positive()
+            ctx.assert_that(generic_sum).config(name="Generic sum positive").is_positive()
 
         @check(name="Users Check", datasets=["users"])
         def users_check(mp: MetricProvider, ctx: Any) -> None:
             # Metrics with explicit dataset
             users_count = mp.null_count("user_id", dataset="users")
 
-            ctx.assert_that(users_count).where(name="User nulls low").is_lt(10)
+            ctx.assert_that(users_count).config(name="User nulls low").is_lt(10)
 
         # Create datasets
         sales_data = pa.table(
@@ -206,15 +208,15 @@ class TestAllSymbolsInReport:
             # No dataset assignment (will be imputed to dataset1)
             generic_metric = mp.null_count("col_common")
 
-            ctx.assert_that(ds1_metric).where(name="DS1 metric positive").is_positive()
-            ctx.assert_that(generic_metric).where(name="Generic metric zero").is_eq(0)
+            ctx.assert_that(ds1_metric).config(name="DS1 metric positive").is_positive()
+            ctx.assert_that(generic_metric).config(name="Generic metric zero").is_eq(0)
 
         @check(name="Dataset2 Check", datasets=["dataset2"])
         def dataset2_check(mp: MetricProvider, ctx: Any) -> None:
             # Explicitly assign to dataset2
             ds2_metric = mp.sum("col2", dataset="dataset2")
 
-            ctx.assert_that(ds2_metric).where(name="DS2 metric positive").is_positive()
+            ctx.assert_that(ds2_metric).config(name="DS2 metric positive").is_positive()
 
         # Create two datasets with overlapping columns
         data1 = pa.table(

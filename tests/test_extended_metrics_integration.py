@@ -1,5 +1,7 @@
 """Integration tests for complex extended metric dependencies."""
 
+from __future__ import annotations
+
 from datetime import date
 
 import pyarrow as pa
@@ -40,7 +42,7 @@ def test_stddev_of_dod_creates_dependencies() -> None:
         dod = mp.ext.day_over_day(avg)
         std = mp.ext.stddev(dod, offset=0, n=7)
         std = mp.ext.stddev(dod, offset=0, n=7)
-        ctx.assert_that(std).where(name="Collect stddev").noop()
+        ctx.assert_that(std).config(name="Collect stddev").noop()
 
     # Run suite for each day
     for key_date, table_data in tables:
@@ -143,7 +145,7 @@ def test_extended_metric_dependency_creation_bug() -> None:
         avg = mp.average("tax")
         dod = mp.ext.day_over_day(avg)
         std = mp.ext.stddev(dod, offset=0, n=7)
-        ctx.assert_that(std).where(name="Collect stddev").noop()
+        ctx.assert_that(std).config(name="Collect stddev").noop()
 
     # Try to run the suite - this should fail if the bug exists
     suite = VerificationSuite([test_check], db, "Test Suite")

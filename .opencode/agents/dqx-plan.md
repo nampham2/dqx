@@ -34,7 +34,7 @@ Task(subagent_type="dqx-api", prompt="Review API design patterns relevant to {fe
 
 ### Step 2: Create Technical Specification
 
-Generate `docs/design/{feature}_technical_spec.md`:
+Generate `docs/.plans/{feature}_technical_spec.md`:
 
 **Structure** (Target: 200-400 lines):
 
@@ -261,7 +261,7 @@ After creating all three documents, present a summary:
 ```
 Design documents created for {feature}:
 
-📄 Technical Specification: docs/design/{feature}_technical_spec.md ({line_count} lines)
+📄 Technical Specification: docs/.plans/{feature}_technical_spec.md ({line_count} lines)
    Key decisions:
    - {Decision 1}: {brief summary}
    - {Decision 2}: {brief summary}
@@ -279,7 +279,7 @@ Design documents created for {feature}:
 
 Total: {total_lines} lines across 3 modular documents
 
-Note: Technical spec is committed (docs/design/), while implementation guide and context are temporary (docs/.plans/, gitignored)
+Note: All three documents are temporary and gitignored (docs/.plans/). To commit the technical spec permanently to docs/design/, the user must explicitly request it.
 
 Ready to proceed with implementation? Or would you like to review/modify the design first?
 ```
@@ -333,14 +333,71 @@ Ask user for clarification when:
 
 Present options with pros/cons, then let user decide.
 
+## Document Location Strategy
+
+### Default: docs/.plans/ (Temporary, Gitignored)
+
+By default, **all three documents** are written to `docs/.plans/`:
+- `docs/.plans/{feature}_technical_spec.md`
+- `docs/.plans/{feature}_implementation_guide.md`
+- `docs/.plans/{feature}_context.md`
+
+**Purpose**: These are temporary planning documents for active implementation work. They are gitignored and typically discarded after the feature is implemented and committed.
+
+**Lifecycle**: Created → Used during implementation → Deleted after completion
+
+### When to Use docs/design/ (Permanent, Committed)
+
+Only write the technical specification to `docs/design/` when **explicitly requested** by the user.
+
+**Criteria for docs/design/**:
+- ✅ Permanent architectural decisions (e.g., `dql-language.md`)
+- ✅ Long-lived feature specifications (e.g., `profiles.md`)
+- ✅ Language/protocol/API designs that become reference documentation
+- ✅ Specifications that other features will reference
+
+**Do NOT use docs/design/ for**:
+- ❌ One-time refactorings (API renames, code cleanups)
+- ❌ Bug fixes or incremental improvements
+- ❌ Implementation-specific execution plans
+- ❌ Temporary task tracking
+
+**Examples of user requests for committed specs**:
+
+> "Create a design for the new caching system. Write the technical spec to docs/design/ since this is a permanent architectural feature that other components will depend on."
+
+> "Plan the metric batching refactor. This is a one-time cleanup, so keep everything in .plans/"
+
+**Decision heuristic**:
+- Will this spec be referenced 6+ months from now? → `docs/design/`
+- Is this a one-time implementation task? → `docs/.plans/`
+- **When uncertain** → Default to `docs/.plans/` and offer to move if needed
+
+### Moving Documents Between Locations
+
+If the user requests a permanent spec after you've created it:
+1. Mention the technical spec can be moved to `docs/design/` if needed
+2. Let the user decide whether to keep it temporary or make it permanent
+3. Document the decision in your summary
+
+**Example**:
+```
+📄 Technical Specification: docs/.plans/caching_technical_spec.md (345 lines)
+
+Note: This spec is currently in .plans/ (temporary). If this represents a
+permanent architectural decision, I can move it to docs/design/ for commitment.
+Would you like me to move it?
+```
+
 ## File Naming Convention
 
 Use snake_case with descriptive names:
-- `{feature}_technical_spec.md`
-- `{feature}_implementation_guide.md`
-- `{feature}_context.md`
+- `docs/.plans/{feature}_technical_spec.md` (default)
+- `docs/.plans/{feature}_implementation_guide.md` (always)
+- `docs/.plans/{feature}_context.md` (always)
+- `docs/design/{feature}_technical_spec.md` (only when explicitly requested)
 
 Examples:
-- `metric_caching_technical_spec.md`
-- `plugin_architecture_technical_spec.md`
-- `graph_optimization_technical_spec.md`
+- `docs/.plans/metric_caching_technical_spec.md` (temporary refactor)
+- `docs/design/plugin_architecture_technical_spec.md` (permanent architecture)
+- `docs/.plans/graph_optimization_implementation_guide.md` (always temporary)
