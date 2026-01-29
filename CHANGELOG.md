@@ -1,3 +1,24 @@
+## v0.5.17 (2026-01-29)
+
+### BREAKING CHANGE
+
+- **api**: `AssertionDraft.where()` renamed to `.config()` for better API clarity (#75)
+  - Migration: Replace all `.where(name=..., severity=...)` calls with `.config(name=..., severity=...)`
+
+- **commands**: Remove convenience commands `uv run coverage`, `uv run hooks`, `uv run cleanup` (#74)
+  - Migration: Use direct commands - `uv run pytest --cov=src/dqx` for coverage, `uv run pre-commit run` for hooks
+
+### Refactor
+
+- **api**: Update 333 test occurrences and 50 documentation examples to use `.config()` method (#75)
+- **structure**: Relocate check_commit_msg.py from src/scripts/ to bin/ (#74)
+- **tests**: Fix flaky boundary condition test in metric expiration (#75)
+
+### Docs
+
+- **structure**: Restructure design docs - technical specs to docs/design/, implementation plans to docs/.plans/ (#73)
+- **cleanup**: Remove 206 historical planning documents (3.3MB reduction) (#73)
+
 ## v0.5.16 (2026-01-28)
 
 ### Feat

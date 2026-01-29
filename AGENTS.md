@@ -930,7 +930,7 @@ bin/               # Development scripts
 
 - Tool: Commitizen with conventional commits
 - Versioning: PEP 440 with major_version_zero
-- Current version: 0.5.11
+- Current version: 0.5.17
 - Automated via GitHub Actions release workflow
 
 ---
