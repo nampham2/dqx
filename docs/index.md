@@ -37,13 +37,13 @@ from dqx.orm.repositories import InMemoryMetricDB
 def validate_revenue(mp: MetricProvider, ctx: Context) -> None:
     # Verify reported revenue is positive
     reported = mp.sum("revenue")
-    ctx.assert_that(reported).where(
+    ctx.assert_that(reported).config(
         name="Revenue is positive", severity="P0"
     ).is_positive()
 
     # Check average transaction size is reasonable
     avg_revenue = mp.average("revenue")
-    ctx.assert_that(avg_revenue).where(
+    ctx.assert_that(avg_revenue).config(
         name="Average transaction size", severity="P1"
     ).is_between(10, 100)
 
@@ -74,12 +74,12 @@ suite.run([datasource], ResultKey())
 def check_completeness(mp: MetricProvider, ctx: Context) -> None:
     # Flag if more than 5% of emails are missing
     null_rate = mp.null_count("email") / mp.num_rows()
-    ctx.assert_that(null_rate).where(name="Email completeness", severity="P0").is_lt(
+    ctx.assert_that(null_rate).config(name="Email completeness", severity="P0").is_lt(
         0.05
     )
 
     # Ensure all orders have customer IDs
-    ctx.assert_that(mp.null_count("customer_id")).where(
+    ctx.assert_that(mp.null_count("customer_id")).config(
         name="Customer ID required", severity="P0"
     ).is_eq(0)
 ```
@@ -95,14 +95,14 @@ def validate_financials(mp: MetricProvider, ctx: Context) -> None:
     total_revenue = mp.sum("revenue")
     total_collected = mp.sum("payments")
 
-    ctx.assert_that(total_collected / total_revenue).where(
+    ctx.assert_that(total_collected / total_revenue).config(
         name="Payment collection rate", severity="P1"
     ).is_between(
         0.95, 1.05
     )  # 5% tolerance
 
     # Check for negative prices
-    ctx.assert_that(mp.minimum("price")).where(
+    ctx.assert_that(mp.minimum("price")).config(
         name="No negative prices", severity="P0"
     ).is_geq(0)
 ```
@@ -116,7 +116,7 @@ def validate_financials(mp: MetricProvider, ctx: Context) -> None:
 def monitor_trends(mp: MetricProvider, ctx: Context) -> None:
     # Alert on significant daily changes
     daily_change = mp.sum("revenue") / mp.sum("revenue", lag=1)
-    ctx.assert_that(daily_change).where(
+    ctx.assert_that(daily_change).config(
         name="Daily revenue stability", severity="P0"
     ).is_between(
         0.8, 1.2
@@ -124,7 +124,7 @@ def monitor_trends(mp: MetricProvider, ctx: Context) -> None:
 
     # Track week-over-week growth
     wow_change = mp.sum("revenue") / mp.sum("revenue", lag=7)
-    ctx.assert_that(wow_change).where(
+    ctx.assert_that(wow_change).config(
         name="Weekly revenue trend", severity="P1"
     ).is_geq(
         0.95
@@ -142,7 +142,9 @@ def validate_environments(mp: MetricProvider, ctx: Context) -> None:
     prod_count = mp.num_rows(dataset="production")
     staging_count = mp.num_rows(dataset="staging")
 
-    ctx.assert_that(prod_count).where(name="Row count match", severity="P1").is_between(
+    ctx.assert_that(prod_count).config(
+        name="Row count match", severity="P1"
+    ).is_between(
         staging_count - 100, staging_count + 100
     )  # Allow 100 row difference
 
@@ -150,7 +152,7 @@ def validate_environments(mp: MetricProvider, ctx: Context) -> None:
     prod_revenue = mp.sum("revenue", dataset="production")
     staging_revenue = mp.sum("revenue", dataset="staging")
 
-    ctx.assert_that((prod_revenue - staging_revenue) / prod_revenue).where(
+    ctx.assert_that((prod_revenue - staging_revenue) / prod_revenue).config(
         name="Revenue consistency", severity="P0"
     ).is_lt(
         0.01
@@ -165,7 +167,7 @@ def validate_environments(mp: MetricProvider, ctx: Context) -> None:
 @check(name="Data quality SLAs")
 def enforce_slas(mp: MetricProvider, ctx: Context) -> None:
     # P0: Critical - No duplicate transactions
-    ctx.assert_that(mp.duplicate_count(["transaction_id"])).where(
+    ctx.assert_that(mp.duplicate_count(["transaction_id"])).config(
         name="Transaction uniqueness", severity="P0"
     ).is_eq(0)
 
@@ -174,7 +176,7 @@ def enforce_slas(mp: MetricProvider, ctx: Context) -> None:
     total_count = mp.num_rows()
     active_rate = recent_count / total_count
 
-    ctx.assert_that(active_rate).where(
+    ctx.assert_that(active_rate).config(
         name="Active record percentage", severity="P1"
     ).is_gt(
         0.5
@@ -182,7 +184,7 @@ def enforce_slas(mp: MetricProvider, ctx: Context) -> None:
 
     # P2: Medium - Cardinality checks
     unique_users = mp.unique_count("user_id")
-    ctx.assert_that(unique_users).where(
+    ctx.assert_that(unique_users).config(
         name="Active user threshold", severity="P2"
     ).is_gt(1000)
 ```

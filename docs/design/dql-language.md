@@ -471,7 +471,7 @@ suite = VerificationSuite(
 # Use in assertions
 @check(name="Completeness")
 def completeness_check(mp: MetricProvider, ctx: Context):
-    ctx.assert_that(mp.null_count("email") / mp.num_rows()).where(
+    ctx.assert_that(mp.null_count("email") / mp.num_rows()).config(
         name="Email null rate"
     ).is_lt(
         NULL_THRESHOLD.value
@@ -1491,9 +1491,9 @@ The following features from this design are **already implemented** in the DQX c
 
 | Annotation | Description | Location |
 |------------|-------------|----------|
-| `@experimental` | Mark algorithm-proposed assertions | ✅ `experimental` param in `api.py` AssertionDraft.where() |
-| `@required` | Prevent removal by algorithms | ✅ `required` param in `api.py` AssertionDraft.where() |
-| `@cost(fp, fn)` | False positive/negative costs for RL reward | ✅ `cost={"fp": N, "fn": M}` param in `api.py` AssertionDraft.where() |
+| `@experimental` | Mark algorithm-proposed assertions | ✅ `experimental` param in `api.py` AssertionDraft.config() |
+| `@required` | Prevent removal by algorithms | ✅ `required` param in `api.py` AssertionDraft.config() |
+| `@cost(fp, fn)` | False positive/negative costs for RL reward | ✅ `cost={"fp": N, "fn": M}` param in `api.py` AssertionDraft.config() |
 
 #### Tunable Constants
 

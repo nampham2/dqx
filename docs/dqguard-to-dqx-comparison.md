@@ -47,7 +47,7 @@ DQX addresses modern challenges:
 ```python
 @check("Reservations have sufficient volume")
 def validate_reservations(mp: MetricProvider, ctx: Context) -> None:
-    ctx.assert_that(mp.num_rows()).where(name="Daily volume check").is_geq(1000000)
+    ctx.assert_that(mp.num_rows()).config(name="Daily volume check").is_geq(1000000)
 ```
 
 Benefits:
@@ -72,7 +72,7 @@ calculated = mp.sum("price") * mp.sum("quantity")
 reported = mp.sum("revenue")
 error_rate = sp.Abs(calculated - reported) / reported
 
-ctx.assert_that(error_rate).where(name="Revenue calculation accuracy").is_lt(0.001)
+ctx.assert_that(error_rate).config(name="Revenue calculation accuracy").is_lt(0.001)
 ```
 
 ### 3. Processing Architecture
@@ -107,7 +107,7 @@ vim lib/quality_check.json
 # Write with IDE support
 def validate_orders(mp: MetricProvider, ctx: Context) -> None:
     # Autocompletion shows available metrics
-    ctx.assert_that(mp.average("price")).where(name="Price validation").is_positive()
+    ctx.assert_that(mp.average("price")).config(name="Price validation").is_positive()
 
 
 # Run directly
@@ -158,8 +158,8 @@ suite.run(datasources, key)
 
 **DQX**:
 ```python
-ctx.assert_that(mp.num_rows()).where(name="Has rows").is_positive()
-ctx.assert_that(mp.null_count("id")).where(name="No null IDs").is_zero()
+ctx.assert_that(mp.num_rows()).config(name="Has rows").is_positive()
+ctx.assert_that(mp.null_count("id")).config(name="No null IDs").is_zero()
 ```
 
 #### Pattern 2: Time-Series Validation
@@ -181,7 +181,7 @@ std = calculate_std(history)
 # Apply validation
 current = mp.sum("revenue")
 z_score = abs(current - mean) / std
-ctx.assert_that(z_score).where(name="Within 2 SD").is_lt(2)
+ctx.assert_that(z_score).config(name="Within 2 SD").is_lt(2)
 ```
 
 #### Pattern 3: Duplicate Detection
@@ -199,7 +199,7 @@ ctx.assert_that(z_score).where(name="Within 2 SD").is_lt(2)
 ```python
 # Built-in duplicate detection
 duplicate_count = mp.duplicate_count("transaction_id")
-ctx.assert_that(duplicate_count).where(name="No duplicates").is_zero()
+ctx.assert_that(duplicate_count).config(name="No duplicates").is_zero()
 ```
 
 ### Coexistence Strategy
@@ -230,14 +230,14 @@ def compare_environments(mp: MetricProvider, ctx: Context) -> None:
     prod = mp.sum("revenue", dataset="production")
     staging = mp.sum("revenue", dataset="staging")
 
-    ctx.assert_that(prod).where(name="Environment parity").is_eq(staging, tol=0.01)
+    ctx.assert_that(prod).config(name="Environment parity").is_eq(staging, tol=0.01)
 ```
 
 ### 2. Custom Metric Extensions
 ```python
 # DQX supports custom metrics through extensions
 day_over_day = mp.ext.day_over_day(specs.Average("response_time"))
-ctx.assert_that(day_over_day).where(name="Response time trend").is_between(-0.1, 0.1)
+ctx.assert_that(day_over_day).config(name="Response time trend").is_between(-0.1, 0.1)
 ```
 
 ### 3. Symbolic Mathematics
@@ -246,7 +246,7 @@ ctx.assert_that(day_over_day).where(name="Response time trend").is_between(-0.1,
 margin = (mp.sum("revenue") - mp.sum("cost")) / mp.sum("revenue")
 target_margin = 0.3
 
-ctx.assert_that(margin).where(name="Profit margin target", severity="P0").is_geq(
+ctx.assert_that(margin).config(name="Profit margin target", severity="P0").is_geq(
     target_margin
 )
 ```
@@ -257,10 +257,10 @@ ctx.assert_that(margin).where(name="Profit margin target", severity="P0").is_geq
 ### 1. Name Every Assertion
 ```python
 # Good: Clear, specific names
-ctx.assert_that(metric).where(name="Daily revenue within 10% of average")
+ctx.assert_that(metric).config(name="Daily revenue within 10% of average")
 
 # Avoid: Generic names
-ctx.assert_that(metric).where(name="Revenue check")
+ctx.assert_that(metric).config(name="Revenue check")
 ```
 
 ### 2. Group Related Checks
@@ -268,22 +268,22 @@ ctx.assert_that(metric).where(name="Revenue check")
 @check("Payment integrity", datasets=["payments"])
 def validate_payments(mp: MetricProvider, ctx: Context) -> None:
     # All payment validations in one check
-    ctx.assert_that(mp.null_count("payment_id")).where(
+    ctx.assert_that(mp.null_count("payment_id")).config(
         name="Payment ID completeness"
     ).is_zero()
 
-    ctx.assert_that(mp.average("amount")).where(
+    ctx.assert_that(mp.average("amount")).config(
         name="Average payment reasonable"
     ).is_between(10, 1000)
 ```
 
 ### 3. Use Severity Levels
 ```python
-ctx.assert_that(critical_metric).where(
+ctx.assert_that(critical_metric).config(
     name="Critical business metric", severity="P0"  # Pages on-call
 ).is_positive()
 
-ctx.assert_that(quality_metric).where(
+ctx.assert_that(quality_metric).config(
     name="Data quality indicator", severity="P2"  # Daily review
 ).is_within_range()
 ```
