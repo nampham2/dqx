@@ -643,7 +643,7 @@ def test_assertion_tags_via_config() -> None:
     context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
     @check(name="Test Check")
-    def test_check(mp: MetricProvider, ctx: Context) -> None:
+    def test_check(_mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(sp.Symbol("x")).config(
             name="Tagged assertion",
             tags={"xmas", "critical"},
@@ -744,7 +744,7 @@ def test_required_annotation_via_config() -> None:
     context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
     @check(name="Test Check")
-    def test_check(mp: MetricProvider, ctx: Context) -> None:
+    def test_check(_mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(sp.Symbol("x")).config(
             name="Required assertion",
             required=True,
@@ -777,7 +777,7 @@ def test_cost_annotation_via_config() -> None:
     context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
 
     @check(name="Test Check")
-    def test_check(mp: MetricProvider, ctx: Context) -> None:
+    def test_check(_mp: MetricProvider, ctx: Context) -> None:
         ctx.assert_that(sp.Symbol("x")).config(
             name="Assertion with cost",
             cost={"fp": 1.0, "fn": 100.0},
