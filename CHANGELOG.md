@@ -1,3 +1,12 @@
+# Changelog
+
+> **Note**: DQL (Data Quality Language) was removed in v0.5.18. The Python API remains the sole supported interface. Historical DQL-related entries remain below for reference.
+
+# Changelog
+
+> **Note**: DQL (Data Quality Language) was removed in v0.5.18. The Python API remains the sole supported interface. Historical DQL-related entries remain below for reference.
+
+
 ## v0.5.17 (2026-01-29)
 
 ### BREAKING CHANGE
