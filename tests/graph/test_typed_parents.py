@@ -1,5 +1,7 @@
 """Tests for strongly typed parent hierarchy."""
 
+from __future__ import annotations
+
 import pytest
 import sympy as sp
 
@@ -181,87 +183,79 @@ class TestRootNodeNameValidation:
 class TestCheckNodeNameValidation:
     """Test suite for CheckNode name validation."""
 
-    def test_check_node_with_valid_name(self) -> None:
+    @pytest.fixture
+    def root(self) -> RootNode:
+        """Fixture providing a RootNode for CheckNode tests."""
+        return RootNode("test_suite")
+
+    def test_check_node_with_valid_name(self, root: RootNode) -> None:
         """Test CheckNode creation with valid name."""
-        root = RootNode("test_suite")
         check = CheckNode(parent=root, name="valid_check_name")
         assert check.name == "valid_check_name"
 
-    def test_check_node_strips_whitespace(self) -> None:
+    def test_check_node_strips_whitespace(self, root: RootNode) -> None:
         """Test CheckNode strips leading/trailing whitespace from name."""
-        root = RootNode("test_suite")
         check = CheckNode(parent=root, name="  check_with_spaces  ")
         assert check.name == "check_with_spaces"
 
-    def test_check_node_with_empty_string(self) -> None:
+    def test_check_node_with_empty_string(self, root: RootNode) -> None:
         """Test CheckNode raises DQXError for empty string name."""
-        root = RootNode("test_suite")
         with pytest.raises(DQXError, match="Check name cannot be empty"):
             CheckNode(parent=root, name="")
 
-    def test_check_node_with_whitespace_only(self) -> None:
+    def test_check_node_with_whitespace_only(self, root: RootNode) -> None:
         """Test CheckNode raises DQXError for whitespace-only name."""
-        root = RootNode("test_suite")
         with pytest.raises(DQXError, match="Check name cannot be empty"):
             CheckNode(parent=root, name="   ")
 
-    def test_check_node_with_tabs_only(self) -> None:
+    def test_check_node_with_tabs_only(self, root: RootNode) -> None:
         """Test CheckNode raises DQXError for tab-only name."""
-        root = RootNode("test_suite")
         with pytest.raises(DQXError, match="Check name cannot be empty"):
             CheckNode(parent=root, name="\t\t")
 
-    def test_check_node_with_newlines_only(self) -> None:
+    def test_check_node_with_newlines_only(self, root: RootNode) -> None:
         """Test CheckNode raises DQXError for newline-only name."""
-        root = RootNode("test_suite")
         with pytest.raises(DQXError, match="Check name cannot be empty"):
             CheckNode(parent=root, name="\n\n")
 
-    def test_check_node_with_mixed_whitespace_only(self) -> None:
+    def test_check_node_with_mixed_whitespace_only(self, root: RootNode) -> None:
         """Test CheckNode raises DQXError for mixed whitespace-only name."""
-        root = RootNode("test_suite")
         with pytest.raises(DQXError, match="Check name cannot be empty"):
             CheckNode(parent=root, name=" \t\n ")
 
-    def test_check_node_with_max_length_name(self) -> None:
+    def test_check_node_with_max_length_name(self, root: RootNode) -> None:
         """Test CheckNode accepts name at max length boundary (255 chars)."""
-        root = RootNode("test_suite")
         max_length_name = "b" * 255
         check = CheckNode(parent=root, name=max_length_name)
         assert check.name == max_length_name
         assert len(check.name) == 255
 
-    def test_check_node_with_name_exceeding_max_length(self) -> None:
+    def test_check_node_with_name_exceeding_max_length(self, root: RootNode) -> None:
         """Test CheckNode raises DQXError for name exceeding 255 chars."""
-        root = RootNode("test_suite")
         too_long_name = "b" * 256
         with pytest.raises(DQXError, match="Check name is too long \\(max 255 characters\\)"):
             CheckNode(parent=root, name=too_long_name)
 
-    def test_check_node_with_name_far_exceeding_max_length(self) -> None:
+    def test_check_node_with_name_far_exceeding_max_length(self, root: RootNode) -> None:
         """Test CheckNode raises DQXError for name far exceeding max length."""
-        root = RootNode("test_suite")
         way_too_long_name = "b" * 1000
         with pytest.raises(DQXError, match="Check name is too long \\(max 255 characters\\)"):
             CheckNode(parent=root, name=way_too_long_name)
 
-    def test_check_node_with_whitespace_that_exceeds_when_stripped(self) -> None:
+    def test_check_node_with_whitespace_that_exceeds_when_stripped(self, root: RootNode) -> None:
         """Test CheckNode handles whitespace correctly before length check."""
-        root = RootNode("test_suite")
         # 253 'b's + spaces = 259 total, but 253 after strip (valid)
         name_with_spaces = "  " + ("b" * 253) + "  "
         check = CheckNode(parent=root, name=name_with_spaces)
         assert len(check.name) == 253
 
-    def test_check_node_factory_method_with_invalid_name(self) -> None:
+    def test_check_node_factory_method_with_invalid_name(self, root: RootNode) -> None:
         """Test that factory method add_check also validates names."""
-        root = RootNode("test_suite")
         with pytest.raises(DQXError, match="Check name cannot be empty"):
             root.add_check("")
 
-    def test_check_node_factory_method_with_long_name(self) -> None:
+    def test_check_node_factory_method_with_long_name(self, root: RootNode) -> None:
         """Test that factory method add_check validates name length."""
-        root = RootNode("test_suite")
         too_long_name = "c" * 256
         with pytest.raises(DQXError, match="Check name is too long \\(max 255 characters\\)"):
             root.add_check(too_long_name)
