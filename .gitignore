@@ -32,3 +32,6 @@ memory-bank/
 
 # Temporary execution plans (not committed)
 docs/.plans/
+
+# Backup files
+*.bak

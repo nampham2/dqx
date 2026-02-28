@@ -1,3 +1,8 @@
+# Changelog
+
+> **Note**: DQL (Data Quality Language) was removed in v0.5.18. The Python API remains the sole supported interface. Historical DQL-related entries remain below for reference.
+
+
 ## v0.5.17 (2026-01-29)
 
 ### BREAKING CHANGE
@@ -68,7 +73,6 @@
 Profile definitions (`profile "Name" { ... }`) are no longer supported in DQL syntax. Profiles must now be defined in YAML configuration files or passed programmatically via the Python API.
 
 - Migration required for any DQL files containing `profile` blocks
-- See [Migration Guide](docs/migration/dql-profiles-to-yaml.md) for step-by-step instructions
 - Rationale: Separates validation logic (DQL) from runtime behavior (profiles), enabling environment-specific configuration
 
 **Before (DQL with profiles):**

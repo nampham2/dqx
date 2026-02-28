@@ -38,7 +38,7 @@ This document provides coding guidelines and commands for AI agents working on t
 
 DQX (Data Quality Excellence) is a Python 3.11+ library for data quality validation. The package name is `dqlib` but the module name is `dqx`. It allows writing validation logic as testable Python functions that execute efficiently on SQL backends (DuckDB, BigQuery, Snowflake).
 
-**Key Technologies:** Python 3.11+, DuckDB, PyArrow, SymPy, SQLAlchemy, Lark parser, Rich (terminal UI)
+**Key Technologies:** Python 3.11+, DuckDB, PyArrow, SymPy, SQLAlchemy, Rich (terminal UI)
 
 ---
 
@@ -444,7 +444,7 @@ perf(analyzer): optimize SQL generation
 ### Scopes (optional)
 - analyzer, api, graph, evaluator, provider, specs, validator
 - display, orm, extensions, common, dialect, functions
-- models, ops, states, utils, dql
+- models, ops, states, utils
 
 ### Rules
 - Subject line: max 72 characters, imperative mood ("add" not "added")
@@ -911,11 +911,9 @@ src/dqx/           # Main source code
 ├── common.py      # Shared types and protocols
 ├── display.py     # Result visualization with Rich
 ├── graph/         # Graph processing for dependency analysis
-├── dql/           # Data Quality Language parser
 └── orm/           # Object-relational mapping for metrics
 
 tests/             # Test suite (110+ files)
-├── dql/           # DQL tests
 ├── e2e/           # End-to-end tests
 ├── graph/         # Graph processing tests
 └── fixtures/      # Shared fixtures
