@@ -7,7 +7,6 @@ authors = [{ name = "Nam Pham", email = "phamducnam@gmail.com" }]
 requires-python = ">=3.10,<=3.13"
 dependencies = [
     "duckdb>=1.3.2",
-    "lark>=1.2.2",
     "msgpack>=1.1.1",
     "pyarrow>=21.0.0",
     "pyyaml>=6.0",
