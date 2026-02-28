@@ -52,10 +52,10 @@ class RootNode(CompositeNode[None, "CheckNode"]):
         Raises:
             DQXError: If name is empty or longer than 255 characters
         """
-        if not name or not name.strip():  # pragma: no cover
+        if not name or not name.strip():
             raise DQXError("Root name cannot be empty")
         stripped_name = name.strip()
-        if len(stripped_name) > 255:  # pragma: no cover
+        if len(stripped_name) > 255:
             raise DQXError("Root name is too long (max 255 characters)")
 
         super().__init__(parent=None)  # Root always has None parent
@@ -106,10 +106,10 @@ class CheckNode(CompositeNode["RootNode", "AssertionNode"]):
         Raises:
             DQXError: If name is empty or longer than 255 characters
         """
-        if not name or not name.strip():  # pragma: no cover
+        if not name or not name.strip():
             raise DQXError("Check name cannot be empty")
         stripped_name = name.strip()
-        if len(stripped_name) > 255:  # pragma: no cover
+        if len(stripped_name) > 255:
             raise DQXError("Check name is too long (max 255 characters)")
 
         super().__init__(parent)
