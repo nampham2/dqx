@@ -1,6 +1,6 @@
 [project]
 name = "dqlib"
-version = "0.5.18"
+version = "0.5.19"
 description = "Data Quality eXcellence"
 readme = "README.md"
 authors = [{ name = "Nam Pham", email = "phamducnam@gmail.com" }]
@@ -12,7 +12,7 @@ dependencies = [
     "pyyaml>=6.0.3",
     "returns>=0.26.0",
     "rich>=14.3.3",
-    "sqlalchemy>=2.0.47",
+    "sqlalchemy>=2.0.47,<2.1",
     "sqlparse>=0.5.5",
     "sympy>=1.14.0",
 ]
