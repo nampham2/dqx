@@ -3,6 +3,18 @@
 > **Note**: DQL (Data Quality Language) was removed in v0.5.18. The Python API remains the sole supported interface. Historical DQL-related entries remain below for reference.
 
 
+## v0.5.20 (2026-03-02)
+
+### Fix
+
+- **deps**: add missing comma in sqlalchemy version constraint (#82)
+
+## v0.5.18 (2026-02-28)
+
+### Feat
+
+- remove DQL language and parser (#78)
+
 ## v0.5.17 (2026-01-29)
 
 ### BREAKING CHANGE
