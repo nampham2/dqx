@@ -114,7 +114,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-${{ matrix.python-version }}
           path: |
@@ -130,7 +130,7 @@ jobs:
 
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: test-results-3.11
 
@@ -157,7 +157,7 @@ jobs:
           \"message\": \"${COVERAGE}%\", \"color\": \"brightgreen\"}" > type-coverage.json
 
       - name: Upload type coverage badge data
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: type-coverage-badge
           path: type-coverage.json
