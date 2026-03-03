@@ -231,7 +231,7 @@ This contract generates a suite with five CheckNodes: one per column with checks
 
 ---
 
-## PyArrow Type System
+## Type System
 
 ### Design Philosophy
 
