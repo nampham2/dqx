@@ -36,7 +36,7 @@ Contracts generate standard `VerificationSuite` instances that return `Assertion
 
 **Contracts are column-centric YAML specifications that generate VerificationSuites following the suite → checks → assertions pattern.**
 
-```
+```text
 Contract YAML (schema + checks)
     ↓ Contract.from_yaml()
 Contract instance (with PyArrow schema)
@@ -550,7 +550,7 @@ metadata:
 When SLA metadata is specified, it automatically generates a freshness check. Gap detection is a separate concern that users add explicitly in the `checks` section.
 
 **For Partitioned Tables** (`partitioned_by` exists):
-```
+```text
 max_age_hours = lag_hours + period_hours + buffer
 
 where:
@@ -562,7 +562,7 @@ where:
 ```
 
 **For Non-Partitioned Tables** (`partitioned_by` absent):
-```
+```text
 max_age_hours = lag_hours + buffer
 ```
 
@@ -1178,7 +1178,7 @@ checks:
 
 Standard 5-field cron format:
 
-```
+```text
 ┌───────────── minute (0 - 59)
 │ ┌───────────── hour (0 - 23)
 │ │ ┌───────────── day of month (1 - 31)
