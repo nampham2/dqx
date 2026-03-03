@@ -1,0 +1,120 @@
+/* Extra CSS for DQX Documentation */
+
+/* Custom brand colors */
+:root {
+  --dqx-primary: #4051b5;
+  --dqx-accent: #ffa724;
+}
+
+/* Code block improvements */
+.highlight pre {
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+/* Admonition styling */
+.admonition {
+  margin: 1.5rem 0;
+}
+
+/* Table styling */
+.md-typeset table:not([class]) {
+  display: table;
+  width: 100%;
+  margin: 1em 0;
+  border-collapse: collapse;
+}
+
+.md-typeset table:not([class]) th {
+  background-color: var(--md-default-bg-color--light);
+  font-weight: 700;
+}
+
+/* API documentation styling */
+.doc-class {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--md-default-fg-color--lightest);
+}
+
+.doc-function {
+  margin: 1rem 0;
+}
+
+/* Custom badges */
+.badge {
+  display: inline-block;
+  padding: 0.25em 0.5em;
+  font-size: 0.875em;
+  font-weight: 500;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+  vertical-align: baseline;
+  border-radius: 0.25rem;
+}
+
+.badge-primary {
+  color: #fff;
+  background-color: var(--dqx-primary);
+}
+
+.badge-warning {
+  color: #212529;
+  background-color: var(--dqx-accent);
+}
+
+/* Responsive tables */
+@media screen and (max-width: 768px) {
+  .md-typeset table:not([class]) {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
+
+/* Copy button for code blocks */
+.highlight .md-clipboard {
+  transition: opacity 0.25s;
+}
+
+.highlight:hover .md-clipboard {
+  opacity: 1;
+}
+
+/* Search results highlighting */
+.md-search-result mark {
+  background-color: var(--dqx-accent);
+  color: inherit;
+}
+
+/* Version selector styling */
+.md-version__current {
+  font-weight: 700;
+}
+
+/* Footer styling */
+.md-footer-meta {
+  background-color: var(--md-default-bg-color--light);
+}
+
+/* Navigation active state */
+.md-nav__item--active > .md-nav__link {
+  color: var(--dqx-primary);
+  font-weight: 700;
+}
+
+/* Print styles */
+@media print {
+  .md-sidebar,
+  .md-header,
+  .md-footer,
+  .md-tabs {
+    display: none;
+  }
+
+  .md-content {
+    margin: 0;
+    padding: 0;
+  }
+}
