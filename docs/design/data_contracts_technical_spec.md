@@ -68,7 +68,6 @@ tags: [string, ...]      # Optional tags (e.g., ["revenue", "core"])
 sla:
   schedule: string               # Cron expression for data arrival schedule
   lag_hours: int                 # Hours after schedule until data available
-  timestamp_column: string       # Column to measure freshness
 
 # Optional: Table-level metadata (flat at top level)
 metadata:
@@ -507,7 +506,7 @@ Complex types can be nested arbitrarily (e.g., list of structs with maps). All t
 
 Contracts support optional SLA metadata defining when data should arrive. SLAs auto-generate freshness checks, convert business requirements into executable validation, and document availability guarantees. The system uses standard cron expressions for scheduling and infers partition vs. table mode from `metadata.partitioned_by`.
 
-SLA is optional—omit it for ad-hoc datasets or when freshness isn't a concern. When specified, three fields are required: `schedule`, `lag_hours`, and `timestamp_column`.
+SLA is optional—omit it for ad-hoc datasets or when freshness isn't a concern. When specified, two fields are required: `schedule` and `lag_hours`.
 
 ### SLA Structure
 
@@ -524,7 +523,6 @@ tags: [string, ...]
 sla:
   schedule: string               # REQUIRED (if sla specified): Cron expression (5-field format)
   lag_hours: int                 # REQUIRED (if sla specified): Hours after scheduled time until data available
-  timestamp_column: string       # REQUIRED (if sla specified): Column to measure freshness
 
 # Optional table metadata
 metadata:
@@ -541,7 +539,6 @@ metadata:
 |-------|------|----------|-------------|
 | `schedule` | `string` | Yes* | Cron expression (5-field format) defining when data arrives |
 | `lag_hours` | `int` | Yes* | Hours after scheduled time until data is available |
-| `timestamp_column` | `string` | Yes* | Column to measure freshness (typically partition key) |
 
 \* Required if `sla` block is specified. The entire `sla` block is optional at contract level.
 
@@ -572,9 +569,11 @@ checks:
   - name: "SLA: Freshness check"
     type: freshness
     max_age_hours: <calculated>
-    timestamp_column: <from sla.timestamp_column>
+    timestamp_column: <inferred from partitioned_by or specified in check>
     severity: P0
 ```
+
+**Note:** The `timestamp_column` is inferred from the first column in `metadata.partitioned_by` for partitioned tables, or must be explicitly specified in the freshness check for non-partitioned tables.
 
 Gap detection is NOT auto-generated. Users explicitly add `partition_completeness` checks in the `checks` section if needed.
 
@@ -593,7 +592,6 @@ tags: ["revenue", "core", "pii"]
 sla:
   schedule: "0 0 * * *"          # Every day at midnight
   lag_hours: 24                  # T-1 data (data for day D by end of D+1)
-  timestamp_column: order_date
 
 metadata:
   partitioned_by: ["order_date"] # ← Indicates partition-based SLA
@@ -716,7 +714,7 @@ columns:
 #   - name: "SLA: Freshness check"
 #     type: freshness
 #     max_age_hours: 49              # 24 lag + 24 period + 1 buffer
-#     timestamp_column: order_date
+#     timestamp_column: order_date   # Inferred from partitioned_by
 #     severity: P0
 
 # User can optionally add gap detection:
@@ -751,7 +749,6 @@ tags: ["clickstream"]
 sla:
   schedule: "0 * * * *"          # Every hour
   lag_hours: 2                   # Hour H data available by H+2
-  timestamp_column: event_hour
 
 metadata:
   partitioned_by: ["event_hour"]
@@ -796,7 +793,6 @@ dataset: "daily_reports"
 sla:
   schedule: "0 6 * * 1-5"        # Mon-Fri at 6 AM
   lag_hours: 24                  # T-1 business day
-  timestamp_column: report_date
 
 metadata:
   partitioned_by: ["report_date"]
@@ -830,9 +826,9 @@ dataset: "customer_agg"
 sla:
   schedule: "0 6 * * *"          # Daily at 6 AM
   lag_hours: 0                   # Available promptly at 6 AM
-  timestamp_column: last_updated
 
 # NO metadata.partitioned_by → Table-based SLA
+# timestamp_column must be specified in the freshness check
 
 columns:
   - name: customer_id
@@ -859,11 +855,11 @@ columns:
 
 **SLA Validation:**
 1. SLA is optional at contract level
-2. If SLA specified, all three fields (`schedule`, `lag_hours`, `timestamp_column`) required
+2. If SLA specified, both fields (`schedule`, `lag_hours`) required
 3. `schedule` must be valid 5-field cron expression
 4. `lag_hours` should be reasonable for schedule frequency (warn if > 168 hours for hourly/daily)
-5. `timestamp_column` must reference a column in `columns[]`
-6. For partitioned tables, `timestamp_column` should typically match one of `partitioned_by` columns (warn if not)
+5. For partitioned tables, freshness check uses first column in `partitioned_by` as timestamp_column
+6. For non-partitioned tables, freshness check must explicitly specify `timestamp_column`
 
 ### SLA vs Manual Checks
 
@@ -872,8 +868,11 @@ columns:
 sla:
   schedule: "0 0 * * *"
   lag_hours: 24
-  timestamp_column: order_date
-# Auto-generates freshness check only
+
+metadata:
+  partitioned_by: ["order_date"]  # timestamp_column inferred from this
+
+# Auto-generates freshness check with timestamp_column: order_date
 ```
 
 **Without SLA** (manual checks):
@@ -882,7 +881,7 @@ checks:
   - name: "Latest partition is fresh"
     type: freshness
     max_age_hours: 49
-    timestamp_column: order_date
+    timestamp_column: order_date  # Explicitly specified in check
     severity: P0
 ```
 
@@ -1052,13 +1051,12 @@ owner: "team-name"
 dataset: "table_name"
 tags: ["tag1", "tag2"]
 
-# Optional SLA (3 fields)
+# Optional SLA (2 fields)
 sla:
   schedule: "0 0 * * *"        # Cron expression
   lag_hours: 24                # Availability lag
-  timestamp_column: event_date # Freshness column
 
-# Optional partitioning
+# Optional partitioning (timestamp_column inferred for freshness checks)
 metadata:
   partitioned_by: ["event_date"]
 
