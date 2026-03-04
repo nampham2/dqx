@@ -98,12 +98,8 @@ class DuckRelationDataSource(SqlDataSource):
         Returns:
             pa.Schema: The PyArrow schema of the dataset.
         """
-        arrow_result = self._relation.arrow()
-        # If it's a RecordBatchReader, read all and get schema
-        if isinstance(arrow_result, pa.RecordBatchReader):
-            return arrow_result.schema
-        # If it's already a Table, just get the schema (defensive, currently DuckDB always returns RecordBatchReader)
-        return arrow_result.schema  # pragma: no cover
+        # Both RecordBatchReader and Table have .schema property
+        return self._relation.arrow().schema
 
     def query(self, query: str) -> pa.Table:
         """Execute a query against the DuckDB relation.

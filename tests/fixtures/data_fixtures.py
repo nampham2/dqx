@@ -111,12 +111,8 @@ class CommercialDataSource:
         Returns:
             pa.Schema: The PyArrow schema of the dataset.
         """
-        arrow_result = self._relation.arrow()
-        # If it's a RecordBatchReader, get schema without consuming data
-        if isinstance(arrow_result, pa.RecordBatchReader):
-            return arrow_result.schema
-        # If it's already a Table, just get the schema
-        return arrow_result.schema
+        # Both RecordBatchReader and Table have .schema property
+        return self._relation.arrow().schema
 
     def cte(self, nominal_date: datetime.date, parameters: Parameters | None = None) -> str:
         """Return CTE filtering data for specific date.
