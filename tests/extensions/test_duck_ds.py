@@ -41,10 +41,11 @@ def test_duck_relation_datasource_query(commerce_data_c1: pa.Table) -> None:
     query = f"SELECT COUNT(*) as count FROM {ds._table_name}"
     result = ds.query(query)
 
-    assert isinstance(result, duckdb.DuckDBPyRelation)
+    # Verify return type is pa.Table
+    assert isinstance(result, pa.Table)
     # Fetch the result to verify it works
-    count_result = result.fetchall()
-    assert count_result[0][0] == 1000  # commerce_data_c1 has 1000 rows
+    count_result = result.to_pylist()
+    assert count_result[0]["count"] == 1000  # commerce_data_c1 has 1000 rows
 
 
 def test_duck_relation_datasource_from_arrow(commerce_data_c1: pa.Table) -> None:
@@ -60,3 +61,24 @@ def test_duck_relation_datasource_from_arrow(commerce_data_c1: pa.Table) -> None
     # Test that name is read-only
     with pytest.raises(AttributeError):
         ds.name = "new_name"  # type: ignore[misc]
+
+
+class TestDuckRelationDataSource:
+    """Test DuckRelationDataSource functionality."""
+
+    def test_duck_relation_datasource_schema(self, commerce_data_c1: pa.Table) -> None:
+        """Test DuckRelationDataSource schema property."""
+        relation = duckdb.arrow(commerce_data_c1)
+        ds = DuckRelationDataSource(relation, "test_data")
+
+        # Verify schema is returned
+        schema = ds.schema
+        assert isinstance(schema, pa.Schema)
+
+        # Verify schema matches the original data
+        assert schema == commerce_data_c1.schema
+
+        # Verify schema has expected fields from commerce_data_c1
+        assert "name" in schema.names
+        assert "quantity" in schema.names
+        assert "price" in schema.names

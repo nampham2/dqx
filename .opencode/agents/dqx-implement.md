@@ -201,7 +201,7 @@ For complete details: AGENTS.md §code-standards
 ### Implementation-Specific Notes
 
 **Type hints during implementation:**
-- Always start with `from __future__ import annotations`
+- Use `from __future__ import annotations` ONLY when needed (forward references, self-referencing types, or circular imports)
 - Use `TYPE_CHECKING` for circular imports
 - Verify with: `uv run mypy src/dqx/{module}.py`
 

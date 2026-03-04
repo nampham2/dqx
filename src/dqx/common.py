@@ -7,7 +7,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol, runtime_checkable
 
-import duckdb
+import pyarrow as pa
 import sympy as sp
 from returns.result import Result
 
@@ -190,6 +190,7 @@ class SqlDataSource(Protocol):
     Attributes:
         name: A unique identifier for this data source instance
         dialect: The SQL dialect name used for query generation
+        schema: The PyArrow schema of the underlying dataset
     """
 
     dialect: str
@@ -201,6 +202,20 @@ class SqlDataSource(Protocol):
 
         Returns:
             str: The data source's name.
+        """
+        ...
+
+    @property
+    def schema(self) -> pa.Schema:
+        """
+        Get the PyArrow schema of the underlying dataset.
+
+        Returns the schema of the raw data before any CTE filtering.
+        This allows consumers to understand the data structure without
+        executing queries.
+
+        Returns:
+            pa.Schema: The PyArrow schema of the dataset.
         """
         ...
 
@@ -230,7 +245,7 @@ class SqlDataSource(Protocol):
         """
         ...
 
-    def query(self, query: str) -> duckdb.DuckDBPyRelation:
+    def query(self, query: str) -> pa.Table:
         """
         Execute a query against this data source.
 
@@ -238,7 +253,7 @@ class SqlDataSource(Protocol):
             query: The SQL query to execute
 
         Returns:
-            Query results as a DuckDB relation
+            Query results as a PyArrow Table
         """
         ...
 

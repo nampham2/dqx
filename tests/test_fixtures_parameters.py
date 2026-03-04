@@ -1,6 +1,10 @@
 """Tests for data fixtures with parameters support."""
 
+from __future__ import annotations
+
 from datetime import date
+
+import pyarrow as pa
 
 from dqx.common import SqlDataSource
 from tests.fixtures.data_fixtures import CommercialDataSource
@@ -126,10 +130,11 @@ class TestFixturesParameters:
         query = f"SELECT COUNT(*) as count FROM {ds._table_name}"
         result = ds.query(query)
 
-        # Should be able to fetch results
-        rows = result.fetchall()
+        # Should be able to fetch results as PyArrow Table
+        assert isinstance(result, pa.Table)
+        rows = result.to_pylist()
         assert len(rows) == 1
-        count = rows[0][0]
+        count = rows[0]["count"]
         # Approximate count (10 records/day * 5 days, +/- 20% variation)
         assert 30 <= count <= 70
 
@@ -146,11 +151,11 @@ class TestFixturesParameters:
 
         # Query data from both
         query = f"SELECT COUNT(*) as count, AVG(price) as avg_price FROM {ds1._table_name}"
-        result1 = ds1.query(query).fetchall()[0]
+        result1 = ds1.query(query).to_pylist()[0]
 
         query = f"SELECT COUNT(*) as count, AVG(price) as avg_price FROM {ds2._table_name}"
-        result2 = ds2.query(query).fetchall()[0]
+        result2 = ds2.query(query).to_pylist()[0]
 
         # Should have same count and average price
-        assert result1[0] == result2[0]  # count
-        assert abs(result1[1] - result2[1]) < 0.01  # avg_price (float comparison)
+        assert result1["count"] == result2["count"]  # count
+        assert abs(result1["avg_price"] - result2["avg_price"]) < 0.01  # avg_price (float comparison)

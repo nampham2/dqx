@@ -447,7 +447,7 @@ tests/test_graph_display.py  # Tree display tests
 ## Code Style for Graph Work
 
 ```python
-from __future__ import annotations
+from __future__ import annotations  # Needed for self-referencing GraphNode type
 
 from dataclasses import dataclass
 from typing import Protocol
@@ -458,7 +458,7 @@ class GraphNode:
     """Base graph node."""
 
     name: str
-    children: tuple[GraphNode, ...] = ()  # Immutable tuple
+    children: tuple[GraphNode, ...] = ()  # Immutable tuple, self-referencing
 
     def add_child(self, child: GraphNode) -> GraphNode:
         """Return new node with added child."""

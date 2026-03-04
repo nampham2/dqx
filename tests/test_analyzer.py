@@ -1,10 +1,13 @@
 """Comprehensive test coverage for analyzer.py."""
 
+from __future__ import annotations
+
 import datetime
 import logging
 from typing import cast
 from unittest.mock import MagicMock, Mock, patch
 
+import pyarrow as pa
 import pytest
 import sympy as sp
 from returns.result import Failure, Success
@@ -163,13 +166,17 @@ class TestAnalyzeSqlOps:
         mock_ds.cte.return_value = "SELECT * FROM test"
         mock_ds.dialect = "duckdb"
 
-        # Mock query result with unexpected date
-        mock_result = MagicMock()
-        mock_result.fetchall.return_value = [
-            ("2024-01-01", [{"key": "sum_revenue", "value": 100.0}]),
-            ("2024-01-02", [{"key": "sum_revenue", "value": 200.0}]),  # Unexpected!
-        ]
-        mock_ds.query.return_value = mock_result
+        # Mock query result with unexpected date - return pa.Table directly
+        result_table = pa.table(
+            {
+                "date": ["2024-01-01", "2024-01-02"],  # 2024-01-02 is unexpected!
+                "values": [
+                    [{"key": "sum_revenue", "value": 100.0}],
+                    [{"key": "sum_revenue", "value": 200.0}],
+                ],
+            }
+        )
+        mock_ds.query.return_value = result_table
 
         # Create ops for only one date
         key = ResultKey(datetime.date(2024, 1, 1), {})
@@ -191,13 +198,14 @@ class TestAnalyzeSqlOps:
         mock_ds.cte.return_value = "SELECT * FROM test"
         mock_ds.dialect = "duckdb"
 
-        # Mock query result missing a date
-        mock_result = MagicMock()
-        mock_result.fetchall.return_value = [
-            ("2024-01-01", [{"key": "sum_revenue", "value": 100.0}]),
-            # Missing 2024-01-02
-        ]
-        mock_ds.query.return_value = mock_result
+        # Mock query result missing a date - return pa.Table directly
+        result_table = pa.table(
+            {
+                "date": ["2024-01-01"],  # Missing 2024-01-02
+                "values": [[{"key": "sum_revenue", "value": 100.0}]],
+            }
+        )
+        mock_ds.query.return_value = result_table
 
         # Create ops for two dates
         key1 = ResultKey(datetime.date(2024, 1, 1), {})
@@ -224,12 +232,14 @@ class TestAnalyzeSqlOps:
         sum_op = ops.Sum("revenue")
         ops_by_key: dict[ResultKey, list[ops.SqlOp[float]]] = {key: [sum_op]}
 
-        # Mock query result with null value - the key must match the op's sql_col
-        mock_result = MagicMock()
-        mock_result.fetchall.return_value = [
-            ("2024-01-01", [{"key": sum_op.sql_col, "value": None}]),  # Null value!
-        ]
-        mock_ds.query.return_value = mock_result
+        # Mock query result with null value - return pa.Table directly
+        result_table = pa.table(
+            {
+                "date": ["2024-01-01"],
+                "values": [[{"key": sum_op.sql_col, "value": None}]],  # Null value!
+            }
+        )
+        mock_ds.query.return_value = result_table
 
         # Should raise DQXError for null value
         with pytest.raises(DQXError) as exc_info:
@@ -239,6 +249,34 @@ class TestAnalyzeSqlOps:
         assert "Null value encountered for symbol" in str(exc_info.value)
         assert "sum(revenue)" in str(exc_info.value)
         assert "on date 2024-01-01" in str(exc_info.value)
+
+    def test_analyze_sql_ops_missing_column(self) -> None:
+        """Test analyze_sql_ops raises DQXError for missing columns in results."""
+        # Create mock datasource
+        mock_ds = Mock(spec=SqlDataSource)
+        mock_ds.name = "test_ds"
+        mock_ds.cte.return_value = "SELECT * FROM test"
+        mock_ds.dialect = "duckdb"
+
+        # Mock query result missing 'values' column - return pa.Table directly
+        result_table = pa.table(
+            {
+                "date": ["2024-01-01"],
+                # Missing 'values' column!
+            }
+        )
+        mock_ds.query.return_value = result_table
+
+        # Create ops
+        key = ResultKey(datetime.date(2024, 1, 1), {})
+        ops_list: list[ops.SqlOp[float]] = [ops.Sum("revenue")]
+        ops_by_key: dict[ResultKey, list[ops.SqlOp[float]]] = {key: ops_list}
+
+        # Should raise DQXError for missing column
+        with pytest.raises(DQXError) as exc_info:
+            analyze_sql_ops(mock_ds, ops_by_key)
+
+        assert "Missing expected column in SQL results: 'values'" in str(exc_info.value)
 
 
 class TestAnalyzer:

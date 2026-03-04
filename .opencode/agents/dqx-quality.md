@@ -162,19 +162,20 @@ def foo() -> str | None:
     pass
 ```
 
-### Missing `__future__` Import
+### Missing `__future__` Import (when needed)
 **Reference**: AGENTS.md §import-order
 
-❌ Bad:
-```python
-import logging
-```
+Note: Only add `from __future__ import annotations` when needed for forward references, self-referencing types, or to avoid evaluation-time circular imports. Not all modules require it.
 
-✓ Good:
+Example when needed:
 ```python
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from dqx.provider import MetricProvider
 ```
 
 ### Line Too Long

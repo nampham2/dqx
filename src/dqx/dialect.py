@@ -159,7 +159,7 @@ def _build_query_with_values(
             date_str = date_map.get(idx, datetime.date.today()).isoformat()
 
         values_expr = value_formatter(data_ops)
-        select_stmt = f"SELECT '{date_str}' as date, {values_expr} as values FROM {metrics_cte}"
+        select_stmt = f"SELECT '{date_str}' as date, {values_expr} as \"values\" FROM {metrics_cte}"
 
         if date_str not in date_to_selects:
             date_to_selects[date_str] = []

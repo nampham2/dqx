@@ -70,6 +70,9 @@ class DuckRelationDataSource(SqlDataSource):
         self._table_name = random_prefix(k=6)
         self._skip_dates = skip_dates or set()
 
+        # Cache schema to avoid repeated Arrow conversions
+        self._schema = self._relation.arrow().schema
+
         # Initialize DuckDB settings
         self._setup_duckdb()
 
@@ -88,16 +91,34 @@ class DuckRelationDataSource(SqlDataSource):
         """
         return f"SELECT * FROM {self._table_name}"
 
-    def query(self, query: str) -> duckdb.DuckDBPyRelation:
+    @property
+    def schema(self) -> pa.Schema:
+        """Get the PyArrow schema of the underlying relation.
+
+        Returns the schema of the raw data before any CTE filtering,
+        allowing consumers to understand the data structure.
+
+        Returns:
+            pa.Schema: The PyArrow schema of the dataset.
+        """
+        return self._schema
+
+    def query(self, query: str) -> pa.Table:
         """Execute a query against the DuckDB relation.
 
         Args:
             query: The SQL query to execute
 
         Returns:
-            Query results as a DuckDB relation
+            Query results as a PyArrow Table
         """
-        return self._relation.query(self._table_name, query)
+        result = self._relation.query(self._table_name, query)
+        arrow_result = result.arrow()
+        # If it's a RecordBatchReader, read all batches into a Table
+        if isinstance(arrow_result, pa.RecordBatchReader):
+            return arrow_result.read_all()
+        # If it's already a Table, return it (defensive, currently DuckDB always returns RecordBatchReader)
+        return arrow_result  # pragma: no cover
 
     @property
     def name(self) -> str:
