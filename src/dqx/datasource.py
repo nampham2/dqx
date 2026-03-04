@@ -70,6 +70,9 @@ class DuckRelationDataSource(SqlDataSource):
         self._table_name = random_prefix(k=6)
         self._skip_dates = skip_dates or set()
 
+        # Cache schema to avoid repeated Arrow conversions
+        self._schema = self._relation.arrow().schema
+
         # Initialize DuckDB settings
         self._setup_duckdb()
 
@@ -98,8 +101,7 @@ class DuckRelationDataSource(SqlDataSource):
         Returns:
             pa.Schema: The PyArrow schema of the dataset.
         """
-        # Both RecordBatchReader and Table have .schema property
-        return self._relation.arrow().schema
+        return self._schema
 
     def query(self, query: str) -> pa.Table:
         """Execute a query against the DuckDB relation.

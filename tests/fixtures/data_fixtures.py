@@ -91,6 +91,9 @@ class CommercialDataSource:
         # Create DuckDB relation
         self._relation = duckdb.arrow(arrow_table)
 
+        # Cache schema to avoid repeated Arrow conversions
+        self._schema = self._relation.arrow().schema
+
         # Create a unique table name for CTE
         # Use object id to ensure uniqueness even with same seed
         self._table_name = f"_commerce_{id(self) % 1000000}"
@@ -113,8 +116,7 @@ class CommercialDataSource:
         Returns:
             pa.Schema: The PyArrow schema of the dataset.
         """
-        # Both RecordBatchReader and Table have .schema property
-        return self._relation.arrow().schema
+        return self._schema
 
     def cte(self, nominal_date: datetime.date, parameters: Parameters | None = None) -> str:
         """Return CTE filtering data for specific date.
