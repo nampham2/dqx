@@ -1,5 +1,7 @@
 """Comprehensive test coverage for analyzer.py."""
 
+from __future__ import annotations
+
 import datetime
 import logging
 from typing import cast
@@ -247,6 +249,34 @@ class TestAnalyzeSqlOps:
         assert "Null value encountered for symbol" in str(exc_info.value)
         assert "sum(revenue)" in str(exc_info.value)
         assert "on date 2024-01-01" in str(exc_info.value)
+
+    def test_analyze_sql_ops_missing_column(self) -> None:
+        """Test analyze_sql_ops raises DQXError for missing columns in results."""
+        # Create mock datasource
+        mock_ds = Mock(spec=SqlDataSource)
+        mock_ds.name = "test_ds"
+        mock_ds.cte.return_value = "SELECT * FROM test"
+        mock_ds.dialect = "duckdb"
+
+        # Mock query result missing 'values' column - return pa.Table directly
+        result_table = pa.table(
+            {
+                "date": ["2024-01-01"],
+                # Missing 'values' column!
+            }
+        )
+        mock_ds.query.return_value = result_table
+
+        # Create ops
+        key = ResultKey(datetime.date(2024, 1, 1), {})
+        ops_list: list[ops.SqlOp[float]] = [ops.Sum("revenue")]
+        ops_by_key: dict[ResultKey, list[ops.SqlOp[float]]] = {key: ops_list}
+
+        # Should raise DQXError for missing column
+        with pytest.raises(DQXError) as exc_info:
+            analyze_sql_ops(mock_ds, ops_by_key)
+
+        assert "Missing expected column in SQL results: 'values'" in str(exc_info.value)
 
 
 class TestAnalyzer:

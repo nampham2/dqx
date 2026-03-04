@@ -1,5 +1,7 @@
 """Tests for data fixtures with parameters support."""
 
+from __future__ import annotations
+
 from datetime import date
 
 import pyarrow as pa

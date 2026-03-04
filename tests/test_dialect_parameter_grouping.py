@@ -1,5 +1,7 @@
 """Tests for parameter grouping in dialect with freeze_for_hashing."""
 
+from __future__ import annotations
+
 import datetime
 from typing import Any
 

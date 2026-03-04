@@ -63,19 +63,22 @@ def test_duck_relation_datasource_from_arrow(commerce_data_c1: pa.Table) -> None
         ds.name = "new_name"  # type: ignore[misc]
 
 
-def test_duck_relation_datasource_schema(commerce_data_c1: pa.Table) -> None:
-    """Test DuckRelationDataSource schema property."""
-    relation = duckdb.arrow(commerce_data_c1)
-    ds = DuckRelationDataSource(relation, "test_data")
+class TestDuckRelationDataSource:
+    """Test DuckRelationDataSource functionality."""
 
-    # Verify schema is returned
-    schema = ds.schema
-    assert isinstance(schema, pa.Schema)
+    def test_duck_relation_datasource_schema(self, commerce_data_c1: pa.Table) -> None:
+        """Test DuckRelationDataSource schema property."""
+        relation = duckdb.arrow(commerce_data_c1)
+        ds = DuckRelationDataSource(relation, "test_data")
 
-    # Verify schema matches the original data
-    assert schema == commerce_data_c1.schema
+        # Verify schema is returned
+        schema = ds.schema
+        assert isinstance(schema, pa.Schema)
 
-    # Verify schema has expected fields from commerce_data_c1
-    assert "name" in schema.names
-    assert "quantity" in schema.names
-    assert "price" in schema.names
+        # Verify schema matches the original data
+        assert schema == commerce_data_c1.schema
+
+        # Verify schema has expected fields from commerce_data_c1
+        assert "name" in schema.names
+        assert "quantity" in schema.names
+        assert "price" in schema.names

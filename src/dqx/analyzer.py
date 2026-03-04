@@ -174,8 +174,11 @@ def analyze_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> None:
 
     # Process results - expecting list of dicts with date and values
     for row in result:
-        date_str = row[list(row.keys())[0]]  # First column is date
-        values_data = row[list(row.keys())[1]]  # Second column is values array
+        try:
+            date_str = row["date"]
+            values_data = row["values"]
+        except KeyError as exc:
+            raise DQXError(f"Missing expected column in SQL results: {exc}") from exc
 
         if date_str not in date_to_ops:
             raise DQXError(f"Unexpected date '{date_str}' in SQL results. Expected dates: {sorted(date_to_ops.keys())}")
@@ -191,7 +194,7 @@ def analyze_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> None:
                 op.assign(validated_value)
 
     # Check that all expected dates were present in results
-    result_dates = {row[list(row.keys())[0]] for row in result}
+    result_dates = {row["date"] for row in result}
     expected_dates = set(date_to_ops.keys())
     missing_dates = expected_dates - result_dates
     if missing_dates:
