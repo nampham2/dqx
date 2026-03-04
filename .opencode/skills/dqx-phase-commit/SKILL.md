@@ -142,7 +142,7 @@ class TestCacheBackend:
 
 3. Implement in `src/dqx/cache/backend.py`:
 ```python
-from __future__ import annotations
+from __future__ import annotations  # Needed for Protocol with forward refs
 
 from typing import Protocol, runtime_checkable
 

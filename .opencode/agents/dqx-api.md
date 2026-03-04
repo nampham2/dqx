@@ -365,7 +365,7 @@ When adding a new metric to `MetricProvider`:
 
 ### Use Modern Syntax (Python 3.11+)
 ```python
-from __future__ import annotations
+from __future__ import annotations  # Only when needed for forward refs
 
 
 # ✓ Modern union syntax

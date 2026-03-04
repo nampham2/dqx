@@ -33,7 +33,7 @@ Guide you through one complete Test-Driven Development (TDD) cycle for a specifi
 
 **Test organization**:
 ```python
-from __future__ import annotations
+from __future__ import annotations  # Only if needed for test type hints
 
 import pytest
 
@@ -105,7 +105,7 @@ tests/test_module.py::TestFeatureName::test_key_operation_success FAILED
 Implement **minimal code** to make tests pass:
 
 ```python
-from __future__ import annotations
+from __future__ import annotations  # Only if needed (forward refs, etc.)
 
 from dataclasses import dataclass
 
@@ -147,7 +147,7 @@ skill({ name: "dqx-code-standards" })
 ```
 
 **Key standards**:
-- `from __future__ import annotations` at top
+- `from __future__ import annotations` ONLY when needed (forward refs, self-referencing types, circular imports)
 - Complete type hints for all functions
 - Google-style docstrings for public APIs
 - Proper import order
@@ -265,7 +265,7 @@ Run: `uv run pytest tests/test_validator.py -v` → **All FAIL** ✓
 
 ```python
 # src/dqx/validator.py
-from __future__ import annotations
+from __future__ import annotations  # Only if needed
 
 import re
 

@@ -160,7 +160,7 @@ uv run pre-commit run
 **Order:** Standard library → third-party → local imports (separated by blank lines)
 
 ```python
-from __future__ import annotations  # Always first for forward references
+from __future__ import annotations  # Only when needed for forward references
 
 import logging
 import threading
@@ -180,7 +180,7 @@ if TYPE_CHECKING:
 ```
 
 **Key patterns:**
-- Use `from __future__ import annotations` at the top of every module
+- Use `from __future__ import annotations` ONLY when needed (e.g., for forward references, self-referencing types, or to avoid evaluation-time circular imports). Not all modules require it.
 - Import `TYPE_CHECKING` and use it for circular dependency resolution
 - Use `collections.abc` for abstract types (Callable, Sequence, etc.)
 - Prefer specific imports over wildcard imports

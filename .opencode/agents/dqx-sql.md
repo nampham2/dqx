@@ -247,7 +247,7 @@ def test_dql_parsing() -> None:
 
 ### Type Annotations
 ```python
-from __future__ import annotations
+from __future__ import annotations  # Only if needed for forward references
 
 import sympy as sp
 from typing import TYPE_CHECKING

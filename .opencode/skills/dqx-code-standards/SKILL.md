@@ -18,7 +18,9 @@ Concise code standards checklist for writing DQX Python code. This skill provide
 Always follow this order (separated by blank lines):
 
 ```python
-from __future__ import annotations  # Always first for forward references
+from __future__ import (
+    annotations,
+)  # Only when needed (forward refs, self-referencing types)
 
 import logging  # Standard library
 import threading
@@ -38,7 +40,7 @@ if TYPE_CHECKING:  # Circular dependency resolution
 ```
 
 **Key rules**:
-- `from __future__ import annotations` at the very top
+- `from __future__ import annotations` ONLY when needed (forward references, self-referencing types, or to avoid evaluation-time circular imports) - not all modules require it
 - Use `TYPE_CHECKING` for circular imports
 - Use `collections.abc` for abstract types (Callable, Sequence, etc.)
 - Prefer specific imports over wildcard imports
@@ -68,7 +70,7 @@ class SqlDataSource(Protocol):
 - Target Python 3.11
 - Use `|` for union types (not `Union`)
 - Use `Protocol` for structural subtyping
-- Always use `from __future__ import annotations` at top
+- Use `from __future__ import annotations` ONLY when needed (forward references, self-referencing types, circular imports)
 - Use `TYPE_CHECKING` for circular imports
 
 ---
