@@ -163,16 +163,20 @@ def analyze_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> None:
     if logger.isEnabledFor(logging.DEBUG):
         print(f"SQL Query:\n{sql}")
 
-    # Execute query and process MAP results
-    result = ds.query(sql).fetchall()
+    # Execute query and process MAP results - ds.query now returns pa.Table
+    result_table = ds.query(sql)
+    result = result_table.to_pylist()
 
     # Build date lookup map to ensure proper alignment
     date_to_ops: dict[str, tuple[ResultKey, list[SqlOp]]] = {
         key.yyyy_mm_dd.isoformat(): (key, ops) for key, ops in ops_by_key.items()
     }
 
-    # Process results - expecting (date, values) tuples
-    for date_str, values_data in result:
+    # Process results - expecting list of dicts with date and values
+    for row in result:
+        date_str = row[list(row.keys())[0]]  # First column is date
+        values_data = row[list(row.keys())[1]]  # Second column is values array
+
         if date_str not in date_to_ops:
             raise DQXError(f"Unexpected date '{date_str}' in SQL results. Expected dates: {sorted(date_to_ops.keys())}")
 
@@ -187,7 +191,7 @@ def analyze_sql_ops(ds: T, ops_by_key: dict[ResultKey, list[SqlOp]]) -> None:
                 op.assign(validated_value)
 
     # Check that all expected dates were present in results
-    result_dates = {row[0] for row in result}
+    result_dates = {row[list(row.keys())[0]] for row in result}
     expected_dates = set(date_to_ops.keys())
     missing_dates = expected_dates - result_dates
     if missing_dates:

@@ -3,6 +3,8 @@
 import datetime
 from typing import Any
 
+import pyarrow as pa
+
 from dqx.common import ResultKey
 from dqx.dialect import BatchCTEData, DuckDBDialect
 from dqx.ops import Average, CountValues, CustomSQL, NumRows, SqlOp, Sum
@@ -165,6 +167,10 @@ class TestDialectParameterGrouping:
             def skip_dates(self) -> set[datetime.date]:
                 return set()
 
+            @property
+            def schema(self) -> pa.Schema:
+                return pa.schema([("id", pa.int64()), ("value", pa.float64())])
+
             def cte(self, date: datetime.date, params: dict[str, str] | None = None) -> str:
                 if params and params.get("region") == "US":
                     return "SELECT * FROM sales WHERE region = 'US'"
@@ -172,9 +178,9 @@ class TestDialectParameterGrouping:
                     return "SELECT * FROM sales WHERE region = 'EU'"
                 return "SELECT * FROM sales"
 
-            def query(self, query: str) -> Any:
+            def query(self, query: str) -> pa.Table:
                 # Mock implementation
-                return None
+                return pa.table({"id": [1], "value": [1.0]})
 
         sql = dialect.build_cte_query([batch_data], MockDataSource())
 

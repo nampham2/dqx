@@ -102,6 +102,22 @@ class CommercialDataSource:
     def skip_dates(self) -> set[datetime.date]:
         return self._skip_dates
 
+    @property
+    def schema(self) -> pa.Schema:
+        """Get the PyArrow schema of the commerce data.
+
+        Returns the schema of the underlying data before any CTE filtering.
+
+        Returns:
+            pa.Schema: The PyArrow schema of the dataset.
+        """
+        arrow_result = self._relation.arrow()
+        # If it's a RecordBatchReader, get schema without consuming data
+        if isinstance(arrow_result, pa.RecordBatchReader):
+            return arrow_result.schema
+        # If it's already a Table, just get the schema
+        return arrow_result.schema
+
     def cte(self, nominal_date: datetime.date, parameters: Parameters | None = None) -> str:
         """Return CTE filtering data for specific date.
 
@@ -136,16 +152,22 @@ class CommercialDataSource:
         WHERE {where_clause}
         """
 
-    def query(self, query: str) -> duckdb.DuckDBPyRelation:
+    def query(self, query: str) -> pa.Table:
         """Execute a query against this data source.
 
         Args:
             query: The SQL query to execute
 
         Returns:
-            Query results as a DuckDB relation
+            Query results as a PyArrow Table
         """
-        return self._relation.query(self._table_name, query)
+        result = self._relation.query(self._table_name, query)
+        arrow_result = result.arrow()
+        # If it's a RecordBatchReader, read all batches into a Table
+        if isinstance(arrow_result, pa.RecordBatchReader):
+            return arrow_result.read_all()
+        # If it's already a Table, return it
+        return arrow_result
 
     def _generate_commerce_data(
         self, start_date: datetime.date, end_date: datetime.date, records_per_day: int, seed: int | None
