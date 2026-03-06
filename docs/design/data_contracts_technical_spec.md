@@ -965,14 +965,14 @@ Statistical checks compute aggregate metrics over the entire column and return a
 
 Value checks validate individual values within a column. Each check returns either an absolute count (`count`) or percentage (`pct`) controlled by the `return` parameter. For `nulls` and `duplicates`, the return value represents the count/percentage of null or duplicate values found. For `whitelist`, `blacklist`, `pattern`, and `length`, the return value represents the count/percentage of valid (conforming) rows.
 
-| Check Type | Description | Return |
-|------------|-------------|--------|
-| [`nulls`](#nulls) | Null value validation | count or pct |
-| [`duplicates`](#duplicates) | Duplicate value validation | count or pct |
-| [`whitelist`](#whitelist) | Values in allowed set | count or pct |
-| [`blacklist`](#blacklist) | Values in disallowed set | count or pct |
-| [`pattern`](#pattern) | Values matching regex pattern | count or pct |
-| [`length`](#length) | Values within length bounds | count or pct |
+| Check Type | Description |
+|------------|-------------|
+| [`nulls`](#nulls) | Null value validation |
+| [`duplicates`](#duplicates) | Duplicate value validation |
+| [`whitelist`](#whitelist) | Values in allowed set |
+| [`blacklist`](#blacklist) | Values in disallowed set |
+| [`pattern`](#pattern) | Values matching regex pattern |
+| [`length`](#length) | Values within length bounds |
 
 **Total: 14 column-level checks** (8 Statistical + 6 Value Checks)
 
