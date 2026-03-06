@@ -103,6 +103,212 @@ columns:
 
 **Columns.** The `columns` section is the heart of the contract. Each entry co-locates four pieces of information that belong together: the column's `type` (one of 12 flexible PyArrow types that accept compatible storage variations — `int` accepts int8 through int64, `float` accepts float32 and float64), its `nullable` flag (defaults to `true` when omitted), its required `description`, and an optional `checks` list. Co-locating schema and checks in a single entry makes the contract self-documenting: a reader sees the column's semantics and its quality requirements in one place. See [Type System](types.md) for the full compatibility matrix.
 
+### Complete Schema Structure
+
+The annotated schema below shows every field a contract file accepts, with types and defaults.
+
+```yaml
+# Required: Contract metadata
+name: string              # Contract name (1-255 characters)
+version: string           # Semantic version (e.g., "1.0.0")
+description: string       # Contract/table description
+owner: string            # Team or individual owner
+dataset: string          # Dataset name to validate (must match datasource.name)
+tags: [string, ...]      # Optional tags (e.g., ["revenue", "core"])
+
+# Optional: Structured SLA (see SLA Specification section)
+sla:
+  schedule: string               # Cron expression for data arrival schedule
+  lag_hours: int                 # Hours after schedule until data available
+
+# Optional: Table-level metadata (flat at top level)
+metadata:
+  partitioned_by: [string, ...]  # Column names used for partitioning
+  # ... custom metadata key-value pairs
+
+# Optional: Table-level checks
+checks:
+  - name: string                      # Check name (required)
+    type: string                      # Check type (e.g., "num_rows", "freshness")
+    severity: "P0"|"P1"|"P2"|"P3"  # Required
+    # Type-specific parameters...
+
+# Required: Unified columns (schema + checks together)
+columns:
+  - name: string                   # Required: Column name
+    type: string | object          # Required: Simple type (string) or complex type (object)
+    nullable: true|false           # Optional: Defaults to true if not specified
+    description: string            # Required: Column description
+
+    # Optional: Field-level metadata
+    metadata:
+      # ... custom metadata key-value pairs
+
+    # Optional: Column checks (can be omitted for schema-only columns)
+    checks:
+      - name: string                  # Check name (required)
+        type: string                  # Check type (e.g., "duplicates", "min")
+        severity: "P0"|"P1"|"P2"|"P3"  # Required
+        # Type-specific parameters...
+```
+
+Omitting the `checks` key from a column produces a schema-only column: DQX validates its type and nullability but runs no quality assertions against it. Checks attach only to top-level columns, not to nested struct fields.
+
+### Co-location Principle
+
+Schema definitions and quality checks live together inside each column entry by design. Proximity keeps related information together, so a reader sees a column's type, nullability, and constraints in one place without jumping between sections. It also eliminates a common class of authoring error: a check that references a column not present in the schema cannot be written, because the check must nest inside a column that already declares its type.
+
+### Type Field Format
+
+Simple types use strings; complex types use objects with a `kind` field:
+
+```yaml
+# Simple type (string)
+- name: order_id
+  type: int
+  nullable: false
+  description: "Order ID"
+
+# Complex type (object)
+- name: created_at
+  type:
+    kind: timestamp
+    tz: "UTC"
+  nullable: false
+  description: "Creation timestamp"
+```
+
+### Minimal Contract Example
+
+A minimal contract defines only metadata and columns. Without checks, each column validates type and nullability only.
+
+```yaml
+name: "Products Contract"
+version: "1.0.0"
+description: "Product catalog records"
+owner: "catalog-team"
+dataset: "products"
+
+columns:
+  - name: product_id
+    type: int
+    nullable: false
+    description: "Unique product identifier"
+
+  - name: name
+    type: string
+    nullable: false
+    description: "Product display name"
+
+  - name: price_usd
+    type: decimal
+    nullable: false
+    description: "List price in USD"
+
+  - name: discontinued
+    type: bool
+    nullable: false
+    description: "Whether the product is discontinued"
+```
+
+### Basic Contract Example
+
+```yaml
+name: "Orders Contract"
+version: "1.0.0"
+description: "Daily order records"
+owner: "data-platform-team"
+dataset: "orders"
+tags: ["revenue"]
+
+metadata:
+  partitioned_by: ["order_date"]
+
+columns:
+  - name: order_id
+    type: int
+    nullable: false
+    description: "Unique order identifier"
+    metadata:
+      primary_key: "true"
+    checks:
+      - name: "Order ID is unique"
+        type: duplicates
+        max: 0
+        severity: P0
+
+      - name: "Order ID is positive"
+        type: min
+        min: 1
+        severity: P0
+
+  - name: customer_id
+    type: int
+    nullable: false
+    description: "Customer identifier"
+    checks:
+      - name: "Customer ID is positive"
+        type: min
+        min: 1
+        severity: P1
+
+  - name: total_amount
+    type: decimal
+    nullable: false
+    description: "Total order amount in USD"
+    checks:
+      - name: "Amount is non-negative"
+        type: min
+        min: 0.0
+        severity: P1
+
+      - name: "Amount is reasonable"
+        type: max
+        max: 1000000.0
+        severity: P1
+
+  - name: status
+    type: string
+    nullable: false
+    description: "Order status"
+    checks:
+      - name: "Status is valid"
+        type: whitelist
+        values: ["pending", "processing", "shipped", "delivered", "cancelled"]
+        severity: P0
+
+  # Schema-only columns (no checks)
+  - name: order_date
+    type: date
+    nullable: false
+    description: "Order date (for partitioning)"
+
+  - name: payment_method
+    type: string
+    nullable: false
+    description: "Payment method used"
+
+  - name: is_gift
+    type: bool
+    nullable: false
+    description: "Whether order is a gift"
+
+  - name: notes
+    type: string
+    nullable: true
+    description: "Order notes from customer"
+
+# Table-level checks
+checks:
+  - name: "Daily volume within bounds"
+    type: num_rows
+    min: 100
+    max: 1000000
+    severity: P1
+```
+
+This contract generates checks for four columns (`order_id`, `customer_id`, `total_amount`, `status`) plus one table-level check. The four schema-only columns (`order_date`, `payment_method`, `is_gift`, `notes`) produce no checks; DQX validates their types and nullability via PyArrow schema enforcement at load time. Because the checks bind to the dataset name `orders`, the same checks run unchanged against any datasource whose registered name matches and whose schema satisfies the declared types.
+
 ---
 
 ## Type System Summary
@@ -154,7 +360,6 @@ Most checks, table-level or column-level, support validators: `min`, `max`, `bet
 
 ## Detailed References
 
-- [YAML Contract Structure](schema.md) — Schema structure, type field format, and basic contract examples
 - [Type System](types.md) — PyArrow-based type definitions, primitive, temporal, decimal, and complex types
 - [SLA Specification](sla.md) — Service level agreements, scheduling, auto-generated checks, and examples
 - [Check Types Reference](checks.md) — Overview, parameter conventions, table-level checks, column-level checks, and composition patterns
