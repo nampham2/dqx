@@ -2,11 +2,11 @@
 
 | Field | Value |
 |-------|-------|
-| **Author** | Data Platform Team |
+| **Author** | DQX |
 | **Created** | 2025-02-15 |
-| **Last Updated** | 2025-03-03 |
+| **Last Updated** | 2025-03-06 |
 | **Version** | 2.2 |
-| **Status** | Designing |
+| **Status** | Ready for review |
 | **Tags** | data-contracts, data-quality, sla |
 | **Related** | None |
 
