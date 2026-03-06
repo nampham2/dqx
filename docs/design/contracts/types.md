@@ -6,6 +6,8 @@
 
 The type system prioritizes validation flexibility over exact matching. Types accept compatible variations (e.g., `int` accepts int8 through int64), require parameters only when semantically necessary (e.g., timezone for timestamp), and default to the simplest form.
 
+---
+
 ## Type Reference Table
 
 | Type | YAML Format | Validates Against | Notes |
@@ -19,13 +21,17 @@ The type system prioritizes validation flexibility over exact matching. Types ac
 | **Temporal Types** | | | |
 | `date` | `type: date` | date32, date64 | Any date representation |
 | `time` | `type: time` | time32(s/ms), time64(us/ns) | Any time representation |
-| `timestamp` | `type: timestamp` or `type: {kind: timestamp}` or `type: {kind: timestamp, tz: "America/New_York"}` | timestamp(any unit) | Simple form is flexible; object form validates timezone (defaults to UTC) |
+| `timestamp` (simple) | `type: timestamp` | timestamp(any unit, any tz) | Accepts any timestamp |
+| `timestamp` (UTC) | `type: {kind: timestamp}` | timestamp(any unit, UTC) | Object form defaults to UTC |
+| `timestamp` (explicit tz) | `type: {kind: timestamp, tz: "..."}` | timestamp(any unit, specified tz) | Validates timezone match |
 | **Decimal Type** | | | |
 | `decimal` | `type: decimal` | decimal128(any), decimal256(any) | Any precision/scale |
 | **Complex Types** | | | |
 | `list` | `type: {kind: list, value_type: T}` | list\<T\> | Recursive validation of element type |
 | `struct` | `type: {kind: struct, fields: [...]}` | struct\<fields\> | Recursive validation of field structure |
 | `map` | `type: {kind: map, key_type: K, value_type: V}` | map\<K, V\> | Recursive validation of key/value types |
+
+---
 
 ## Primitive Types
 
@@ -62,9 +68,13 @@ Five primitive types validate flexibly:
   description: "Image thumbnail bytes"
 ```
 
-For validation, exact widths and precisions are implementation details. We verify the semantic type, not storage format.
+The validator checks semantic type, not storage format.
+
+---
 
 ## Temporal Types
+
+Store timestamps in UTC for consistency. The type system offers three levels of timezone strictness.
 
 ```yaml
 # Date - accepts date32 or date64
@@ -102,7 +112,9 @@ For validation, exact widths and precisions are implementation details. We verif
   description: "Time of day when event occurred"
 ```
 
-Most timestamps should be stored in UTC for consistency. Use simple form when timezone doesn't matter or varies; use complex form with UTC (default) for most cases; use explicit timezone when data must be in a specific timezone.
+Use simple form when timezone doesn't matter or varies; use complex form with UTC (default) for most cases; use explicit timezone when data must be in a specific timezone.
+
+---
 
 ## Decimal Type
 
@@ -116,7 +128,9 @@ Most timestamps should be stored in UTC for consistency. Use simple form when ti
 # Validates: decimal128(10, 2), decimal128(18, 4), decimal256(38, 6), etc.
 ```
 
-For initial validation, we verify it's a decimal type. Precision/scale parameters can be added later if needed for strict financial validation.
+The validator confirms the column is a decimal type regardless of precision or scale. Future versions may support precision constraints for strict financial validation.
+
+---
 
 ## Complex Types
 
@@ -266,6 +280,73 @@ For initial validation, we verify it's a decimal type. Precision/scale parameter
   description: "Performance metrics"
 ```
 
-Complex types can be nested arbitrarily (e.g., list of structs with maps). All types validate recursively.
+Complex types nest arbitrarily (e.g., list of structs with maps). All types validate recursively.
 
 ---
+
+## Type Mismatch Errors
+
+When a column's actual type does not match the contract, the validator raises a `SchemaValidationError` describing the column, the expected type, and the actual type. The following example shows a contract that declares `user_id` as `int` but receives a `string` column:
+
+```
+Contract declares: type: int
+Actual column type: pa.string()
+Error: SchemaValidationError: Column 'user_id' type mismatch: expected int (int8-int64, uint8-uint64), got string
+```
+
+The error message names the column, states the full set of accepted physical types, and identifies the actual type found. This lets engineers locate the source of the mismatch without inspecting the schema manually.
+
+---
+
+## Compatibility Reference
+
+### Integer Type Compatibility
+
+Contract type `int` validates against:
+- `pa.int8()` — 8-bit signed integer (-128 to 127)
+- `pa.int16()` — 16-bit signed integer (-32,768 to 32,767)
+- `pa.int32()` — 32-bit signed integer (-2^31 to 2^31-1)
+- `pa.int64()` — 64-bit signed integer (-2^63 to 2^63-1)
+- `pa.uint8()` — 8-bit unsigned integer (0 to 255)
+- `pa.uint16()` — 16-bit unsigned integer (0 to 65,535)
+- `pa.uint32()` — 32-bit unsigned integer (0 to 2^32-1)
+- `pa.uint64()` — 64-bit unsigned integer (0 to 2^64-1)
+
+### Float Type Compatibility
+
+Contract type `float` validates against:
+- `pa.float32()` — 32-bit single precision (IEEE 754)
+- `pa.float64()` — 64-bit double precision (IEEE 754)
+
+### Date Type Compatibility
+
+Contract type `date` validates against:
+- `pa.date32()` — 32-bit signed integer, days since UNIX epoch
+- `pa.date64()` — 64-bit signed integer, milliseconds since UNIX epoch
+
+### Time Type Compatibility
+
+Contract type `time` validates against:
+- `pa.time32('s')` — 32-bit signed integer, seconds since midnight
+- `pa.time32('ms')` — 32-bit signed integer, milliseconds since midnight
+- `pa.time64('us')` — 64-bit signed integer, microseconds since midnight
+- `pa.time64('ns')` — 64-bit signed integer, nanoseconds since midnight
+
+### Timestamp Type Compatibility
+
+**Simple form** (`type: timestamp`):
+- Validates against any `pa.timestamp(unit, tz)` regardless of unit or timezone
+
+**Complex form** (`type: {kind: timestamp}` or `type: {kind: timestamp, tz: "UTC"}`):
+- Validates unit flexibility (accepts s, ms, us, ns)
+- Validates timezone matches (default: "UTC")
+
+**Complex form with explicit timezone** (`type: {kind: timestamp, tz: "America/New_York"}`):
+- Validates unit flexibility (accepts s, ms, us, ns)
+- Validates timezone exactly matches specified value
+
+### Decimal Type Compatibility
+
+Contract type `decimal` validates against:
+- `pa.decimal128(precision, scale)` — Any precision/scale combination
+- `pa.decimal256(precision, scale)` — Any precision/scale combination

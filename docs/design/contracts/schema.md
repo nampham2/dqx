@@ -2,6 +2,8 @@
 
 > Part of the [Data Contracts Technical Specification](index.md).
 
+A contract YAML file has four sections: required metadata identifying the dataset, a `columns` section co-locating schema definitions and quality checks, an optional `sla` block for freshness guarantees, and an optional table-level `checks` array. This page documents the full structure and shows examples at two levels of complexity.
+
 ## Complete Schema Structure
 
 ```yaml
@@ -37,7 +39,7 @@ columns:
     # Optional: Column checks (can be omitted for schema-only columns)
     checks:
       - name: string                  # Check name (required)
-        type: string                  # Check type (e.g., "unique", "min")
+        type: string                  # Check type (e.g., "duplicates", "min")
         severity: "P0"|"P1"|"P2"|"P3"  # Default: "P1"
         # Type-specific parameters...
 
@@ -49,12 +51,11 @@ checks:
     # Type-specific parameters...
 ```
 
-**Key points:**
-- Schema and checks co-located in `columns` section
-- Checks are optional; omit for schema-only columns
-- Single `description` field describes both contract and table
-- Table metadata at top level (sibling to `columns`)
-- Checks defined only on top-level columns, not nested struct fields
+The `columns` section co-locates schema and checks for each column. A single `description` field describes both the contract and the table it governs. Table-level metadata sits at the top level as a sibling to `columns`. Checks attach only to top-level columns, not to nested struct fields. Omitting the `checks` key from a column produces a schema-only column: DQX validates its type and nullability but runs no quality assertions against it.
+
+## Co-location Principle
+
+Schema definitions and quality checks live together inside each column entry by design. Proximity keeps related information together, so a reader sees a column's type, nullability, and constraints in one place without jumping between sections. It also eliminates a common class of authoring error: a check that references a column not present in the schema cannot be written, because the check must nest inside a column that already declares its type. This co-location makes each column's full specification immediately visible and removes ambiguity about which checks apply to which columns.
 
 ## Type Field Format
 
@@ -77,6 +78,41 @@ Simple types use strings; complex types use objects with a `kind` field:
 ```
 
 This unifies type information and signals intent clearly.
+
+---
+
+## Minimal Contract Example
+
+A minimal contract defines only metadata and columns. Without checks, each column validates type and nullability only. No suite is generated; DQX applies PyArrow schema enforcement at load time.
+
+```yaml
+name: "Products Contract"
+version: "1.0.0"
+description: "Product catalog records"
+owner: "catalog-team"
+dataset: "products"
+
+columns:
+  - name: product_id
+    type: int
+    nullable: false
+    description: "Unique product identifier"
+
+  - name: name
+    type: string
+    nullable: false
+    description: "Product display name"
+
+  - name: price_usd
+    type: decimal
+    nullable: false
+    description: "List price in USD"
+
+  - name: discontinued
+    type: bool
+    nullable: false
+    description: "Whether the product is discontinued"
+```
 
 ---
 
@@ -176,6 +212,6 @@ checks:
     severity: P1
 ```
 
-This contract generates a suite with five CheckNodes: one per column with checks (order_id, customer_id, total_amount, status), plus one for table checks. Schema-only columns validate type and nullability only.
+This contract generates a suite with five CheckNodes: one for each column that declares checks (`order_id`, `customer_id`, `total_amount`, `status`), plus one for the table-level `checks` array. The four schema-only columns (`order_date`, `payment_method`, `is_gift`, `notes`) produce no CheckNodes; DQX validates their types and nullability via PyArrow schema enforcement at load time. Because the suite binds to the dataset name `orders` rather than to a specific datasource, the same suite runs unchanged against any datasource whose registered name matches `orders` and whose schema satisfies the declared column types.
 
 ---

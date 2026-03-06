@@ -12,25 +12,17 @@
 
 ---
 
-> **Document Status**: Split into focused documents for easier navigation
->
-> **Key Improvements**:
-> - 12 flexible PyArrow types (down from 25) with compatibility matching
-> - Structured SLA metadata with cron-based scheduling and auto-generated freshness checks
-> - Function-based check registry with improved error messages
-> - Runtime schema validation for suite reusability across environments
+## Overview
+
+A data contract is a versioned YAML document that defines the schema, quality checks, and freshness guarantees for a dataset. Each contract names its dataset, declares the PyArrow type and nullability of every column, specifies optional SLA schedules, and attaches quality checks directly to the columns or dataset they govern.
+
+Teams need contracts because data requirements must be explicit, version-controlled, testable, and portable. Without contracts, quality rules live in ad-hoc Python scripts that differ across environments, drift from the actual schema, and cannot be reviewed as data specifications. A contract replaces that scattered Python code with a single declarative YAML file that any engineer can read, diff, and own.
+
+Contracts generate standard `VerificationSuite` instances. Every suite produces `AssertionResult` objects — the same format as hand-coded DQX suites — so contracts integrate without modification into existing pipelines, dashboards, and alerting systems.
 
 ---
 
-## Problem Statement
-
-DQX requires Python code for data quality checks. Teams need **declarative YAML contracts** that integrate with DQX's suite → checks → assertions hierarchy while defining schemas (PyArrow types with nullability), table-level checks (row counts, freshness), and SLA guarantees with automatic validation.
-
-Contracts generate standard `VerificationSuite` instances that return `AssertionResult` objects, support custom check types via plugins, and make requirements explicit, version-controlled, and portable.
-
----
-
-## Architecture Overview
+## Architecture
 
 ### Core Design Principle
 
@@ -47,36 +39,13 @@ VerificationSuite (standard, reusable)
 AssertionResult[] (standard)
 ```
 
-Contracts treat columns as first-class citizens with co-located schema and checks. The simplified PyArrow schema uses 12 flexible types for validation, accepting compatible variations (e.g., `int` accepts any integer width). All fields explicitly specify type and description; nullable defaults to true. Runtime schema validation enables suite reuse across environments.
+The runtime flow has four steps. First, `Contract.from_yaml()` parses the YAML document and builds a `Contract` instance containing a fully resolved PyArrow schema. Second, `contract.to_verification_suite(db)` translates every column definition and check into a standard `VerificationSuite`. Third, `suite.run([datasource], result_key)` executes all checks and validates the schema against the live datasource at runtime via PyArrow. Fourth, the suite returns `AssertionResult[]` objects — identical in format to those produced by hand-coded suites — enabling downstream consumers to treat contract-based and code-based results uniformly.
 
 ---
 
-## Table of Contents
+## Contract Structure
 
-- [YAML Contract Structure](schema.md) — Schema structure, type field format, and basic contract examples
-- [Type System](types.md) — PyArrow-based type definitions, primitive, temporal, decimal, and complex types
-- [SLA Specification](sla.md) — Service level agreements, scheduling, auto-generated checks, and examples
-- [Check Types Reference](checks.md) — Overview, parameter conventions, table-level checks, column-level checks, and composition patterns
-
----
-
-## Summary
-
-### Design Philosophy
-
-DQX data contracts provide a declarative YAML interface defining schemas (PyArrow-based with 12 flexible types), SLAs (cron-based availability schedules), quality checks (column and table-level), and metadata (documentation and partitioning hints).
-
-### Key Benefits
-
-✅ **Declarative** - Express requirements in YAML, not Python code
-✅ **Type-Safe** - PyArrow schema validation with complex type support
-✅ **Flexible** - Types accept compatible variations (e.g., `int` accepts int8-int64)
-✅ **Reusable** - Generated suites run against multiple datasources
-✅ **Standard** - Produces standard `AssertionResult` objects
-✅ **Extensible** - Custom check types via function registry
-✅ **Self-Documenting** - Required descriptions enforce documentation culture
-
-### Contract Structure Summary
+The complete contract below shows every top-level section. The prose paragraphs that follow explain each section.
 
 ```yaml
 # Metadata
@@ -123,7 +92,21 @@ checks:
     severity: P1
 ```
 
-### Type System Summary
+**Metadata.** Every contract begins with five required metadata fields that identify the dataset and its owner: `name` (a human-readable label), `version` (a semantic version string), `description` (a plain-English statement of what the data represents), `owner` (the responsible team), and `dataset` (the table or view name used at query time). An optional `tags` field accepts a list of strings for filtering and discovery.
+
+**SLA.** The optional `sla` block defines when data should arrive. It takes two fields: `schedule`, a standard 5-field cron expression that declares the expected delivery cadence, and `lag_hours`, the number of hours the data may lag behind the scheduled time before triggering a failure. When both fields are present, DQX auto-generates a freshness check — no additional configuration required. See [SLA Specification](sla.md) for cron format reference and examples.
+
+**Partitioning.** The optional `metadata` block declares the partitioning columns for the dataset. DQX reads `partitioned_by` to infer which column carries the timestamp used in freshness and completeness checks. When the SLA block references a freshness check and `partitioned_by` is set, DQX selects the first listed column as the timestamp column automatically.
+
+**Columns.** The `columns` section is the heart of the contract. Each entry co-locates four pieces of information that belong together: the column's `type` (one of 12 flexible PyArrow types that accept compatible storage variations — `int` accepts int8 through int64, `float` accepts float32 and float64), its `nullable` flag (defaults to `true` when omitted), its required `description`, and an optional `checks` list. Co-locating schema and checks in a single entry makes the contract self-documenting: a reader sees the column's semantics and its quality requirements in one place. See [Type System](types.md) for the full compatibility matrix.
+
+**Table-level checks.** The top-level `checks` section validates properties of the dataset as a whole. `num_rows` asserts that the row count falls within a specified range. `duplicates` asserts that duplicate rows stay below a threshold. `freshness` asserts that the most recent timestamp column value falls within an acceptable lag window. `completeness` asserts that partition gaps — missing dates or time windows — stay below a specified count. All four checks accept `severity` and standard validators (`min`, `max`, `between`, `equals`, `tolerance`).
+
+---
+
+## Type System Summary
+
+DQX contracts use 12 types that validate semantically, not by exact storage format. A column declared as `int` passes validation for any integer width the storage engine chooses; only the semantic category matters.
 
 | Category | Types | Format |
 |----------|-------|--------|
@@ -132,110 +115,59 @@ checks:
 | **Decimal** | decimal | `type: decimal` |
 | **Complex** | list, struct, map | `type: {kind: list, value_type: string}` |
 
-### Next Steps
-
-1. **Implementation** - Build YAML parser and contract validator
-2. **Check Types** - Implement built-in check types (unique, min, max, etc.)
-3. **SLA Integration** - Auto-generate freshness checks from SLA metadata
-4. **Partition Validation** - Implement `completeness` check type for partition gap detection
-5. **Testing** - Ensure 100% test coverage with TDD approach
-6. **Documentation** - User guide with examples and best practices
+Simple types (primitive, temporal, decimal) use a plain string value. Complex types (list, struct, map) use an object with a `kind` field and optional subtype fields. See [Type System](types.md) for the full compatibility rules per type.
 
 ---
 
-## Appendix A: Cron Format Reference
+## Check Types Summary
 
-### Cron Format
+DQX contracts provide 18 built-in check types across two scopes.
 
-Standard 5-field cron format:
+**4 table-level checks** validate the dataset as a whole:
+- `num_rows` — asserts total row count
+- `duplicates` — asserts count of duplicate rows
+- `freshness` — asserts recency of the most recent timestamp value
+- `completeness` — asserts absence of partition gaps
 
-```text
-┌───────────── minute (0 - 59)
-│ ┌───────────── hour (0 - 23)
-│ │ ┌───────────── day of month (1 - 31)
-│ │ │ ┌───────────── month (1 - 12)
-│ │ │ │ ┌───────────── day of week (0 - 6) (Sunday = 0)
-│ │ │ │ │
-* * * * *
-```
+**14 column-level checks** validate individual columns. 8 are statistical:
+- `cardinality` — distinct value count
+- `min` — minimum value
+- `max` — maximum value
+- `mean` — arithmetic mean
+- `sum` — column sum
+- `count` — non-null count
+- `variance` — statistical variance
+- `percentile` — value at a specified percentile
 
-**Special Characters**:
-- `*` - Any value (wildcard)
-- `,` - List separator (e.g., `1,3,5`)
-- `-` - Range (e.g., `1-5` = Monday through Friday)
-- `/` - Step values (e.g., `*/6` = every 6 units)
+6 are value checks:
+- `nulls` — null value count
+- `duplicates` — duplicate value count within the column
+- `whitelist` — all values belong to an allowed set
+- `blacklist` — no values belong to a forbidden set
+- `pattern` — all values match a regular expression
+- `length` — string or array length
 
-### Common Cron Patterns
-
-| Pattern | Cron Expression | Description |
-|---------|-----------------|-------------|
-| **Daily at midnight** | `0 0 * * *` | Every day at 00:00 |
-| **Daily at 9 AM** | `0 9 * * *` | Every day at 09:00 |
-| **Every hour** | `0 * * * *` | Top of every hour |
-| **Every 6 hours** | `0 */6 * * *` | 00:00, 06:00, 12:00, 18:00 |
-| **Business days** | `0 0 * * 1-5` | Mon-Fri at midnight |
-| **Business days at 6 AM** | `0 6 * * 1-5` | Mon-Fri at 06:00 |
-| **Monday only** | `0 0 * * 1` | Every Monday at midnight |
-| **Tuesday and Thursday** | `0 0 * * 2,4` | Tue and Thu at midnight |
-| **First of month** | `0 0 1 * *` | 1st day at midnight |
-| **First and 15th** | `0 0 1,15 * *` | 1st and 15th at midnight |
-| **Mon/Wed/Fri** | `0 0 * * 1,3,5` | Mon, Wed, Fri at midnight |
-
-**Cron Testing Tools**:
-- https://crontab.guru/ - Cron expression explainer
-- https://crontab.cronhub.io/ - Cron validator
+Every check, table-level or column-level, supports validators: `min`, `max`, `between`, `equals`, and `tolerance`. See [Check Types Reference](checks.md) for parameter conventions and composition patterns.
 
 ---
 
-## Appendix B: Type Validation Rules
+## Detailed References
 
-### Integer Type Compatibility
+- [YAML Contract Structure](schema.md) — Schema structure, type field format, and basic contract examples
+- [Type System](types.md) — PyArrow-based type definitions, primitive, temporal, decimal, and complex types
+- [SLA Specification](sla.md) — Service level agreements, scheduling, auto-generated checks, and examples
+- [Check Types Reference](checks.md) — Overview, parameter conventions, table-level checks, column-level checks, and composition patterns
 
-Contract type `int` validates against:
-- `pa.int8()` - 8-bit signed integer (-128 to 127)
-- `pa.int16()` - 16-bit signed integer (-32,768 to 32,767)
-- `pa.int32()` - 32-bit signed integer (-2^31 to 2^31-1)
-- `pa.int64()` - 64-bit signed integer (-2^63 to 2^63-1)
-- `pa.uint8()` - 8-bit unsigned integer (0 to 255)
-- `pa.uint16()` - 16-bit unsigned integer (0 to 65,535)
-- `pa.uint32()` - 32-bit unsigned integer (0 to 2^32-1)
-- `pa.uint64()` - 64-bit unsigned integer (0 to 2^64-1)
+---
 
-### Float Type Compatibility
+## Design Philosophy
 
-Contract type `float` validates against:
-- `pa.float32()` - 32-bit single precision (IEEE 754)
-- `pa.float64()` - 64-bit double precision (IEEE 754)
+DQX data contracts provide a declarative YAML interface defining schemas (PyArrow-based with 12 flexible types), SLAs (cron-based availability schedules), quality checks (column and table-level), and metadata (documentation and partitioning hints). The design centers on one principle: keep schema and checks co-located so the contract reads as a complete specification of the dataset, not a fragmented collection of rules.
 
-### Date Type Compatibility
-
-Contract type `date` validates against:
-- `pa.date32()` - 32-bit signed integer, days since UNIX epoch
-- `pa.date64()` - 64-bit signed integer, milliseconds since UNIX epoch
-
-### Time Type Compatibility
-
-Contract type `time` validates against:
-- `pa.time32('s')` - 32-bit signed integer, seconds since midnight
-- `pa.time32('ms')` - 32-bit signed integer, milliseconds since midnight
-- `pa.time64('us')` - 64-bit signed integer, microseconds since midnight
-- `pa.time64('ns')` - 64-bit signed integer, nanoseconds since midnight
-
-### Timestamp Type Compatibility
-
-**Simple form** (`type: timestamp`):
-- Validates against any `pa.timestamp(unit, tz)` regardless of unit or timezone
-
-**Complex form** (`type: {kind: timestamp}` or `type: {kind: timestamp, tz: "UTC"}`):
-- Validates unit flexibility (accepts s, ms, us, ns)
-- Validates timezone matches (default: "UTC")
-
-**Complex form with explicit timezone** (`type: {kind: timestamp, tz: "America/New_York"}`):
-- Validates unit flexibility (accepts s, ms, us, ns)
-- Validates timezone exactly matches specified value
-
-### Decimal Type Compatibility
-
-Contract type `decimal` validates against:
-- `pa.decimal128(precision, scale)` - Any precision/scale combination
-- `pa.decimal256(precision, scale)` - Any precision/scale combination
+✅ **Declarative** - Express requirements in YAML, not Python code
+✅ **Type-Safe** - PyArrow schema validation with complex type support
+✅ **Flexible** - Types accept compatible variations (e.g., `int` accepts int8-int64)
+✅ **Reusable** - Generated suites run against multiple datasources
+✅ **Standard** - Produces standard `AssertionResult` objects
+✅ **Extensible** - Custom check types via function registry
+✅ **Self-Documenting** - Required descriptions enforce documentation culture

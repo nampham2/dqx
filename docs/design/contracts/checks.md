@@ -6,18 +6,18 @@
 
 ## Overview
 
+Data contract checks validate the quality of a single dataset. Each check computes a metric — a row count, a null percentage, a column mean — and compares it against a declared acceptance condition. Checks that exceed their acceptance condition produce failures at the declared severity level, giving data teams a structured signal to act on.
+
 Data contracts support two categories of checks:
 
 1. **Table-Level Checks**: Validate table-wide properties (row counts, freshness, duplicates, partitions)
 2. **Column-Level Checks**: Validate individual column values (nullability, uniqueness, ranges, patterns, distributions)
 
-**Note:** Cross-dataset validation (referential integrity, schema consistency, aggregate reconciliation) should be handled at the orchestration/workflow level rather than in individual data contracts. This keeps contracts focused on single-dataset quality while allowing orchestration tools to manage relationships between datasets.
-
 **Naming Conventions:**
 - Check names should be descriptive business statements (e.g., "Order ID is unique")
 - Severity levels: `P0` (critical), `P1` (important), `P2` (nice-to-have), `P3` (informational)
 - All checks support optional `tags` parameter for categorization
-- Check type names in YAML contracts use `snake_case` (e.g., `num_rows`, `duplicates`, `nulls`).
+- Check type names in YAML contracts use `snake_case` (e.g., `num_rows`, `duplicates`, `nulls`)
 
 **Check Structure:**
 
@@ -33,6 +33,8 @@ Every check shares a common structure:
 ```
 
 The `name` is a descriptive business statement. The `type` identifies which check to run. `severity` sets the priority level. A single **validator** — `min`, `max`, `between`, or `equals` — defines the acceptance condition; only one may be specified per check. The optional `tolerance` parameter allows acceptable variance. Check-specific parameters (such as `return`, `columns`, `values`, `pattern`) are documented in each check's detail section.
+
+**Note:** Cross-dataset validation (referential integrity, schema consistency, aggregate reconciliation) should be handled at the orchestration/workflow level rather than in individual data contracts. This keeps contracts focused on single-dataset quality while allowing orchestration tools to manage relationships between datasets.
 
 ---
 
@@ -86,14 +88,6 @@ Value checks validate individual values within a column. Each check returns eith
 | [`length`](#length) | Values within length bounds |
 
 **Total: 14 column-level checks** (8 Statistical + 6 Value Checks)
-
----
-
-**Note:**
-- All checks support standard validators: `min`, `max`, `between`, `equals`, and `tolerance`
-- `freshness` returns `age_hours` and validates implicitly with `max` = `max_age_hours`
-- `completeness` returns `gap_count` and validates implicitly with `max` = `max_gap_count`
-- Check type names are linked to their detailed definitions below
 
 ---
 
@@ -157,29 +151,15 @@ checks:
 
 ### Parameter Guidelines
 
-**Mutual Exclusivity:** `between` cannot be combined with `min` or `max`:
+**Mutual Exclusivity:** `between` cannot be combined with `min` or `max`. Use `between: [100, 1000]` or `min: 100, max: 1000`, not both:
 
 ```yaml
-# ✅ Valid: min only
-min: 100
-
-# ✅ Valid: max only
-max: 1000
-
-# ✅ Valid: both
-min: 100
-max: 1000
-
-# ✅ Valid: between
+# Valid: between
 between: [100, 1000]
 
-# ❌ Invalid: between + min
+# Invalid: between + min
 between: [100, 1000]
 min: 50
-
-# ❌ Invalid: between + max
-between: [100, 1000]
-max: 2000
 ```
 
 **Error Handling:**
@@ -303,11 +283,19 @@ Table-level checks are specified in the top-level `checks` array (sibling to `co
 
 #### `num_rows`
 
-Validates that the total row count is within specified bounds.
+The `num_rows` check validates that the total row count falls within specified bounds.
 
 **Parameters:**
 
-**Note:** This check does NOT support `threshold` because direction is context-dependent. Most use cases require range validation to detect both missing data (too few rows) and duplicates/anomalies (too many rows).
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min` | `number` | No | None | Minimum allowed row count |
+| `max` | `number` | No | None | Maximum allowed row count |
+| `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
+| `equals` | `number` | No | None | Exact expected row count |
+| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
+
+Use `min`, `max`, `between`, or `equals` to set bounds. Most use cases require range validation to detect both missing data (too few rows) and duplicates or anomalies (too many rows).
 
 **Example 1: Range Validation**
 
@@ -344,7 +332,7 @@ checks:
 
 #### `duplicates`
 
-Validates that the number of duplicate rows (based on specified columns) is within bounds.
+The `duplicates` check validates that the number of duplicate rows (based on specified columns) is within bounds.
 
 **Parameters:**
 
@@ -405,7 +393,7 @@ checks:
 
 #### `freshness`
 
-Validates that data is not stale (most recent timestamp is within acceptable age).
+The `freshness` check validates that data is not stale — the most recent timestamp falls within an acceptable age.
 
 **Returns:** `age_hours` — the age of the most recent (or oldest, depending on `aggregation`) record in hours. Validated implicitly: the check passes when `age_hours <= max_age_hours`.
 
@@ -455,7 +443,7 @@ checks:
 
 #### `completeness`
 
-Validates that partitioned data has no missing partitions within a time range (gap detection). This check only applies to tables with `metadata.partitioned_by` defined.
+The `completeness` check validates that partitioned data has no missing partitions within a time range (gap detection). This check only applies to tables with `metadata.partitioned_by` defined.
 
 **Returns:** `gap_count` — the number of missing partitions found. Validated implicitly: the check passes when `gap_count <= max_gap_count`.
 
@@ -525,7 +513,7 @@ Value checks validate individual values within a column (rather than computing a
 
 #### `nulls`
 
-Validates null values in a column. Returns count or percentage of null values based on the `return` parameter.
+The `nulls` check validates null values in a column, returning the count or percentage of null values based on the `return` parameter.
 
 **Return Parameter:** Use `return: count` (default) to return absolute null count, or `return: pct` to return null percentage (0-1 scale).
 
@@ -602,7 +590,7 @@ columns:
 
 #### `whitelist`
 
-Validates that non-null values match a whitelist of allowed values. Returns count or percentage of rows matching the whitelist.
+The `whitelist` check validates that non-null values match a set of allowed values, returning the count or percentage of rows that conform.
 
 **Return Parameter:** Use `return: count` (default) to return the count of matching rows, or `return: pct` to return the percentage (0-1 scale).
 
@@ -681,7 +669,7 @@ columns:
 
 #### `blacklist`
 
-Validates that non-null values do NOT match a blacklist. Returns count or percentage of rows NOT in the blacklist (passing rows).
+The `blacklist` check validates that non-null values do not match any forbidden value, returning the count or percentage of rows that pass (rows not in the blacklist).
 
 **Return Parameter:** Use `return: count` (default) to return the count of passing rows, or `return: pct` to return the percentage (0-1 scale).
 
@@ -728,7 +716,7 @@ columns:
 
 #### `duplicates`
 
-Validates that the count of duplicate values in a column is within specified bounds. This is the column-level version of the table-level `duplicates` check (which validates duplicates across multiple columns).
+The `duplicates` check (column-level) validates that the count of duplicate values in a column is within specified bounds. This is the column-level version of the table-level `duplicates` check, which validates duplicates across multiple columns.
 
 **Semantics:** Counts total duplicate occurrences. If value "A" appears 3 times, it contributes 3 to the duplicate count.
 
@@ -812,7 +800,7 @@ String checks are part of Value Checks. See the Value Checks section above for c
 
 #### `pattern`
 
-Validates that string values match a pattern. Supports explicit regex patterns or predefined format shortcuts. Returns count or percentage of values matching the pattern.
+The `pattern` check validates that string values match a pattern, supporting either explicit regex or predefined format shortcuts, and returns the count or percentage of conforming values.
 
 **Pattern Specification:** Use either:
 - `pattern` parameter with a regex pattern (e.g., `"^[A-Z]{2}\\d{6}$"`)
@@ -980,7 +968,7 @@ columns:
 
 #### `length`
 
-Validates that string lengths are within specified bounds. Returns count or percentage of rows meeting the length criteria.
+The `length` check validates that string lengths fall within specified bounds, returning the count or percentage of rows that meet the length criteria.
 
 **Return Parameter:** Use `return: count` (default) to return count of rows within length bounds, or `return: pct` to return percentage (0-1 scale).
 
@@ -1067,9 +1055,17 @@ Statistical checks compute aggregate metrics over the entire column and return a
 
 #### `cardinality`
 
-Validates that the count of distinct (unique) non-null values is within specified bounds. This is a statistical aggregate over the entire column.
+The `cardinality` check counts distinct non-null values in a column and validates that the count falls within specified bounds.
 
 **Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min` | `number` | No | None | Minimum allowed distinct value count |
+| `max` | `number` | No | None | Maximum allowed distinct value count |
+| `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
+| `equals` | `number` | No | None | Exact expected distinct value count |
+| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
 **Example 1: Low Cardinality (Categorical)**
 
@@ -1120,9 +1116,17 @@ columns:
 
 #### `min`
 
-Validates that the minimum value in the column meets specified criteria.
+The `min` check validates that the minimum value in a column meets specified criteria — confirming that no value falls below an acceptable floor.
 
 **Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min` | `number` | No | None | Minimum allowed value for the column minimum |
+| `max` | `number` | No | None | Maximum allowed value for the column minimum |
+| `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
+| `equals` | `number` | No | None | Exact expected value for the column minimum |
+| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
 **Example 1: Minimum Must Be Non-Negative**
 
@@ -1158,9 +1162,17 @@ columns:
 
 #### `max`
 
-Validates that the maximum value in the column meets specified criteria.
+The `max` check validates that the maximum value in a column meets specified criteria — confirming that no value exceeds an acceptable ceiling.
 
 **Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min` | `number` | No | None | Minimum allowed value for the column maximum |
+| `max` | `number` | No | None | Maximum allowed value for the column maximum |
+| `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
+| `equals` | `number` | No | None | Exact expected value for the column maximum |
+| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
 **Example 1: Maximum Must Be Reasonable**
 
@@ -1196,11 +1208,19 @@ columns:
 
 #### `mean`
 
-Validates that the arithmetic mean of numeric values is within specified bounds.
+The `mean` check validates that the arithmetic mean of numeric values in a column falls within specified bounds.
 
 **Parameters:**
 
-**Note:** This check does NOT support `threshold` because direction is context-dependent. Most use cases require range validation.
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min` | `number` | No | None | Minimum allowed mean value |
+| `max` | `number` | No | None | Maximum allowed mean value |
+| `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
+| `equals` | `number` | No | None | Exact expected mean value |
+| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
+
+Use `min`, `max`, `between`, or `equals` to set bounds. Most use cases require range validation to detect drift in either direction.
 
 **Example 1: Range Validation**
 
@@ -1252,9 +1272,17 @@ columns:
 
 #### `sum`
 
-Validates that the sum of all non-null values in a column meets specified criteria.
+The `sum` check validates that the total of all non-null values in a column meets specified criteria.
 
 **Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min` | `number` | No | None | Minimum allowed sum |
+| `max` | `number` | No | None | Maximum allowed sum |
+| `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
+| `equals` | `number` | No | None | Exact expected sum |
+| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
 **Example 1: Exact Sum**
 
@@ -1307,9 +1335,17 @@ columns:
 
 #### `count`
 
-Validates that the count of non-null values in a column meets specified criteria.
+The `count` check validates that the number of non-null values in a column falls within specified bounds.
 
 **Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min` | `number` | No | None | Minimum allowed non-null count |
+| `max` | `number` | No | None | Maximum allowed non-null count |
+| `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
+| `equals` | `number` | No | None | Exact expected non-null count |
+| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
 **Example 1: Exact Count**
 
@@ -1361,9 +1397,17 @@ columns:
 
 #### `variance`
 
-Validates that the variance of numeric values is within specified bounds (measures spread).
+The `variance` check validates that the statistical variance of numeric values in a column falls within specified bounds, providing a measure of data spread.
 
 **Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min` | `number` | No | None | Minimum allowed variance |
+| `max` | `number` | No | None | Maximum allowed variance |
+| `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
+| `equals` | `number` | No | None | Exact expected variance |
+| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
 **Example 1: Maximum Bound (Most Common)**
 
@@ -1415,15 +1459,20 @@ columns:
 
 #### `percentile`
 
-Validates that a specific percentile value is within specified bounds.
+The `percentile` check validates that a specific percentile value in a column falls within specified bounds.
 
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `percentile` | `float` | Yes | None | Percentile to check (0-100) |
+| `percentile` | `float` | Yes | None | Percentile to compute (0-100) |
+| `min` | `number` | No | None | Minimum allowed percentile value |
+| `max` | `number` | No | None | Maximum allowed percentile value |
+| `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
+| `equals` | `number` | No | None | Exact expected percentile value |
+| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
-**Note:** This check does NOT support `threshold` because direction is context-dependent. Most use cases require range validation.
+Use `min`, `max`, `between`, or `equals` to set bounds. Most use cases require range validation to detect drift in either direction.
 
 **Example 1: P95 Response Time (Max Only)**
 
@@ -1556,8 +1605,8 @@ columns:
       # Length validation
       - name: "Phone number length is reasonable"
         type: length
-        min: 10
-        max: 15
+        min_length: 10
+        max_length: 15
         severity: P1
 ```
 
