@@ -99,7 +99,7 @@ columns:
 
 **Partitioning.** The optional `metadata` block declares the partitioning columns for the dataset. DQX reads `partitioned_by` to infer which column carries the timestamp used in freshness and completeness checks. When the SLA block references a freshness check and `partitioned_by` is set, DQX selects the first listed column as the timestamp column automatically.
 
-**Table-level checks.** The top-level `checks` section validates properties of the dataset as a whole. `num_rows` asserts that the row count falls within a specified range. `duplicates` asserts that duplicate rows stay below a threshold. `freshness` asserts that the most recent timestamp column value falls within an acceptable lag window. `completeness` asserts that partition gaps — missing dates or time windows — stay below a specified count. All four checks accept `severity` and standard validators (`min`, `max`, `between`, `equals`, `tolerance`).
+**Table-level checks.** The top-level `checks` section validates properties of the dataset as a whole. `num_rows` asserts that the row count falls within a specified range. `duplicates` asserts that duplicate rows stay below a threshold. `freshness` asserts that the most recent timestamp column value falls within an acceptable lag window. `completeness` asserts that partition gaps — missing dates or time windows — stay below a specified count. `num_rows` and `duplicates` accept standard validators (`min`, `max`, `between`, `equals`, `tolerance`). `freshness` uses the implicit `max_age_hours` parameter instead of standard validators; `completeness` uses the implicit `max_gap_count` parameter instead.
 
 **Columns.** The `columns` section is the heart of the contract. Each entry co-locates four pieces of information that belong together: the column's `type` (one of 12 flexible PyArrow types that accept compatible storage variations — `int` accepts int8 through int64, `float` accepts float32 and float64), its `nullable` flag (defaults to `true` when omitted), its required `description`, and an optional `checks` list. Co-locating schema and checks in a single entry makes the contract self-documenting: a reader sees the column's semantics and its quality requirements in one place. See [Type System](types.md) for the full compatibility matrix.
 
@@ -180,7 +180,7 @@ Simple types use strings; complex types use objects with a `kind` field:
 
 ### Minimal Contract Example
 
-A minimal contract defines only metadata and columns. Without checks, each column validates type and nullability only.
+A minimal contract defines only metadata and columns. Without checks, DQX applies PyArrow schema enforcement at load time but generates no quality checks.
 
 ```yaml
 name: "Products Contract"
