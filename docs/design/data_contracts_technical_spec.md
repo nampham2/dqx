@@ -906,7 +906,7 @@ Data contracts support two categories of checks:
 - Check names should be descriptive business statements (e.g., "Order ID is unique")
 - Severity levels: `P0` (critical), `P1` (important), `P2` (nice-to-have), `P3` (informational)
 - All checks support optional `tags` parameter for categorization
-- Check type names in YAML contracts use `snake_case` (e.g., `num_rows`, `duplicates`, `nulls`). A normalization layer will map these to the corresponding Python implementation classes during contract parsing.
+- Check type names in YAML contracts use `snake_case` (e.g., `num_rows`, `duplicates`, `nulls`).
 
 ---
 
@@ -1086,6 +1086,8 @@ Use 'between: [100, 1000]' OR 'min: 100, max: 1000', not both.
 #### Validator Parameters (Mutually Exclusive)
 
 All aggregate checks support four validator patterns. Use exactly ONE per check:
+
+> **Note:** Validators (`min`, `max`, `between`, `equals`) are optional for value checks (e.g., `whitelist`, `blacklist`, `pattern`, `length`) that define their own required parameters such as `values` or `pattern`. When a validator is omitted from a value check, the check acts as a boolean assertion — it passes if all rows conform (equivalent to requiring the conforming count to equal the total row count).
 
 **1. Lower Bound (`min`)**
 ```yaml
@@ -1408,7 +1410,7 @@ Column-level checks are specified within the `checks` array of a column definiti
 
 #### Value Checks
 
-Value checks validate individual values within a column (rather than computing aggregates over the column). They return either a count or percentage of values that pass the validation rule. Use the `return` parameter to specify the return type (`count` or `pct`).
+Value checks validate individual values within a column (rather than computing aggregates over the column). Each check defines its own return semantics. For `nulls` and `duplicates`, the return value represents null or duplicate values found. For `whitelist`, `blacklist`, `pattern`, and `length`, the return value represents conforming (valid) rows. Use the `return` parameter to specify the return type (`count` or `pct`).
 
 ---
 
