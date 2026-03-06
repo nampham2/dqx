@@ -34,8 +34,8 @@ Contract YAML (schema + checks)
 Contract instance (with PyArrow schema)
     ↓ contract.to_checks()                                          [proposed]
 list[DecoratedCheck]
-    ↓ VerificationSuite(checks=contract.to_checks() + [custom_check, ...], db=db, name=...)
-VerificationSuite (contract + custom checks, single suite)
+    ↓ VerificationSuite(checks=contract.to_checks() + [...], ...)
+VerificationSuite
     ↓ suite.run([datasource], result_key)
 AssertionResult[] (standard)
 ```
