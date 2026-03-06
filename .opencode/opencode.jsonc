@@ -22,7 +22,7 @@
           "name": "Claude Opus 4.6",
           "id": "ml-asset:static-model/claude-opus-4-6"
         },
-        "gpt-5.2-codex": {
+        "gpt-5-codex": {
           "name": "GPT-5-codex",
           "id": "ml-asset:static-model/gpt-5-codex"
         }

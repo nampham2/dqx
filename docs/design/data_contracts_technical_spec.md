@@ -153,7 +153,7 @@ columns:
       primary_key: "true"
     checks:
       - name: "Order ID is unique"
-        type: duplicate_count
+        type: duplicates
         max: 0
         severity: P0
 
@@ -611,7 +611,7 @@ columns:
     description: "Unique order identifier"
     checks:
       - name: "Order ID is unique"
-        type: duplicate_count
+        type: duplicates
         max: 0
         severity: P0
 
@@ -906,7 +906,7 @@ Data contracts support two categories of checks:
 - Check names should be descriptive business statements (e.g., "Order ID is unique")
 - Severity levels: `P0` (critical), `P1` (important), `P2` (nice-to-have), `P3` (informational)
 - All checks support optional `tags` parameter for categorization
-- Check type names in YAML contracts use `snake_case` (e.g., `num_rows`, `duplicate_count`). The implementation will normalize these to match the existing PascalCase Python classes (e.g., `NumRows`, `DuplicateCount`) during contract parsing.
+- Check type names in YAML contracts use `snake_case` (e.g., `num_rows`, `duplicates`). These correspond to the PascalCase Python classes in the implementation (e.g., `NumRows`, `Duplicates`). A normalization layer will be added during implementation.
 
 ---
 
@@ -916,12 +916,12 @@ Data contracts support two categories of checks:
 
 Validate table-wide properties and aggregates. Specified in the top-level `checks` array.
 
-| Check Type | Description | Validators |
-|------------|-------------|------------|
-| [`num_rows`](#num_rows) | Total row count validation | min, max, between, equals |
-| [`duplicate_count`](#duplicate_count) | Count of duplicate rows | min, max, between, equals |
-| [`freshness`](#freshness) | Data recency validation | max_age_hours |
-| [`completeness`](#completeness) | Partition gap detection | max_gap_count |
+| Check Type | Description | Validators | Return |
+|------------|-------------|------------|--------|
+| [`num_rows`](#num_rows) | Total row count validation | min, max, between, equals | — |
+| [`duplicates`](#duplicates) | Count of duplicate rows | min, max, between, equals | count or pct |
+| [`freshness`](#freshness) | Data recency validation | max_age_hours | — |
+| [`completeness`](#completeness) | Partition gap detection | max_gap_count | — |
 
 **Total: 4 table-level checks**
 
@@ -948,12 +948,12 @@ Statistical checks compute aggregate metrics over the entire column and return a
 
 ##### Value Checks
 
-Value checks validate individual values within a column (rather than computing aggregates over the column). They return either a count or percentage of values that pass the validation rule. Use the `metric` parameter to specify the return type (`count` or `pct`).
+Value checks validate individual values within a column (rather than computing aggregates over the column). They return either a count or percentage of values that pass the validation rule. Use the `return` parameter to specify the return type (`count` or `pct`).
 
-| Check Type | Description | Validators | Metric |
+| Check Type | Description | Validators | Return |
 |------------|-------------|------------|--------|
-| [`null_count`](#null_count) | Null value validation | min, max, between, equals | count or pct |
-| [`duplicate_count`](#duplicate_count) | Duplicate value validation | min, max, between, equals | count |
+| [`nulls`](#nulls) | Null value validation | min, max, between, equals | count or pct |
+| [`duplicates`](#duplicates) | Duplicate value validation | min, max, between, equals | count or pct |
 | [`whitelist`](#whitelist) | Whitelist validation | values | count or pct |
 | [`blacklist`](#blacklist) | Blacklist validation | values | count or pct |
 | [`pattern`](#pattern) | Regex pattern validation | pattern or format | count or pct |
@@ -989,8 +989,8 @@ checks:
 # Upper bound only (for "lower is better" checks)
 checks:
   - name: "Low null percentage"
-    type: null_count
-    metric: pct
+    type: nulls
+    return: pct
     max: 0.05  # 5% null percentage
     severity: P1
 
@@ -1004,7 +1004,7 @@ checks:
 ```
 
 **When to use which bound:**
-- **`max` for "lower is better"** - null_count (count or pct), variance, duplicate_count
+- **`max` for "lower is better"** - nulls (count or pct), variance, duplicates
 - **`min` for "higher is better"** - cardinality (for diversity)
 - **Both for stability** - num_rows, mean, sum, percentile
 
@@ -1067,7 +1067,7 @@ Use 'between: [100, 1000]' OR 'min: 100, max: 1000', not both.
 
 **Use `max` for "lower is better" checks:**
 - Metrics where lower values indicate better quality
-- Examples: `null_count` (with count metric), `variance`, `duplicate_count`
+- Examples: `nulls` (with count return), `variance`, `duplicates`
 - Rationale: You want to set an upper bound on "bad" metrics
 
 **Use `min` for "higher is better" checks:**
@@ -1146,12 +1146,12 @@ columns:
         min: 100  # At least 100 distinct merchants
         tolerance: 5  # Passes if actual ≥ 95
 
-# Max with tolerance (null_count with pct metric uses 0-1 scale)
+# Max with tolerance (nulls with pct return uses 0-1 scale)
 columns:
   - name: email
     checks:
-      - type: null_count
-        metric: pct
+      - type: nulls
+        return: pct
         max: 0.05  # 5% null percentage
         tolerance: 0.001  # Passes if actual ≤ 0.051
 
@@ -1223,7 +1223,7 @@ checks:
 
 ---
 
-##### `duplicate_count`
+##### `duplicates`
 
 Validates that the number of duplicate rows (based on specified columns) is within bounds.
 
@@ -1232,11 +1232,12 @@ Validates that the number of duplicate rows (based on specified columns) is with
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `columns` | `list[string]` | Yes | None | Columns to check for duplicates (composite key) |
-| `min` | `int` | No* | None | Minimum duplicate count (inclusive) |
-| `max` | `int` | No* | None | Maximum allowed duplicate count (inclusive) |
-| `between` | `array` | No* | None | Duplicate count range as [min, max] |
-| `equals` | `int` | No* | None | Expected exact duplicate count |
-| `tolerance` | `int` | No | `0` | Tolerance for count comparisons |
+| `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
+| `min` | `int\|float` | No* | None | Minimum duplicate count/percentage (inclusive) |
+| `max` | `int\|float` | No* | None | Maximum allowed duplicate count/percentage (inclusive) |
+| `between` | `array` | No* | None | Duplicate count/percentage range as [min, max] |
+| `equals` | `int\|float` | No* | None | Expected exact duplicate count/percentage |
+| `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
 
 \* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
 
@@ -1245,7 +1246,7 @@ Validates that the number of duplicate rows (based on specified columns) is with
 ```yaml
 checks:
   - name: "No duplicate orders"
-    type: duplicate_count
+    type: duplicates
     columns: ["order_id"]
     max: 0  # No duplicates allowed
     severity: P0
@@ -1256,7 +1257,7 @@ checks:
 ```yaml
 checks:
   - name: "Few duplicate user-date combinations"
-    type: duplicate_count
+    type: duplicates
     columns: ["user_id", "event_date"]
     max: 10  # At most 10 duplicate rows
     severity: P1
@@ -1267,11 +1268,23 @@ checks:
 ```yaml
 checks:
   - name: "Expected duplicate rate"
-    type: duplicate_count
+    type: duplicates
     columns: ["transaction_id", "timestamp"]
     equals: 50  # Exactly 50 duplicates expected
     tolerance: 5  # Within 5
     severity: P2
+```
+
+**Example 4: Duplicate Percentage**
+
+```yaml
+checks:
+  - name: "Low duplicate rate"
+    type: duplicates
+    columns: ["order_id"]
+    return: pct
+    max: 0.01  # At most 1% duplicate rows
+    severity: P1
 ```
 
 ---
@@ -1330,7 +1343,7 @@ checks:
 
 Validates that partitioned data has no missing partitions within a time range (gap detection). This check only applies to tables with `metadata.partitioned_by` defined.
 
-**Note:** For column-level null validation, use `null_count` check (with `metric: count` for absolute counts or `metric: pct` for percentages).
+**Note:** For column-level null validation, use `nulls` check (with `return: count` for absolute counts or `return: pct` for percentages).
 
 **Parameters:**
 
@@ -1390,21 +1403,21 @@ Column-level checks are specified within the `checks` array of a column definiti
 
 #### Value Checks
 
-Value checks validate individual values within a column (rather than computing aggregates over the column). They return either a count or percentage of values that pass the validation rule. Use the `metric` parameter to specify the return type (`count` or `pct`).
+Value checks validate individual values within a column (rather than computing aggregates over the column). They return either a count or percentage of values that pass the validation rule. Use the `return` parameter to specify the return type (`count` or `pct`).
 
 ---
 
-##### `null_count`
+##### `nulls`
 
-Validates null values in a column. Returns count or percentage of null values based on the `metric` parameter.
+Validates null values in a column. Returns count or percentage of null values based on the `return` parameter.
 
-**Metric Parameter:** Use `metric: count` (default) to return absolute null count, or `metric: pct` to return null percentage (0-1 scale).
+**Return Parameter:** Use `return: count` (default) to return absolute null count, or `return: pct` to return null percentage (0-1 scale).
 
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `metric` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
+| `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
 | `min` | `int\|float` | No* | None | Minimum allowed null count/percentage (inclusive) |
 | `max` | `int\|float` | No* | None | Maximum allowed null count/percentage (inclusive) |
 | `between` | `array` | No* | None | Null count/percentage range as [min, max] |
@@ -1423,7 +1436,7 @@ columns:
     description: "Optional customer notes"
     checks:
       - name: "Most orders have notes"
-        type: null_count
+        type: nulls
         max: 1000  # At most 1000 nulls
         severity: P2
 ```
@@ -1439,7 +1452,7 @@ columns:
     description: "Deletion timestamp (null if not deleted)"
     checks:
       - name: "Few deletions expected"
-        type: null_count
+        type: nulls
         between: [0, 50]  # Between 0 and 50 nulls
         severity: P1
 ```
@@ -1454,13 +1467,13 @@ columns:
     description: "Optional metadata field"
     checks:
       - name: "Exactly 100 records have metadata"
-        type: null_count
+        type: nulls
         equals: 900  # Expecting 900 nulls (100 non-null)
         tolerance: 0
         severity: P2
 ```
 
-**Example 4: Using Percentage Metric**
+**Example 4: Using Percentage Return**
 
 ```yaml
 columns:
@@ -1470,8 +1483,8 @@ columns:
     description: "Customer email address"
     checks:
       - name: "Low null percentage"
-        type: null_count
-        metric: pct
+        type: nulls
+        return: pct
         max: 0.10  # At most 10% nulls
         severity: P1
 ```
@@ -1482,19 +1495,19 @@ columns:
 
 Validates that non-null values match a whitelist of allowed values. Returns count or percentage of rows matching the whitelist.
 
-**Metric Parameter:** Use `metric: count` (default) to return the count of matching rows, or `metric: pct` to return the percentage (0-1 scale).
+**Return Parameter:** Use `return: count` (default) to return the count of matching rows, or `return: pct` to return the percentage (0-1 scale).
 
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `values` | `list` | Yes | None | List of allowed values |
-| `metric` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
+| `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
 | `case_sensitive` | `bool` | No | `true` | Whether comparison is case-sensitive (strings only) |
-| `min` | `int\|float` | No* | None | Minimum allowed metric value |
-| `max` | `int\|float` | No* | None | Maximum allowed metric value |
-| `between` | `array` | No* | None | Metric range as [min, max] |
-| `equals` | `int\|float` | No* | None | Expected exact metric value |
+| `min` | `int\|float` | No* | None | Minimum allowed return value |
+| `max` | `int\|float` | No* | None | Maximum allowed return value |
+| `between` | `array` | No* | None | Return value range as [min, max] |
+| `equals` | `int\|float` | No* | None | Expected exact return value |
 | `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
 
 \* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
@@ -1545,7 +1558,7 @@ columns:
         severity: P0
 ```
 
-**Example 4: Using Percentage Metric**
+**Example 4: Using Percentage Return**
 
 ```yaml
 columns:
@@ -1557,7 +1570,7 @@ columns:
       - name: "Most statuses are valid"
         type: whitelist
         values: ["pending", "processing", "shipped", "delivered", "cancelled"]
-        metric: pct
+        return: pct
         min: 0.95  # At least 95% match
         severity: P1
 ```
@@ -1568,19 +1581,19 @@ columns:
 
 Validates that non-null values do NOT match a blacklist. Returns count or percentage of rows NOT in the blacklist (passing rows).
 
-**Metric Parameter:** Use `metric: count` (default) to return the count of passing rows, or `metric: pct` to return the percentage (0-1 scale).
+**Return Parameter:** Use `return: count` (default) to return the count of passing rows, or `return: pct` to return the percentage (0-1 scale).
 
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `values` | `list` | Yes | None | List of forbidden values |
-| `metric` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
+| `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
 | `case_sensitive` | `bool` | No | `true` | Whether comparison is case-sensitive (strings only) |
-| `min` | `int\|float` | No* | None | Minimum allowed metric value |
-| `max` | `int\|float` | No* | None | Maximum allowed metric value |
-| `between` | `array` | No* | None | Metric range as [min, max] |
-| `equals` | `int\|float` | No* | None | Expected exact metric value |
+| `min` | `int\|float` | No* | None | Minimum allowed return value |
+| `max` | `int\|float` | No* | None | Maximum allowed return value |
+| `between` | `array` | No* | None | Return value range as [min, max] |
+| `equals` | `int\|float` | No* | None | Expected exact return value |
 | `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
 
 \* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
@@ -1618,21 +1631,24 @@ columns:
 
 ---
 
-##### `duplicate_count`
+##### `duplicates`
 
-Validates that the count of duplicate values in a column is within specified bounds. This is the column-level version of the table-level `duplicate_count` check (which validates duplicates across multiple columns).
+Validates that the count of duplicate values in a column is within specified bounds. This is the column-level version of the table-level `duplicates` check (which validates duplicates across multiple columns).
 
 **Semantics:** Counts total duplicate occurrences. If value "A" appears 3 times, it contributes 3 to the duplicate count.
+
+**Return Parameter:** Use `return: count` (default) to return absolute duplicate count, or `return: pct` to return duplicate percentage (0-1 scale).
 
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `min` | `int` | No* | None | Minimum allowed duplicate count (inclusive) |
-| `max` | `int` | No* | None | Maximum allowed duplicate count (inclusive) |
-| `between` | `array` | No* | None | Duplicate count range as [min, max] |
-| `equals` | `int` | No* | None | Expected exact duplicate count |
-| `tolerance` | `int` | No | `0` | Tolerance for count comparisons |
+| `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
+| `min` | `int\|float` | No* | None | Minimum allowed duplicate count/percentage (inclusive) |
+| `max` | `int\|float` | No* | None | Maximum allowed duplicate count/percentage (inclusive) |
+| `between` | `array` | No* | None | Duplicate count/percentage range as [min, max] |
+| `equals` | `int\|float` | No* | None | Expected exact duplicate count/percentage |
+| `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
 
 \* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
 
@@ -1648,7 +1664,7 @@ columns:
     description: "Unique order identifier"
     checks:
       - name: "Order ID is unique"
-        type: duplicate_count
+        type: duplicates
         max: 0  # No duplicates allowed
         severity: P0
 ```
@@ -1663,7 +1679,7 @@ columns:
     description: "User identifier (repeat customers allowed)"
     checks:
       - name: "User ID has reasonable duplicates"
-        type: duplicate_count
+        type: duplicates
         max: 100  # Up to 100 duplicate user IDs
         severity: P1
 ```
@@ -1678,10 +1694,26 @@ columns:
     description: "Test category with expected duplicates"
     checks:
       - name: "Category has expected duplicates"
-        type: duplicate_count
+        type: duplicates
         equals: 50  # Expect exactly 50 duplicates
         tolerance: 0
         severity: P2
+```
+
+**Example 4: Duplicate Percentage**
+
+```yaml
+columns:
+  - name: order_id
+    type: int
+    nullable: false
+    description: "Order identifier"
+    checks:
+      - name: "Low duplicate rate"
+        type: duplicates
+        return: pct
+        max: 0.01  # At most 1% duplicate values
+        severity: P1
 ```
 
 ---
@@ -1698,7 +1730,7 @@ Validates that string values match a pattern. Supports explicit regex patterns o
 - `pattern` parameter with a regex pattern (e.g., `"^[A-Z]{2}\\d{6}$"`)
 - `format` parameter with a predefined format name (e.g., `"email"`, `"phone"`, `"uuid"`)
 
-**Metric Parameter:** Use `metric: count` (default) to return count of matching values, or `metric: pct` to return percentage (0-1 scale) of matching values.
+**Return Parameter:** Use `return: count` (default) to return count of matching values, or `return: pct` to return percentage (0-1 scale) of matching values.
 
 **Parameters:**
 
@@ -1707,11 +1739,11 @@ Validates that string values match a pattern. Supports explicit regex patterns o
 | `pattern` | `string` | No* | None | Regular expression pattern to match |
 | `format` | `string` | No* | None | Predefined format name ("email", "phone", "uuid", "url", "ipv4", "ipv6", "date", "datetime") |
 | `flags` | `list[string]` | No | `[]` | Regex flags (e.g., "IGNORECASE", "MULTILINE") - only for pattern |
-| `metric` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
-| `min` | `int\|float` | No** | None | Minimum allowed metric value |
-| `max` | `int\|float` | No** | None | Maximum allowed metric value |
-| `between` | `array` | No** | None | Metric range as [min, max] |
-| `equals` | `int\|float` | No** | None | Expected exact metric value |
+| `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
+| `min` | `int\|float` | No** | None | Minimum allowed return value |
+| `max` | `int\|float` | No** | None | Maximum allowed return value |
+| `between` | `array` | No** | None | Return value range as [min, max] |
+| `equals` | `int\|float` | No** | None | Expected exact return value |
 | `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
 
 \* Exactly ONE of `pattern` or `format` must be specified
@@ -1762,7 +1794,7 @@ columns:
         severity: P0
 ```
 
-**Example 4: Percentage Metric**
+**Example 4: Percentage Return**
 
 ```yaml
 columns:
@@ -1774,7 +1806,7 @@ columns:
       - name: "95% emails are valid"
         type: pattern
         pattern: "^[^@]+@[^@]+\\.[^@]+$"
-        metric: pct
+        return: pct
         min: 0.95  # At least 95%
         severity: P1
 ```
@@ -1791,7 +1823,7 @@ columns:
       - name: "All emails are valid"
         type: pattern
         format: email  # Predefined format instead of regex
-        metric: pct
+        return: pct
         min: 0.95  # At least 95% valid
         severity: P1
 ```
@@ -1808,7 +1840,7 @@ columns:
       - name: "Phone numbers are valid"
         type: pattern
         format: phone  # Matches common phone formats
-        metric: count
+        return: count
         min: 1000  # At least 1000 valid phone numbers
         severity: P2
 ```
@@ -1825,7 +1857,7 @@ columns:
       - name: "Transaction IDs are valid UUIDs"
         type: pattern
         format: uuid  # Standard UUID format
-        metric: pct
+        return: pct
         equals: 1.0  # 100% must be valid UUIDs
         severity: P0
 ```
@@ -1842,7 +1874,7 @@ columns:
       - name: "Websites are valid URLs"
         type: pattern
         format: url  # HTTP/HTTPS URLs
-        metric: pct
+        return: pct
         min: 0.90  # At least 90% valid
         severity: P1
 ```
@@ -1868,7 +1900,7 @@ columns:
 
 Validates that string lengths are within specified bounds. Returns count or percentage of rows meeting the length criteria.
 
-**Metric Parameter:** Use `metric: count` (default) to return count of rows within length bounds, or `metric: pct` to return percentage (0-1 scale).
+**Return Parameter:** Use `return: count` (default) to return count of rows within length bounds, or `return: pct` to return percentage (0-1 scale).
 
 **Parameters:**
 
@@ -1876,11 +1908,11 @@ Validates that string lengths are within specified bounds. Returns count or perc
 |-----------|------|----------|---------|-------------|
 | `min_length` | `int` | No* | None | Minimum allowed string length |
 | `max_length` | `int` | No* | None | Maximum allowed string length |
-| `metric` | `string` | No | `count` | Return type: "count" or "pct" |
-| `min` | `int\|float` | No** | None | Minimum metric value (count or pct) |
-| `max` | `int\|float` | No** | None | Maximum metric value (count or pct) |
-| `between` | `array` | No** | None | Metric range as [min, max] |
-| `equals` | `int\|float` | No** | None | Expected exact metric value |
+| `return` | `string` | No | `count` | Return type: "count" or "pct" |
+| `min` | `int\|float` | No** | None | Minimum return value (count or pct) |
+| `max` | `int\|float` | No** | None | Maximum return value (count or pct) |
+| `between` | `array` | No** | None | Return value range as [min, max] |
+| `equals` | `int\|float` | No** | None | Expected exact return value |
 | `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
 
 \* At least one of `min_length` or `max_length` required
@@ -1933,7 +1965,7 @@ columns:
         severity: P0
 ```
 
-**Example 4: Using Percentage Metric**
+**Example 4: Using Percentage Return**
 
 ```yaml
 columns:
@@ -1946,7 +1978,7 @@ columns:
         type: length
         min_length: 10
         max_length: 500
-        metric: pct
+        return: pct
         min: 0.90  # At least 90% within bounds
         severity: P1
 ```
@@ -2511,8 +2543,8 @@ columns:
     checks:
       # Null percentage constraint (uses 0-1 scale)
       - name: "Most customers provide phone number"
-        type: null_count
-        metric: pct
+        type: nulls
+        return: pct
         max: 0.20  # At most 20% null
         severity: P1
 
@@ -2635,7 +2667,7 @@ columns:
     description: "Required description"
     checks:                    # Optional checks
       - name: "Check name"
-        type: duplicate_count
+        type: duplicates
         max: 0
         severity: P0
 
