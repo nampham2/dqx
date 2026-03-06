@@ -1,14 +1,17 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "Claude Sonnet 4.6",
+  "share": "disabled",
+  "disabled_providers": ["opencode"],
+  "plugin": ["@bookingcom/opencode-booking-genai-auth"],
+  "model": "genai-gateway/claude-sonnet-4-6",
   "autoupdate": true,
   "provider": {
     "genai-gateway": {
-      "npm": "@ai-sdk/anthropic",
+      "npm": "@ai-sdk/openai-compatible",
       "name": "GenAI Gateway",
       "options": {
-        "baseURL": "https://gen-ai.prod.booking.com/anthropic/claude_code/v1/",
-        "apiKey": "{env:GENAI_KEY}"
+        "baseURL": "https://gen-ai.prod.booking.com/openai/opencode",
+        "apiKey": "{{PLACEHOLDER}}"
       },
       "models": {
         "claude-sonnet-4-6": {

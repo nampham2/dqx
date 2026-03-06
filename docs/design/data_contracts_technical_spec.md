@@ -906,6 +906,7 @@ Data contracts support two categories of checks:
 - Check names should be descriptive business statements (e.g., "Order ID is unique")
 - Severity levels: `P0` (critical), `P1` (important), `P2` (nice-to-have), `P3` (informational)
 - All checks support optional `tags` parameter for categorization
+- Check type names in YAML contracts use `snake_case` (e.g., `num_rows`, `duplicate_count`). The implementation will normalize these to match the existing PascalCase Python classes (e.g., `NumRows`, `DuplicateCount`) during contract parsing.
 
 ---
 
@@ -988,7 +989,8 @@ checks:
 # Upper bound only (for "lower is better" checks)
 checks:
   - name: "Low null percentage"
-    type: null_pct
+    type: null_count
+    metric: pct
     max: 0.05  # 5% null percentage
     severity: P1
 
@@ -1002,7 +1004,7 @@ checks:
 ```
 
 **When to use which bound:**
-- **`max` for "lower is better"** - null_count, null_pct, variance, duplicate_count
+- **`max` for "lower is better"** - null_count (count or pct), variance, duplicate_count
 - **`min` for "higher is better"** - cardinality (for diversity)
 - **Both for stability** - num_rows, mean, sum, percentile
 
@@ -1056,7 +1058,7 @@ max: 2000
 **Error Handling:**
 
 When parameters conflict, validation will fail with a clear message:
-```
+```text
 ValidationError: Cannot use 'between' with 'min' or 'max'.
 Use 'between: [100, 1000]' OR 'min: 100, max: 1000', not both.
 ```

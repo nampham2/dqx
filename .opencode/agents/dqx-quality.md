@@ -219,7 +219,7 @@ Hooks include:
 
 ## Quick Tips
 
-- Run `SKIP=mypy` to skip type checking for faster iteration during development
+- All pre-commit hooks must pass before committing (ruff format -> ruff check -> mypy -> commitizen). Do not use `SKIP=mypy` for commits or PRs.
 - Ruff auto-fixes most issues with `--fix` flag
 - MyPy errors often indicate missing type annotations
 - Pre-commit hooks are the final gate before commit
