@@ -34,13 +34,13 @@ Contract YAML (schema + checks)
 Contract instance (with PyArrow schema)
     ↓ contract.to_checks()                                          [proposed]
 list[DecoratedCheck]
-    ↓ VerificationSuite(checks=contract.to_checks() + [...], ...)
+    ↓ VerificationSuite(checks=contract.to_checks() + [...], ...)   [existing API]
 VerificationSuite
-    ↓ suite.run([datasource], result_key)
-AssertionResult[] (standard)
+    ↓ suite.run([datasource], result_key)                           [existing API]
+AssertionResult[]                                                   [existing API]
 ```
 
-The proposed runtime flow has three steps. First, `Contract.from_yaml()` parses the YAML and builds a `Contract` instance with a fully resolved PyArrow schema. Second, `contract.to_checks()` translates every column definition and check into a list of `DecoratedCheck` functions — the same type `VerificationSuite` accepts — so the user merges them with any hand-coded checks: `VerificationSuite(checks=contract.to_checks() + [custom_check], db=db, name=...)`. Third, `suite.run([datasource], result_key)` executes all checks, validates the schema at runtime via PyArrow, and returns `AssertionResult[]` objects identical to those from hand-coded suites.
+The runtime flow combines proposed and existing API. First, `Contract.from_yaml()` parses the YAML and builds a `Contract` instance with a fully resolved PyArrow schema — **proposed**. Second, `contract.to_checks()` translates every column definition and check into a list of `DecoratedCheck` functions — **proposed**. From here, the flow uses the **existing** `VerificationSuite` API: the user merges contract-generated checks with any hand-coded checks — `VerificationSuite(checks=contract.to_checks() + [custom_check], db=db, name=...)` — and calls `suite.run([datasource], result_key)`, which executes all checks, validates the schema at runtime via PyArrow, and returns `AssertionResult[]` objects identical to those from hand-coded suites. `VerificationSuite`, `suite.run()`, and `AssertionResult` already exist in the codebase today; only `Contract.from_yaml()` and `contract.to_checks()` are new.
 
 ---
 
@@ -99,7 +99,7 @@ columns:
 
 **Partitioning.** The optional `metadata` block declares the partitioning columns for the dataset. DQX reads `partitioned_by` to infer which column carries the timestamp used in freshness and completeness checks. When the SLA block references a freshness check and `partitioned_by` is set, DQX selects the first listed column as the timestamp column automatically.
 
-**Table-level checks.** The top-level `checks` section validates properties of the dataset as a whole. `num_rows` asserts that the row count falls within a specified range. `duplicates` asserts that duplicate rows stay below a threshold. `freshness` asserts that the most recent timestamp column value falls within an acceptable lag window. `completeness` asserts that partition gaps — missing dates or time windows — stay below a specified count. `num_rows` and `duplicates` accept standard validators (`min`, `max`, `between`, `equals`, `tolerance`). `freshness` uses the implicit `max_age_hours` parameter instead of standard validators; `completeness` uses the implicit `max_gap_count` parameter instead.
+**Table-level checks.** The top-level `checks` section validates properties of the dataset as a whole. `num_rows` asserts that the row count falls within a specified range. `duplicates` asserts that duplicate rows stay below a threshold. `freshness` asserts that data is not stale by checking the age of the latest record against `max_age_hours`. `completeness` asserts that partition gaps — missing dates or time windows — stay below a specified count. `num_rows` and `duplicates` accept standard validators (`min`, `max`, `between`, `equals`, `tolerance`). `freshness` uses the implicit `max_age_hours` parameter instead of standard validators; `completeness` uses the implicit `max_gap_count` parameter instead.
 
 **Columns.** The `columns` section is the heart of the contract. Each entry co-locates four pieces of information that belong together: the column's `type` (one of 12 flexible PyArrow types that accept compatible storage variations — `int` accepts int8 through int64, `float` accepts float32 and float64), its `nullable` flag (defaults to `true` when omitted), its required `description`, and an optional `checks` list. Co-locating schema and checks in a single entry makes the contract self-documenting: a reader sees the column's semantics and its quality requirements in one place. See [Type System](types.md) for the full compatibility matrix.
 
@@ -333,7 +333,7 @@ DQX contracts provide 18 built-in check types across two scopes.
 **4 table-level checks** validate the dataset as a whole:
 - `num_rows` — asserts total row count
 - `duplicates` — asserts count of duplicate rows
-- `freshness` — asserts recency of the most recent timestamp value
+- `freshness` — asserts that data is not stale (age of the latest record does not exceed `max_age_hours`)
 - `completeness` — asserts absence of partition gaps
 
 **14 column-level checks** validate individual columns. 8 are statistical:
