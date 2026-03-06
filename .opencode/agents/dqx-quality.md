@@ -1,7 +1,7 @@
 ---
 description: Enforces code quality with ruff, mypy, and pre-commit hooks
 mode: subagent
-model: genai-gateway/claude-haiku-4-5
+model: genai-gateway/claude-sonnet-4-6
 temperature: 0.1
 tools:
   write: false

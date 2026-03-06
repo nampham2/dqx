@@ -1,7 +1,7 @@
 ---
 description: Specializes in graph processing and dependency analysis
 mode: subagent
-model: genai-gateway/claude-sonnet-4-5
+model: genai-gateway/claude-sonnet-4-6
 temperature: 0.2
 ---
 
