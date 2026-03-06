@@ -1196,14 +1196,6 @@ Validates that the total row count is within specified bounds.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `min` | `int` | No | None | Minimum allowed row count (inclusive) |
-| `max` | `int` | No | None | Maximum allowed row count (inclusive) |
-| `between` | `array` | No | None | Row count range as [min, max] - validates min ≤ count ≤ max |
-| `equals` | `int` | No | None | Expected exact row count |
-| `tolerance` | `int` | No | `0` | Tolerance for count comparisons |
-
 **Note:** This check does NOT support `threshold` because direction is context-dependent. Most use cases require range validation to detect both missing data (too few rows) and duplicates/anomalies (too many rows).
 
 **Example 1: Range Validation**
@@ -1249,11 +1241,6 @@ Validates that the number of duplicate rows (based on specified columns) is with
 |-----------|------|----------|---------|-------------|
 | `columns` | `list[string]` | Yes | None | Columns to check for duplicates (composite key) |
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
-| `min` | `int\|float` | No | None | Minimum duplicate count/percentage (inclusive) |
-| `max` | `int\|float` | No | None | Maximum allowed duplicate count/percentage (inclusive) |
-| `between` | `array` | No | None | Duplicate count/percentage range as [min, max] |
-| `equals` | `int\|float` | No | None | Expected exact duplicate count/percentage |
-| `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
 
 **Example 1: No Duplicates (Most Common)**
 
@@ -1436,11 +1423,6 @@ Validates null values in a column. Returns count or percentage of null values ba
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
-| `min` | `int\|float` | No | None | Minimum allowed null count/percentage (inclusive) |
-| `max` | `int\|float` | No | None | Maximum allowed null count/percentage (inclusive) |
-| `between` | `array` | No | None | Null count/percentage range as [min, max] |
-| `equals` | `int\|float` | No | None | Expected exact null count/percentage |
-| `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
 
 **Example 1: Maximum Bound (Most Common)**
 
@@ -1520,11 +1502,6 @@ Validates that non-null values match a whitelist of allowed values. Returns coun
 | `values` | `list` | Yes | None | List of allowed values |
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
 | `case_sensitive` | `bool` | No | `true` | Whether comparison is case-sensitive (strings only) |
-| `min` | `int\|float` | No | None | Minimum allowed return value |
-| `max` | `int\|float` | No | None | Maximum allowed return value |
-| `between` | `array` | No | None | Return value range as [min, max] |
-| `equals` | `int\|float` | No | None | Expected exact return value |
-| `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
 
 **Example 1: Basic Usage**
 
@@ -1604,11 +1581,6 @@ Validates that non-null values do NOT match a blacklist. Returns count or percen
 | `values` | `list` | Yes | None | List of forbidden values |
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
 | `case_sensitive` | `bool` | No | `true` | Whether comparison is case-sensitive (strings only) |
-| `min` | `int\|float` | No | None | Minimum allowed return value |
-| `max` | `int\|float` | No | None | Maximum allowed return value |
-| `between` | `array` | No | None | Return value range as [min, max] |
-| `equals` | `int\|float` | No | None | Expected exact return value |
-| `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
 
 **Example 1: Basic Usage**
 
@@ -1656,11 +1628,6 @@ Validates that the count of duplicate values in a column is within specified bou
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
-| `min` | `int\|float` | No | None | Minimum allowed duplicate count/percentage (inclusive) |
-| `max` | `int\|float` | No | None | Maximum allowed duplicate count/percentage (inclusive) |
-| `between` | `array` | No | None | Duplicate count/percentage range as [min, max] |
-| `equals` | `int\|float` | No | None | Expected exact duplicate count/percentage |
-| `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
 
 **Note:** To enforce uniqueness (no duplicates), use `max: 0` or `equals: 0`.
 
@@ -1750,11 +1717,6 @@ Validates that string values match a pattern. Supports explicit regex patterns o
 | `format` | `string` | No* | None | Predefined format name ("email", "phone", "uuid", "url", "ipv4", "ipv6", "date", "datetime") |
 | `flags` | `list[string]` | No | `[]` | Regex flags (e.g., "IGNORECASE", "MULTILINE") - only for pattern |
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
-| `min` | `int\|float` | No | None | Minimum allowed return value |
-| `max` | `int\|float` | No | None | Maximum allowed return value |
-| `between` | `array` | No | None | Return value range as [min, max] |
-| `equals` | `int\|float` | No | None | Expected exact return value |
-| `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
 
 \* Exactly ONE of `pattern` or `format` must be specified
 
@@ -1918,11 +1880,6 @@ Validates that string lengths are within specified bounds. Returns count or perc
 | `min_length` | `int` | No* | None | Minimum allowed string length |
 | `max_length` | `int` | No* | None | Maximum allowed string length |
 | `return` | `string` | No | `count` | Return type: "count" or "pct" |
-| `min` | `int\|float` | No | None | Minimum return value (count or pct) |
-| `max` | `int\|float` | No | None | Maximum return value (count or pct) |
-| `between` | `array` | No | None | Return value range as [min, max] |
-| `equals` | `int\|float` | No | None | Expected exact return value |
-| `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
 
 \* At least one of `min_length` or `max_length` required
 
@@ -2003,14 +1960,6 @@ Validates that the count of distinct (unique) non-null values is within specifie
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `min` | `int` | No | None | Minimum allowed distinct count (inclusive) |
-| `max` | `int` | No | None | Maximum allowed distinct count (inclusive) |
-| `between` | `array` | No | None | Distinct count range as [min, max] |
-| `equals` | `int` | No | None | Expected exact distinct count |
-| `tolerance` | `int` | No | `0` | Tolerance for count comparisons |
-
 **Example 1: Low Cardinality (Categorical)**
 
 ```yaml
@@ -2064,14 +2013,6 @@ Validates that the minimum value in the column meets specified criteria.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `min` | `number` | No | None | Minimum allowed value for the column minimum |
-| `max` | `number` | No | None | Maximum allowed value for the column minimum |
-| `between` | `array` | No | None | Range for the column minimum as [min, max] |
-| `equals` | `number` | No | None | Expected exact minimum value |
-| `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons |
-
 **Example 1: Minimum Must Be Non-Negative**
 
 ```yaml
@@ -2110,14 +2051,6 @@ Validates that the maximum value in the column meets specified criteria.
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `min` | `number` | No | None | Minimum allowed value for the column maximum |
-| `max` | `number` | No | None | Maximum allowed value for the column maximum |
-| `between` | `array` | No | None | Range for the column maximum as [min, max] |
-| `equals` | `number` | No | None | Expected exact maximum value |
-| `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons |
-
 **Example 1: Maximum Must Be Reasonable**
 
 ```yaml
@@ -2155,14 +2088,6 @@ columns:
 Validates that the arithmetic mean of numeric values is within specified bounds.
 
 **Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `min` | `float` | No | None | Minimum allowed mean (inclusive) |
-| `max` | `float` | No | None | Maximum allowed mean (inclusive) |
-| `between` | `array` | No | None | Mean range as [min, max] - validates min ≤ mean ≤ max |
-| `equals` | `float` | No | None | Expected exact mean value |
-| `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons (absolute) |
 
 **Note:** This check does NOT support `threshold` because direction is context-dependent. Most use cases require range validation.
 
@@ -2220,14 +2145,6 @@ Validates that the sum of all non-null values in a column meets specified criter
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `min` | `number` | No | None | Minimum allowed sum (inclusive) |
-| `max` | `number` | No | None | Maximum allowed sum (inclusive) |
-| `between` | `array` | No | None | Sum range as [min, max] |
-| `equals` | `number` | No | None | Expected exact sum value |
-| `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons (absolute) |
-
 **Example 1: Exact Sum**
 
 ```yaml
@@ -2283,14 +2200,6 @@ Validates that the count of non-null values in a column meets specified criteria
 
 **Parameters:**
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `min` | `int` | No | None | Minimum allowed count (inclusive) |
-| `max` | `int` | No | None | Maximum allowed count (inclusive) |
-| `between` | `array` | No | None | Count range as [min, max] |
-| `equals` | `int` | No | None | Expected exact count |
-| `tolerance` | `int` | No | `0` | Tolerance for count comparisons (usually 0) |
-
 **Example 1: Exact Count**
 
 ```yaml
@@ -2344,14 +2253,6 @@ columns:
 Validates that the variance of numeric values is within specified bounds (measures spread).
 
 **Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `min` | `float` | No | None | Minimum variance (inclusive) |
-| `max` | `float` | No | None | Maximum variance (inclusive) |
-| `between` | `array` | No | None | Variance range as [min, max] |
-| `equals` | `float` | No | None | Expected exact variance |
-| `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons (absolute) |
 
 **Example 1: Maximum Bound (Most Common)**
 
@@ -2410,11 +2311,6 @@ Validates that a specific percentile value is within specified bounds.
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `percentile` | `float` | Yes | None | Percentile to check (0-100) |
-| `min` | `float` | No | None | Minimum allowed value at percentile (inclusive) |
-| `max` | `float` | No | None | Maximum allowed value at percentile (inclusive) |
-| `between` | `array` | No | None | Value range at percentile as [min, max] |
-| `equals` | `float` | No | None | Expected exact value at percentile |
-| `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons (absolute) |
 
 **Note:** This check does NOT support `threshold` because direction is context-dependent. Most use cases require range validation.
 
