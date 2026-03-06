@@ -906,7 +906,7 @@ Data contracts support two categories of checks:
 - Check names should be descriptive business statements (e.g., "Order ID is unique")
 - Severity levels: `P0` (critical), `P1` (important), `P2` (nice-to-have), `P3` (informational)
 - All checks support optional `tags` parameter for categorization
-- Check type names in YAML contracts use `snake_case` (e.g., `num_rows`, `duplicates`). These correspond to the PascalCase Python classes in the implementation (e.g., `NumRows`, `Duplicates`). A normalization layer will be added during implementation.
+- Check type names in YAML contracts use `snake_case` (e.g., `num_rows`, `duplicates`, `nulls`). A normalization layer will map these to the corresponding Python implementation classes during contract parsing.
 
 ---
 
@@ -948,7 +948,7 @@ Statistical checks compute aggregate metrics over the entire column and return a
 
 ##### Value Checks
 
-Value checks validate individual values within a column (rather than computing aggregates over the column). They return either a count or percentage of values that pass the validation rule. Use the `return` parameter to specify the return type (`count` or `pct`).
+Value checks validate individual values within a column (rather than computing aggregates over the column). Each check defines its own return semantics — see individual check sections for details. Use the `return` parameter to specify whether the check returns an absolute count (`count`) or a percentage (`pct`).
 
 | Check Type | Description | Validators | Return |
 |------------|-------------|------------|--------|
@@ -1067,12 +1067,12 @@ Use 'between: [100, 1000]' OR 'min: 100, max: 1000', not both.
 
 **Use `max` for "lower is better" checks:**
 - Metrics where lower values indicate better quality
-- Examples: `nulls` (with count return), `variance`, `duplicates`
+- Examples: `nulls` (with count return), `variance`, `duplicates`, `completeness` (uses `max_gap_count`)
 - Rationale: You want to set an upper bound on "bad" metrics
 
 **Use `min` for "higher is better" checks:**
 - Metrics where higher values indicate better quality
-- Examples: `completeness`, `cardinality` (for diversity)
+- Examples: `cardinality` (for diversity)
 - Rationale: You want to set a lower bound on "good" metrics
 
 **Use both `min` and `max` (or `between`) for stability:**
@@ -1325,13 +1325,13 @@ checks:
     severity: P0
 ```
 
-**Example 3: Minimum Age (Data Not Too New)**
+**Example 3: Oldest Record Within 7 Days**
 
 ```yaml
 checks:
-  - name: "Data has settled (at least 1 hour old)"
+  - name: "Oldest record within 7 days"
     type: freshness
-    max_age_hours: 168.0  # 7 days max
+    max_age_hours: 168.0  # oldest record must be no more than 7 days old
     timestamp_column: ingestion_time
     aggregation: min
     severity: P2
