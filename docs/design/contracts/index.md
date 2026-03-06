@@ -18,7 +18,7 @@ A data contract is a versioned YAML document that defines the schema, quality ch
 
 Teams need contracts because data requirements must be explicit, version-controlled, testable, and portable. Without contracts, quality rules live in ad-hoc Python scripts that differ across environments, drift from the actual schema, and cannot be reviewed as data specifications. A contract replaces that scattered Python code with a single declarative YAML file that any engineer can read, diff, and own.
 
-Contracts generate standard `VerificationSuite` instances. Every suite produces `AssertionResult` objects — the same format as hand-coded DQX suites — so contracts integrate without modification into existing pipelines, dashboards, and alerting systems.
+Contracts generate lists of `DecoratedCheck` functions — the same type that `VerificationSuite` already accepts. The user combines contract-generated checks with hand-coded checks in a single suite, so contract-based and custom validations run together and produce `AssertionResult` objects identical to those from hand-coded suites.
 
 ---
 
@@ -26,20 +26,21 @@ Contracts generate standard `VerificationSuite` instances. Every suite produces 
 
 ### Core Design Principle
 
-**Contracts are column-centric YAML specifications that generate VerificationSuites following the suite → checks → assertions pattern.**
+**Contracts are column-centric YAML specifications that generate checks composable with hand-coded checks inside a standard VerificationSuite.**
 
 ```text
 Contract YAML (schema + checks)
-    ↓ Contract.from_yaml()         [proposed]
+    ↓ Contract.from_yaml()                                          [proposed]
 Contract instance (with PyArrow schema)
-    ↓ contract.to_verification_suite(db)  [proposed]
-VerificationSuite (standard, reusable)
+    ↓ contract.to_checks()                                          [proposed]
+list[DecoratedCheck]
+    ↓ VerificationSuite(checks=contract.to_checks() + [custom_check, ...], db=db, name=...)
+VerificationSuite (contract + custom checks, single suite)
     ↓ suite.run([datasource], result_key)
-    ↓ [Schema validation at runtime via PyArrow]
 AssertionResult[] (standard)
 ```
 
-The proposed runtime flow has four steps. First, `Contract.from_yaml()` parses the YAML document and builds a `Contract` instance containing a fully resolved PyArrow schema. Second, `contract.to_verification_suite(db)` translates every column definition and check into a standard `VerificationSuite`. Third, `suite.run([datasource], result_key)` executes all checks and validates the schema against the live datasource at runtime via PyArrow. Fourth, the suite returns `AssertionResult[]` objects — identical in format to those produced by hand-coded suites — enabling downstream consumers to treat contract-based and code-based results uniformly.
+The proposed runtime flow has three steps. First, `Contract.from_yaml()` parses the YAML and builds a `Contract` instance with a fully resolved PyArrow schema. Second, `contract.to_checks()` translates every column definition and check into a list of `DecoratedCheck` functions — the same type `VerificationSuite` accepts — so the user merges them with any hand-coded checks: `VerificationSuite(checks=contract.to_checks() + [custom_check], db=db, name=...)`. Third, `suite.run([datasource], result_key)` executes all checks, validates the schema at runtime via PyArrow, and returns `AssertionResult[]` objects identical to those from hand-coded suites.
 
 ---
 
