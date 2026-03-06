@@ -66,6 +66,13 @@ sla:
 metadata:
   partitioned_by: ["event_date"]
 
+# Optional table-level checks
+checks:
+  - name: "Row count check"
+    type: num_rows
+    min: 100
+    severity: P1
+
 # Schema with unified type field
 columns:
   - name: column_name
@@ -84,13 +91,6 @@ columns:
         type: duplicates
         max: 0
         severity: P0
-
-# Optional table-level checks
-checks:
-  - name: "Row count check"
-    type: num_rows
-    min: 100
-    severity: P1
 ```
 
 **Metadata.** Every contract begins with five required metadata fields that identify the dataset and its owner: `name` (a human-readable label), `version` (a semantic version string), `description` (a plain-English statement of what the data represents), `owner` (the responsible team), and `dataset` (the table or view name used at query time). An optional `tags` field accepts a list of strings for filtering and discovery.
@@ -99,9 +99,9 @@ checks:
 
 **Partitioning.** The optional `metadata` block declares the partitioning columns for the dataset. DQX reads `partitioned_by` to infer which column carries the timestamp used in freshness and completeness checks. When the SLA block references a freshness check and `partitioned_by` is set, DQX selects the first listed column as the timestamp column automatically.
 
-**Columns.** The `columns` section is the heart of the contract. Each entry co-locates four pieces of information that belong together: the column's `type` (one of 12 flexible PyArrow types that accept compatible storage variations — `int` accepts int8 through int64, `float` accepts float32 and float64), its `nullable` flag (defaults to `true` when omitted), its required `description`, and an optional `checks` list. Co-locating schema and checks in a single entry makes the contract self-documenting: a reader sees the column's semantics and its quality requirements in one place. See [Type System](types.md) for the full compatibility matrix.
-
 **Table-level checks.** The top-level `checks` section validates properties of the dataset as a whole. `num_rows` asserts that the row count falls within a specified range. `duplicates` asserts that duplicate rows stay below a threshold. `freshness` asserts that the most recent timestamp column value falls within an acceptable lag window. `completeness` asserts that partition gaps — missing dates or time windows — stay below a specified count. All four checks accept `severity` and standard validators (`min`, `max`, `between`, `equals`, `tolerance`).
+
+**Columns.** The `columns` section is the heart of the contract. Each entry co-locates four pieces of information that belong together: the column's `type` (one of 12 flexible PyArrow types that accept compatible storage variations — `int` accepts int8 through int64, `float` accepts float32 and float64), its `nullable` flag (defaults to `true` when omitted), its required `description`, and an optional `checks` list. Co-locating schema and checks in a single entry makes the contract self-documenting: a reader sees the column's semantics and its quality requirements in one place. See [Type System](types.md) for the full compatibility matrix.
 
 ---
 
