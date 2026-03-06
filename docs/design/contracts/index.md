@@ -370,10 +370,10 @@ Most checks, table-level or column-level, support validators: `min`, `max`, `bet
 
 DQX data contracts provide a declarative YAML interface defining schemas (PyArrow-based with 12 flexible types), SLAs (cron-based availability schedules), quality checks (column and table-level), and metadata (documentation and partitioning hints). The design centers on one principle: keep schema and checks co-located so the contract reads as a complete specification of the dataset, not a fragmented collection of rules.
 
-✅ **Declarative** - Express requirements in YAML, not Python code
-✅ **Type-Safe** - PyArrow schema validation with complex type support
-✅ **Flexible** - Types accept compatible variations (e.g., `int` accepts int8-int64)
-✅ **Reusable** - Generated suites run against multiple datasources
-✅ **Standard** - Produces standard `AssertionResult` objects
-✅ **Extensible** - Custom check types via function registry
-✅ **Self-Documenting** - Required descriptions enforce documentation culture
+- ✅ **Declarative** - Express requirements in YAML, not Python code
+- ✅ **Type-Safe** - PyArrow schema validation with complex type support
+- ✅ **Flexible** - Types accept compatible variations (e.g., `int` accepts int8-int64)
+- ✅ **Reusable** - Generated suites run against multiple datasources
+- ✅ **Standard** - Produces standard `AssertionResult` objects
+- ✅ **Extensible** - Custom check types via function registry
+- ✅ **Self-Documenting** - Required descriptions enforce documentation culture
