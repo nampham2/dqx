@@ -916,12 +916,12 @@ Data contracts support two categories of checks:
 
 Validate table-wide properties and aggregates. Specified in the top-level `checks` array.
 
-| Check Type | Description | Validators | Return |
-|------------|-------------|------------|--------|
-| [`num_rows`](#num_rows) | Total row count validation | min, max, between, equals | — |
-| [`duplicates`](#duplicates) | Count of duplicate rows | min, max, between, equals | count or pct |
-| [`freshness`](#freshness) | Data recency validation | max_age_hours | — |
-| [`completeness`](#completeness) | Partition gap detection | max_gap_count | — |
+| Check Type | Description | Return |
+|------------|-------------|--------|
+| [`num_rows`](#num_rows) | Total row count validation | count |
+| [`duplicates`](#duplicates) | Count of duplicate rows | count or pct |
+| [`freshness`](#freshness) | Data recency validation | age_hours |
+| [`completeness`](#completeness) | Partition gap detection | gap_count |
 
 **Total: 4 table-level checks**
 
@@ -935,37 +935,38 @@ Validate individual column values and properties. Specified within the `checks` 
 
 Statistical checks compute aggregate metrics over the entire column and return a single numeric value.
 
-| Check Type | Description | Validators |
-|------------|-------------|------------|
-| [`cardinality`](#cardinality) | Count of distinct values | min, max, between, equals |
-| [`min`](#min) | Minimum value in column | min, max, between, equals |
-| [`max`](#max) | Maximum value in column | min, max, between, equals |
-| [`mean`](#mean) | Average value validation | min, max, between, equals |
-| [`sum`](#sum) | Sum of values validation | min, max, between, equals |
-| [`count`](#count) | Count of non-null values | min, max, between, equals |
-| [`variance`](#variance) | Variance validation | min, max, between, equals |
-| [`percentile`](#percentile) | Percentile value validation | min, max, between, equals |
+| Check Type | Description |
+|------------|-------------|
+| [`cardinality`](#cardinality) | Count of distinct values |
+| [`min`](#min) | Minimum value in column |
+| [`max`](#max) | Maximum value in column |
+| [`mean`](#mean) | Average value validation |
+| [`sum`](#sum) | Sum of values validation |
+| [`count`](#count) | Count of non-null values |
+| [`variance`](#variance) | Variance validation |
+| [`percentile`](#percentile) | Percentile value validation |
 
 ##### Value Checks
 
-Value checks validate individual values within a column (rather than computing aggregates over the column). Each check defines its own return semantics — see individual check sections for details. Use the `return` parameter to specify whether the check returns an absolute count (`count`) or a percentage (`pct`).
+Value checks validate individual values within a column. Each check returns either an absolute count (`count`) or percentage (`pct`) controlled by the `return` parameter. For `nulls` and `duplicates`, the return value represents the count/percentage of null or duplicate values found. For `whitelist`, `blacklist`, `pattern`, and `length`, the return value represents the count/percentage of valid (conforming) rows.
 
-| Check Type | Description | Validators | Return |
-|------------|-------------|------------|--------|
-| [`nulls`](#nulls) | Null value validation | min, max, between, equals | count or pct |
-| [`duplicates`](#duplicates) | Duplicate value validation | min, max, between, equals | count or pct |
-| [`whitelist`](#whitelist) | Whitelist validation | values | count or pct |
-| [`blacklist`](#blacklist) | Blacklist validation | values | count or pct |
-| [`pattern`](#pattern) | Regex pattern validation | pattern or format | count or pct |
-| [`length`](#length) | String length validation | min_length, max_length | count or pct |
+| Check Type | Description | Return |
+|------------|-------------|--------|
+| [`nulls`](#nulls) | Null value validation | count or pct |
+| [`duplicates`](#duplicates) | Duplicate value validation | count or pct |
+| [`whitelist`](#whitelist) | Values in allowed set | count or pct |
+| [`blacklist`](#blacklist) | Values in disallowed set | count or pct |
+| [`pattern`](#pattern) | Values matching regex pattern | count or pct |
+| [`length`](#length) | Values within length bounds | count or pct |
 
 **Total: 14 column-level checks** (8 Statistical + 6 Value Checks)
 
 ---
 
-**Legend:**
-- **Validators**: Parameters used to define the validation condition
-- All checks with numeric validators support the `tolerance` parameter
+**Note:**
+- All checks support standard validators: `min`, `max`, `between`, `equals`, and `tolerance`
+- `freshness` returns `age_hours` and validates implicitly with `max` = `max_age_hours`
+- `completeness` returns `gap_count` and validates implicitly with `max` = `max_gap_count`
 - Check type names are linked to their detailed definitions below
 
 ---
@@ -1295,6 +1296,8 @@ checks:
 
 Validates that data is not stale (most recent timestamp is within acceptable age).
 
+**Returns:** `age_hours` — the age of the most recent (or oldest, depending on `aggregation`) record in hours. Validated implicitly: the check passes when `age_hours <= max_age_hours`.
+
 **Parameters:**
 
 | Parameter | Type | Required | Default | Description |
@@ -1342,6 +1345,8 @@ checks:
 ##### `completeness`
 
 Validates that partitioned data has no missing partitions within a time range (gap detection). This check only applies to tables with `metadata.partitioned_by` defined.
+
+**Returns:** `gap_count` — the number of missing partitions found. Validated implicitly: the check passes when `gap_count <= max_gap_count`.
 
 **Note:** For column-level null validation, use `nulls` check (with `return: count` for absolute counts or `return: pct` for percentages).
 
