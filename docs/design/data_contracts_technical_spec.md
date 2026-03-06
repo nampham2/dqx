@@ -908,6 +908,21 @@ Data contracts support two categories of checks:
 - All checks support optional `tags` parameter for categorization
 - Check type names in YAML contracts use `snake_case` (e.g., `num_rows`, `duplicates`, `nulls`).
 
+**Check Structure:**
+
+Every check shares a common structure:
+
+```yaml
+- name: "Descriptive business name"   # required
+  type: <check_type>                   # required
+  severity: P0 | P1 | P2 | P3         # required
+  <validator>: <value>                 # optional — exactly one of: min, max, between, equals
+  tolerance: <value>                   # optional
+  # check-specific params (e.g. return: count/pct, columns:, values:, pattern:)
+```
+
+The `name` is a descriptive business statement. The `type` identifies which check to run. `severity` sets the priority level. A single **validator** — `min`, `max`, `between`, or `equals` — defines the acceptance condition; only one may be specified per check. The optional `tolerance` parameter allows acceptable variance. Check-specific parameters (such as `return`, `columns`, `values`, `pattern`) are documented in each check's detail section.
+
 ---
 
 ### Check Types Summary
@@ -1085,7 +1100,7 @@ Use 'between: [100, 1000]' OR 'min: 100, max: 1000', not both.
 
 #### Validator Parameters (Mutually Exclusive)
 
-All aggregate checks support four validator patterns. Use exactly ONE per check:
+All checks support four validator patterns (see Check Structure in the Overview):
 
 > **Note:** Validators (`min`, `max`, `between`, `equals`) are optional for value checks (e.g., `whitelist`, `blacklist`, `pattern`, `length`) that define their own required parameters such as `values` or `pattern`. When a validator is omitted from a value check, the check acts as a boolean assertion — it passes if all rows conform (equivalent to requiring the conforming count to equal the total row count).
 
@@ -1183,13 +1198,11 @@ Validates that the total row count is within specified bounds.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `min` | `int` | No* | None | Minimum allowed row count (inclusive) |
-| `max` | `int` | No* | None | Maximum allowed row count (inclusive) |
-| `between` | `array` | No* | None | Row count range as [min, max] - validates min ≤ count ≤ max |
-| `equals` | `int` | No* | None | Expected exact row count |
+| `min` | `int` | No | None | Minimum allowed row count (inclusive) |
+| `max` | `int` | No | None | Maximum allowed row count (inclusive) |
+| `between` | `array` | No | None | Row count range as [min, max] - validates min ≤ count ≤ max |
+| `equals` | `int` | No | None | Expected exact row count |
 | `tolerance` | `int` | No | `0` | Tolerance for count comparisons |
-
-\* Use ONE of: `min` OR `max` OR `min`/`max` OR `between` OR `equals`
 
 **Note:** This check does NOT support `threshold` because direction is context-dependent. Most use cases require range validation to detect both missing data (too few rows) and duplicates/anomalies (too many rows).
 
@@ -1236,13 +1249,11 @@ Validates that the number of duplicate rows (based on specified columns) is with
 |-----------|------|----------|---------|-------------|
 | `columns` | `list[string]` | Yes | None | Columns to check for duplicates (composite key) |
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
-| `min` | `int\|float` | No* | None | Minimum duplicate count/percentage (inclusive) |
-| `max` | `int\|float` | No* | None | Maximum allowed duplicate count/percentage (inclusive) |
-| `between` | `array` | No* | None | Duplicate count/percentage range as [min, max] |
-| `equals` | `int\|float` | No* | None | Expected exact duplicate count/percentage |
+| `min` | `int\|float` | No | None | Minimum duplicate count/percentage (inclusive) |
+| `max` | `int\|float` | No | None | Maximum allowed duplicate count/percentage (inclusive) |
+| `between` | `array` | No | None | Duplicate count/percentage range as [min, max] |
+| `equals` | `int\|float` | No | None | Expected exact duplicate count/percentage |
 | `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
-
-\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
 
 **Example 1: No Duplicates (Most Common)**
 
@@ -1425,13 +1436,11 @@ Validates null values in a column. Returns count or percentage of null values ba
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
-| `min` | `int\|float` | No* | None | Minimum allowed null count/percentage (inclusive) |
-| `max` | `int\|float` | No* | None | Maximum allowed null count/percentage (inclusive) |
-| `between` | `array` | No* | None | Null count/percentage range as [min, max] |
-| `equals` | `int\|float` | No* | None | Expected exact null count/percentage |
+| `min` | `int\|float` | No | None | Minimum allowed null count/percentage (inclusive) |
+| `max` | `int\|float` | No | None | Maximum allowed null count/percentage (inclusive) |
+| `between` | `array` | No | None | Null count/percentage range as [min, max] |
+| `equals` | `int\|float` | No | None | Expected exact null count/percentage |
 | `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
-
-\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
 
 **Example 1: Maximum Bound (Most Common)**
 
@@ -1511,13 +1520,11 @@ Validates that non-null values match a whitelist of allowed values. Returns coun
 | `values` | `list` | Yes | None | List of allowed values |
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
 | `case_sensitive` | `bool` | No | `true` | Whether comparison is case-sensitive (strings only) |
-| `min` | `int\|float` | No* | None | Minimum allowed return value |
-| `max` | `int\|float` | No* | None | Maximum allowed return value |
-| `between` | `array` | No* | None | Return value range as [min, max] |
-| `equals` | `int\|float` | No* | None | Expected exact return value |
+| `min` | `int\|float` | No | None | Minimum allowed return value |
+| `max` | `int\|float` | No | None | Maximum allowed return value |
+| `between` | `array` | No | None | Return value range as [min, max] |
+| `equals` | `int\|float` | No | None | Expected exact return value |
 | `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
-
-\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
 
 **Example 1: Basic Usage**
 
@@ -1597,13 +1604,11 @@ Validates that non-null values do NOT match a blacklist. Returns count or percen
 | `values` | `list` | Yes | None | List of forbidden values |
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
 | `case_sensitive` | `bool` | No | `true` | Whether comparison is case-sensitive (strings only) |
-| `min` | `int\|float` | No* | None | Minimum allowed return value |
-| `max` | `int\|float` | No* | None | Maximum allowed return value |
-| `between` | `array` | No* | None | Return value range as [min, max] |
-| `equals` | `int\|float` | No* | None | Expected exact return value |
+| `min` | `int\|float` | No | None | Minimum allowed return value |
+| `max` | `int\|float` | No | None | Maximum allowed return value |
+| `between` | `array` | No | None | Return value range as [min, max] |
+| `equals` | `int\|float` | No | None | Expected exact return value |
 | `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
-
-\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
 
 **Example 1: Basic Usage**
 
@@ -1651,13 +1656,11 @@ Validates that the count of duplicate values in a column is within specified bou
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
-| `min` | `int\|float` | No* | None | Minimum allowed duplicate count/percentage (inclusive) |
-| `max` | `int\|float` | No* | None | Maximum allowed duplicate count/percentage (inclusive) |
-| `between` | `array` | No* | None | Duplicate count/percentage range as [min, max] |
-| `equals` | `int\|float` | No* | None | Expected exact duplicate count/percentage |
+| `min` | `int\|float` | No | None | Minimum allowed duplicate count/percentage (inclusive) |
+| `max` | `int\|float` | No | None | Maximum allowed duplicate count/percentage (inclusive) |
+| `between` | `array` | No | None | Duplicate count/percentage range as [min, max] |
+| `equals` | `int\|float` | No | None | Expected exact duplicate count/percentage |
 | `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
-
-\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
 
 **Note:** To enforce uniqueness (no duplicates), use `max: 0` or `equals: 0`.
 
@@ -1747,14 +1750,13 @@ Validates that string values match a pattern. Supports explicit regex patterns o
 | `format` | `string` | No* | None | Predefined format name ("email", "phone", "uuid", "url", "ipv4", "ipv6", "date", "datetime") |
 | `flags` | `list[string]` | No | `[]` | Regex flags (e.g., "IGNORECASE", "MULTILINE") - only for pattern |
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
-| `min` | `int\|float` | No** | None | Minimum allowed return value |
-| `max` | `int\|float` | No** | None | Maximum allowed return value |
-| `between` | `array` | No** | None | Return value range as [min, max] |
-| `equals` | `int\|float` | No** | None | Expected exact return value |
+| `min` | `int\|float` | No | None | Minimum allowed return value |
+| `max` | `int\|float` | No | None | Maximum allowed return value |
+| `between` | `array` | No | None | Return value range as [min, max] |
+| `equals` | `int\|float` | No | None | Expected exact return value |
 | `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
 
 \* Exactly ONE of `pattern` or `format` must be specified
-\*\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
 
 **Example 1: Email Validation**
 
@@ -1916,14 +1918,13 @@ Validates that string lengths are within specified bounds. Returns count or perc
 | `min_length` | `int` | No* | None | Minimum allowed string length |
 | `max_length` | `int` | No* | None | Maximum allowed string length |
 | `return` | `string` | No | `count` | Return type: "count" or "pct" |
-| `min` | `int\|float` | No** | None | Minimum return value (count or pct) |
-| `max` | `int\|float` | No** | None | Maximum return value (count or pct) |
-| `between` | `array` | No** | None | Return value range as [min, max] |
-| `equals` | `int\|float` | No** | None | Expected exact return value |
+| `min` | `int\|float` | No | None | Minimum return value (count or pct) |
+| `max` | `int\|float` | No | None | Maximum return value (count or pct) |
+| `between` | `array` | No | None | Return value range as [min, max] |
+| `equals` | `int\|float` | No | None | Expected exact return value |
 | `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
 
 \* At least one of `min_length` or `max_length` required
-\*\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
 
 **Example 1: Basic Usage**
 
@@ -2004,13 +2005,11 @@ Validates that the count of distinct (unique) non-null values is within specifie
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `min` | `int` | No* | None | Minimum allowed distinct count (inclusive) |
-| `max` | `int` | No* | None | Maximum allowed distinct count (inclusive) |
-| `between` | `array` | No* | None | Distinct count range as [min, max] |
-| `equals` | `int` | No* | None | Expected exact distinct count |
+| `min` | `int` | No | None | Minimum allowed distinct count (inclusive) |
+| `max` | `int` | No | None | Maximum allowed distinct count (inclusive) |
+| `between` | `array` | No | None | Distinct count range as [min, max] |
+| `equals` | `int` | No | None | Expected exact distinct count |
 | `tolerance` | `int` | No | `0` | Tolerance for count comparisons |
-
-\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
 
 **Example 1: Low Cardinality (Categorical)**
 
@@ -2067,13 +2066,11 @@ Validates that the minimum value in the column meets specified criteria.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `min` | `number` | No* | None | Minimum allowed value for the column minimum |
-| `max` | `number` | No* | None | Maximum allowed value for the column minimum |
-| `between` | `array` | No* | None | Range for the column minimum as [min, max] |
-| `equals` | `number` | No* | None | Expected exact minimum value |
+| `min` | `number` | No | None | Minimum allowed value for the column minimum |
+| `max` | `number` | No | None | Maximum allowed value for the column minimum |
+| `between` | `array` | No | None | Range for the column minimum as [min, max] |
+| `equals` | `number` | No | None | Expected exact minimum value |
 | `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons |
-
-\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
 
 **Example 1: Minimum Must Be Non-Negative**
 
@@ -2115,13 +2112,11 @@ Validates that the maximum value in the column meets specified criteria.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `min` | `number` | No* | None | Minimum allowed value for the column maximum |
-| `max` | `number` | No* | None | Maximum allowed value for the column maximum |
-| `between` | `array` | No* | None | Range for the column maximum as [min, max] |
-| `equals` | `number` | No* | None | Expected exact maximum value |
+| `min` | `number` | No | None | Minimum allowed value for the column maximum |
+| `max` | `number` | No | None | Maximum allowed value for the column maximum |
+| `between` | `array` | No | None | Range for the column maximum as [min, max] |
+| `equals` | `number` | No | None | Expected exact maximum value |
 | `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons |
-
-\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
 
 **Example 1: Maximum Must Be Reasonable**
 
@@ -2163,13 +2158,11 @@ Validates that the arithmetic mean of numeric values is within specified bounds.
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `min` | `float` | No* | None | Minimum allowed mean (inclusive) |
-| `max` | `float` | No* | None | Maximum allowed mean (inclusive) |
-| `between` | `array` | No* | None | Mean range as [min, max] - validates min ≤ mean ≤ max |
-| `equals` | `float` | No* | None | Expected exact mean value |
+| `min` | `float` | No | None | Minimum allowed mean (inclusive) |
+| `max` | `float` | No | None | Maximum allowed mean (inclusive) |
+| `between` | `array` | No | None | Mean range as [min, max] - validates min ≤ mean ≤ max |
+| `equals` | `float` | No | None | Expected exact mean value |
 | `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons (absolute) |
-
-\* Use ONE of: `min` OR `max` OR `min`/`max` OR `between` OR `equals`
 
 **Note:** This check does NOT support `threshold` because direction is context-dependent. Most use cases require range validation.
 
@@ -2229,13 +2222,11 @@ Validates that the sum of all non-null values in a column meets specified criter
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `min` | `number` | No* | None | Minimum allowed sum (inclusive) |
-| `max` | `number` | No* | None | Maximum allowed sum (inclusive) |
-| `between` | `array` | No* | None | Sum range as [min, max] |
-| `equals` | `number` | No* | None | Expected exact sum value |
+| `min` | `number` | No | None | Minimum allowed sum (inclusive) |
+| `max` | `number` | No | None | Maximum allowed sum (inclusive) |
+| `between` | `array` | No | None | Sum range as [min, max] |
+| `equals` | `number` | No | None | Expected exact sum value |
 | `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons (absolute) |
-
-\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
 
 **Example 1: Exact Sum**
 
@@ -2294,13 +2285,11 @@ Validates that the count of non-null values in a column meets specified criteria
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `min` | `int` | No* | None | Minimum allowed count (inclusive) |
-| `max` | `int` | No* | None | Maximum allowed count (inclusive) |
-| `between` | `array` | No* | None | Count range as [min, max] |
-| `equals` | `int` | No* | None | Expected exact count |
+| `min` | `int` | No | None | Minimum allowed count (inclusive) |
+| `max` | `int` | No | None | Maximum allowed count (inclusive) |
+| `between` | `array` | No | None | Count range as [min, max] |
+| `equals` | `int` | No | None | Expected exact count |
 | `tolerance` | `int` | No | `0` | Tolerance for count comparisons (usually 0) |
-
-\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
 
 **Example 1: Exact Count**
 
@@ -2358,13 +2347,11 @@ Validates that the variance of numeric values is within specified bounds (measur
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `min` | `float` | No* | None | Minimum variance (inclusive) |
-| `max` | `float` | No* | None | Maximum variance (inclusive) |
-| `between` | `array` | No* | None | Variance range as [min, max] |
-| `equals` | `float` | No* | None | Expected exact variance |
+| `min` | `float` | No | None | Minimum variance (inclusive) |
+| `max` | `float` | No | None | Maximum variance (inclusive) |
+| `between` | `array` | No | None | Variance range as [min, max] |
+| `equals` | `float` | No | None | Expected exact variance |
 | `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons (absolute) |
-
-\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
 
 **Example 1: Maximum Bound (Most Common)**
 
@@ -2423,13 +2410,11 @@ Validates that a specific percentile value is within specified bounds.
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `percentile` | `float` | Yes | None | Percentile to check (0-100) |
-| `min` | `float` | No* | None | Minimum allowed value at percentile (inclusive) |
-| `max` | `float` | No* | None | Maximum allowed value at percentile (inclusive) |
-| `between` | `array` | No* | None | Value range at percentile as [min, max] |
-| `equals` | `float` | No* | None | Expected exact value at percentile |
+| `min` | `float` | No | None | Minimum allowed value at percentile (inclusive) |
+| `max` | `float` | No | None | Maximum allowed value at percentile (inclusive) |
+| `between` | `array` | No | None | Value range at percentile as [min, max] |
+| `equals` | `float` | No | None | Expected exact value at percentile |
 | `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons (absolute) |
-
-\* Use ONE of: `min` OR `max` OR `min`/`max` OR `between` OR `equals`
 
 **Note:** This check does NOT support `threshold` because direction is context-dependent. Most use cases require range validation.
 
