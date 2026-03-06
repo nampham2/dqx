@@ -40,14 +40,14 @@ columns:
     checks:
       - name: string                  # Check name (required)
         type: string                  # Check type (e.g., "duplicates", "min")
-        severity: "P0"|"P1"|"P2"|"P3"  # Default: "P1"
+        severity: "P0"|"P1"|"P2"|"P3"  # Required
         # Type-specific parameters...
 
 # Optional: Table-level checks
 checks:
   - name: string                      # Check name (required)
     type: string                      # Check type (e.g., "num_rows", "freshness")
-    severity: "P0"|"P1"|"P2"|"P3"  # Default: "P1"
+    severity: "P0"|"P1"|"P2"|"P3"  # Required
     # Type-specific parameters...
 ```
 

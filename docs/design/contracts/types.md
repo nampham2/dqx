@@ -288,7 +288,7 @@ Complex types nest arbitrarily (e.g., list of structs with maps). All types vali
 
 When a column's actual type does not match the contract, the validator raises a `SchemaValidationError` describing the column, the expected type, and the actual type. The following example shows a contract that declares `user_id` as `int` but receives a `string` column:
 
-```
+```text
 Contract declares: type: int
 Actual column type: pa.string()
 Error: SchemaValidationError: Column 'user_id' type mismatch: expected int (int8-int64, uint8-uint64), got string

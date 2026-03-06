@@ -17,7 +17,7 @@ Data contracts support two categories of checks:
 - Check names should be descriptive business statements (e.g., "Order ID is unique")
 - Severity levels: `P0` (critical), `P1` (important), `P2` (nice-to-have), `P3` (informational)
 - All checks support optional `tags` parameter for categorization
-- Check type names in YAML contracts use `snake_case` (e.g., `num_rows`, `duplicates`, `nulls`)
+- Check type names in YAML contracts use `snake_case` (e.g., `num_rows`, `duplicates`, `nulls`). These `snake_case` names are the specification surface; the contract parser normalizes them to the internal implementation identifiers (e.g., `NumRows`, `NullCount`) used inside DQX.
 
 **Check Structure:**
 
@@ -191,7 +191,7 @@ Use 'between: [100, 1000]' OR 'min: 100, max: 1000', not both.
 
 ### Validator Parameters (Mutually Exclusive)
 
-All checks support four validator patterns (see Check Structure in the Overview):
+Most checks support four validator patterns (see Check Structure in the Overview). Note that `freshness` and `completeness` use check-specific implicit parameters (`max_age_hours` and `max_gap_count`, respectively) instead of the standard validator set:
 
 > **Note:** Validators (`min`, `max`, `between`, `equals`) are optional for value checks (e.g., `whitelist`, `blacklist`, `pattern`, `length`) that define their own required parameters such as `values` or `pattern`. When a validator is omitted from a value check, the check acts as a boolean assertion — it passes if all rows conform (equivalent to requiring the conforming count to equal the total row count).
 
@@ -216,7 +216,6 @@ between: [1000, 100000]
 **4. Exact Match (`equals`)**
 ```yaml
 type: sum
-column: revenue
 equals: 1000000.0
 ```
 

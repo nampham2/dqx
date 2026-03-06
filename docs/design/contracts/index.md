@@ -30,16 +30,16 @@ Contracts generate standard `VerificationSuite` instances. Every suite produces 
 
 ```text
 Contract YAML (schema + checks)
-    ↓ Contract.from_yaml()
+    ↓ Contract.from_yaml()         [proposed]
 Contract instance (with PyArrow schema)
-    ↓ contract.to_verification_suite(db)
+    ↓ contract.to_verification_suite(db)  [proposed]
 VerificationSuite (standard, reusable)
     ↓ suite.run([datasource], result_key)
     ↓ [Schema validation at runtime via PyArrow]
 AssertionResult[] (standard)
 ```
 
-The runtime flow has four steps. First, `Contract.from_yaml()` parses the YAML document and builds a `Contract` instance containing a fully resolved PyArrow schema. Second, `contract.to_verification_suite(db)` translates every column definition and check into a standard `VerificationSuite`. Third, `suite.run([datasource], result_key)` executes all checks and validates the schema against the live datasource at runtime via PyArrow. Fourth, the suite returns `AssertionResult[]` objects — identical in format to those produced by hand-coded suites — enabling downstream consumers to treat contract-based and code-based results uniformly.
+The proposed runtime flow has four steps. First, `Contract.from_yaml()` parses the YAML document and builds a `Contract` instance containing a fully resolved PyArrow schema. Second, `contract.to_verification_suite(db)` translates every column definition and check into a standard `VerificationSuite`. Third, `suite.run([datasource], result_key)` executes all checks and validates the schema against the live datasource at runtime via PyArrow. Fourth, the suite returns `AssertionResult[]` objects — identical in format to those produced by hand-coded suites — enabling downstream consumers to treat contract-based and code-based results uniformly.
 
 ---
 
@@ -147,7 +147,7 @@ DQX contracts provide 18 built-in check types across two scopes.
 - `pattern` — all values match a regular expression
 - `length` — string or array length
 
-Every check, table-level or column-level, supports validators: `min`, `max`, `between`, `equals`, and `tolerance`. See [Check Types Reference](checks.md) for parameter conventions and composition patterns.
+Most checks, table-level or column-level, support validators: `min`, `max`, `between`, `equals`, and `tolerance`. Exceptions are `freshness` (uses `max_age_hours`) and `completeness` (uses `max_gap_count`), which use check-specific implicit parameters instead. See [Check Types Reference](checks.md) for parameter conventions and composition patterns.
 
 ---
 
