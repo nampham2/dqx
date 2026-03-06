@@ -95,7 +95,7 @@ columns:
 # Optional: Table-level checks
 checks:
   - name: string                      # Check name (required)
-    type: string                      # Check type (e.g., "row_count", "freshness")
+    type: string                      # Check type (e.g., "num_rows", "freshness")
     severity: "P0"|"P1"|"P2"|"P3"  # Default: "P1"
     # Type-specific parameters...
 ```
@@ -153,12 +153,13 @@ columns:
       primary_key: "true"
     checks:
       - name: "Order ID is unique"
-        type: unique
+        type: duplicate_count
+        max: 0
         severity: P0
 
       - name: "Order ID is positive"
         type: min
-        value: 1
+        min: 1
         severity: P0
 
   - name: customer_id
@@ -168,7 +169,7 @@ columns:
     checks:
       - name: "Customer ID is positive"
         type: min
-        value: 1
+        min: 1
         severity: P1
 
   - name: total_amount
@@ -178,12 +179,12 @@ columns:
     checks:
       - name: "Amount is non-negative"
         type: min
-        value: 0.0
+        min: 0.0
         severity: P1
 
       - name: "Amount is reasonable"
         type: max
-        value: 1000000.0
+        max: 1000000.0
         severity: P1
 
   - name: status
@@ -192,7 +193,7 @@ columns:
     description: "Order status"
     checks:
       - name: "Status is valid"
-        type: allowed_values
+        type: whitelist
         values: ["pending", "processing", "shipped", "delivered", "cancelled"]
         severity: P0
 
@@ -220,7 +221,7 @@ columns:
 # Table-level checks
 checks:
   - name: "Daily volume within bounds"
-    type: row_count
+    type: num_rows
     min: 100
     max: 1000000
     severity: P1
@@ -575,7 +576,7 @@ checks:
 
 **Note:** The `timestamp_column` is inferred from the first column in `metadata.partitioned_by` for partitioned tables, or must be explicitly specified in the freshness check for non-partitioned tables.
 
-Gap detection is NOT auto-generated. Users explicitly add `partition_completeness` checks in the `checks` section if needed.
+Gap detection is NOT auto-generated. Users explicitly add `completeness` checks in the `checks` section if needed.
 
 ### Complete Examples
 
@@ -610,7 +611,8 @@ columns:
     description: "Unique order identifier"
     checks:
       - name: "Order ID is unique"
-        type: unique
+        type: duplicate_count
+        max: 0
         severity: P0
 
   - name: customer_id
@@ -627,7 +629,7 @@ columns:
     checks:
       - name: "Amount is non-negative"
         type: min
-        value: 0.0
+        min: 0.0
         severity: P1
 
   - name: status
@@ -636,7 +638,7 @@ columns:
     description: "Order status"
     checks:
       - name: "Status is valid"
-        type: allowed_values
+        type: whitelist
         values: ["pending", "processing", "shipped", "delivered", "cancelled"]
         severity: P0
 
@@ -720,7 +722,7 @@ columns:
 # User can optionally add gap detection:
 # checks:
 #   - name: "No missing partitions in last 7 days"
-#     type: partition_completeness
+#     type: completeness
 #     partition_column: order_date
 #     granularity: daily
 #     lookback_days: 7
@@ -891,100 +893,402 @@ SLA metadata reduces boilerplate, ensures correct `max_age_hours` calculation, s
 
 ## Check Types Reference
 
-### Column-Level Check Types
+### Overview
 
-#### `unique`
+Data contracts support two categories of checks:
 
-Validates that all values in a column are unique.
+1. **Table-Level Checks**: Validate table-wide properties (row counts, freshness, duplicates, partitions)
+2. **Column-Level Checks**: Validate individual column values (nullability, uniqueness, ranges, patterns, distributions)
 
-```yaml
-checks:
-  - name: "Order ID is unique"
-    type: unique
-    severity: P0
-```
+**Note:** Cross-dataset validation (referential integrity, schema consistency, aggregate reconciliation) should be handled at the orchestration/workflow level rather than in individual data contracts. This keeps contracts focused on single-dataset quality while allowing orchestration tools to manage relationships between datasets.
 
-**Parameters**: None
+**Naming Conventions:**
+- Check names should be descriptive business statements (e.g., "Order ID is unique")
+- Severity levels: `P0` (critical), `P1` (important), `P2` (nice-to-have), `P3` (informational)
+- All checks support optional `tags` parameter for categorization
 
 ---
 
-#### `min`
+### Check Types Summary
 
-Validates that all values are greater than or equal to a minimum threshold.
+#### Table-Level Checks
+
+Validate table-wide properties and aggregates. Specified in the top-level `checks` array.
+
+| Check Type | Description | Validators |
+|------------|-------------|------------|
+| [`num_rows`](#num_rows) | Total row count validation | min, max, between, equals |
+| [`duplicate_count`](#duplicate_count) | Count of duplicate rows | min, max, between, equals |
+| [`freshness`](#freshness) | Data recency validation | max_age_hours |
+| [`completeness`](#completeness) | Partition gap detection | max_gap_count |
+
+**Total: 4 table-level checks**
+
+---
+
+#### Column-Level Checks
+
+Validate individual column values and properties. Specified within the `checks` array of a column definition.
+
+##### Statistical Checks
+
+Statistical checks compute aggregate metrics over the entire column and return a single numeric value.
+
+| Check Type | Description | Validators |
+|------------|-------------|------------|
+| [`cardinality`](#cardinality) | Count of distinct values | min, max, between, equals |
+| [`min`](#min) | Minimum value in column | min, max, between, equals |
+| [`max`](#max) | Maximum value in column | min, max, between, equals |
+| [`mean`](#mean) | Average value validation | min, max, between, equals |
+| [`sum`](#sum) | Sum of values validation | min, max, between, equals |
+| [`count`](#count) | Count of non-null values | min, max, between, equals |
+| [`variance`](#variance) | Variance validation | min, max, between, equals |
+| [`percentile`](#percentile) | Percentile value validation | min, max, between, equals |
+
+##### Value Checks
+
+Value checks validate individual values within a column (rather than computing aggregates over the column). They return either a count or percentage of values that pass the validation rule. Use the `metric` parameter to specify the return type (`count` or `pct`).
+
+| Check Type | Description | Validators | Metric |
+|------------|-------------|------------|--------|
+| [`null_count`](#null_count) | Null value validation | min, max, between, equals | count or pct |
+| [`duplicate_count`](#duplicate_count) | Duplicate value validation | min, max, between, equals | count |
+| [`whitelist`](#whitelist) | Whitelist validation | values | count or pct |
+| [`blacklist`](#blacklist) | Blacklist validation | values | count or pct |
+| [`pattern`](#pattern) | Regex pattern validation | pattern or format | count or pct |
+| [`length`](#length) | String length validation | min_length, max_length | count or pct |
+
+**Total: 14 column-level checks** (8 Statistical + 6 Value Checks)
+
+---
+
+**Legend:**
+- **Validators**: Parameters used to define the validation condition
+- All checks with numeric validators support the `tolerance` parameter
+- Check type names are linked to their detailed definitions below
+
+---
+
+### Parameter Conventions
+
+Data contract checks use two intuitive parameter patterns: **min/max** (explicit bounds) and **between** (range shorthand). These patterns work together—use `between` as a convenience for specifying both bounds.
+
+#### Pattern 1: Explicit Min/Max
+
+Use `min` and `max` parameters to set explicit bounds. Use only the bound you need, or both for range validation.
 
 ```yaml
+# Lower bound only (for "higher is better" checks)
 checks:
-  - name: "Price is non-negative"
-    type: min
-    value: 0.0
+  - name: "At least 10 distinct merchants"
+    type: cardinality
+    min: 10  # At least 10 distinct values
+    severity: P1
+
+# Upper bound only (for "lower is better" checks)
+checks:
+  - name: "Low null percentage"
+    type: null_pct
+    max: 0.05  # 5% null percentage
+    severity: P1
+
+# Both bounds (range validation)
+checks:
+  - name: "Stable row count"
+    type: num_rows
+    min: 1000
+    max: 100000
     severity: P1
 ```
 
-**Parameters**:
-- `value` (required): Minimum allowed value
+**When to use which bound:**
+- **`max` for "lower is better"** - null_count, null_pct, variance, duplicate_count
+- **`min` for "higher is better"** - cardinality (for diversity)
+- **Both for stability** - num_rows, mean, sum, percentile
 
----
+#### Pattern 2: Between (Convenience)
 
-#### `max`
-
-Validates that all values are less than or equal to a maximum threshold.
-
-```yaml
-checks:
-  - name: "Price is reasonable"
-    type: max
-    value: 1000000.0
-    severity: P1
-```
-
-**Parameters**:
-- `value` (required): Maximum allowed value
-
----
-
-#### `allowed_values`
-
-Validates that all values are in an allowed set.
+Use `between` as shorthand for inclusive ranges. This is equivalent to specifying both `min` and `max`.
 
 ```yaml
 checks:
-  - name: "Status is valid"
-    type: allowed_values
-    values: ["pending", "processing", "shipped", "delivered", "cancelled"]
+  - name: "Revenue in expected range"
+    type: sum
+    between: [1000000, 5000000]
+    severity: P0
+
+# Equivalent to:
+checks:
+  - name: "Revenue in expected range"
+    type: sum
+    min: 1000000
+    max: 5000000
     severity: P0
 ```
 
-**Parameters**:
-- `values` (required): List of allowed values
+#### Parameter Guidelines
+
+**Mutual Exclusivity:** `between` cannot be combined with `min` or `max`:
+
+```yaml
+# ✅ Valid: min only
+min: 100
+
+# ✅ Valid: max only
+max: 1000
+
+# ✅ Valid: both
+min: 100
+max: 1000
+
+# ✅ Valid: between
+between: [100, 1000]
+
+# ❌ Invalid: between + min
+between: [100, 1000]
+min: 50
+
+# ❌ Invalid: between + max
+between: [100, 1000]
+max: 2000
+```
+
+**Error Handling:**
+
+When parameters conflict, validation will fail with a clear message:
+```
+ValidationError: Cannot use 'between' with 'min' or 'max'.
+Use 'between: [100, 1000]' OR 'min: 100, max: 1000', not both.
+```
+
+#### Choosing the Right Parameter
+
+**Use `max` for "lower is better" checks:**
+- Metrics where lower values indicate better quality
+- Examples: `null_count` (with count metric), `variance`, `duplicate_count`
+- Rationale: You want to set an upper bound on "bad" metrics
+
+**Use `min` for "higher is better" checks:**
+- Metrics where higher values indicate better quality
+- Examples: `completeness`, `cardinality` (for diversity)
+- Rationale: You want to set a lower bound on "good" metrics
+
+**Use both `min` and `max` (or `between`) for stability:**
+- Metrics that can be too low OR too high
+- Examples: `num_rows`, `mean`, `sum`, `percentile`
+- Rationale: You want to detect drift in either direction
 
 ---
 
-### Table-Level Check Types
+#### Validator Parameters (Mutually Exclusive)
 
-#### `row_count`
+All aggregate checks support four validator patterns. Use exactly ONE per check:
 
-Validates that row count is within specified bounds.
+**1. Lower Bound (`min`)**
+```yaml
+type: mean
+min: 10.0
+```
+
+**2. Upper Bound (`max`)**
+```yaml
+type: variance
+max: 100.0
+```
+
+**3. Range (`between`)**
+```yaml
+type: num_rows
+between: [1000, 100000]
+```
+
+**4. Exact Match (`equals`)**
+```yaml
+type: sum
+column: revenue
+equals: 1000000.0
+```
+
+---
+
+#### Tolerance Parameter (Universal)
+
+The `tolerance` parameter applies to ALL numeric comparisons and validators. It provides flexibility for floating-point comparisons and allows for acceptable variance in validations.
+
+**Default Values:**
+- Floating-point checks: `tolerance: 1e-6`
+- Integer checks: `tolerance: 0`
+
+**Semantics:**
+- For `equals`: Passes if `|actual - expected| ≤ tolerance`
+- For `min`: Passes if `actual ≥ (min - tolerance)`
+- For `max`: Passes if `actual ≤ (max + tolerance)`
+- For `between`: Passes if `actual ≥ (min - tolerance) AND actual ≤ (max + tolerance)`
+
+**Examples:**
+
+```yaml
+# Equals with tolerance
+columns:
+  - name: unit_price
+    checks:
+      - type: mean
+        equals: 50.0
+        tolerance: 0.1  # Passes if 49.9 ≤ actual ≤ 50.1
+
+# Min with tolerance (cardinality)
+columns:
+  - name: merchant_id
+    checks:
+      - type: cardinality
+        min: 100  # At least 100 distinct merchants
+        tolerance: 5  # Passes if actual ≥ 95
+
+# Max with tolerance (null_count with pct metric uses 0-1 scale)
+columns:
+  - name: email
+    checks:
+      - type: null_count
+        metric: pct
+        max: 0.05  # 5% null percentage
+        tolerance: 0.001  # Passes if actual ≤ 0.051
+
+# Between with tolerance
+checks:
+  - type: num_rows
+    between: [1000, 2000]
+    tolerance: 10  # Passes if 990 ≤ actual ≤ 2010
+```
+
+---
+
+### Table-Level Checks
+
+Table-level checks are specified in the top-level `checks` array (sibling to `columns`). They validate table-wide properties and aggregates.
+
+---
+
+#### Volume Checks
+
+##### `num_rows`
+
+Validates that the total row count is within specified bounds.
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min` | `int` | No* | None | Minimum allowed row count (inclusive) |
+| `max` | `int` | No* | None | Maximum allowed row count (inclusive) |
+| `between` | `array` | No* | None | Row count range as [min, max] - validates min ≤ count ≤ max |
+| `equals` | `int` | No* | None | Expected exact row count |
+| `tolerance` | `int` | No | `0` | Tolerance for count comparisons |
+
+\* Use ONE of: `min` OR `max` OR `min`/`max` OR `between` OR `equals`
+
+**Note:** This check does NOT support `threshold` because direction is context-dependent. Most use cases require range validation to detect both missing data (too few rows) and duplicates/anomalies (too many rows).
+
+**Example 1: Range Validation**
 
 ```yaml
 checks:
   - name: "Daily volume within bounds"
-    type: row_count
-    min: 100
-    max: 1000000
+    type: num_rows
+    between: [100, 1000000]  # Between 100 and 1M rows
     severity: P1
 ```
 
-**Parameters**:
-- `min` (optional): Minimum row count
-- `max` (optional): Maximum row count
+**Example 2: Minimum Volume**
 
-At least one of `min` or `max` must be specified.
+```yaml
+checks:
+  - name: "At least 1000 transactions per day"
+    type: num_rows
+    min: 1000  # At least 1000 rows
+    severity: P0
+```
+
+**Example 3: Exact Row Count**
+
+```yaml
+checks:
+  - name: "Partition has exactly 1000 records"
+    type: num_rows
+    equals: 1000  # Exactly 1000 rows
+    tolerance: 0
+    severity: P1
+```
 
 ---
 
-#### `freshness`
+##### `duplicate_count`
 
-Validates that data is not stale (most recent timestamp is recent enough).
+Validates that the number of duplicate rows (based on specified columns) is within bounds.
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `columns` | `list[string]` | Yes | None | Columns to check for duplicates (composite key) |
+| `min` | `int` | No* | None | Minimum duplicate count (inclusive) |
+| `max` | `int` | No* | None | Maximum allowed duplicate count (inclusive) |
+| `between` | `array` | No* | None | Duplicate count range as [min, max] |
+| `equals` | `int` | No* | None | Expected exact duplicate count |
+| `tolerance` | `int` | No | `0` | Tolerance for count comparisons |
+
+\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
+
+**Example 1: No Duplicates (Most Common)**
+
+```yaml
+checks:
+  - name: "No duplicate orders"
+    type: duplicate_count
+    columns: ["order_id"]
+    max: 0  # No duplicates allowed
+    severity: P0
+```
+
+**Example 2: Allow Small Number of Duplicates**
+
+```yaml
+checks:
+  - name: "Few duplicate user-date combinations"
+    type: duplicate_count
+    columns: ["user_id", "event_date"]
+    max: 10  # At most 10 duplicate rows
+    severity: P1
+```
+
+**Example 3: Exact Duplicate Count**
+
+```yaml
+checks:
+  - name: "Expected duplicate rate"
+    type: duplicate_count
+    columns: ["transaction_id", "timestamp"]
+    equals: 50  # Exactly 50 duplicates expected
+    tolerance: 5  # Within 5
+    severity: P2
+```
+
+---
+
+#### Freshness Checks
+
+##### `freshness`
+
+Validates that data is not stale (most recent timestamp is within acceptable age).
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `max_age_hours` | `float` | Yes | None | Maximum allowed age in hours |
+| `timestamp_column` | `string` | No | "created_at" | Column containing timestamps |
+| `aggregation` | `string` | No | "max" | Aggregation method ("max" or "min") |
+
+**Example 1: Basic Usage (Auto-generated from SLA)**
 
 ```yaml
 checks:
@@ -995,20 +1299,53 @@ checks:
     severity: P0
 ```
 
-**Parameters**:
-- `max_age_hours` (required): Maximum age in hours
-- `timestamp_column` (optional): Column containing timestamps (default: "created_at")
-
----
-
-#### `partition_completeness`
-
-Validates that no partitions are missing in a time range.
+**Example 2: Partition Freshness**
 
 ```yaml
 checks:
-  - name: "No missing daily partitions"
-    type: partition_completeness
+  - name: "Latest partition is within 2 hours"
+    type: freshness
+    max_age_hours: 2.0
+    timestamp_column: event_hour
+    severity: P0
+```
+
+**Example 3: Minimum Age (Data Not Too New)**
+
+```yaml
+checks:
+  - name: "Data has settled (at least 1 hour old)"
+    type: freshness
+    max_age_hours: 168.0  # 7 days max
+    timestamp_column: ingestion_time
+    aggregation: min
+    severity: P2
+```
+
+---
+
+##### `completeness`
+
+Validates that partitioned data has no missing partitions within a time range (gap detection). This check only applies to tables with `metadata.partitioned_by` defined.
+
+**Note:** For column-level null validation, use `null_count` check (with `metric: count` for absolute counts or `metric: pct` for percentages).
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `partition_column` | `string` | Yes | None | Column used for partitioning (date/timestamp) |
+| `granularity` | `string` | Yes | None | Expected granularity ("hourly", "daily", "weekly", "monthly") |
+| `lookback_days` | `int` | No | `30` | Days to check for gaps |
+| `allow_future_gaps` | `bool` | No | `true` | Ignore gaps in future dates |
+| `max_gap_count` | `int` | No | `0` | Maximum allowed missing partitions |
+
+**Example 1: Daily Partitions (No Gaps)**
+
+```yaml
+checks:
+  - name: "No missing daily partitions in last 7 days"
+    type: completeness
     partition_column: order_date
     granularity: daily
     lookback_days: 7
@@ -1016,11 +1353,1232 @@ checks:
     severity: P1
 ```
 
-**Parameters**:
-- `partition_column` (required): Column used for partitioning
-- `granularity` (required): Expected partition granularity (daily, hourly, weekly, monthly)
-- `lookback_days` (optional): Days to check for gaps (default: 30)
-- `allow_future_gaps` (optional): Ignore future dates (default: true)
+**Example 2: Hourly Partitions**
+
+```yaml
+checks:
+  - name: "Hourly partitions are complete"
+    type: completeness
+    partition_column: event_hour
+    granularity: hourly
+    lookback_days: 1
+    severity: P0
+```
+
+**Example 3: Allow Some Gaps (Best Effort)**
+
+```yaml
+checks:
+  - name: "Weekly partitions mostly complete"
+    type: completeness
+    partition_column: report_week
+    granularity: weekly
+    lookback_days: 90
+    max_gap_count: 2
+    severity: P2
+```
+
+---
+
+### Column-Level Checks
+
+Column-level checks are specified within the `checks` array of a column definition. They validate individual column values and statistical properties.
+
+---
+
+#### Value Checks
+
+Value checks validate individual values within a column (rather than computing aggregates over the column). They return either a count or percentage of values that pass the validation rule. Use the `metric` parameter to specify the return type (`count` or `pct`).
+
+---
+
+##### `null_count`
+
+Validates null values in a column. Returns count or percentage of null values based on the `metric` parameter.
+
+**Metric Parameter:** Use `metric: count` (default) to return absolute null count, or `metric: pct` to return null percentage (0-1 scale).
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `metric` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
+| `min` | `int\|float` | No* | None | Minimum allowed null count/percentage (inclusive) |
+| `max` | `int\|float` | No* | None | Maximum allowed null count/percentage (inclusive) |
+| `between` | `array` | No* | None | Null count/percentage range as [min, max] |
+| `equals` | `int\|float` | No* | None | Expected exact null count/percentage |
+| `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
+
+\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
+
+**Example 1: Maximum Bound (Most Common)**
+
+```yaml
+columns:
+  - name: notes
+    type: string
+    nullable: true
+    description: "Optional customer notes"
+    checks:
+      - name: "Most orders have notes"
+        type: null_count
+        max: 1000  # At most 1000 nulls
+        severity: P2
+```
+
+**Example 2: Range Validation**
+
+```yaml
+columns:
+  - name: deleted_at
+    type:
+      kind: timestamp
+    nullable: true
+    description: "Deletion timestamp (null if not deleted)"
+    checks:
+      - name: "Few deletions expected"
+        type: null_count
+        between: [0, 50]  # Between 0 and 50 nulls
+        severity: P1
+```
+
+**Example 3: Exact Null Count**
+
+```yaml
+columns:
+  - name: optional_metadata
+    type: string
+    nullable: true
+    description: "Optional metadata field"
+    checks:
+      - name: "Exactly 100 records have metadata"
+        type: null_count
+        equals: 900  # Expecting 900 nulls (100 non-null)
+        tolerance: 0
+        severity: P2
+```
+
+**Example 4: Using Percentage Metric**
+
+```yaml
+columns:
+  - name: email
+    type: string
+    nullable: true
+    description: "Customer email address"
+    checks:
+      - name: "Low null percentage"
+        type: null_count
+        metric: pct
+        max: 0.10  # At most 10% nulls
+        severity: P1
+```
+
+---
+
+##### `whitelist`
+
+Validates that non-null values match a whitelist of allowed values. Returns count or percentage of rows matching the whitelist.
+
+**Metric Parameter:** Use `metric: count` (default) to return the count of matching rows, or `metric: pct` to return the percentage (0-1 scale).
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `values` | `list` | Yes | None | List of allowed values |
+| `metric` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
+| `case_sensitive` | `bool` | No | `true` | Whether comparison is case-sensitive (strings only) |
+| `min` | `int\|float` | No* | None | Minimum allowed metric value |
+| `max` | `int\|float` | No* | None | Maximum allowed metric value |
+| `between` | `array` | No* | None | Metric range as [min, max] |
+| `equals` | `int\|float` | No* | None | Expected exact metric value |
+| `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
+
+\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
+
+**Example 1: Basic Usage**
+
+```yaml
+columns:
+  - name: status
+    type: string
+    nullable: false
+    description: "Order status"
+    checks:
+      - name: "Status is valid"
+        type: whitelist
+        values: ["pending", "processing", "shipped", "delivered", "cancelled"]
+        severity: P0
+```
+
+**Example 2: Case-Insensitive**
+
+```yaml
+columns:
+  - name: country_code
+    type: string
+    nullable: false
+    description: "ISO country code"
+    checks:
+      - name: "Country code is valid"
+        type: whitelist
+        values: ["US", "CA", "MX", "GB", "DE", "FR"]
+        case_sensitive: false
+        severity: P1
+```
+
+**Example 3: Numeric Enum**
+
+```yaml
+columns:
+  - name: priority
+    type: int
+    nullable: false
+    description: "Task priority level"
+    checks:
+      - name: "Priority is valid (1-5)"
+        type: whitelist
+        values: [1, 2, 3, 4, 5]
+        severity: P0
+```
+
+**Example 4: Using Percentage Metric**
+
+```yaml
+columns:
+  - name: status
+    type: string
+    nullable: false
+    description: "Order status"
+    checks:
+      - name: "Most statuses are valid"
+        type: whitelist
+        values: ["pending", "processing", "shipped", "delivered", "cancelled"]
+        metric: pct
+        min: 0.95  # At least 95% match
+        severity: P1
+```
+
+---
+
+##### `blacklist`
+
+Validates that non-null values do NOT match a blacklist. Returns count or percentage of rows NOT in the blacklist (passing rows).
+
+**Metric Parameter:** Use `metric: count` (default) to return the count of passing rows, or `metric: pct` to return the percentage (0-1 scale).
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `values` | `list` | Yes | None | List of forbidden values |
+| `metric` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
+| `case_sensitive` | `bool` | No | `true` | Whether comparison is case-sensitive (strings only) |
+| `min` | `int\|float` | No* | None | Minimum allowed metric value |
+| `max` | `int\|float` | No* | None | Maximum allowed metric value |
+| `between` | `array` | No* | None | Metric range as [min, max] |
+| `equals` | `int\|float` | No* | None | Expected exact metric value |
+| `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
+
+\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
+
+**Example 1: Basic Usage**
+
+```yaml
+columns:
+  - name: username
+    type: string
+    nullable: false
+    description: "User username"
+    checks:
+      - name: "Username is not reserved"
+        type: blacklist
+        values: ["admin", "root", "system", "null", "undefined"]
+        case_sensitive: false
+        severity: P0
+```
+
+**Example 2: Exclude Test Data**
+
+```yaml
+columns:
+  - name: email
+    type: string
+    nullable: false
+    description: "Customer email address"
+    checks:
+      - name: "Email is not test account"
+        type: blacklist
+        values: ["test@example.com", "noreply@example.com", "admin@test.com"]
+        severity: P1
+```
+
+---
+
+##### `duplicate_count`
+
+Validates that the count of duplicate values in a column is within specified bounds. This is the column-level version of the table-level `duplicate_count` check (which validates duplicates across multiple columns).
+
+**Semantics:** Counts total duplicate occurrences. If value "A" appears 3 times, it contributes 3 to the duplicate count.
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min` | `int` | No* | None | Minimum allowed duplicate count (inclusive) |
+| `max` | `int` | No* | None | Maximum allowed duplicate count (inclusive) |
+| `between` | `array` | No* | None | Duplicate count range as [min, max] |
+| `equals` | `int` | No* | None | Expected exact duplicate count |
+| `tolerance` | `int` | No | `0` | Tolerance for count comparisons |
+
+\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
+
+**Note:** To enforce uniqueness (no duplicates), use `max: 0` or `equals: 0`.
+
+**Example 1: No Duplicates (Uniqueness)**
+
+```yaml
+columns:
+  - name: order_id
+    type: int
+    nullable: false
+    description: "Unique order identifier"
+    checks:
+      - name: "Order ID is unique"
+        type: duplicate_count
+        max: 0  # No duplicates allowed
+        severity: P0
+```
+
+**Example 2: Allow Some Duplicates**
+
+```yaml
+columns:
+  - name: user_id
+    type: int
+    nullable: false
+    description: "User identifier (repeat customers allowed)"
+    checks:
+      - name: "User ID has reasonable duplicates"
+        type: duplicate_count
+        max: 100  # Up to 100 duplicate user IDs
+        severity: P1
+```
+
+**Example 3: Exact Duplicate Count (Testing)**
+
+```yaml
+columns:
+  - name: test_category
+    type: string
+    nullable: false
+    description: "Test category with expected duplicates"
+    checks:
+      - name: "Category has expected duplicates"
+        type: duplicate_count
+        equals: 50  # Expect exactly 50 duplicates
+        tolerance: 0
+        severity: P2
+```
+
+---
+
+#### String Checks
+
+String checks are part of Value Checks. See the Value Checks section above for context.
+
+##### `pattern`
+
+Validates that string values match a pattern. Supports explicit regex patterns or predefined format shortcuts. Returns count or percentage of values matching the pattern.
+
+**Pattern Specification:** Use either:
+- `pattern` parameter with a regex pattern (e.g., `"^[A-Z]{2}\\d{6}$"`)
+- `format` parameter with a predefined format name (e.g., `"email"`, `"phone"`, `"uuid"`)
+
+**Metric Parameter:** Use `metric: count` (default) to return count of matching values, or `metric: pct` to return percentage (0-1 scale) of matching values.
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `pattern` | `string` | No* | None | Regular expression pattern to match |
+| `format` | `string` | No* | None | Predefined format name ("email", "phone", "uuid", "url", "ipv4", "ipv6", "date", "datetime") |
+| `flags` | `list[string]` | No | `[]` | Regex flags (e.g., "IGNORECASE", "MULTILINE") - only for pattern |
+| `metric` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
+| `min` | `int\|float` | No** | None | Minimum allowed metric value |
+| `max` | `int\|float` | No** | None | Maximum allowed metric value |
+| `between` | `array` | No** | None | Metric range as [min, max] |
+| `equals` | `int\|float` | No** | None | Expected exact metric value |
+| `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
+
+\* Exactly ONE of `pattern` or `format` must be specified
+\*\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
+
+**Example 1: Email Validation**
+
+```yaml
+columns:
+  - name: email
+    type: string
+    nullable: false
+    description: "Customer email address"
+    checks:
+      - name: "Email format is valid"
+        type: pattern
+        pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+        severity: P0
+```
+
+**Example 2: Phone Number Format**
+
+```yaml
+columns:
+  - name: phone
+    type: string
+    nullable: true
+    description: "Phone number (US format)"
+    checks:
+      - name: "Phone number matches US format"
+        type: pattern
+        pattern: "^\\+1-\\d{3}-\\d{3}-\\d{4}$"
+        severity: P1
+```
+
+**Example 3: Product SKU Pattern**
+
+```yaml
+columns:
+  - name: sku
+    type: string
+    nullable: false
+    description: "Product SKU code"
+    checks:
+      - name: "SKU follows naming convention"
+        type: pattern
+        pattern: "^[A-Z]{2}\\d{6}[A-Z]$"
+        severity: P0
+```
+
+**Example 4: Percentage Metric**
+
+```yaml
+columns:
+  - name: email
+    type: string
+    nullable: false
+    description: "Customer email address"
+    checks:
+      - name: "95% emails are valid"
+        type: pattern
+        pattern: "^[^@]+@[^@]+\\.[^@]+$"
+        metric: pct
+        min: 0.95  # At least 95%
+        severity: P1
+```
+
+**Example 5: Using Predefined Format (Email)**
+
+```yaml
+columns:
+  - name: email
+    type: string
+    nullable: false
+    description: "Customer email address"
+    checks:
+      - name: "All emails are valid"
+        type: pattern
+        format: email  # Predefined format instead of regex
+        metric: pct
+        min: 0.95  # At least 95% valid
+        severity: P1
+```
+
+**Example 6: Using Predefined Format (Phone)**
+
+```yaml
+columns:
+  - name: phone
+    type: string
+    nullable: true
+    description: "Phone number"
+    checks:
+      - name: "Phone numbers are valid"
+        type: pattern
+        format: phone  # Matches common phone formats
+        metric: count
+        min: 1000  # At least 1000 valid phone numbers
+        severity: P2
+```
+
+**Example 7: Using Predefined Format (UUID)**
+
+```yaml
+columns:
+  - name: transaction_id
+    type: string
+    nullable: false
+    description: "Transaction UUID"
+    checks:
+      - name: "Transaction IDs are valid UUIDs"
+        type: pattern
+        format: uuid  # Standard UUID format
+        metric: pct
+        equals: 1.0  # 100% must be valid UUIDs
+        severity: P0
+```
+
+**Example 8: Using Predefined Format (URL)**
+
+```yaml
+columns:
+  - name: website
+    type: string
+    nullable: true
+    description: "Website URL"
+    checks:
+      - name: "Websites are valid URLs"
+        type: pattern
+        format: url  # HTTP/HTTPS URLs
+        metric: pct
+        min: 0.90  # At least 90% valid
+        severity: P1
+```
+
+**Supported Format Shortcuts:**
+
+| Format | Description | Equivalent Regex Pattern |
+|--------|-------------|-------------------------|
+| `email` | Email address | `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$` |
+| `phone` | Phone number (international) | `^\\+?[1-9]\\d{1,14}$` |
+| `uuid` | UUID (any version) | `^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$` |
+| `url` | HTTP/HTTPS URL | `^https?://[^\\s/$.?#].[^\\s]*$` |
+| `ipv4` | IPv4 address | `^(?:[0-9]{1,3}\\.){3}[0-9]{1,3}$` |
+| `ipv6` | IPv6 address | `^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$` |
+| `date` | ISO 8601 date (YYYY-MM-DD) | `^\\d{4}-\\d{2}-\\d{2}$` |
+| `datetime` | ISO 8601 datetime | `^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}` |
+
+**Note:** Format shortcuts provide common patterns for convenience. For custom formats or more specific validation, use the `pattern` parameter with an explicit regex.
+
+---
+
+##### `length`
+
+Validates that string lengths are within specified bounds. Returns count or percentage of rows meeting the length criteria.
+
+**Metric Parameter:** Use `metric: count` (default) to return count of rows within length bounds, or `metric: pct` to return percentage (0-1 scale).
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min_length` | `int` | No* | None | Minimum allowed string length |
+| `max_length` | `int` | No* | None | Maximum allowed string length |
+| `metric` | `string` | No | `count` | Return type: "count" or "pct" |
+| `min` | `int\|float` | No** | None | Minimum metric value (count or pct) |
+| `max` | `int\|float` | No** | None | Maximum metric value (count or pct) |
+| `between` | `array` | No** | None | Metric range as [min, max] |
+| `equals` | `int\|float` | No** | None | Expected exact metric value |
+| `tolerance` | `int\|float` | No | `0` for count, `1e-6` for pct | Tolerance for comparisons |
+
+\* At least one of `min_length` or `max_length` required
+\*\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
+
+**Example 1: Basic Usage**
+
+```yaml
+columns:
+  - name: description
+    type: string
+    nullable: false
+    description: "Product description"
+    checks:
+      - name: "Description is meaningful"
+        type: length
+        min_length: 10
+        max_length: 500
+        severity: P1
+```
+
+**Example 2: Fixed Length**
+
+```yaml
+columns:
+  - name: country_code
+    type: string
+    nullable: false
+    description: "ISO 3166-1 alpha-2 country code"
+    checks:
+      - name: "Country code is 2 characters"
+        type: length
+        min_length: 2
+        max_length: 2
+        severity: P0
+```
+
+**Example 3: Minimum Length Only**
+
+```yaml
+columns:
+  - name: password_hash
+    type: string
+    nullable: false
+    description: "Hashed password"
+    checks:
+      - name: "Password hash has minimum length"
+        type: length
+        min_length: 32
+        severity: P0
+```
+
+**Example 4: Using Percentage Metric**
+
+```yaml
+columns:
+  - name: description
+    type: string
+    nullable: false
+    description: "Product description"
+    checks:
+      - name: "Most descriptions are reasonable length"
+        type: length
+        min_length: 10
+        max_length: 500
+        metric: pct
+        min: 0.90  # At least 90% within bounds
+        severity: P1
+```
+
+---
+
+#### Statistical Checks
+
+Statistical checks compute aggregate metrics over the entire column and return a single numeric value.
+
+##### `cardinality`
+
+Validates that the count of distinct (unique) non-null values is within specified bounds. This is a statistical aggregate over the entire column.
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min` | `int` | No* | None | Minimum allowed distinct count (inclusive) |
+| `max` | `int` | No* | None | Maximum allowed distinct count (inclusive) |
+| `between` | `array` | No* | None | Distinct count range as [min, max] |
+| `equals` | `int` | No* | None | Expected exact distinct count |
+| `tolerance` | `int` | No | `0` | Tolerance for count comparisons |
+
+\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
+
+**Example 1: Low Cardinality (Categorical)**
+
+```yaml
+columns:
+  - name: status
+    type: string
+    nullable: false
+    description: "Order status"
+    checks:
+      - name: "Status is low-cardinality categorical"
+        type: cardinality
+        max: 10  # At most 10 distinct values
+        severity: P1
+```
+
+**Example 2: Exact Cardinality**
+
+```yaml
+columns:
+  - name: priority
+    type: int
+    nullable: false
+    description: "Priority level"
+    checks:
+      - name: "Priority has exactly 5 levels"
+        type: cardinality
+        equals: 5  # Exactly 5 distinct values
+        severity: P0
+```
+
+**Example 3: Cardinality Range**
+
+```yaml
+columns:
+  - name: customer_segment
+    type: string
+    nullable: false
+    description: "Customer segmentation tier"
+    checks:
+      - name: "Segment cardinality is stable"
+        type: cardinality
+        between: [3, 8]  # Between 3 and 8 segments
+        severity: P1
+```
+
+---
+
+##### `min`
+
+Validates that the minimum value in the column meets specified criteria.
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min` | `number` | No* | None | Minimum allowed value for the column minimum |
+| `max` | `number` | No* | None | Maximum allowed value for the column minimum |
+| `between` | `array` | No* | None | Range for the column minimum as [min, max] |
+| `equals` | `number` | No* | None | Expected exact minimum value |
+| `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons |
+
+\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
+
+**Example 1: Minimum Must Be Non-Negative**
+
+```yaml
+columns:
+  - name: price
+    type: decimal
+    nullable: false
+    description: "Product price in USD"
+    checks:
+      - name: "All prices are non-negative"
+        type: min
+        min: 0.0
+        severity: P0
+```
+
+**Example 2: Minimum Value in Range**
+
+```yaml
+columns:
+  - name: temperature
+    type: float
+    nullable: false
+    description: "Temperature in Celsius"
+    checks:
+      - name: "Minimum temperature is reasonable"
+        type: min
+        between: [-50.0, 0.0]
+        severity: P1
+```
+
+---
+
+##### `max`
+
+Validates that the maximum value in the column meets specified criteria.
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min` | `number` | No* | None | Minimum allowed value for the column maximum |
+| `max` | `number` | No* | None | Maximum allowed value for the column maximum |
+| `between` | `array` | No* | None | Range for the column maximum as [min, max] |
+| `equals` | `number` | No* | None | Expected exact maximum value |
+| `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons |
+
+\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
+
+**Example 1: Maximum Must Be Reasonable**
+
+```yaml
+columns:
+  - name: age
+    type: int
+    nullable: false
+    description: "Customer age in years"
+    checks:
+      - name: "Maximum age is reasonable"
+        type: max
+        max: 120
+        severity: P1
+```
+
+**Example 2: Maximum Value Equals Expected**
+
+```yaml
+columns:
+  - name: priority
+    type: int
+    nullable: false
+    description: "Task priority (1-5)"
+    checks:
+      - name: "Maximum priority is 5"
+        type: max
+        equals: 5
+        severity: P0
+```
+
+---
+
+##### `mean`
+
+Validates that the arithmetic mean of numeric values is within specified bounds.
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min` | `float` | No* | None | Minimum allowed mean (inclusive) |
+| `max` | `float` | No* | None | Maximum allowed mean (inclusive) |
+| `between` | `array` | No* | None | Mean range as [min, max] - validates min ≤ mean ≤ max |
+| `equals` | `float` | No* | None | Expected exact mean value |
+| `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons (absolute) |
+
+\* Use ONE of: `min` OR `max` OR `min`/`max` OR `between` OR `equals`
+
+**Note:** This check does NOT support `threshold` because direction is context-dependent. Most use cases require range validation.
+
+**Example 1: Range Validation**
+
+```yaml
+columns:
+  - name: order_amount
+    type: decimal
+    nullable: false
+    description: "Order amount in USD"
+    checks:
+      - name: "Average order value is typical"
+        type: mean
+        between: [50.0, 150.0]  # Between $50 and $150 average
+        severity: P2
+```
+
+**Example 2: Monitoring Drift**
+
+```yaml
+columns:
+  - name: response_time_ms
+    type: int
+    nullable: false
+    description: "API response time in milliseconds"
+    checks:
+      - name: "Response time is acceptable"
+        type: mean
+        max: 500.0  # Average response under 500ms
+        severity: P1
+```
+
+**Example 3: Exact Mean**
+
+```yaml
+columns:
+  - name: rating
+    type: int
+    nullable: false
+    description: "Product rating (1-5)"
+    checks:
+      - name: "Average rating matches target"
+        type: mean
+        equals: 3.5  # Exactly 3.5 average rating
+        tolerance: 0.1  # Within 0.1
+        severity: P2
+```
+
+---
+
+##### `sum`
+
+Validates that the sum of all non-null values in a column meets specified criteria.
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min` | `number` | No* | None | Minimum allowed sum (inclusive) |
+| `max` | `number` | No* | None | Maximum allowed sum (inclusive) |
+| `between` | `array` | No* | None | Sum range as [min, max] |
+| `equals` | `number` | No* | None | Expected exact sum value |
+| `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons (absolute) |
+
+\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
+
+**Example 1: Exact Sum**
+
+```yaml
+columns:
+  - name: allocated_budget
+    type: decimal
+    nullable: false
+    description: "Budget allocated to departments"
+    checks:
+      - name: "Total allocated budget is exactly $1M"
+        type: sum
+        equals: 1000000.0
+        tolerance: 0.01
+        severity: P0
+```
+
+**Example 2: Sum Range**
+
+```yaml
+columns:
+  - name: daily_sales
+    type: decimal
+    nullable: false
+    description: "Daily sales amount"
+    checks:
+      - name: "Daily sales within expected range"
+        type: sum
+        between: [10000.0, 100000.0]
+        severity: P1
+```
+
+**Example 3: Minimum Sum**
+
+```yaml
+columns:
+  - name: quantity
+    type: int
+    nullable: false
+    description: "Order quantity"
+    checks:
+      - name: "Total quantity is positive"
+        type: sum
+        min: 0
+        tolerance: 0
+        severity: P0
+```
+
+---
+
+##### `count`
+
+Validates that the count of non-null values in a column meets specified criteria.
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min` | `int` | No* | None | Minimum allowed count (inclusive) |
+| `max` | `int` | No* | None | Maximum allowed count (inclusive) |
+| `between` | `array` | No* | None | Count range as [min, max] |
+| `equals` | `int` | No* | None | Expected exact count |
+| `tolerance` | `int` | No | `0` | Tolerance for count comparisons (usually 0) |
+
+\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
+
+**Example 1: Exact Count**
+
+```yaml
+columns:
+  - name: employee_id
+    type: int
+    nullable: false
+    description: "Employee identifier"
+    checks:
+      - name: "Exactly 500 active employees"
+        type: count
+        equals: 500
+        tolerance: 0
+        severity: P1
+```
+
+**Example 2: Minimum Count**
+
+```yaml
+columns:
+  - name: transaction_id
+    type: int
+    nullable: false
+    description: "Transaction identifier"
+    checks:
+      - name: "At least 1000 transactions daily"
+        type: count
+        min: 1000
+        severity: P2
+```
+
+**Example 3: Count Range**
+
+```yaml
+columns:
+  - name: order_id
+    type: int
+    nullable: false
+    description: "Order identifier"
+    checks:
+      - name: "Daily order count is stable"
+        type: count
+        between: [100, 1000]
+        severity: P1
+```
+
+---
+
+##### `variance`
+
+Validates that the variance of numeric values is within specified bounds (measures spread).
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `min` | `float` | No* | None | Minimum variance (inclusive) |
+| `max` | `float` | No* | None | Maximum variance (inclusive) |
+| `between` | `array` | No* | None | Variance range as [min, max] |
+| `equals` | `float` | No* | None | Expected exact variance |
+| `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons (absolute) |
+
+\* Use ONE of: `min` OR `max` OR `min`+`max` OR `between` OR `equals`
+
+**Example 1: Maximum Bound (Most Common)**
+
+```yaml
+columns:
+  - name: temperature
+    type: float
+    nullable: false
+    description: "Sensor temperature reading"
+    checks:
+      - name: "Temperature variance is stable"
+        type: variance
+        max: 10.0  # Variance ≤ 10.0
+        severity: P2
+```
+
+**Example 2: Variance Range**
+
+```yaml
+columns:
+  - name: daily_sales
+    type: decimal
+    nullable: false
+    description: "Daily sales amount"
+    checks:
+      - name: "Sales variance is within expected range"
+        type: variance
+        between: [1000.0, 10000.0]  # Expected variance range
+        severity: P2
+```
+
+**Example 3: Exact Variance**
+
+```yaml
+columns:
+  - name: transaction_amount
+    type: decimal
+    nullable: false
+    description: "Transaction amount"
+    checks:
+      - name: "Transaction variance matches expectation"
+        type: variance
+        equals: 50000.0  # Exactly 50000.0 variance
+        tolerance: 100.0  # Within 100
+        severity: P1
+```
+
+---
+
+##### `percentile`
+
+Validates that a specific percentile value is within specified bounds.
+
+**Parameters:**
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `percentile` | `float` | Yes | None | Percentile to check (0-100) |
+| `min` | `float` | No* | None | Minimum allowed value at percentile (inclusive) |
+| `max` | `float` | No* | None | Maximum allowed value at percentile (inclusive) |
+| `between` | `array` | No* | None | Value range at percentile as [min, max] |
+| `equals` | `float` | No* | None | Expected exact value at percentile |
+| `tolerance` | `float` | No | `1e-6` | Tolerance for numeric comparisons (absolute) |
+
+\* Use ONE of: `min` OR `max` OR `min`/`max` OR `between` OR `equals`
+
+**Note:** This check does NOT support `threshold` because direction is context-dependent. Most use cases require range validation.
+
+**Example 1: P95 Response Time (Max Only)**
+
+```yaml
+columns:
+  - name: response_time_ms
+    type: int
+    nullable: false
+    description: "API response time in milliseconds"
+    checks:
+      - name: "P95 response time is acceptable"
+        type: percentile
+        percentile: 95.0
+        max: 1000.0  # P95 under 1 second
+        severity: P1
+```
+
+**Example 2: Median Value (Range)**
+
+```yaml
+columns:
+  - name: order_amount
+    type: decimal
+    nullable: false
+    description: "Order amount in USD"
+    checks:
+      - name: "Median order value is typical"
+        type: percentile
+        percentile: 50.0
+        between: [30.0, 100.0]  # Median between $30-$100
+        severity: P2
+```
+
+**Example 3: Exact Percentile Value**
+
+```yaml
+columns:
+  - name: processing_time_sec
+    type: float
+    nullable: false
+    description: "Processing time in seconds"
+    checks:
+      - name: "P99 processing time matches SLA"
+        type: percentile
+        percentile: 99.0
+        equals: 300.0  # P99 exactly 300 seconds
+        tolerance: 5.0  # Within 5 seconds
+        severity: P0
+```
+
+---
+
+### Check Composition Patterns
+
+Checks can be combined to create comprehensive validation strategies. Here are common patterns:
+
+#### Pattern 1: Layered Validation (Progressive Severity)
+
+```yaml
+columns:
+  - name: email
+    type: string
+    nullable: false
+    description: "Customer email address"
+    checks:
+      # Layer 1: Important - must have valid format
+      - name: "Email format is valid"
+        type: pattern
+        format: email
+        severity: P0
+
+      # Layer 2: Nice-to-have - cardinality check
+      - name: "Email domains are diverse"
+        type: cardinality
+        min: 10  # At least 10 distinct domains
+        severity: P2
+```
+
+#### Pattern 2: Range Validation with Context
+
+```yaml
+columns:
+  - name: order_amount
+    type: decimal
+    nullable: false
+    description: "Order amount in USD"
+    checks:
+      # Hard constraint: Minimum value must be non-negative
+      - name: "Minimum order amount is non-negative"
+        type: min
+        min: 0.0
+        severity: P0
+
+      # Business rule: Maximum value is reasonable
+      - name: "Maximum order amount is reasonable"
+        type: max
+        max: 1000000.0
+        severity: P1
+
+      # Statistical monitoring: Average is stable
+      - name: "Average order value is typical"
+        type: mean
+        min: 50.0
+        max: 500.0
+        severity: P2
+```
+
+#### Pattern 3: Multi-Level Validation
+
+```yaml
+columns:
+  - name: phone_number
+    type: string
+    nullable: true
+    description: "Customer phone number"
+    checks:
+      # Null percentage constraint (uses 0-1 scale)
+      - name: "Most customers provide phone number"
+        type: null_count
+        metric: pct
+        max: 0.20  # At most 20% null
+        severity: P1
+
+      # Format validation (when present)
+      - name: "Phone number format is valid"
+        type: pattern
+        pattern: "^\\+?[1-9]\\d{1,14}$"
+        severity: P0
+
+      # Length validation
+      - name: "Phone number length is reasonable"
+        type: length
+        min: 10
+        max: 15
+        severity: P1
+```
+
+#### Pattern 4: Table-Level Reconciliation
+
+```yaml
+# Table-level checks
+checks:
+  # Volume check
+  - name: "Daily volume within bounds"
+    type: num_rows
+    min: 1000
+    max: 100000
+    severity: P1
+
+  # Freshness check
+  - name: "Data arrived within SLA"
+    type: freshness
+    max_age_hours: 25.0
+    timestamp_column: order_date
+    severity: P0
+
+  # Completeness check
+  - name: "No missing daily partitions"
+    type: completeness
+    partition_column: order_date
+    granularity: daily
+    lookback_days: 7
+    severity: P1
+```
+
+#### Pattern 5: Categorical with Cardinality
+
+```yaml
+columns:
+  - name: status
+    type: string
+    nullable: false
+    description: "Order status"
+    checks:
+      # Whitelist validation
+      - name: "Status is valid"
+        type: whitelist
+        values: ["pending", "processing", "shipped", "delivered", "cancelled"]
+        severity: P0
+
+      # Low cardinality validation
+      - name: "Status is low-cardinality"
+        type: cardinality
+        max: 10  # At most 10 distinct values
+        severity: P1
+```
+
+---
 
 ---
 
@@ -1075,13 +2633,14 @@ columns:
     description: "Required description"
     checks:                    # Optional checks
       - name: "Check name"
-        type: unique
+        type: duplicate_count
+        max: 0
         severity: P0
 
 # Optional table-level checks
 checks:
   - name: "Row count check"
-    type: row_count
+    type: num_rows
     min: 100
     severity: P1
 ```
@@ -1100,7 +2659,7 @@ checks:
 1. **Implementation** - Build YAML parser and contract validator
 2. **Check Types** - Implement built-in check types (unique, min, max, etc.)
 3. **SLA Integration** - Auto-generate freshness checks from SLA metadata
-4. **Partition Validation** - Implement `partition_completeness` check type
+4. **Partition Validation** - Implement `completeness` check type for partition gap detection
 5. **Testing** - Ensure 100% test coverage with TDD approach
 6. **Documentation** - User guide with examples and best practices
 
