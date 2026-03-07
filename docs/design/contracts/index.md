@@ -327,7 +327,7 @@ Simple types (primitive, temporal, decimal) use a plain string value. Complex ty
 
 ---
 
-## Check Types Summary
+## Checks Summary
 
 DQX contracts define 21 check types across two scopes.
 
@@ -361,7 +361,7 @@ DQX contracts define 21 check types across two scopes.
 - `max_length` — maximum string, list, or map element count
 - `avg_length` — average string, list, or map element count
 
-Most checks, table-level or column-level, support validators: `min`, `max`, `between`, `not_between`, and `equals`. `tolerance` is an auxiliary parameter used alongside a validator (not a mutually exclusive validator itself). Exceptions are `freshness` (uses `max_age_hours`) and `completeness` (uses `max_gap_count`), which use check-specific implicit parameters instead. See [Check Types Reference](checks.md) for validators and composition patterns.
+Most checks, table-level or column-level, support validators: `min`, `max`, `between`, `not_between`, and `equals`. `tolerance` is an auxiliary parameter used alongside a validator (not a mutually exclusive validator itself). Exceptions are `freshness` (uses `max_age_hours`) and `completeness` (uses `max_gap_count`), which use check-specific implicit parameters instead. See [Checks & Validators](checks.md) for validators and composition patterns.
 
 ---
 
@@ -369,4 +369,4 @@ Most checks, table-level or column-level, support validators: `min`, `max`, `bet
 
 - [Type System](types.md) — Contract type definitions: primitive, temporal, decimal, and complex types
 - [SLA Specification](sla.md) — Service level agreements, scheduling, auto-generated checks, and examples
-- [Check Types Reference](checks.md) — Overview, parameter conventions, table-level checks, column-level checks, and composition patterns
+- [Checks & Validators](checks.md) — Overview, parameter conventions, table-level checks, column-level checks, and composition patterns
