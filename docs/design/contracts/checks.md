@@ -1419,9 +1419,7 @@ The `percentile` check validates that a specific percentile value in a column fa
 | `equals` | `number` | No | None | Exact expected percentile value |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
->
-> **Note:** The `percentile` parameter shares the same name as the check type but operates at a different YAML scope — `type` selects the check, `percentile` specifies the value to compute. They do not conflict.
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators). The `percentile` parameter shares the same name as the check type but operates at a different YAML scope — `type` selects the check, `percentile` specifies the value to compute. They do not conflict.
 
 Use `min`, `max`, `between`, or `equals` to set bounds. Most use cases require range validation to detect drift in either direction.
 
