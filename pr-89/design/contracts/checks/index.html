@@ -2056,9 +2056,11 @@
 <p>String and collection checks are part of Value Checks. See the Value Checks section above for context.</p>
 <h4 id="pattern"><code>pattern</code><a class="headerlink" href="#pattern" title="Anchor link to this section for reference">&para;</a></h4>
 <p>The <code>pattern</code> check validates that string values match a pattern, supporting either explicit regex or predefined format shortcuts, and returns the count or percentage of conforming values.</p>
-<p><strong>Pattern Specification:</strong> Use either:
-- <code>pattern</code> parameter with a regex pattern (e.g., <code>"^[A-Z]{2}\\d{6}$"</code>)
-- <code>format</code> parameter with a predefined format name (e.g., <code>"email"</code>, <code>"phone"</code>, <code>"uuid"</code>)</p>
+<p><strong>Pattern Specification:</strong> Use either:</p>
+<ul>
+<li><code>pattern</code> parameter with a regex pattern (e.g., <code>"^[A-Z]{2}\\d{6}$"</code>)</li>
+<li><code>format</code> parameter with a predefined format name (e.g., <code>"email"</code>, <code>"phone"</code>, <code>"uuid"</code>)</li>
+</ul>
 <p><strong>Return Parameter:</strong> Use <code>return: count</code> (default) to return count of matching values, or <code>return: pct</code> to return percentage (0-1 scale) of matching values.</p>
 <p><strong>Parameters:</strong></p>
 <table>

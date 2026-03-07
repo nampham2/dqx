@@ -1332,53 +1332,73 @@
 <hr />
 <h2 id="compatibility-reference">Compatibility Reference<a class="headerlink" href="#compatibility-reference" title="Anchor link to this section for reference">&para;</a></h2>
 <h3 id="integer-type-compatibility">Integer Type Compatibility<a class="headerlink" href="#integer-type-compatibility" title="Anchor link to this section for reference">&para;</a></h3>
-<p>Contract type <code>int</code> validates against:
-- <code>pa.int8()</code> — 8-bit signed integer (-128 to 127)
-- <code>pa.int16()</code> — 16-bit signed integer (-32,768 to 32,767)
-- <code>pa.int32()</code> — 32-bit signed integer (-2^31 to 2^31-1)
-- <code>pa.int64()</code> — 64-bit signed integer (-2^63 to 2^63-1)
-- <code>pa.uint8()</code> — 8-bit unsigned integer (0 to 255)
-- <code>pa.uint16()</code> — 16-bit unsigned integer (0 to 65,535)
-- <code>pa.uint32()</code> — 32-bit unsigned integer (0 to 2^32-1)
-- <code>pa.uint64()</code> — 64-bit unsigned integer (0 to 2^64-1)</p>
+<p>Contract type <code>int</code> validates against:</p>
+<ul>
+<li><code>pa.int8()</code> — 8-bit signed integer (-128 to 127)</li>
+<li><code>pa.int16()</code> — 16-bit signed integer (-32,768 to 32,767)</li>
+<li><code>pa.int32()</code> — 32-bit signed integer (-2^31 to 2^31-1)</li>
+<li><code>pa.int64()</code> — 64-bit signed integer (-2^63 to 2^63-1)</li>
+<li><code>pa.uint8()</code> — 8-bit unsigned integer (0 to 255)</li>
+<li><code>pa.uint16()</code> — 16-bit unsigned integer (0 to 65,535)</li>
+<li><code>pa.uint32()</code> — 32-bit unsigned integer (0 to 2^32-1)</li>
+<li><code>pa.uint64()</code> — 64-bit unsigned integer (0 to 2^64-1)</li>
+</ul>
 <h3 id="float-type-compatibility">Float Type Compatibility<a class="headerlink" href="#float-type-compatibility" title="Anchor link to this section for reference">&para;</a></h3>
-<p>Contract type <code>float</code> validates against:
-- <code>pa.float32()</code> — 32-bit single precision (IEEE 754)
-- <code>pa.float64()</code> — 64-bit double precision (IEEE 754)</p>
+<p>Contract type <code>float</code> validates against:</p>
+<ul>
+<li><code>pa.float32()</code> — 32-bit single precision (IEEE 754)</li>
+<li><code>pa.float64()</code> — 64-bit double precision (IEEE 754)</li>
+</ul>
 <p>Contract type <code>float</code> does <strong>not</strong> validate against <code>pa.float16()</code>.</p>
 <h3 id="date-type-compatibility">Date Type Compatibility<a class="headerlink" href="#date-type-compatibility" title="Anchor link to this section for reference">&para;</a></h3>
-<p>Contract type <code>date</code> validates against:
-- <code>pa.date32()</code> — 32-bit signed integer, days since UNIX epoch
-- <code>pa.date64()</code> — 64-bit signed integer, milliseconds since UNIX epoch</p>
+<p>Contract type <code>date</code> validates against:</p>
+<ul>
+<li><code>pa.date32()</code> — 32-bit signed integer, days since UNIX epoch</li>
+<li><code>pa.date64()</code> — 64-bit signed integer, milliseconds since UNIX epoch</li>
+</ul>
 <h3 id="time-type-compatibility">Time Type Compatibility<a class="headerlink" href="#time-type-compatibility" title="Anchor link to this section for reference">&para;</a></h3>
-<p>Contract type <code>time</code> validates against:
-- <code>pa.time32('s')</code> — 32-bit signed integer, seconds since midnight
-- <code>pa.time32('ms')</code> — 32-bit signed integer, milliseconds since midnight
-- <code>pa.time64('us')</code> — 64-bit signed integer, microseconds since midnight
-- <code>pa.time64('ns')</code> — 64-bit signed integer, nanoseconds since midnight</p>
+<p>Contract type <code>time</code> validates against:</p>
+<ul>
+<li><code>pa.time32('s')</code> — 32-bit signed integer, seconds since midnight</li>
+<li><code>pa.time32('ms')</code> — 32-bit signed integer, milliseconds since midnight</li>
+<li><code>pa.time64('us')</code> — 64-bit signed integer, microseconds since midnight</li>
+<li><code>pa.time64('ns')</code> — 64-bit signed integer, nanoseconds since midnight</li>
+</ul>
 <h3 id="timestamp-type-compatibility">Timestamp Type Compatibility<a class="headerlink" href="#timestamp-type-compatibility" title="Anchor link to this section for reference">&para;</a></h3>
-<p><strong>Simple form</strong> (<code>type: timestamp</code>):
-- Validates against any <code>pa.timestamp(unit, tz)</code> regardless of unit or timezone</p>
-<p><strong>Complex form</strong> (<code>type: {kind: timestamp}</code> or <code>type: {kind: timestamp, tz: "UTC"}</code>):
-- Validates unit flexibility (accepts s, ms, us, ns)
-- Validates timezone matches (default: "UTC")</p>
-<p><strong>Complex form with explicit timezone</strong> (<code>type: {kind: timestamp, tz: "America/New_York"}</code>):
-- Validates unit flexibility (accepts s, ms, us, ns)
-- Validates timezone exactly matches specified value</p>
+<p><strong>Simple form</strong> (<code>type: timestamp</code>):</p>
+<ul>
+<li>Validates against any <code>pa.timestamp(unit, tz)</code> regardless of unit or timezone</li>
+</ul>
+<p><strong>Complex form</strong> (<code>type: {kind: timestamp}</code> or <code>type: {kind: timestamp, tz: "UTC"}</code>):</p>
+<ul>
+<li>Validates unit flexibility (accepts s, ms, us, ns)</li>
+<li>Validates timezone matches (default: "UTC")</li>
+</ul>
+<p><strong>Complex form with explicit timezone</strong> (<code>type: {kind: timestamp, tz: "America/New_York"}</code>):</p>
+<ul>
+<li>Validates unit flexibility (accepts s, ms, us, ns)</li>
+<li>Validates timezone exactly matches specified value</li>
+</ul>
 <h3 id="decimal-type-compatibility">Decimal Type Compatibility<a class="headerlink" href="#decimal-type-compatibility" title="Anchor link to this section for reference">&para;</a></h3>
-<p>Contract type <code>decimal</code> validates against:
-- <code>pa.decimal128(precision, scale)</code> — Any precision/scale combination
-- <code>pa.decimal256(precision, scale)</code> — Any precision/scale combination</p>
+<p>Contract type <code>decimal</code> validates against:</p>
+<ul>
+<li><code>pa.decimal128(precision, scale)</code> — Any precision/scale combination</li>
+<li><code>pa.decimal256(precision, scale)</code> — Any precision/scale combination</li>
+</ul>
 <h3 id="string-type-compatibility">String Type Compatibility<a class="headerlink" href="#string-type-compatibility" title="Anchor link to this section for reference">&para;</a></h3>
-<p>Contract type <code>string</code> validates against:
-- <code>pa.string()</code> — UTF-8 encoded variable-length string
-- <code>pa.utf8()</code> — alias for string
-- <code>pa.large_string()</code> — large UTF-8 string (64-bit offsets, common in DuckDB)
-- <code>pa.large_utf8()</code> — alias for large_string</p>
+<p>Contract type <code>string</code> validates against:</p>
+<ul>
+<li><code>pa.string()</code> — UTF-8 encoded variable-length string</li>
+<li><code>pa.utf8()</code> — alias for string</li>
+<li><code>pa.large_string()</code> — large UTF-8 string (64-bit offsets, common in DuckDB)</li>
+<li><code>pa.large_utf8()</code> — alias for large_string</li>
+</ul>
 <h3 id="list-type-compatibility">List Type Compatibility<a class="headerlink" href="#list-type-compatibility" title="Anchor link to this section for reference">&para;</a></h3>
-<p>Contract type <code>list</code> validates against:
-- <code>pa.list_(value_type)</code> — standard list with 32-bit offsets
-- <code>pa.large_list(value_type)</code> — large list with 64-bit offsets</p>
+<p>Contract type <code>list</code> validates against:</p>
+<ul>
+<li><code>pa.list_(value_type)</code> — standard list with 32-bit offsets</li>
+<li><code>pa.large_list(value_type)</code> — large list with 64-bit offsets</li>
+</ul>
 
 
 
