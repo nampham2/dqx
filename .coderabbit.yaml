@@ -19,5 +19,5 @@ reviews:
 
   # Auto-review on PR open/update
   auto_review:
-    enabled: true
+    enabled: false
     drafts: false  # Don't review draft PRs
