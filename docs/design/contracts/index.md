@@ -4,8 +4,8 @@
 |-------|-------|
 | **Author** | DQX |
 | **Created** | 2025-02-15 |
-| **Last Updated** | 2025-03-06 |
-| **Version** | 2.2 |
+| **Last Updated** | 2026-03-07 |
+| **Version** | 2.3 |
 | **Status** | Ready for review |
 | **Tags** | data-contracts, data-quality, sla |
 | **Related** | None |
