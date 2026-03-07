@@ -231,7 +231,7 @@ After pushing, resolve every addressed review thread via the GitHub GraphQL API.
 Paginate using `pageInfo { hasNextPage endCursor }` and repeat with `after: endCursor` until `hasNextPage` is false, to ensure all threads are retrieved even for PRs with >100 review threads.
 
 ```bash
-# First page (after omitted = null for first call)
+# First page (`after` omitted for the initial request)
 gh api graphql -f query='
 query($owner: String!, $repo: String!, $pr: Int!, $after: String) {
   repository(owner: $owner, name: $repo) {
@@ -251,7 +251,7 @@ query($owner: String!, $repo: String!, $pr: Int!, $after: String) {
       }
     }
   }
-}' -F owner='{owner}' -F repo='{repo}' -F pr={PR_NUM} -F after=''
+}' -F owner='{owner}' -F repo='{repo}' -F pr={PR_NUM}
 
 # If pageInfo.hasNextPage is true, repeat with the endCursor value:
 # -F after='{endCursor}'
