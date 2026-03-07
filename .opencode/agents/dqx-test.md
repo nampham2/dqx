@@ -1,7 +1,7 @@
 ---
 description: Manages testing workflow with 100% coverage enforcement
 mode: subagent
-model: genai-gateway/claude-haiku-4-5
+model: genai-gateway/claude-sonnet-4-6
 temperature: 0.1
 tools:
   write: true

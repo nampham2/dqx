@@ -1,7 +1,7 @@
 ---
 description: Maintains user-facing API design and developer experience
 mode: subagent
-model: genai-gateway/claude-sonnet-4-5
+model: genai-gateway/claude-sonnet-4-6
 temperature: 0.3
 ---
 

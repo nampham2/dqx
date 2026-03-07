@@ -1,7 +1,7 @@
 ---
 description: Specializes in SQL dialects, analyzer, and DQL parser
 mode: subagent
-model: genai-gateway/claude-sonnet-4-5
+model: genai-gateway/claude-sonnet-4-6
 temperature: 0.2
 ---
 

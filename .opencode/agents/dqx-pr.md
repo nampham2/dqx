@@ -1,7 +1,7 @@
 ---
 description: Creates comprehensive pull requests with quality verification
 mode: subagent
-model: genai-gateway/claude-haiku-4-5
+model: genai-gateway/claude-sonnet-4-6
 temperature: 0.3
 ---
 
