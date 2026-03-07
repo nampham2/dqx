@@ -1,0 +1,171 @@
+# Zensical Configuration for DQX
+
+[project]
+
+# Project information
+site_name = "DQX - Data Quality Excellence"
+site_description = "Transform data validation into mathematical expressions. Find issues before they find you."
+site_author = "Nam Pham"
+site_url = "https://dqx.readthedocs.io"
+
+# Repository
+repo_name = "dqx"
+repo_url = "https://github.com/nampham2/dqx"
+edit_uri = "edit/main/docs/"
+
+# Copyright
+copyright = "Copyright &copy; 2024 Nam Pham"
+
+# Watch for changes
+watch = ["src/dqx", "docs"]
+
+# Extra CSS
+extra_css = ["stylesheets/extra.css"]
+
+# Extra JavaScript
+extra_javascript = [
+  "javascripts/mathjax.js",
+  "https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js",
+]
+
+# Navigation
+nav = [
+  { Home = "index.md" },
+  { Design = [
+    { Contracts = [
+      { Overview = "design/contracts/index.md" },
+      { "Check Types" = "design/contracts/checks.md" },
+      { "SLA Specification" = "design/contracts/sla.md" },
+      { "Type System" = "design/contracts/types.md" },
+    ]},
+    { Profiles = "design/profiles.md" },
+  ]},
+]
+
+# Theme configuration
+[project.theme]
+variant = "modern"
+language = "en"
+logo = "assets/logo.png"
+favicon = "assets/favicon.png"
+features = [
+  "navigation.instant",
+  "navigation.instant.prefetch",
+  "navigation.tracking",
+  "navigation.tabs",
+  "navigation.tabs.sticky",
+  "navigation.expand",
+  "navigation.path",
+  "navigation.prune",
+  "navigation.indexes",
+  "navigation.top",
+  "navigation.footer",
+  "toc.follow",
+  "toc.integrate",
+  "search.suggest",
+  "search.highlight",
+  "search.share",
+  "content.code.copy",
+  "content.code.annotate",
+  "content.code.select",
+  "content.tabs.link",
+  "content.tooltips",
+  "content.footnote.tooltips",
+  "content.action.edit",
+  "content.action.view",
+  "announce.dismiss",
+]
+
+[project.theme.font]
+text = "Inter"
+code = "JetBrains Mono"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "orange"
+accent = "blue"
+
+[project.theme.palette.toggle]
+icon = "material/brightness-7"
+name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "orange"
+accent = "blue"
+
+[project.theme.palette.toggle]
+icon = "material/brightness-4"
+name = "Switch to light mode"
+
+# Social links
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/nampham2/dqx"
+
+[[project.extra.social]]
+icon = "fontawesome/brands/python"
+link = "https://pypi.org/project/dqx/"
+
+[[project.extra.social]]
+icon = "fontawesome/solid/book"
+link = "https://dqx.readthedocs.io"
+
+[project.extra.consent]
+title = "Cookie consent"
+description = "We use cookies to recognize your repeated visits and preferences, as well as to measure the effectiveness of our documentation and whether users find what they're searching for. With your consent, you're helping us to make our documentation better."
+
+# Markdown extensions
+[project.markdown_extensions]
+abbr = {}
+admonition = {}
+attr_list = {}
+def_list = {}
+footnotes = {}
+md_in_html = {}
+
+[project.markdown_extensions.toc]
+permalink = true
+permalink_title = "Anchor link to this section for reference"
+
+[project.markdown_extensions.pymdownx.arithmatex]
+generic = true
+
+[project.markdown_extensions.pymdownx.betterem]
+smart_enable = "all"
+
+[project.markdown_extensions.pymdownx.caret]
+
+[project.markdown_extensions.pymdownx.details]
+
+[project.markdown_extensions.pymdownx.emoji]
+
+[project.markdown_extensions.pymdownx.highlight]
+anchor_linenums = true
+line_spans = "__span"
+pygments_lang_class = true
+
+[project.markdown_extensions.pymdownx.inlinehilite]
+
+[project.markdown_extensions.pymdownx.keys]
+
+[project.markdown_extensions.pymdownx.mark]
+
+[project.markdown_extensions.pymdownx.smartsymbols]
+
+[project.markdown_extensions.pymdownx.superfences]
+custom_fences = [{ name = "mermaid", class = "mermaid" }]
+
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true
+combine_header_slug = true
+
+[project.markdown_extensions.pymdownx.tasklist]
+custom_checkbox = true
+
+[project.markdown_extensions.pymdownx.tilde]
+
+[project.markdown_extensions.pymdownx.snippets]
+check_paths = true
