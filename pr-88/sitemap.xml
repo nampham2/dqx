@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+      <url>
+        <loc>https://dqx.readthedocs.io/</loc>
+      </url>
+      <url>
+        <loc>https://dqx.readthedocs.io/design/contracts/</loc>
+      </url>
+      <url>
+        <loc>https://dqx.readthedocs.io/design/contracts/checks/</loc>
+      </url>
+      <url>
+        <loc>https://dqx.readthedocs.io/design/contracts/sla/</loc>
+      </url>
+      <url>
+        <loc>https://dqx.readthedocs.io/design/contracts/types/</loc>
+      </url>
+      <url>
+        <loc>https://dqx.readthedocs.io/design/profiles/</loc>
+      </url>
+</urlset>
