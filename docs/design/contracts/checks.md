@@ -16,7 +16,7 @@ Data contracts support two categories of checks:
 **Naming Conventions:**
 
 - Check names should be descriptive business statements (e.g., "Order ID is unique")
-- Severity levels: `P0` (critical), `P1` (important), `P2` (nice-to-have), `P3` (informational)
+- Severity levels: `P0` (critical), `P1` (important, default), `P2` (nice-to-have), `P3` (informational). Omitting `severity` defaults to `P1`.
 - All checks support optional `tags` parameter for categorization
 - Check type names in YAML contracts use `snake_case` (e.g., `num_rows`, `duplicates`, `nulls`).
 
@@ -27,13 +27,13 @@ Every check shares a common structure:
 ```yaml
 - name: "Descriptive business name"   # required
   type: <check_type>                   # required
-  severity: P0 | P1 | P2 | P3         # required
+  severity: P0 | P1 | P2 | P3         # optional, defaults to P1
   <validator>: <value>                 # optional — exactly one of: min, max, between, equals
   tolerance: <value>                   # optional
   # check-specific params (e.g. return: count/pct, columns:, values:, pattern:)
 ```
 
-The `name` is a descriptive business statement. The `type` identifies which check to run. `severity` sets the priority level. A single **validator** — `min`, `max`, `between`, or `equals` — defines the acceptance condition; only one may be specified per check. The optional `tolerance` parameter allows acceptable variance. Check-specific parameters (such as `return`, `columns`, `values`, `pattern`) are documented in each check's detail section.
+The `name` is a descriptive business statement. The `type` identifies which check to run. `severity` sets the priority level and defaults to `P1` when omitted. A single **validator** — `min`, `max`, `between`, or `equals` — defines the acceptance condition; only one may be specified per check. The optional `tolerance` parameter allows acceptable variance. Check-specific parameters (such as `return`, `columns`, `values`, `pattern`) are documented in each check's detail section.
 
 **Note:** Cross-dataset validation (referential integrity, schema consistency, aggregate reconciliation) should be handled at the orchestration/workflow level rather than in individual data contracts. This keeps contracts focused on single-dataset quality while allowing orchestration tools to manage relationships between datasets.
 
