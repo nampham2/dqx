@@ -28,12 +28,12 @@ Every check shares a common structure:
 - name: "Descriptive business name"   # required
   type: <check_type>                   # required
   severity: P0 | P1 | P2 | P3         # optional, defaults to P1
-  <validator>: <value>                 # optional — exactly one of: min, max, between, not_between, equals
+  <validator>: <value>                 # optional — exactly one of: min, max, between, equals
   tolerance: <value>                   # optional
   # check-specific params (e.g. return: count/pct, columns:, values:, pattern:)
 ```
 
-The `name` is a descriptive business statement. The `type` identifies which check to run. `severity` sets the priority level and defaults to `P1` when omitted. A single **validator** — `min`, `max`, `between`, `not_between`, or `equals` — defines the acceptance condition; only one may be specified per check. The optional `tolerance` parameter allows acceptable variance. Check-specific parameters (such as `return`, `columns`, `values`, `pattern`) are documented in each check's detail section.
+The `name` is a descriptive business statement. The `type` identifies which check to run. `severity` sets the priority level and defaults to `P1` when omitted. A single **validator** — `min`, `max`, `between`, or `equals` — defines the acceptance condition; only one may be specified per check. The optional `tolerance` parameter allows acceptable variance. Check-specific parameters (such as `return`, `columns`, `values`, `pattern`) are documented in each check's detail section.
 
 **Note:** Cross-dataset validation (referential integrity, schema consistency, aggregate reconciliation) should be handled at the orchestration/workflow level rather than in individual data contracts. This keeps contracts focused on single-dataset quality while allowing orchestration tools to manage relationships between datasets.
 
@@ -78,7 +78,7 @@ Statistical checks compute aggregate metrics over the entire column and return a
 
 #### Value Checks
 
-Value checks validate individual values within a column. Each check returns either an absolute count (`count`) or percentage (`pct`) controlled by the `return` parameter. For `missing` and `duplicates`, the return value represents the count/percentage of missing or duplicate values found. For `whitelist`, `blacklist`, `pattern`, `min_length`, `max_length`, and `avg_length`, the return value represents the count/percentage of valid (conforming) rows.
+Value checks validate individual values within a column. Each check returns either an absolute count (`count`) or percentage (`pct`) controlled by the `return` parameter. For `missing` and `duplicates`, the return value represents the count/percentage of missing or duplicate values found. For `whitelist`, `blacklist`, and `pattern`, the return value represents the count/percentage of valid (conforming) rows.
 
 | Check Type | Description |
 |------------|-------------|
@@ -87,11 +87,8 @@ Value checks validate individual values within a column. Each check returns eith
 | [`whitelist`](#whitelist) | Values in allowed set |
 | [`blacklist`](#blacklist) | Values in disallowed set |
 | [`pattern`](#pattern) | Values matching regex pattern |
-| [`min_length`](#min_length) | Minimum length of string, list, or map values |
-| [`max_length`](#max_length) | Maximum length of string, list, or map values |
-| [`avg_length`](#avg_length) | Average length of string, list, or map values |
 
-**Total: 17 column-level checks** (9 Statistical + 8 Value Checks)
+**Total: 14 column-level checks** (9 Statistical + 5 Value Checks)
 
 ---
 
@@ -133,17 +130,6 @@ Inclusive range — shorthand for specifying both `min` and `max`. The check pas
   severity: P1
 ```
 
-### not_between
-
-Inverse range — the check passes if `actual < (min - tolerance) OR actual > (max + tolerance)`. Cannot be combined with `min`, `max`, or `between`; doing so raises a `ContractValidationError`.
-
-```yaml
-- name: "Order ID is not in reserved test range"
-  type: num_rows
-  not_between: [9000000, 9999999]
-  severity: P1
-```
-
 ### equals
 
 Exact match. The check passes if `|actual - expected| ≤ tolerance`.
@@ -170,7 +156,7 @@ Table-level checks are specified in the top-level `checks` array (sibling to `co
 
 The `num_rows` check validates that the total row count falls within specified bounds.
 
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: Range Validation**
 
@@ -216,7 +202,7 @@ The `duplicates` check validates that the number of duplicate rows (based on spe
 | `columns` | `list[string]` | Yes | None | Columns to check for duplicates (composite key) |
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
 
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: No Duplicates (Most Common)**
 
@@ -388,7 +374,7 @@ Column-level checks are specified within the `checks` array of a column definiti
 
 ### Value Checks
 
-Value checks validate individual values within a column (rather than computing aggregates over the column). Each check defines its own return semantics. For `missing` and `duplicates`, the return value represents missing or duplicate values found. For `whitelist`, `blacklist`, `pattern`, `min_length`, `max_length`, and `avg_length`, the return value represents conforming (valid) rows. Use the `return` parameter to specify the return type (`count` or `pct`). When `return: pct` is used, the percentage denominator is always the total row count including nulls; the numerator differs by check family: for `missing` and `duplicates` the numerator is the count of missing or duplicate values respectively, while for `whitelist`, `blacklist`, `pattern`, `min_length`, `max_length`, and `avg_length` the numerator is the count of conforming (valid) rows.
+Value checks validate individual values within a column (rather than computing aggregates over the column). Each check defines its own return semantics. For `missing` and `duplicates`, the return value represents missing or duplicate values found. For `whitelist`, `blacklist`, and `pattern`, the return value represents conforming (valid) rows. Use the `return` parameter to specify the return type (`count` or `pct`). When `return: pct` is used, the percentage denominator is always the total row count including nulls; the numerator differs by check family: for `missing` and `duplicates` the numerator is the count of missing or duplicate values respectively, while for `whitelist`, `blacklist`, and `pattern` the numerator is the count of conforming (valid) rows.
 
 ---
 
@@ -404,7 +390,7 @@ The `missing` check validates null values in a column, returning the count or pe
 |-----------|------|----------|---------|-------------|
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
 
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: Maximum Bound (Most Common)**
 
@@ -485,7 +471,7 @@ The `whitelist` check validates that non-null values match a set of allowed valu
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
 | `case_sensitive` | `bool` | No | `true` | Whether comparison is case-sensitive (strings only) |
 
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: Basic Usage**
 
@@ -566,7 +552,7 @@ The `blacklist` check validates that non-null values do not match any forbidden 
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
 | `case_sensitive` | `bool` | No | `true` | Whether comparison is case-sensitive (strings only) |
 
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: Basic Usage**
 
@@ -632,7 +618,7 @@ The `duplicates` check (column-level) validates that the count of duplicate valu
 |-----------|------|----------|---------|-------------|
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
 
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Note:** To enforce uniqueness (no duplicates), use `max: 0` or `equals: 0`.
 
@@ -726,7 +712,7 @@ The `pattern` check validates that string values match a pattern, supporting eit
 
 \* Exactly ONE of `pattern` or `format` must be specified. Specifying `flags` together with `format` is invalid and raises a `ContractValidationError`.
 
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: Email Validation**
 
@@ -875,145 +861,6 @@ columns:
 
 ---
 
-#### `min_length`
-
-The `min_length` check computes the minimum length across all non-null values in a string, list, or map column. For strings, length is the character count. For lists and maps, length is the element count.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `return` | `string` | No | `count` | Return type: `count` (rows below minimum) or `pct` |
-
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
-
-**Example 1: String Column — Minimum Character Count**
-
-```yaml
-columns:
-  - name: username
-    type: string
-    nullable: false
-    description: "User username"
-    checks:
-      - name: "Username is at least 3 characters"
-        type: min_length
-        min: 3
-        severity: P1
-```
-
-**Example 2: List Column — Minimum Element Count**
-
-```yaml
-columns:
-  - name: tags
-    type:
-      kind: list
-      value_type: string
-    nullable: true
-    description: "Product tags"
-    checks:
-      - name: "Tags list has at least one element"
-        type: min_length
-        min: 1
-        severity: P2
-```
-
----
-
-#### `max_length`
-
-The `max_length` check computes the maximum length across all non-null values in a string, list, or map column. For strings, length is the character count. For lists and maps, length is the element count.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `return` | `string` | No | `count` | Return type: `count` (rows exceeding maximum) or `pct` |
-
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
-
-**Example 1: String Column — Maximum Character Count**
-
-```yaml
-columns:
-  - name: description
-    type: string
-    nullable: true
-    description: "Product description"
-    checks:
-      - name: "Description does not exceed 500 characters"
-        type: max_length
-        max: 500
-        severity: P2
-```
-
-**Example 2: Map Column — Maximum Element Count**
-
-```yaml
-columns:
-  - name: properties
-    type:
-      kind: map
-      key_type: string
-      value_type: string
-    nullable: true
-    description: "Custom properties"
-    checks:
-      - name: "Properties map has at most 50 entries"
-        type: max_length
-        max: 50
-        severity: P2
-```
-
----
-
-#### `avg_length`
-
-The `avg_length` check computes the average length of non-null values in a string, list, or map column, returning a single float metric. For strings, length is the character count. For lists and maps, length is the element count.
-
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| (none beyond validators) | — | — | — | — |
-
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
-
-**Example 1: Average String Length Within Range**
-
-```yaml
-columns:
-  - name: product_name
-    type: string
-    nullable: false
-    description: "Product display name"
-    checks:
-      - name: "Product names have reasonable average length"
-        type: avg_length
-        between: [5, 100]
-        severity: P2
-```
-
-**Example 2: Average List Length**
-
-```yaml
-columns:
-  - name: tags
-    type:
-      kind: list
-      value_type: string
-    nullable: true
-    description: "Product tags"
-    checks:
-      - name: "Tags list has reasonable average size"
-        type: avg_length
-        between: [1, 10]
-        severity: P3
-```
-
----
-
 ### Statistical Checks
 
 Statistical checks compute aggregate metrics over the entire column and return a single numeric value.
@@ -1032,7 +879,7 @@ The `cardinality` check counts distinct non-null values in a column and validate
 | `equals` | `number` | No | None | Exact expected distinct value count |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: Low Cardinality (Categorical)**
 
@@ -1095,7 +942,7 @@ The `min` check validates that the minimum value in a column meets specified cri
 | `equals` | `number` | No | None | Exact expected value for the column minimum |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: Minimum Must Be Non-Negative**
 
@@ -1143,7 +990,7 @@ The `max` check validates that the maximum value in a column meets specified cri
 | `equals` | `number` | No | None | Exact expected value for the column maximum |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: Maximum Must Be Reasonable**
 
@@ -1191,7 +1038,7 @@ The `mean` check validates that the arithmetic mean of numeric values in a colum
 | `equals` | `number` | No | None | Exact expected mean value |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 Use `min`, `max`, `between`, or `equals` to set bounds. Most use cases require range validation to detect drift in either direction.
 
@@ -1257,7 +1104,7 @@ The `sum` check validates that the total of all non-null values in a column meet
 | `equals` | `number` | No | None | Exact expected sum |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: Exact Sum**
 
@@ -1322,7 +1169,7 @@ The `count` check validates that the number of non-null values in a column falls
 | `equals` | `number` | No | None | Exact expected non-null count |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: Exact Count**
 
@@ -1386,7 +1233,7 @@ The `variance` check validates that the statistical variance of numeric values i
 | `equals` | `number` | No | None | Exact expected variance |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: Maximum Bound (Most Common)**
 
@@ -1440,7 +1287,7 @@ columns:
 
 The `stddev` check computes the standard deviation of numeric values in a column, returning a single float metric.
 
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: Maximum Standard Deviation**
 
@@ -1489,7 +1336,7 @@ The `percentile` check validates that a specific percentile value in a column fa
 | `equals` | `number` | No | None | Exact expected percentile value |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
-> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators). The `percentile` parameter shares the same name as the check type but operates at a different YAML scope — `type` selects the check, `percentile` specifies the value to compute. They do not conflict.
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators). The `percentile` parameter shares the same name as the check type but operates at a different YAML scope — `type` selects the check, `percentile` specifies the value to compute. They do not conflict.
 
 Use `min`, `max`, `between`, or `equals` to set bounds. Most use cases require range validation to detect drift in either direction.
 
@@ -1614,17 +1461,11 @@ columns:
         max: 0.20  # At most 20% null
         severity: P1
 
-      # Format validation (when present)
+      # Format and length validation
       - name: "Phone number format is valid"
         type: pattern
         pattern: "^\\+?[1-9]\\d{1,14}$"
         severity: P0
-
-      # Length validation
-      - name: "Phone number length is reasonable"
-        type: min_length
-        min: 10
-        severity: P1
 ```
 
 ### Pattern 4: Table-Level Reconciliation
