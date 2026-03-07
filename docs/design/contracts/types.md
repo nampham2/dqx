@@ -2,6 +2,8 @@
 
 > Part of the [Data Contracts Technical Specification](index.md).
 
+DQX defines its own contract type system designed for simplicity and broad data quality coverage. Rather than exposing raw storage types, the contract type system uses 12 human-readable types — `int`, `float`, `bool`, `string`, `bytes`, `date`, `time`, `timestamp`, `decimal`, `list`, `struct`, `map` — that cover the vast majority of data quality use cases. Each contract type accepts a range of compatible storage representations; the compatibility reference at the end of this document maps each contract type to the storage formats it validates against.
+
 ## Design Philosophy
 
 The type system prioritizes validation flexibility over exact matching. Types accept compatible variations (e.g., `int` accepts int8 through int64), require parameters only when semantically necessary (e.g., timezone for timestamp), and default to the simplest form.

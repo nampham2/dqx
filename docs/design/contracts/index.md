@@ -14,7 +14,7 @@
 
 ## Overview
 
-A data contract is a versioned YAML document that defines the schema, quality checks, and freshness guarantees for a dataset. Each contract names its dataset, declares the PyArrow type and nullability of every column, specifies optional SLA schedules, and attaches quality checks directly to the columns or dataset they govern.
+A data contract is a versioned YAML document that defines the schema, quality checks, and freshness guarantees for a dataset. Each contract names its dataset, declares the type and nullability of every column, specifies optional SLA schedules, and attaches quality checks directly to the columns or dataset they govern.
 
 Teams need contracts because data requirements must be explicit, version-controlled, testable, and portable. Without contracts, quality rules live in ad-hoc Python scripts that differ across environments, drift from the actual schema, and cannot be reviewed as data specifications. A contract replaces that scattered Python code with a single declarative YAML file that any engineer can read, diff, and own.
 
@@ -31,7 +31,7 @@ Contracts generate lists of `DecoratedCheck` functions. The user combines contra
 ```text
 Contract YAML (schema + checks)
     ↓ Contract.from_yaml()
-Contract instance (with PyArrow schema)
+Contract instance (with resolved schema)
     ↓ contract.to_checks()
 list[DecoratedCheck]
     ↓ VerificationSuite(checks=contract.to_checks() + [...], ...)
@@ -42,7 +42,7 @@ None
 list[AssertionResult]
 ```
 
-`Contract.from_yaml()` parses the YAML and builds a `Contract` instance with a fully resolved PyArrow schema. `contract.to_checks()` translates every column definition and check into a list of `DecoratedCheck` functions. The user merges contract-generated checks with any hand-coded checks — `VerificationSuite(checks=contract.to_checks() + [custom_check], db=db, name=...)` — and calls `suite.run([datasource], result_key)` to execute all checks. Results are collected separately via `suite.collect_results()`, which returns `list[AssertionResult]`. Schema type mismatches raise `SchemaValidationError`; contract parse errors raise `ContractValidationError`. `SchemaValidationError` is raised when a column's actual storage type does not match the declared contract type. `ContractValidationError` is raised when the YAML cannot be parsed into a valid `Contract` (e.g., missing required fields, invalid cron expression, or unknown check type).
+`Contract.from_yaml()` parses the YAML and builds a `Contract` instance with a fully resolved schema. `contract.to_checks()` translates every column definition and check into a list of `DecoratedCheck` functions. The user merges contract-generated checks with any hand-coded checks — `VerificationSuite(checks=contract.to_checks() + [custom_check], db=db, name=...)` — and calls `suite.run([datasource], result_key)` to execute all checks. Results are collected separately via `suite.collect_results()`, which returns `list[AssertionResult]`. Schema type mismatches raise `SchemaValidationError`; contract parse errors raise `ContractValidationError`. `SchemaValidationError` is raised when a column's actual storage type does not match the declared contract type. `ContractValidationError` is raised when the YAML cannot be parsed into a valid `Contract` (e.g., missing required fields, invalid cron expression, or unknown check type).
 
 ---
 
@@ -103,7 +103,7 @@ columns:
 
 **Table-level checks.** The top-level `checks` section validates properties of the dataset as a whole. `num_rows` asserts that the row count falls within a specified range. `duplicates` asserts that duplicate rows stay below a threshold. `freshness` asserts that data is not stale by checking record age against `max_age_hours` (defaults to the most recent record; set `aggregation: min` to check the oldest). `completeness` asserts that partition gaps — missing dates or time windows — stay below a specified count. `num_rows` and `duplicates` accept standard validators (`min`, `max`, `between`, `equals`, `tolerance`). `freshness` uses the implicit `max_age_hours` parameter instead of standard validators; `completeness` uses the implicit `max_gap_count` parameter instead.
 
-**Columns.** The `columns` section is the heart of the contract. Each entry co-locates four pieces of information that belong together: the column's `type` (one of 12 flexible PyArrow types that accept compatible storage variations — `int` accepts int8 through int64, `float` accepts float32 and float64), its `nullable` flag (defaults to `true` when omitted), its required `description`, and an optional `checks` list. Co-locating schema and checks in a single entry makes the contract self-documenting: a reader sees the column's semantics and its quality requirements in one place. See [Type System](types.md) for the full compatibility matrix.
+**Columns.** The `columns` section is the heart of the contract. Each entry co-locates four pieces of information that belong together: the column's `type` (one of 12 contract types designed for simplicity and broad storage compatibility — `int` accepts any integer width, `float` accepts 32-bit and 64-bit), its `nullable` flag (defaults to `true` when omitted), its required `description`, and an optional `checks` list. Co-locating schema and checks in a single entry makes the contract self-documenting: a reader sees the column's semantics and its quality requirements in one place. See [Type System](types.md) for the full compatibility matrix.
 
 ### Complete Schema Structure
 
@@ -182,7 +182,7 @@ Simple types use strings; complex types use objects with a `kind` field:
 
 ### Minimal Contract Example
 
-A minimal contract defines only metadata and columns. Without checks, DQX applies PyArrow schema enforcement at load time but generates no quality checks.
+A minimal contract defines only metadata and columns. Without checks, DQX enforces the declared schema at load time but generates no quality checks.
 
 ```yaml
 name: "Products Contract"
@@ -308,13 +308,13 @@ checks:
     severity: P1
 ```
 
-This contract generates checks for four columns (`order_id`, `customer_id`, `total_amount`, `status`) plus one table-level check. The four schema-only columns (`order_date`, `payment_method`, `is_gift`, `notes`) produce no checks; DQX validates their types and nullability via PyArrow schema enforcement at load time. Because the checks bind to the dataset name `orders`, the same checks run unchanged against any datasource whose registered name matches and whose schema satisfies the declared types.
+This contract generates checks for four columns (`order_id`, `customer_id`, `total_amount`, `status`) plus one table-level check. The four schema-only columns (`order_date`, `payment_method`, `is_gift`, `notes`) produce no checks; DQX validates their types and nullability at load time. Because the checks bind to the dataset name `orders`, the same checks run unchanged against any datasource whose registered name matches and whose schema satisfies the declared types.
 
 ---
 
 ## Type System Summary
 
-DQX contracts use 12 types that validate semantically, not by exact storage format. A column declared as `int` passes validation for any integer width the storage engine chooses; only the semantic category matters.
+DQX defines its own contract type system aimed at simplicity and broad data quality coverage. The 12 contract types map common data concepts — integers, decimals, timestamps, lists — to their storage representations without requiring users to know the underlying storage format. A column declared as `int` passes validation for any integer width; only the semantic category matters.
 
 | Category | Types | Format |
 |----------|-------|--------|
@@ -367,6 +367,6 @@ Most checks, table-level or column-level, support validators: `min`, `max`, `bet
 
 ## Detailed References
 
-- [Type System](types.md) — PyArrow-based type definitions, primitive, temporal, decimal, and complex types
+- [Type System](types.md) — Contract type definitions: primitive, temporal, decimal, and complex types
 - [SLA Specification](sla.md) — Service level agreements, scheduling, auto-generated checks, and examples
 - [Check Types Reference](checks.md) — Overview, parameter conventions, table-level checks, column-level checks, and composition patterns
