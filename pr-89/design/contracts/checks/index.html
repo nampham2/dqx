@@ -1287,11 +1287,13 @@
 <li><strong>Table-Level Checks</strong>: Validate table-wide properties (row counts, freshness, duplicates, partitions)</li>
 <li><strong>Column-Level Checks</strong>: Validate individual column values (nullability, uniqueness, ranges, patterns, distributions)</li>
 </ol>
-<p><strong>Naming Conventions:</strong>
-- Check names should be descriptive business statements (e.g., "Order ID is unique")
-- Severity levels: <code>P0</code> (critical), <code>P1</code> (important), <code>P2</code> (nice-to-have), <code>P3</code> (informational)
-- All checks support optional <code>tags</code> parameter for categorization
-- Check type names in YAML contracts use <code>snake_case</code> (e.g., <code>num_rows</code>, <code>duplicates</code>, <code>nulls</code>). These <code>snake_case</code> names are the specification surface; the contract parser normalizes them to the internal implementation identifiers (e.g., <code>NumRows</code>, <code>NullCount</code>) used inside DQX.</p>
+<p><strong>Naming Conventions:</strong></p>
+<ul>
+<li>Check names should be descriptive business statements (e.g., "Order ID is unique")</li>
+<li>Severity levels: <code>P0</code> (critical), <code>P1</code> (important), <code>P2</code> (nice-to-have), <code>P3</code> (informational)</li>
+<li>All checks support optional <code>tags</code> parameter for categorization</li>
+<li>Check type names in YAML contracts use <code>snake_case</code> (e.g., <code>num_rows</code>, <code>duplicates</code>, <code>nulls</code>). These <code>snake_case</code> names are the specification surface; the contract parser normalizes them to the internal implementation identifiers (e.g., <code>NumRows</code>, <code>NullCount</code>) used inside DQX.</li>
+</ul>
 <p><strong>Check Structure:</strong></p>
 <p>Every check shares a common structure:</p>
 <div class="language-yaml highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Descriptive</span><span class="nv"> </span><span class="s">business</span><span class="nv"> </span><span class="s">name&quot;</span><span class="w">   </span><span class="c1"># required</span>
