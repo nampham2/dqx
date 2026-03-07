@@ -59,7 +59,7 @@ tags: [string, ...]
 # OPTIONAL: Structured SLA (can be omitted entirely)
 sla:
   schedule: string               # REQUIRED (if sla specified): Cron expression (5-field format)
-  lag_hours: int                 # REQUIRED (if sla specified): Hours after scheduled time until data available
+  lag_hours: number                 # REQUIRED (if sla specified): Hours after scheduled time until data available
 
 # Optional table metadata
 metadata:
@@ -67,6 +67,7 @@ metadata:
 ```
 
 **SLA Type Inference:**
+
 - If `metadata.partitioned_by` exists → Partition-based SLA (incremental data)
 - If `metadata.partitioned_by` absent → Table-based SLA (full table refresh)
 
@@ -75,7 +76,7 @@ metadata:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `schedule` | `string` | Yes* | Cron expression (5-field format) defining when data arrives |
-| `lag_hours` | `int` | Yes* | Hours after scheduled time until data is available |
+| `lag_hours` | `number` | Yes* | Hours after scheduled time until data is available |
 
 \* Required if `sla` block is specified. The entire `sla` block is optional at contract level.
 
@@ -89,10 +90,15 @@ max_age_hours = lag_hours + period_hours + buffer
 
 where:
   period_hours = inferred from cron schedule
-    - Hourly (0 * * * *) → 1 hour
-    - Daily (0 0 * * *) → 24 hours
-    - Weekly (0 0 * * 1) → 168 hours
-  buffer = 1 hour (default tolerance)
+    - Hourly    (0 * * * *)       → 1 hour
+    - Daily     (0 H * * *)       → 24 hours
+    - Every N hours (0 */N * * *) → N hours
+    - Business days (0 H * * 1-5) → 24 hours
+    - Weekly    (0 H * * W)       → 168 hours
+    - Monthly   (0 H 1 * *)       → 720 hours
+    Cron expressions that do not match one of the above patterns
+    (e.g. multi-day-of-week lists like "1,3,5") raise a ContractValidationError.
+  buffer = 1 hour (fixed constant)
 ```
 
 **For Non-Partitioned Tables** (`partitioned_by` absent):
@@ -397,8 +403,21 @@ columns:
     nullable: false
     description: "Total number of orders"
 
-# AUTO-GENERATED:
-# - Freshness: max_age_hours = 0 + 1 = 1 (must be within 1 hour)
+# AUTO-GENERATED CHECK FROM SLA:
+# checks:
+#   - name: "SLA: Freshness check"
+#     type: freshness
+#     max_age_hours: 1              # 0 (lag) + 1 (buffer)
+#     timestamp_column: last_updated  # Must be specified — cannot be inferred for non-partitioned tables
+#     severity: P0
+#
+# NOTE: For non-partitioned tables, `timestamp_column` is NOT automatically inferred
+# because there is no `metadata.partitioned_by` list to read from. The generated
+# freshness check uses the column named in a `timestamp_column` field that must be
+# provided when calling the SLA generator (or in an explicit manual check). In this
+# example `last_updated` is explicitly supplied as the timestamp column at generation
+# time. If you prefer direct control, omit the `sla` block and write a manual
+# freshness check with `timestamp_column: last_updated` instead.
 ```
 
 ## Validation Rules
@@ -431,12 +450,15 @@ Standard 5-field cron format:
 ```
 
 **Special Characters**:
+
 - `*` — Any value (wildcard)
 - `,` — List separator (e.g., `1,3,5`)
 - `-` — Range (e.g., `1-5` = Monday through Friday)
 - `/` — Step values (e.g., `*/6` = every 6 units)
 
 ### Common Cron Patterns
+
+The following patterns are supported by DQX's SLA validator (corresponding to the Hourly, Daily, Every N hours, Business days, Weekly, and Monthly period rules). Expressions outside these patterns raise `ContractValidationError`.
 
 | Pattern | Cron Expression | Description |
 |---------|-----------------|-------------|
@@ -447,10 +469,15 @@ Standard 5-field cron format:
 | **Business days** | `0 0 * * 1-5` | Mon-Fri at midnight |
 | **Business days at 6 AM** | `0 6 * * 1-5` | Mon-Fri at 06:00 |
 | **Monday only** | `0 0 * * 1` | Every Monday at midnight |
-| **Tuesday and Thursday** | `0 0 * * 2,4` | Tue and Thu at midnight |
 | **First of month** | `0 0 1 * *` | 1st day at midnight |
-| **First and 15th** | `0 0 1,15 * *` | 1st and 15th at midnight |
-| **Mon/Wed/Fri** | `0 0 * * 1,3,5` | Mon, Wed, Fri at midnight |
+
+The following patterns are **unsupported** and will raise `ContractValidationError`. Use the equivalent supported patterns above or write a manual freshness check instead.
+
+| Pattern | Cron Expression | Why unsupported |
+|---------|-----------------|-----------------|
+| **Tuesday and Thursday** | `0 0 * * 2,4` | List-based day-of-week; no single period can be inferred |
+| **First and 15th** | `0 0 1,15 * *` | List-based day-of-month; no single period can be inferred |
+| **Mon/Wed/Fri** | `0 0 * * 1,3,5` | List-based day-of-week; no single period can be inferred |
 
 **Cron Testing Tools**:
 - https://crontab.guru/ — Cron expression explainer

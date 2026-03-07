@@ -2,6 +2,8 @@
 
 > Part of the [Data Contracts Technical Specification](index.md).
 
+DQX defines its own contract type system designed for simplicity and broad data quality coverage. Rather than exposing raw storage types, the contract type system uses 12 human-readable types — `int`, `float`, `bool`, `string`, `bytes`, `date`, `time`, `timestamp`, `decimal`, `list`, `struct`, `map` — that cover the vast majority of data quality use cases. Each contract type accepts a range of compatible storage representations; the compatibility reference at the end of this document maps each contract type to the storage formats it validates against.
+
 ## Design Philosophy
 
 The type system prioritizes validation flexibility over exact matching. Types accept compatible variations (e.g., `int` accepts int8 through int64), require parameters only when semantically necessary (e.g., timezone for timestamp), and default to the simplest form.
@@ -14,9 +16,9 @@ The type system prioritizes validation flexibility over exact matching. Types ac
 |------|-------------|-------------------|-------|
 | **Primitive Types** | | | |
 | `int` | `type: int` | int8, int16, int32, int64, uint8, uint16, uint32, uint64 | Any integer width, signed or unsigned |
-| `float` | `type: float` | float32, float64 | Any float precision |
+| `float` | `type: float` | float32, float64 | float32 and float64 only; float16 is not accepted |
 | `bool` | `type: bool` | bool | Boolean exact match |
-| `string` | `type: string` | string, utf8 | UTF-8 text |
+| `string` | `type: string` | string, utf8 | UTF-8 text; also accepts large_string, large_utf8 |
 | `bytes` | `type: bytes` | binary, large_binary | Binary data |
 | **Temporal Types** | | | |
 | `date` | `type: date` | date32, date64 | Any date representation |
@@ -27,7 +29,7 @@ The type system prioritizes validation flexibility over exact matching. Types ac
 | **Decimal Type** | | | |
 | `decimal` | `type: decimal` | decimal128(any), decimal256(any) | Any precision/scale |
 | **Complex Types** | | | |
-| `list` | `type: {kind: list, value_type: T}` | list\<T\> | Recursive validation of element type |
+| `list` | `type: {kind: list, value_type: T}` | list\<T\> | Recursive validation of element type; also accepts large_list |
 | `struct` | `type: {kind: struct, fields: [...]}` | struct\<fields\> | Recursive validation of field structure |
 | `map` | `type: {kind: map, key_type: K, value_type: V}` | map\<K, V\> | Recursive validation of key/value types |
 
@@ -238,6 +240,8 @@ The validator confirms the column is a decimal type regardless of precision or s
   description: "Complete address"
 ```
 
+> **Note:** The `nullable` flag on nested struct and list element fields is for documentation purposes only. Schema validation enforces nullability at the top-level column only; nested field nullability is not validated.
+
 ### Map Type
 
 ```yaml
@@ -303,6 +307,7 @@ The error message names the column, states the full set of accepted physical typ
 ### Integer Type Compatibility
 
 Contract type `int` validates against:
+
 - `pa.int8()` — 8-bit signed integer (-128 to 127)
 - `pa.int16()` — 16-bit signed integer (-32,768 to 32,767)
 - `pa.int32()` — 32-bit signed integer (-2^31 to 2^31-1)
@@ -315,18 +320,23 @@ Contract type `int` validates against:
 ### Float Type Compatibility
 
 Contract type `float` validates against:
+
 - `pa.float32()` — 32-bit single precision (IEEE 754)
 - `pa.float64()` — 64-bit double precision (IEEE 754)
+
+Contract type `float` does **not** validate against `pa.float16()`.
 
 ### Date Type Compatibility
 
 Contract type `date` validates against:
+
 - `pa.date32()` — 32-bit signed integer, days since UNIX epoch
 - `pa.date64()` — 64-bit signed integer, milliseconds since UNIX epoch
 
 ### Time Type Compatibility
 
 Contract type `time` validates against:
+
 - `pa.time32('s')` — 32-bit signed integer, seconds since midnight
 - `pa.time32('ms')` — 32-bit signed integer, milliseconds since midnight
 - `pa.time64('us')` — 64-bit signed integer, microseconds since midnight
@@ -335,18 +345,38 @@ Contract type `time` validates against:
 ### Timestamp Type Compatibility
 
 **Simple form** (`type: timestamp`):
+
 - Validates against any `pa.timestamp(unit, tz)` regardless of unit or timezone
 
 **Complex form** (`type: {kind: timestamp}` or `type: {kind: timestamp, tz: "UTC"}`):
+
 - Validates unit flexibility (accepts s, ms, us, ns)
 - Validates timezone matches (default: "UTC")
 
 **Complex form with explicit timezone** (`type: {kind: timestamp, tz: "America/New_York"}`):
+
 - Validates unit flexibility (accepts s, ms, us, ns)
 - Validates timezone exactly matches specified value
 
 ### Decimal Type Compatibility
 
 Contract type `decimal` validates against:
+
 - `pa.decimal128(precision, scale)` — Any precision/scale combination
 - `pa.decimal256(precision, scale)` — Any precision/scale combination
+
+### String Type Compatibility
+
+Contract type `string` validates against:
+
+- `pa.string()` — UTF-8 encoded variable-length string
+- `pa.utf8()` — alias for string
+- `pa.large_string()` — large UTF-8 string (64-bit offsets, common in DuckDB)
+- `pa.large_utf8()` — alias for large_string
+
+### List Type Compatibility
+
+Contract type `list` validates against:
+
+- `pa.list_(value_type)` — standard list with 32-bit offsets
+- `pa.large_list(value_type)` — large list with 64-bit offsets

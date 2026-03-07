@@ -406,6 +406,20 @@ uv run mkdocs build
 - Use consistent heading styles (ATX, not Setext)
 - One blank line between sections
 - Code blocks with language tags
+- **Always add a blank line between a paragraph and a list.** CommonMark requires this; without it, list items render as a continuation of the preceding paragraph, not as a proper list. This applies after bold labels like `**Section:**` too:
+
+  ```markdown
+  ❌ Bad — no blank line before list:
+  **Naming Conventions:**
+  - Item one
+  - Item two
+
+  ✓ Good — blank line separates paragraph from list:
+  **Naming Conventions:**
+
+  - Item one
+  - Item two
+  ```
 
 ## Style Guide
 
