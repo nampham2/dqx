@@ -123,10 +123,10 @@ uv run pre-commit install
 
 ```bash
 # Serve docs locally
-uv run mkdocs serve
+uv run zensical serve
 
 # Build documentation
-uv run mkdocs build
+uv run zensical build
 ```
 
 ### Development Commands

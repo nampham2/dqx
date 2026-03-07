@@ -28,16 +28,10 @@ jobs:
         run: uv python install 3.11
 
       - name: Install dependencies
-        run: |
-          uv sync --frozen
-          uv pip install mkdocs mkdocs-material mkdocstrings[python] \
-            mkdocs-git-revision-date-localized-plugin \
-            mkdocs-minify-plugin \
-            mkdocs-awesome-pages-plugin
+        run: uv sync --frozen
 
       - name: Build documentation
-        run: |
-          uv run mkdocs build --strict --verbose
+        run: uv run zensical build --strict
 
       - name: Upload documentation artifacts
         uses: actions/upload-artifact@v7
