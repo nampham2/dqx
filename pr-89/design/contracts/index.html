@@ -1070,18 +1070,6 @@
 <li><a href="sla/">SLA Specification</a> — Service level agreements, scheduling, auto-generated checks, and examples</li>
 <li><a href="checks/">Check Types Reference</a> — Overview, parameter conventions, table-level checks, column-level checks, and composition patterns</li>
 </ul>
-<hr />
-<h2 id="design-philosophy">Design Philosophy<a class="headerlink" href="#design-philosophy" title="Anchor link to this section for reference">&para;</a></h2>
-<p>DQX data contracts provide a declarative YAML interface defining schemas (PyArrow-based with 12 flexible types), SLAs (cron-based availability schedules), quality checks (column and table-level), and metadata (documentation and partitioning hints). The design centers on one principle: keep schema and checks co-located so the contract reads as a complete specification of the dataset, not a fragmented collection of rules.</p>
-<ul>
-<li>✅ <strong>Declarative</strong> - Express requirements in YAML, not Python code</li>
-<li>✅ <strong>Type-Safe</strong> - PyArrow schema validation with complex type support</li>
-<li>✅ <strong>Flexible</strong> - Types accept compatible variations (e.g., <code>int</code> accepts int8-int64)</li>
-<li>✅ <strong>Reusable</strong> - Generated suites run against multiple datasources</li>
-<li>✅ <strong>Standard</strong> - Produces standard <code>AssertionResult</code> objects</li>
-<li>✅ <strong>Extensible</strong> - Custom check types via function registry</li>
-<li>✅ <strong>Self-Documenting</strong> - Required descriptions enforce documentation culture</li>
-</ul>
 
 
 
