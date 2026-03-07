@@ -949,15 +949,17 @@
 </span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="c1"># OPTIONAL: Structured SLA (can be omitted entirely)</span>
 </span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="nt">sla</span><span class="p">:</span>
 </span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">  </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span><span class="w">               </span><span class="c1"># REQUIRED (if sla specified): Cron expression (5-field format)</span>
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">  </span><span class="nt">lag_hours</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">int</span><span class="w">                 </span><span class="c1"># REQUIRED (if sla specified): Hours after scheduled time until data available</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">  </span><span class="nt">lag_hours</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">number</span><span class="w">                 </span><span class="c1"># REQUIRED (if sla specified): Hours after scheduled time until data available</span>
 </span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>
 </span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="c1"># Optional table metadata</span>
 </span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="nt">metadata</span><span class="p">:</span>
 </span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">  </span><span class="nt">partitioned_by</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">string</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">...</span><span class="p p-Indicator">]</span><span class="w">  </span><span class="c1"># If present → partition SLA, if absent → table SLA</span>
 </span></code></pre></div>
-<p><strong>SLA Type Inference:</strong>
-- If <code>metadata.partitioned_by</code> exists → Partition-based SLA (incremental data)
-- If <code>metadata.partitioned_by</code> absent → Table-based SLA (full table refresh)</p>
+<p><strong>SLA Type Inference:</strong></p>
+<ul>
+<li>If <code>metadata.partitioned_by</code> exists → Partition-based SLA (incremental data)</li>
+<li>If <code>metadata.partitioned_by</code> absent → Table-based SLA (full table refresh)</li>
+</ul>
 <h2 id="sla-field-reference">SLA Field Reference<a class="headerlink" href="#sla-field-reference" title="Anchor link to this section for reference">&para;</a></h2>
 <table>
 <thead>
@@ -977,7 +979,7 @@
 </tr>
 <tr>
 <td><code>lag_hours</code></td>
-<td><code>int</code></td>
+<td><code>number</code></td>
 <td>Yes*</td>
 <td>Hours after scheduled time until data is available</td>
 </tr>
@@ -991,10 +993,15 @@
 </span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>
 </span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>where:
 </span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>  period_hours = inferred from cron schedule
-</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    - Hourly (0 * * * *) → 1 hour
-</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    - Daily (0 0 * * *) → 24 hours
-</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    - Weekly (0 0 * * 1) → 168 hours
-</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>  buffer = 1 hour (default tolerance)
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>    - Hourly    (0 * * * *)       → 1 hour
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>    - Daily     (0 H * * *)       → 24 hours
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>    - Every N hours (0 */N * * *) → N hours
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>    - Business days (0 H * * 1-5) → 24 hours
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>    - Weekly    (0 H * * W)       → 168 hours
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>    - Monthly   (0 H 1 * *)       → 720 hours
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>    Cron expressions that do not match one of the above patterns
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>    (e.g. multi-day-of-week lists like &quot;1,3,5&quot;) raise a ContractValidationError.
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>  buffer = 1 hour (fixed constant)
 </span></code></pre></div></p>
 <p><strong>For Non-Partitioned Tables</strong> (<code>partitioned_by</code> absent):
 <div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>max_age_hours = lag_hours + buffer
@@ -1270,8 +1277,21 @@
 </span><span id="__span-9-28"><a id="__codelineno-9-28" name="__codelineno-9-28" href="#__codelineno-9-28"></a><span class="w">    </span><span class="nt">nullable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
 </span><span id="__span-9-29"><a id="__codelineno-9-29" name="__codelineno-9-29" href="#__codelineno-9-29"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Total</span><span class="nv"> </span><span class="s">number</span><span class="nv"> </span><span class="s">of</span><span class="nv"> </span><span class="s">orders&quot;</span>
 </span><span id="__span-9-30"><a id="__codelineno-9-30" name="__codelineno-9-30" href="#__codelineno-9-30"></a>
-</span><span id="__span-9-31"><a id="__codelineno-9-31" name="__codelineno-9-31" href="#__codelineno-9-31"></a><span class="c1"># AUTO-GENERATED:</span>
-</span><span id="__span-9-32"><a id="__codelineno-9-32" name="__codelineno-9-32" href="#__codelineno-9-32"></a><span class="c1"># - Freshness: max_age_hours = 0 + 1 = 1 (must be within 1 hour)</span>
+</span><span id="__span-9-31"><a id="__codelineno-9-31" name="__codelineno-9-31" href="#__codelineno-9-31"></a><span class="c1"># AUTO-GENERATED CHECK FROM SLA:</span>
+</span><span id="__span-9-32"><a id="__codelineno-9-32" name="__codelineno-9-32" href="#__codelineno-9-32"></a><span class="c1"># checks:</span>
+</span><span id="__span-9-33"><a id="__codelineno-9-33" name="__codelineno-9-33" href="#__codelineno-9-33"></a><span class="c1">#   - name: &quot;SLA: Freshness check&quot;</span>
+</span><span id="__span-9-34"><a id="__codelineno-9-34" name="__codelineno-9-34" href="#__codelineno-9-34"></a><span class="c1">#     type: freshness</span>
+</span><span id="__span-9-35"><a id="__codelineno-9-35" name="__codelineno-9-35" href="#__codelineno-9-35"></a><span class="c1">#     max_age_hours: 1              # 0 (lag) + 1 (buffer)</span>
+</span><span id="__span-9-36"><a id="__codelineno-9-36" name="__codelineno-9-36" href="#__codelineno-9-36"></a><span class="c1">#     timestamp_column: last_updated  # Must be specified — cannot be inferred for non-partitioned tables</span>
+</span><span id="__span-9-37"><a id="__codelineno-9-37" name="__codelineno-9-37" href="#__codelineno-9-37"></a><span class="c1">#     severity: P0</span>
+</span><span id="__span-9-38"><a id="__codelineno-9-38" name="__codelineno-9-38" href="#__codelineno-9-38"></a><span class="c1">#</span>
+</span><span id="__span-9-39"><a id="__codelineno-9-39" name="__codelineno-9-39" href="#__codelineno-9-39"></a><span class="c1"># NOTE: For non-partitioned tables, `timestamp_column` is NOT automatically inferred</span>
+</span><span id="__span-9-40"><a id="__codelineno-9-40" name="__codelineno-9-40" href="#__codelineno-9-40"></a><span class="c1"># because there is no `metadata.partitioned_by` list to read from. The generated</span>
+</span><span id="__span-9-41"><a id="__codelineno-9-41" name="__codelineno-9-41" href="#__codelineno-9-41"></a><span class="c1"># freshness check uses the column named in a `timestamp_column` field that must be</span>
+</span><span id="__span-9-42"><a id="__codelineno-9-42" name="__codelineno-9-42" href="#__codelineno-9-42"></a><span class="c1"># provided when calling the SLA generator (or in an explicit manual check). In this</span>
+</span><span id="__span-9-43"><a id="__codelineno-9-43" name="__codelineno-9-43" href="#__codelineno-9-43"></a><span class="c1"># example `last_updated` is explicitly supplied as the timestamp column at generation</span>
+</span><span id="__span-9-44"><a id="__codelineno-9-44" name="__codelineno-9-44" href="#__codelineno-9-44"></a><span class="c1"># time. If you prefer direct control, omit the `sla` block and write a manual</span>
+</span><span id="__span-9-45"><a id="__codelineno-9-45" name="__codelineno-9-45" href="#__codelineno-9-45"></a><span class="c1"># freshness check with `timestamp_column: last_updated` instead.</span>
 </span></code></pre></div>
 <h2 id="validation-rules">Validation Rules<a class="headerlink" href="#validation-rules" title="Anchor link to this section for reference">&para;</a></h2>
 <p>DQX enforces the following rules when it parses an <code>sla</code> block.</p>
@@ -1320,12 +1340,15 @@
 </span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a>│ │ │ │ │
 </span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a>* * * * *
 </span></code></pre></div>
-<p><strong>Special Characters</strong>:
-- <code>*</code> — Any value (wildcard)
-- <code>,</code> — List separator (e.g., <code>1,3,5</code>)
-- <code>-</code> — Range (e.g., <code>1-5</code> = Monday through Friday)
-- <code>/</code> — Step values (e.g., <code>*/6</code> = every 6 units)</p>
+<p><strong>Special Characters</strong>:</p>
+<ul>
+<li><code>*</code> — Any value (wildcard)</li>
+<li><code>,</code> — List separator (e.g., <code>1,3,5</code>)</li>
+<li><code>-</code> — Range (e.g., <code>1-5</code> = Monday through Friday)</li>
+<li><code>/</code> — Step values (e.g., <code>*/6</code> = every 6 units)</li>
+</ul>
 <h3 id="common-cron-patterns">Common Cron Patterns<a class="headerlink" href="#common-cron-patterns" title="Anchor link to this section for reference">&para;</a></h3>
+<p>The following patterns are supported by DQX's SLA validator (corresponding to the Hourly, Daily, Every N hours, Business days, Weekly, and Monthly period rules). Expressions outside these patterns raise <code>ContractValidationError</code>.</p>
 <table>
 <thead>
 <tr>
@@ -1371,24 +1394,36 @@
 <td>Every Monday at midnight</td>
 </tr>
 <tr>
-<td><strong>Tuesday and Thursday</strong></td>
-<td><code>0 0 * * 2,4</code></td>
-<td>Tue and Thu at midnight</td>
-</tr>
-<tr>
 <td><strong>First of month</strong></td>
 <td><code>0 0 1 * *</code></td>
 <td>1<sup>st</sup> day at midnight</td>
 </tr>
+</tbody>
+</table>
+<p>The following patterns are <strong>unsupported</strong> and will raise <code>ContractValidationError</code>. Use the equivalent supported patterns above or write a manual freshness check instead.</p>
+<table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Cron Expression</th>
+<th>Why unsupported</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Tuesday and Thursday</strong></td>
+<td><code>0 0 * * 2,4</code></td>
+<td>List-based day-of-week; no single period can be inferred</td>
+</tr>
 <tr>
 <td><strong>First and 15<sup>th</sup></strong></td>
 <td><code>0 0 1,15 * *</code></td>
-<td>1<sup>st</sup> and 15<sup>th</sup> at midnight</td>
+<td>List-based day-of-month; no single period can be inferred</td>
 </tr>
 <tr>
 <td><strong>Mon/Wed/Fri</strong></td>
 <td><code>0 0 * * 1,3,5</code></td>
-<td>Mon, Wed, Fri at midnight</td>
+<td>List-based day-of-week; no single period can be inferred</td>
 </tr>
 </tbody>
 </table>

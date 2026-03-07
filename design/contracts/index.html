@@ -718,11 +718,11 @@
 </tr>
 <tr>
 <td><strong>Last Updated</strong></td>
-<td>2025-03-06</td>
+<td>2026-03-07</td>
 </tr>
 <tr>
 <td><strong>Version</strong></td>
-<td>2.2</td>
+<td>2.3</td>
 </tr>
 <tr>
 <td><strong>Status</strong></td>
@@ -740,26 +740,26 @@
 </table>
 <hr />
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Anchor link to this section for reference">&para;</a></h2>
-<p>A data contract is a versioned YAML document that defines the schema, quality checks, and freshness guarantees for a dataset. Each contract names its dataset, declares the PyArrow type and nullability of every column, specifies optional SLA schedules, and attaches quality checks directly to the columns or dataset they govern.</p>
+<p>A data contract is a versioned YAML document that defines the schema, quality checks, and freshness guarantees for a dataset. Each contract names its dataset, declares the type and nullability of every column, specifies optional SLA schedules, and attaches quality checks directly to the columns or dataset they govern.</p>
 <p>Teams need contracts because data requirements must be explicit, version-controlled, testable, and portable. Without contracts, quality rules live in ad-hoc Python scripts that differ across environments, drift from the actual schema, and cannot be reviewed as data specifications. A contract replaces that scattered Python code with a single declarative YAML file that any engineer can read, diff, and own.</p>
-<p>Contracts generate lists of <code>DecoratedCheck</code> functions — the same type that <code>VerificationSuite</code> already accepts. The user combines contract-generated checks with hand-coded checks in a single suite, so contract-based and custom validations run together and produce <code>AssertionResult</code> objects identical to those from hand-coded suites.</p>
+<p>Contracts generate lists of <code>DecoratedCheck</code> functions. The user combines contract-generated checks with hand-coded checks in a single suite, so contract-based and custom validations run together and produce <code>AssertionResult</code> objects.</p>
 <hr />
 <h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Anchor link to this section for reference">&para;</a></h2>
 <h3 id="core-design-principle">Core Design Principle<a class="headerlink" href="#core-design-principle" title="Anchor link to this section for reference">&para;</a></h3>
 <p><strong>Contracts are column-centric YAML specifications that generate checks composable with hand-coded checks inside a standard VerificationSuite.</strong></p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Contract YAML (schema + checks)
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    ↓ Contract.from_yaml()                                          [proposed]
-</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Contract instance (with PyArrow schema)
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    ↓ contract.to_checks()                                          [proposed]
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    ↓ Contract.from_yaml()
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Contract instance (with resolved schema)
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    ↓ contract.to_checks()
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>list[DecoratedCheck]
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    ↓ VerificationSuite(checks=contract.to_checks() + [...], ...)   [existing API]
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    ↓ VerificationSuite(checks=contract.to_checks() + [...], ...)
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>VerificationSuite
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    ↓ suite.run([datasource], result_key)                           [existing API]
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    ↓ suite.run([datasource], result_key)
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>None
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    ↓ suite.collect_results()                                       [existing API]
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    ↓ suite.collect_results()
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>list[AssertionResult]
 </span></code></pre></div>
-<p>The runtime flow combines proposed and existing API. First, <code>Contract.from_yaml()</code> parses the YAML and builds a <code>Contract</code> instance with a fully resolved PyArrow schema — <strong>proposed</strong>. Second, <code>contract.to_checks()</code> translates every column definition and check into a list of <code>DecoratedCheck</code> functions — <strong>proposed</strong>. From here, the flow uses the <strong>existing</strong> <code>VerificationSuite</code> API: the user merges contract-generated checks with any hand-coded checks — <code>VerificationSuite(checks=contract.to_checks() + [custom_check], db=db, name=...)</code> — and calls <code>suite.run([datasource], result_key)</code> to execute all checks. Results are collected separately via <code>suite.collect_results()</code>, which returns <code>list[AssertionResult]</code>. <code>VerificationSuite</code>, <code>suite.run()</code>, <code>suite.collect_results()</code>, and <code>AssertionResult</code> already exist in the codebase today; only <code>Contract.from_yaml()</code> and <code>contract.to_checks()</code> are new.</p>
+<p><code>Contract.from_yaml()</code> parses the YAML and builds a <code>Contract</code> instance with a fully resolved schema. <code>contract.to_checks()</code> translates every column definition and check into a list of <code>DecoratedCheck</code> functions. The user merges contract-generated checks with any hand-coded checks — <code>VerificationSuite(checks=contract.to_checks() + [custom_check], db=db, name=...)</code> — and calls <code>suite.run([datasource], result_key)</code> to execute all checks. Results are collected separately via <code>suite.collect_results()</code>, which returns <code>list[AssertionResult]</code>. Schema type mismatches raise <code>SchemaValidationError</code>; contract parse errors raise <code>ContractValidationError</code>. <code>SchemaValidationError</code> is raised when a column's actual storage type does not match the declared contract type. <code>ContractValidationError</code> is raised when the YAML cannot be parsed into a valid <code>Contract</code> (e.g., missing required fields, invalid cron expression, or unknown check type).</p>
 <hr />
 <h2 id="contract-structure">Contract Structure<a class="headerlink" href="#contract-structure" title="Anchor link to this section for reference">&para;</a></h2>
 <p>The complete contract below shows every top-level section. The prose paragraphs that follow explain each section.</p>
@@ -806,16 +806,16 @@
 </span><span id="__span-1-41"><a id="__codelineno-1-41" name="__codelineno-1-41" href="#__codelineno-1-41"></a><span class="w">        </span><span class="nt">max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
 </span><span id="__span-1-42"><a id="__codelineno-1-42" name="__codelineno-1-42" href="#__codelineno-1-42"></a><span class="w">        </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">P0</span>
 </span></code></pre></div>
-<p><strong>Metadata.</strong> Every contract begins with five required metadata fields that identify the dataset and its owner: <code>name</code> (a human-readable label), <code>version</code> (a semantic version string), <code>description</code> (a plain-English statement of what the data represents), <code>owner</code> (the responsible team), and <code>dataset</code> (the table or view name used at query time). An optional <code>tags</code> field accepts a list of strings for filtering and discovery.</p>
+<p><strong>Metadata.</strong> Every contract begins with five required metadata fields that identify the dataset and its owner: <code>name</code> (a human-readable label), <code>version</code> (a version string; semantic versioning is recommended but not enforced — e.g., <code>"1.0.0"</code> or <code>"2025-03-07"</code>), <code>description</code> (a plain-English statement of what the data represents), <code>owner</code> (the responsible team), and <code>dataset</code> (the table or view name used at query time). An optional <code>tags</code> field accepts a list of strings for filtering and discovery.</p>
 <p><strong>SLA.</strong> The optional <code>sla</code> block defines when data should arrive. It takes two fields: <code>schedule</code>, a standard 5-field cron expression that declares the expected delivery cadence, and <code>lag_hours</code>, the number of hours the data may lag behind the scheduled time before triggering a failure. When both fields are present, DQX auto-generates a freshness check — no additional configuration required. See <a href="sla/">SLA Specification</a> for cron format reference and examples.</p>
 <p><strong>Partitioning.</strong> The optional <code>metadata</code> block declares the partitioning columns for the dataset. DQX reads <code>partitioned_by</code> to infer which column carries the timestamp used in freshness and completeness checks. When the SLA block references a freshness check and <code>partitioned_by</code> is set, DQX selects the first listed column as the timestamp column automatically.</p>
 <p><strong>Table-level checks.</strong> The top-level <code>checks</code> section validates properties of the dataset as a whole. <code>num_rows</code> asserts that the row count falls within a specified range. <code>duplicates</code> asserts that duplicate rows stay below a threshold. <code>freshness</code> asserts that data is not stale by checking record age against <code>max_age_hours</code> (defaults to the most recent record; set <code>aggregation: min</code> to check the oldest). <code>completeness</code> asserts that partition gaps — missing dates or time windows — stay below a specified count. <code>num_rows</code> and <code>duplicates</code> accept standard validators (<code>min</code>, <code>max</code>, <code>between</code>, <code>equals</code>, <code>tolerance</code>). <code>freshness</code> uses the implicit <code>max_age_hours</code> parameter instead of standard validators; <code>completeness</code> uses the implicit <code>max_gap_count</code> parameter instead.</p>
-<p><strong>Columns.</strong> The <code>columns</code> section is the heart of the contract. Each entry co-locates four pieces of information that belong together: the column's <code>type</code> (one of 12 flexible PyArrow types that accept compatible storage variations — <code>int</code> accepts int8 through int64, <code>float</code> accepts float32 and float64), its <code>nullable</code> flag (defaults to <code>true</code> when omitted), its required <code>description</code>, and an optional <code>checks</code> list. Co-locating schema and checks in a single entry makes the contract self-documenting: a reader sees the column's semantics and its quality requirements in one place. See <a href="types/">Type System</a> for the full compatibility matrix.</p>
+<p><strong>Columns.</strong> The <code>columns</code> section is the heart of the contract. Each entry co-locates four pieces of information that belong together: the column's <code>type</code> (one of 12 contract types designed for simplicity and broad storage compatibility — <code>int</code> accepts any integer width, <code>float</code> accepts 32-bit and 64-bit), its <code>nullable</code> flag (defaults to <code>true</code> when omitted), its required <code>description</code>, and an optional <code>checks</code> list. Co-locating schema and checks in a single entry makes the contract self-documenting: a reader sees the column's semantics and its quality requirements in one place. See <a href="types/">Type System</a> for the full compatibility matrix.</p>
 <h3 id="complete-schema-structure">Complete Schema Structure<a class="headerlink" href="#complete-schema-structure" title="Anchor link to this section for reference">&para;</a></h3>
 <p>The annotated schema below shows every field a contract file accepts, with types and defaults.</p>
 <div class="language-yaml highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Required: Contract metadata</span>
 </span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span><span class="w">              </span><span class="c1"># Contract name (1-255 characters)</span>
-</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span><span class="w">           </span><span class="c1"># Semantic version (e.g., &quot;1.0.0&quot;)</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span><span class="w">           </span><span class="c1"># Version string (e.g., &quot;1.0.0&quot;); semantic versioning recommended but not enforced</span>
 </span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span><span class="w">       </span><span class="c1"># Contract/table description</span>
 </span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nt">owner</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span><span class="w">            </span><span class="c1"># Team or individual owner</span>
 </span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="nt">dataset</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span><span class="w">          </span><span class="c1"># Dataset name to validate (must match datasource.name)</span>
@@ -824,7 +824,7 @@
 </span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="c1"># Optional: Structured SLA (see SLA Specification section)</span>
 </span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a><span class="nt">sla</span><span class="p">:</span>
 </span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="w">  </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span><span class="w">               </span><span class="c1"># Cron expression for data arrival schedule</span>
-</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">  </span><span class="nt">lag_hours</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">int</span><span class="w">                 </span><span class="c1"># Hours after schedule until data available</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">  </span><span class="nt">lag_hours</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">number</span><span class="w">              </span><span class="c1"># Hours after schedule until data available (fractional values allowed, e.g. 1.5)</span>
 </span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a>
 </span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="c1"># Optional: Table-level metadata (flat at top level)</span>
 </span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="nt">metadata</span><span class="p">:</span>
@@ -876,7 +876,7 @@
 </span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Creation</span><span class="nv"> </span><span class="s">timestamp&quot;</span>
 </span></code></pre></div>
 <h3 id="minimal-contract-example">Minimal Contract Example<a class="headerlink" href="#minimal-contract-example" title="Anchor link to this section for reference">&para;</a></h3>
-<p>A minimal contract defines only metadata and columns. Without checks, DQX applies PyArrow schema enforcement at load time but generates no quality checks.</p>
+<p>A minimal contract defines only metadata and columns. Without checks, DQX enforces the declared schema at load time but generates no quality checks.</p>
 <div class="language-yaml highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Products</span><span class="nv"> </span><span class="s">Contract&quot;</span>
 </span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1.0.0&quot;</span>
 </span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Product</span><span class="nv"> </span><span class="s">catalog</span><span class="nv"> </span><span class="s">records&quot;</span>
@@ -993,14 +993,13 @@
 </span><span id="__span-5-86"><a id="__codelineno-5-86" name="__codelineno-5-86" href="#__codelineno-5-86"></a><span class="nt">checks</span><span class="p">:</span>
 </span><span id="__span-5-87"><a id="__codelineno-5-87" name="__codelineno-5-87" href="#__codelineno-5-87"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Daily</span><span class="nv"> </span><span class="s">volume</span><span class="nv"> </span><span class="s">within</span><span class="nv"> </span><span class="s">bounds&quot;</span>
 </span><span id="__span-5-88"><a id="__codelineno-5-88" name="__codelineno-5-88" href="#__codelineno-5-88"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">num_rows</span>
-</span><span id="__span-5-89"><a id="__codelineno-5-89" name="__codelineno-5-89" href="#__codelineno-5-89"></a><span class="w">    </span><span class="nt">min</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
-</span><span id="__span-5-90"><a id="__codelineno-5-90" name="__codelineno-5-90" href="#__codelineno-5-90"></a><span class="w">    </span><span class="nt">max</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1000000</span>
-</span><span id="__span-5-91"><a id="__codelineno-5-91" name="__codelineno-5-91" href="#__codelineno-5-91"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">P1</span>
+</span><span id="__span-5-89"><a id="__codelineno-5-89" name="__codelineno-5-89" href="#__codelineno-5-89"></a><span class="w">    </span><span class="nt">between</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">100</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">1000000</span><span class="p p-Indicator">]</span>
+</span><span id="__span-5-90"><a id="__codelineno-5-90" name="__codelineno-5-90" href="#__codelineno-5-90"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">P1</span>
 </span></code></pre></div>
-<p>This contract generates checks for four columns (<code>order_id</code>, <code>customer_id</code>, <code>total_amount</code>, <code>status</code>) plus one table-level check. The four schema-only columns (<code>order_date</code>, <code>payment_method</code>, <code>is_gift</code>, <code>notes</code>) produce no checks; DQX validates their types and nullability via PyArrow schema enforcement at load time. Because the checks bind to the dataset name <code>orders</code>, the same checks run unchanged against any datasource whose registered name matches and whose schema satisfies the declared types.</p>
+<p>This contract generates checks for four columns (<code>order_id</code>, <code>customer_id</code>, <code>total_amount</code>, <code>status</code>) plus one table-level check. The four schema-only columns (<code>order_date</code>, <code>payment_method</code>, <code>is_gift</code>, <code>notes</code>) produce no checks; DQX validates their types and nullability at load time. Because the checks bind to the dataset name <code>orders</code>, the same checks run unchanged against any datasource whose registered name matches and whose schema satisfies the declared types.</p>
 <hr />
 <h2 id="type-system-summary">Type System Summary<a class="headerlink" href="#type-system-summary" title="Anchor link to this section for reference">&para;</a></h2>
-<p>DQX contracts use 12 types that validate semantically, not by exact storage format. A column declared as <code>int</code> passes validation for any integer width the storage engine chooses; only the semantic category matters.</p>
+<p>DQX defines its own contract type system aimed at simplicity and broad data quality coverage. The 12 contract types map common data concepts — integers, decimals, timestamps, lists — to their storage representations without requiring users to know the underlying storage format. A column declared as <code>int</code> passes validation for any integer width; only the semantic category matters.</p>
 <table>
 <thead>
 <tr>
@@ -1035,47 +1034,44 @@
 <p>Simple types (primitive, temporal, decimal) use a plain string value. Complex types (list, struct, map) use an object with a <code>kind</code> field and optional subtype fields. See <a href="types/">Type System</a> for the full compatibility rules per type.</p>
 <hr />
 <h2 id="check-types-summary">Check Types Summary<a class="headerlink" href="#check-types-summary" title="Anchor link to this section for reference">&para;</a></h2>
-<p>DQX contracts define 18 check types across two scopes. 11 are implemented today; 7 are planned for upcoming releases (marked below).</p>
-<p><strong>4 table-level checks</strong> validate the dataset as a whole:
-- <code>num_rows</code> — asserts total row count
-- <code>duplicates</code> — asserts count of duplicate rows
-- <code>freshness</code> — asserts that data is not stale (record age does not exceed <code>max_age_hours</code>; defaults to most recent, optionally oldest via <code>aggregation: min</code>) <em>[planned]</em>
-- <code>completeness</code> — asserts absence of partition gaps <em>[planned]</em></p>
-<p><strong>14 column-level checks</strong> validate individual columns. 8 are statistical:
-- <code>cardinality</code> — distinct value count
-- <code>min</code> — minimum value
-- <code>max</code> — maximum value
-- <code>mean</code> — arithmetic mean
-- <code>sum</code> — column sum
-- <code>count</code> — non-null count
-- <code>variance</code> — statistical variance
-- <code>percentile</code> — value at a specified percentile <em>[planned]</em></p>
-<p>6 are value checks:
-- <code>nulls</code> — null value count
-- <code>duplicates</code> — duplicate value count within the column
-- <code>whitelist</code> — all values belong to an allowed set <em>[planned]</em>
-- <code>blacklist</code> — no values belong to a forbidden set <em>[planned]</em>
-- <code>pattern</code> — all values match a regular expression <em>[planned]</em>
-- <code>length</code> — string or array length <em>[planned]</em></p>
-<p>Most checks, table-level or column-level, support validators: <code>min</code>, <code>max</code>, <code>between</code>, <code>equals</code>, and <code>tolerance</code>. Exceptions are <code>freshness</code> (uses <code>max_age_hours</code>) and <code>completeness</code> (uses <code>max_gap_count</code>), which use check-specific implicit parameters instead. See <a href="checks/">Check Types Reference</a> for parameter conventions and composition patterns.</p>
+<p>DQX contracts define 21 check types across two scopes.</p>
+<p><strong>4 table-level checks</strong> validate the dataset as a whole:</p>
+<ul>
+<li><code>num_rows</code> — asserts total row count</li>
+<li><code>duplicates</code> — asserts count of duplicate rows</li>
+<li><code>freshness</code> — asserts that data is not stale (record age does not exceed <code>max_age_hours</code>; defaults to most recent, optionally oldest via <code>aggregation: min</code>)</li>
+<li><code>completeness</code> — asserts absence of partition gaps</li>
+</ul>
+<p><strong>17 column-level checks</strong> validate individual columns. 9 are statistical:</p>
+<ul>
+<li><code>cardinality</code> — distinct value count</li>
+<li><code>min</code> — minimum value</li>
+<li><code>max</code> — maximum value</li>
+<li><code>mean</code> — arithmetic mean</li>
+<li><code>sum</code> — column sum</li>
+<li><code>count</code> — non-null count</li>
+<li><code>variance</code> — statistical variance</li>
+<li><code>stddev</code> — standard deviation</li>
+<li><code>percentile</code> — value at a specified percentile</li>
+</ul>
+<p>8 are value checks:</p>
+<ul>
+<li><code>missing</code> — null value count</li>
+<li><code>duplicates</code> — duplicate value count within the column</li>
+<li><code>whitelist</code> — all values belong to an allowed set</li>
+<li><code>blacklist</code> — no values belong to a forbidden set</li>
+<li><code>pattern</code> — all values match a regular expression</li>
+<li><code>min_length</code> — minimum string, list, or map element count</li>
+<li><code>max_length</code> — maximum string, list, or map element count</li>
+<li><code>avg_length</code> — average string, list, or map element count</li>
+</ul>
+<p>Most checks, table-level or column-level, support validators: <code>min</code>, <code>max</code>, <code>between</code>, <code>not_between</code>, and <code>equals</code>. <code>tolerance</code> is an auxiliary parameter used alongside a validator (not a mutually exclusive validator itself). Exceptions are <code>freshness</code> (uses <code>max_age_hours</code>) and <code>completeness</code> (uses <code>max_gap_count</code>), which use check-specific implicit parameters instead. See <a href="checks/">Check Types Reference</a> for validators and composition patterns.</p>
 <hr />
 <h2 id="detailed-references">Detailed References<a class="headerlink" href="#detailed-references" title="Anchor link to this section for reference">&para;</a></h2>
 <ul>
-<li><a href="types/">Type System</a> — PyArrow-based type definitions, primitive, temporal, decimal, and complex types</li>
+<li><a href="types/">Type System</a> — Contract type definitions: primitive, temporal, decimal, and complex types</li>
 <li><a href="sla/">SLA Specification</a> — Service level agreements, scheduling, auto-generated checks, and examples</li>
 <li><a href="checks/">Check Types Reference</a> — Overview, parameter conventions, table-level checks, column-level checks, and composition patterns</li>
-</ul>
-<hr />
-<h2 id="design-philosophy">Design Philosophy<a class="headerlink" href="#design-philosophy" title="Anchor link to this section for reference">&para;</a></h2>
-<p>DQX data contracts provide a declarative YAML interface defining schemas (PyArrow-based with 12 flexible types), SLAs (cron-based availability schedules), quality checks (column and table-level), and metadata (documentation and partitioning hints). The design centers on one principle: keep schema and checks co-located so the contract reads as a complete specification of the dataset, not a fragmented collection of rules.</p>
-<ul>
-<li>✅ <strong>Declarative</strong> - Express requirements in YAML, not Python code</li>
-<li>✅ <strong>Type-Safe</strong> - PyArrow schema validation with complex type support</li>
-<li>✅ <strong>Flexible</strong> - Types accept compatible variations (e.g., <code>int</code> accepts int8-int64)</li>
-<li>✅ <strong>Reusable</strong> - Generated suites run against multiple datasources</li>
-<li>✅ <strong>Standard</strong> - Produces standard <code>AssertionResult</code> objects</li>
-<li>✅ <strong>Extensible</strong> - Custom check types via function registry</li>
-<li>✅ <strong>Self-Documenting</strong> - Required descriptions enforce documentation culture</li>
 </ul>
 
 
