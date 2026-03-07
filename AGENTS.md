@@ -36,7 +36,7 @@ This document provides coding guidelines and commands for AI agents working on t
 
 ## Project Overview
 
-DQX (Data Quality Excellence) is a Python 3.11+ library for data quality validation. The package name is `dqlib` but the module name is `dqx`. It allows writing validation logic as testable Python functions that execute efficiently on SQL backends (DuckDB, BigQuery, Snowflake).
+DQX (Data Quality X) is a Python 3.11+ library for data quality validation. The package name is `dqlib` but the module name is `dqx`. It allows writing validation logic as testable Python functions that execute efficiently on SQL backends (DuckDB, BigQuery, Snowflake).
 
 **Key Technologies:** Python 3.11+, DuckDB, PyArrow, SymPy, SQLAlchemy, Rich (terminal UI)
 

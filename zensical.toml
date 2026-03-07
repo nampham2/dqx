@@ -3,7 +3,7 @@
 [project]
 
 # Project information
-site_name = "DQX - Data Quality Excellence"
+site_name = "DQX - Data Quality X"
 site_description = "Transform data validation into mathematical expressions. Find issues before they find you."
 site_author = "Nam Pham"
 site_url = "https://dqx.readthedocs.io"

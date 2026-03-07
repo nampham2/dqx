@@ -1,4 +1,4 @@
-# DQX - Data Quality Excellence
+# DQX - Data Quality X
 
 DQX is a Python 3.11+ library for data quality validation that lets you write validation logic as testable Python functions executing efficiently on SQL backends (DuckDB, BigQuery, Snowflake).
 
