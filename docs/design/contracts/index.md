@@ -329,7 +329,7 @@ Simple types (primitive, temporal, decimal) use a plain string value. Complex ty
 
 ## Check Types Summary
 
-DQX contracts define 18 check types across two scopes.
+DQX contracts define 21 check types across two scopes.
 
 **4 table-level checks** validate the dataset as a whole:
 
@@ -338,7 +338,7 @@ DQX contracts define 18 check types across two scopes.
 - `freshness` — asserts that data is not stale (record age does not exceed `max_age_hours`; defaults to most recent, optionally oldest via `aggregation: min`)
 - `completeness` — asserts absence of partition gaps
 
-**14 column-level checks** validate individual columns. 9 are statistical:
+**17 column-level checks** validate individual columns. 9 are statistical:
 
 - `cardinality` — distinct value count
 - `min` — minimum value
@@ -350,15 +350,18 @@ DQX contracts define 18 check types across two scopes.
 - `stddev` — standard deviation
 - `percentile` — value at a specified percentile
 
-5 are value checks:
+8 are value checks:
 
 - `missing` — null value count
 - `duplicates` — duplicate value count within the column
 - `whitelist` — all values belong to an allowed set
 - `blacklist` — no values belong to a forbidden set
 - `pattern` — all values match a regular expression
+- `min_length` — minimum string, list, or map element count
+- `max_length` — maximum string, list, or map element count
+- `avg_length` — average string, list, or map element count
 
-Most checks, table-level or column-level, support validators: `min`, `max`, `between`, and `equals`. `tolerance` is an auxiliary parameter used alongside a validator (not a mutually exclusive validator itself). Exceptions are `freshness` (uses `max_age_hours`) and `completeness` (uses `max_gap_count`), which use check-specific implicit parameters instead. See [Check Types Reference](checks.md) for validators and composition patterns.
+Most checks, table-level or column-level, support validators: `min`, `max`, `between`, `not_between`, and `equals`. `tolerance` is an auxiliary parameter used alongside a validator (not a mutually exclusive validator itself). Exceptions are `freshness` (uses `max_age_hours`) and `completeness` (uses `max_gap_count`), which use check-specific implicit parameters instead. See [Check Types Reference](checks.md) for validators and composition patterns.
 
 ---
 
