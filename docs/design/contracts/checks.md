@@ -18,7 +18,7 @@ Data contracts support two categories of checks:
 - Check names should be descriptive business statements (e.g., "Order ID is unique")
 - Severity levels: `P0` (critical), `P1` (important), `P2` (nice-to-have), `P3` (informational)
 - All checks support optional `tags` parameter for categorization
-- Check type names in YAML contracts use `snake_case` (e.g., `num_rows`, `duplicates`, `nulls`). These `snake_case` names are the specification surface; the contract parser normalizes them to the internal implementation identifiers (e.g., `NumRows`, `NullCount`) used inside DQX.
+- Check type names in YAML contracts use `snake_case` (e.g., `num_rows`, `duplicates`, `nulls`).
 
 **Check Structure:**
 

@@ -18,7 +18,7 @@ A data contract is a versioned YAML document that defines the schema, quality ch
 
 Teams need contracts because data requirements must be explicit, version-controlled, testable, and portable. Without contracts, quality rules live in ad-hoc Python scripts that differ across environments, drift from the actual schema, and cannot be reviewed as data specifications. A contract replaces that scattered Python code with a single declarative YAML file that any engineer can read, diff, and own.
 
-Contracts generate lists of `DecoratedCheck` functions — the same type that `VerificationSuite` already accepts. The user combines contract-generated checks with hand-coded checks in a single suite, so contract-based and custom validations run together and produce `AssertionResult` objects identical to those from hand-coded suites.
+Contracts generate lists of `DecoratedCheck` functions. The user combines contract-generated checks with hand-coded checks in a single suite, so contract-based and custom validations run together and produce `AssertionResult` objects.
 
 ---
 
@@ -30,19 +30,19 @@ Contracts generate lists of `DecoratedCheck` functions — the same type that `V
 
 ```text
 Contract YAML (schema + checks)
-    ↓ Contract.from_yaml()                                          [proposed]
+    ↓ Contract.from_yaml()
 Contract instance (with PyArrow schema)
-    ↓ contract.to_checks()                                          [proposed]
+    ↓ contract.to_checks()
 list[DecoratedCheck]
-    ↓ VerificationSuite(checks=contract.to_checks() + [...], ...)   [existing API]
+    ↓ VerificationSuite(checks=contract.to_checks() + [...], ...)
 VerificationSuite
-    ↓ suite.run([datasource], result_key)                           [existing API]
+    ↓ suite.run([datasource], result_key)
 None
-    ↓ suite.collect_results()                                       [existing API]
+    ↓ suite.collect_results()
 list[AssertionResult]
 ```
 
-The runtime flow combines proposed and existing API. First, `Contract.from_yaml()` parses the YAML and builds a `Contract` instance with a fully resolved PyArrow schema — **proposed**. Second, `contract.to_checks()` translates every column definition and check into a list of `DecoratedCheck` functions — **proposed**. From here, the flow uses the **existing** `VerificationSuite` API: the user merges contract-generated checks with any hand-coded checks — `VerificationSuite(checks=contract.to_checks() + [custom_check], db=db, name=...)` — and calls `suite.run([datasource], result_key)` to execute all checks. Results are collected separately via `suite.collect_results()`, which returns `list[AssertionResult]`. `VerificationSuite`, `suite.run()`, `suite.collect_results()`, and `AssertionResult` already exist in the codebase today; only `Contract.from_yaml()` and `contract.to_checks()` are new. Schema type mismatches raise `SchemaValidationError` (proposed); contract parse errors raise `ContractValidationError` (proposed). `SchemaValidationError` is raised when a column's actual storage type does not match the declared contract type. `ContractValidationError` is raised when the YAML cannot be parsed into a valid `Contract` (e.g., missing required fields, invalid cron expression, or unknown check type).
+`Contract.from_yaml()` parses the YAML and builds a `Contract` instance with a fully resolved PyArrow schema. `contract.to_checks()` translates every column definition and check into a list of `DecoratedCheck` functions. The user merges contract-generated checks with any hand-coded checks — `VerificationSuite(checks=contract.to_checks() + [custom_check], db=db, name=...)` — and calls `suite.run([datasource], result_key)` to execute all checks. Results are collected separately via `suite.collect_results()`, which returns `list[AssertionResult]`. Schema type mismatches raise `SchemaValidationError`; contract parse errors raise `ContractValidationError`. `SchemaValidationError` is raised when a column's actual storage type does not match the declared contract type. `ContractValidationError` is raised when the YAML cannot be parsed into a valid `Contract` (e.g., missing required fields, invalid cron expression, or unknown check type).
 
 ---
 
@@ -329,14 +329,14 @@ Simple types (primitive, temporal, decimal) use a plain string value. Complex ty
 
 ## Check Types Summary
 
-DQX contracts define 18 check types across two scopes. 11 are implemented today; 7 are planned for upcoming releases (marked below).
+DQX contracts define 18 check types across two scopes.
 
 **4 table-level checks** validate the dataset as a whole:
 
 - `num_rows` — asserts total row count
 - `duplicates` — asserts count of duplicate rows
-- `freshness` — asserts that data is not stale (record age does not exceed `max_age_hours`; defaults to most recent, optionally oldest via `aggregation: min`) *[planned]*
-- `completeness` — asserts absence of partition gaps *[planned]*
+- `freshness` — asserts that data is not stale (record age does not exceed `max_age_hours`; defaults to most recent, optionally oldest via `aggregation: min`)
+- `completeness` — asserts absence of partition gaps
 
 **14 column-level checks** validate individual columns. 8 are statistical:
 
@@ -347,16 +347,16 @@ DQX contracts define 18 check types across two scopes. 11 are implemented today;
 - `sum` — column sum
 - `count` — non-null count
 - `variance` — statistical variance
-- `percentile` — value at a specified percentile *[planned]*
+- `percentile` — value at a specified percentile
 
 6 are value checks:
 
 - `nulls` — null value count
 - `duplicates` — duplicate value count within the column
-- `whitelist` — all values belong to an allowed set *[planned]*
-- `blacklist` — no values belong to a forbidden set *[planned]*
-- `pattern` — all values match a regular expression *[planned]*
-- `length` — string, list, or map element count *[planned]*
+- `whitelist` — all values belong to an allowed set
+- `blacklist` — no values belong to a forbidden set
+- `pattern` — all values match a regular expression
+- `length` — string, list, or map element count
 
 Most checks, table-level or column-level, support validators: `min`, `max`, `between`, `equals`, and `tolerance`. Exceptions are `freshness` (uses `max_age_hours`) and `completeness` (uses `max_gap_count`), which use check-specific implicit parameters instead. See [Check Types Reference](checks.md) for validators and composition patterns.
 
