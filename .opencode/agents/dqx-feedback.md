@@ -217,13 +217,54 @@ uv run pytest --cov=src/dqx --cov-report=term-missing
 uv run pre-commit run --all-files
 ```
 
-### Step 6: Push Fixes
+### Step 6: Push Fixes and Resolve Threads
 
 ```bash
 # Push all fix commits
 git push
+```
 
-# Comment on PR summarizing fixes
+After pushing, resolve every addressed review thread via the GitHub GraphQL API.
+
+#### 6.1: Fetch all open review thread IDs
+
+```bash
+gh api graphql -f query='
+query($owner: String!, $repo: String!, $pr: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $pr) {
+      reviewThreads(first: 100) {
+        nodes {
+          id
+          isResolved
+          comments(first: 1) {
+            nodes { body }
+          }
+        }
+      }
+    }
+  }
+}' -F owner='{owner}' -F repo='{repo}' -F pr={PR_NUM}
+```
+
+#### 6.2: Resolve each addressed thread
+
+For every thread where `isResolved` is `false` and the comment has been addressed, run:
+
+```bash
+gh api graphql -f query='
+mutation($id: ID!) {
+  resolveReviewThread(input: {threadId: $id}) {
+    thread { id isResolved }
+  }
+}' -f id="{THREAD_ID}"
+```
+
+Repeat for every addressed thread. Do **not** resolve threads for comments that were intentionally deferred or require further discussion.
+
+#### 6.3: Comment on PR summarizing fixes
+
+```bash
 gh pr comment --body "## Review Feedback Addressed
 
 Addressed all {comment_count} review comments:
@@ -339,5 +380,6 @@ After addressing all comments:
 - [ ] Coverage remains 100% (AGENTS.md §coverage-requirements)
 - [ ] Pre-commit hooks passing (AGENTS.md §pre-commit-requirements)
 - [ ] All commits pushed
+- [ ] All addressed review threads resolved via GraphQL (`resolveReviewThread` mutation)
 - [ ] PR comment added summarizing fixes
 - [ ] User notified of completion
