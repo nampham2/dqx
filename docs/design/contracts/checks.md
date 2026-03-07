@@ -179,7 +179,7 @@ Use 'between: [100, 1000]' OR 'min: 100, max: 1000', not both.
 
 **Use `min` for "higher is better" checks:**
 - Metrics where higher values indicate better quality
-- Examples: `cardinality` (for diversity)
+- Examples: `cardinality` (for diversity), `whitelist`, `blacklist`, `pattern`, `length` (conforming row count/pct)
 - Rationale: You want to set a lower bound on "good" metrics
 
 **Use both `min` and `max` (or `between`) for stability:**
@@ -284,17 +284,7 @@ Table-level checks are specified in the top-level `checks` array (sibling to `co
 
 The `num_rows` check validates that the total row count falls within specified bounds.
 
-**Parameters:**
-
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| `min` | `number` | No | None | Minimum allowed row count |
-| `max` | `number` | No | None | Maximum allowed row count |
-| `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
-| `equals` | `number` | No | None | Exact expected row count |
-| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
-
-Use `min`, `max`, `between`, or `equals` to set bounds. Most use cases require range validation to detect both missing data (too few rows) and duplicates or anomalies (too many rows).
+Accepts standard validators — see [Parameter Conventions](#parameter-conventions).
 
 **Example 1: Range Validation**
 
@@ -401,7 +391,7 @@ The `freshness` check validates that data is not stale — the most recent times
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `max_age_hours` | `float` | Yes | None | Maximum allowed age in hours |
-| `timestamp_column` | `string` | No | "created_at" | Column containing timestamps |
+| `timestamp_column` | `string` | Yes | None | Column containing timestamps |
 | `aggregation` | `string` | No | "max" | Aggregation method ("max" or "min") |
 
 **Example 1: Basic Usage (Auto-generated from SLA)**
@@ -506,7 +496,7 @@ Column-level checks are specified within the `checks` array of a column definiti
 
 ### Value Checks
 
-Value checks validate individual values within a column (rather than computing aggregates over the column). Each check defines its own return semantics. For `nulls` and `duplicates`, the return value represents null or duplicate values found. For `whitelist`, `blacklist`, `pattern`, and `length`, the return value represents conforming (valid) rows. Use the `return` parameter to specify the return type (`count` or `pct`).
+Value checks validate individual values within a column (rather than computing aggregates over the column). Each check defines its own return semantics. For `nulls` and `duplicates`, the return value represents null or duplicate values found. For `whitelist`, `blacklist`, `pattern`, and `length`, the return value represents conforming (valid) rows. Use the `return` parameter to specify the return type (`count` or `pct`). When `return: pct` is used, the percentage is computed as the conforming count divided by the total row count including nulls.
 
 ---
 
@@ -670,7 +660,7 @@ columns:
 
 The `blacklist` check validates that non-null values do not match any forbidden value, returning the count or percentage of rows that pass (rows not in the blacklist).
 
-**Return Parameter:** Use `return: count` (default) to return the count of passing rows, or `return: pct` to return the percentage (0-1 scale).
+**Return Parameter:** Use `return: count` (default) to return the count of passing rows, or `return: pct` to return the percentage (0-1 scale). Both return values represent conforming rows — use `min` to set a lower bound (e.g., at least 95% must pass).
 
 **Parameters:**
 
@@ -711,13 +701,30 @@ columns:
         severity: P1
 ```
 
+**Example 3: Percentage Passing**
+
+```yaml
+columns:
+  - name: username
+    type: string
+    nullable: false
+    description: "User username"
+    checks:
+      - name: "Almost all usernames are not reserved"
+        type: blacklist
+        values: ["admin", "root", "system"]
+        return: pct
+        min: 0.99  # At least 99% must pass
+        severity: P1
+```
+
 ---
 
 #### `duplicates`
 
 The `duplicates` check (column-level) validates that the count of duplicate values in a column is within specified bounds. This is the column-level version of the table-level `duplicates` check, which validates duplicates across multiple columns.
 
-**Semantics:** Counts total duplicate occurrences. If value "A" appears 3 times, it contributes 3 to the duplicate count.
+**Semantics:** Duplicate count is computed as `COUNT(*) - COUNT(DISTINCT col)` — the total number of non-first occurrences. If value "A" appears 3 times, it contributes 2 to the count.
 
 **Return Parameter:** Use `return: count` (default) to return absolute duplicate count, or `return: pct` to return duplicate percentage (0-1 scale).
 
@@ -793,9 +800,9 @@ columns:
 
 ---
 
-### String Checks
+### String and Collection Checks
 
-String checks are part of Value Checks. See the Value Checks section above for context.
+String and collection checks are part of Value Checks. See the Value Checks section above for context.
 
 #### `pattern`
 
@@ -816,7 +823,7 @@ The `pattern` check validates that string values match a pattern, supporting eit
 | `flags` | `list[string]` | No | `[]` | Regex flags (e.g., "IGNORECASE", "MULTILINE") - only for pattern |
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
 
-\* Exactly ONE of `pattern` or `format` must be specified
+\* Exactly ONE of `pattern` or `format` must be specified. Specifying `flags` together with `format` is invalid and raises a `ContractValidationError`.
 
 **Example 1: Email Validation**
 
@@ -967,7 +974,7 @@ columns:
 
 #### `length`
 
-The `length` check validates that string lengths fall within specified bounds, returning the count or percentage of rows that meet the length criteria.
+The `length` check validates that the length of string, list, or map values falls within specified bounds, returning the count or percentage of rows that meet the criteria. For strings, length is the character count. For lists and maps, length is the element count.
 
 **Return Parameter:** Use `return: count` (default) to return count of rows within length bounds, or `return: pct` to return percentage (0-1 scale).
 
@@ -975,8 +982,8 @@ The `length` check validates that string lengths fall within specified bounds, r
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `min_length` | `int` | No* | None | Minimum allowed string length |
-| `max_length` | `int` | No* | None | Maximum allowed string length |
+| `min_length` | `int` | No* | None | Minimum allowed length |
+| `max_length` | `int` | No* | None | Maximum allowed length |
 | `return` | `string` | No | `count` | Return type: "count" or "pct" |
 
 \* At least one of `min_length` or `max_length` required
@@ -1044,6 +1051,42 @@ columns:
         return: pct
         min: 0.90  # At least 90% within bounds
         severity: P1
+```
+
+**Example 5: List Column — Maximum Element Count**
+
+```yaml
+columns:
+  - name: tags
+    type:
+      kind: list
+      value_type: string
+    nullable: true
+    description: "Product tags"
+    checks:
+      - name: "Tags list is not too long"
+        type: length
+        max_length: 20
+        severity: P1
+```
+
+**Example 6: Map Column — Element Count Range**
+
+```yaml
+columns:
+  - name: properties
+    type:
+      kind: map
+      key_type: string
+      value_type: string
+    nullable: true
+    description: "Custom properties"
+    checks:
+      - name: "Properties map has reasonable size"
+        type: length
+        min_length: 1
+        max_length: 50
+        severity: P2
 ```
 
 ---
@@ -1470,6 +1513,8 @@ The `percentile` check validates that a specific percentile value in a column fa
 | `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
 | `equals` | `number` | No | None | Exact expected percentile value |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
+
+> **Note:** The `percentile` parameter shares the same name as the check type but operates at a different YAML scope — `type` selects the check, `percentile` specifies the value to compute. They do not conflict.
 
 Use `min`, `max`, `between`, or `equals` to set bounds. Most use cases require range validation to detect drift in either direction.
 

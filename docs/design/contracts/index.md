@@ -42,7 +42,7 @@ None
 list[AssertionResult]
 ```
 
-The runtime flow combines proposed and existing API. First, `Contract.from_yaml()` parses the YAML and builds a `Contract` instance with a fully resolved PyArrow schema — **proposed**. Second, `contract.to_checks()` translates every column definition and check into a list of `DecoratedCheck` functions — **proposed**. From here, the flow uses the **existing** `VerificationSuite` API: the user merges contract-generated checks with any hand-coded checks — `VerificationSuite(checks=contract.to_checks() + [custom_check], db=db, name=...)` — and calls `suite.run([datasource], result_key)` to execute all checks. Results are collected separately via `suite.collect_results()`, which returns `list[AssertionResult]`. `VerificationSuite`, `suite.run()`, `suite.collect_results()`, and `AssertionResult` already exist in the codebase today; only `Contract.from_yaml()` and `contract.to_checks()` are new.
+The runtime flow combines proposed and existing API. First, `Contract.from_yaml()` parses the YAML and builds a `Contract` instance with a fully resolved PyArrow schema — **proposed**. Second, `contract.to_checks()` translates every column definition and check into a list of `DecoratedCheck` functions — **proposed**. From here, the flow uses the **existing** `VerificationSuite` API: the user merges contract-generated checks with any hand-coded checks — `VerificationSuite(checks=contract.to_checks() + [custom_check], db=db, name=...)` — and calls `suite.run([datasource], result_key)` to execute all checks. Results are collected separately via `suite.collect_results()`, which returns `list[AssertionResult]`. `VerificationSuite`, `suite.run()`, `suite.collect_results()`, and `AssertionResult` already exist in the codebase today; only `Contract.from_yaml()` and `contract.to_checks()` are new. Schema type mismatches raise `SchemaValidationError`; contract parse errors raise `ContractValidationError`.
 
 ---
 
@@ -112,7 +112,7 @@ The annotated schema below shows every field a contract file accepts, with types
 ```yaml
 # Required: Contract metadata
 name: string              # Contract name (1-255 characters)
-version: string           # Semantic version (e.g., "1.0.0")
+version: string           # Version string (e.g., "1.0.0"); semantic versioning recommended but not enforced
 description: string       # Contract/table description
 owner: string            # Team or individual owner
 dataset: string          # Dataset name to validate (must match datasource.name)
@@ -121,7 +121,7 @@ tags: [string, ...]      # Optional tags (e.g., ["revenue", "core"])
 # Optional: Structured SLA (see SLA Specification section)
 sla:
   schedule: string               # Cron expression for data arrival schedule
-  lag_hours: int                 # Hours after schedule until data available
+  lag_hours: number              # Hours after schedule until data available (fractional values allowed, e.g. 1.5)
 
 # Optional: Table-level metadata (flat at top level)
 metadata:
@@ -354,7 +354,7 @@ DQX contracts define 18 check types across two scopes. 11 are implemented today;
 - `whitelist` — all values belong to an allowed set *[planned]*
 - `blacklist` — no values belong to a forbidden set *[planned]*
 - `pattern` — all values match a regular expression *[planned]*
-- `length` — string or array length *[planned]*
+- `length` — string, list, or map element count *[planned]*
 
 Most checks, table-level or column-level, support validators: `min`, `max`, `between`, `equals`, and `tolerance`. Exceptions are `freshness` (uses `max_age_hours`) and `completeness` (uses `max_gap_count`), which use check-specific implicit parameters instead. See [Check Types Reference](checks.md) for parameter conventions and composition patterns.
 

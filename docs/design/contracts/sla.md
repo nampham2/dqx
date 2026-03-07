@@ -59,7 +59,7 @@ tags: [string, ...]
 # OPTIONAL: Structured SLA (can be omitted entirely)
 sla:
   schedule: string               # REQUIRED (if sla specified): Cron expression (5-field format)
-  lag_hours: int                 # REQUIRED (if sla specified): Hours after scheduled time until data available
+  lag_hours: number                 # REQUIRED (if sla specified): Hours after scheduled time until data available
 
 # Optional table metadata
 metadata:
@@ -75,7 +75,7 @@ metadata:
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `schedule` | `string` | Yes* | Cron expression (5-field format) defining when data arrives |
-| `lag_hours` | `int` | Yes* | Hours after scheduled time until data is available |
+| `lag_hours` | `number` | Yes* | Hours after scheduled time until data is available |
 
 \* Required if `sla` block is specified. The entire `sla` block is optional at contract level.
 
@@ -89,10 +89,15 @@ max_age_hours = lag_hours + period_hours + buffer
 
 where:
   period_hours = inferred from cron schedule
-    - Hourly (0 * * * *) → 1 hour
-    - Daily (0 0 * * *) → 24 hours
-    - Weekly (0 0 * * 1) → 168 hours
-  buffer = 1 hour (default tolerance)
+    - Hourly    (0 * * * *)       → 1 hour
+    - Daily     (0 H * * *)       → 24 hours
+    - Every N hours (0 */N * * *) → N hours
+    - Business days (0 H * * 1-5) → 24 hours
+    - Weekly    (0 H * * W)       → 168 hours
+    - Monthly   (0 H 1 * *)       → 720 hours
+    Cron expressions that do not match one of the above patterns
+    (e.g. multi-day-of-week lists like "1,3,5") raise a ContractValidationError.
+  buffer = 1 hour (fixed constant)
 ```
 
 **For Non-Partitioned Tables** (`partitioned_by` absent):
@@ -397,8 +402,13 @@ columns:
     nullable: false
     description: "Total number of orders"
 
-# AUTO-GENERATED:
-# - Freshness: max_age_hours = 0 + 1 = 1 (must be within 1 hour)
+# AUTO-GENERATED CHECK FROM SLA:
+# checks:
+#   - name: "SLA: Freshness check"
+#     type: freshness
+#     max_age_hours: 1              # 0 (lag) + 1 (buffer)
+#     timestamp_column: last_updated  # Must be specified — cannot be inferred for non-partitioned tables
+#     severity: P0
 ```
 
 ## Validation Rules

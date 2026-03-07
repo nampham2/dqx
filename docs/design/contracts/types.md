@@ -14,9 +14,9 @@ The type system prioritizes validation flexibility over exact matching. Types ac
 |------|-------------|-------------------|-------|
 | **Primitive Types** | | | |
 | `int` | `type: int` | int8, int16, int32, int64, uint8, uint16, uint32, uint64 | Any integer width, signed or unsigned |
-| `float` | `type: float` | float32, float64 | Any float precision |
+| `float` | `type: float` | float32, float64 | float32 and float64 only; float16 is not accepted |
 | `bool` | `type: bool` | bool | Boolean exact match |
-| `string` | `type: string` | string, utf8 | UTF-8 text |
+| `string` | `type: string` | string, utf8 | UTF-8 text; also accepts large_string, large_utf8 |
 | `bytes` | `type: bytes` | binary, large_binary | Binary data |
 | **Temporal Types** | | | |
 | `date` | `type: date` | date32, date64 | Any date representation |
@@ -27,7 +27,7 @@ The type system prioritizes validation flexibility over exact matching. Types ac
 | **Decimal Type** | | | |
 | `decimal` | `type: decimal` | decimal128(any), decimal256(any) | Any precision/scale |
 | **Complex Types** | | | |
-| `list` | `type: {kind: list, value_type: T}` | list\<T\> | Recursive validation of element type |
+| `list` | `type: {kind: list, value_type: T}` | list\<T\> | Recursive validation of element type; also accepts large_list |
 | `struct` | `type: {kind: struct, fields: [...]}` | struct\<fields\> | Recursive validation of field structure |
 | `map` | `type: {kind: map, key_type: K, value_type: V}` | map\<K, V\> | Recursive validation of key/value types |
 
@@ -238,6 +238,8 @@ The validator confirms the column is a decimal type regardless of precision or s
   description: "Complete address"
 ```
 
+> **Note:** The `nullable` flag on nested struct and list element fields is for documentation purposes only. Schema validation enforces nullability at the top-level column only; nested field nullability is not validated.
+
 ### Map Type
 
 ```yaml
@@ -318,6 +320,8 @@ Contract type `float` validates against:
 - `pa.float32()` — 32-bit single precision (IEEE 754)
 - `pa.float64()` — 64-bit double precision (IEEE 754)
 
+Contract type `float` does **not** validate against `pa.float16()`.
+
 ### Date Type Compatibility
 
 Contract type `date` validates against:
@@ -350,3 +354,17 @@ Contract type `time` validates against:
 Contract type `decimal` validates against:
 - `pa.decimal128(precision, scale)` — Any precision/scale combination
 - `pa.decimal256(precision, scale)` — Any precision/scale combination
+
+### String Type Compatibility
+
+Contract type `string` validates against:
+- `pa.string()` — UTF-8 encoded variable-length string
+- `pa.utf8()` — alias for string
+- `pa.large_string()` — large UTF-8 string (64-bit offsets, common in DuckDB)
+- `pa.large_utf8()` — alias for large_string
+
+### List Type Compatibility
+
+Contract type `list` validates against:
+- `pa.list_(value_type)` — standard list with 32-bit offsets
+- `pa.large_list(value_type)` — large list with 64-bit offsets
