@@ -37,10 +37,12 @@ list[DecoratedCheck]
     ↓ VerificationSuite(checks=contract.to_checks() + [...], ...)   [existing API]
 VerificationSuite
     ↓ suite.run([datasource], result_key)                           [existing API]
-AssertionResult[]                                                   [existing API]
+None
+    ↓ suite.collect_results()                                       [existing API]
+list[AssertionResult]
 ```
 
-The runtime flow combines proposed and existing API. First, `Contract.from_yaml()` parses the YAML and builds a `Contract` instance with a fully resolved PyArrow schema — **proposed**. Second, `contract.to_checks()` translates every column definition and check into a list of `DecoratedCheck` functions — **proposed**. From here, the flow uses the **existing** `VerificationSuite` API: the user merges contract-generated checks with any hand-coded checks — `VerificationSuite(checks=contract.to_checks() + [custom_check], db=db, name=...)` — and calls `suite.run([datasource], result_key)`, which executes all checks, validates the schema at runtime via PyArrow, and returns `AssertionResult[]` objects identical to those from hand-coded suites. `VerificationSuite`, `suite.run()`, and `AssertionResult` already exist in the codebase today; only `Contract.from_yaml()` and `contract.to_checks()` are new.
+The runtime flow combines proposed and existing API. First, `Contract.from_yaml()` parses the YAML and builds a `Contract` instance with a fully resolved PyArrow schema — **proposed**. Second, `contract.to_checks()` translates every column definition and check into a list of `DecoratedCheck` functions — **proposed**. From here, the flow uses the **existing** `VerificationSuite` API: the user merges contract-generated checks with any hand-coded checks — `VerificationSuite(checks=contract.to_checks() + [custom_check], db=db, name=...)` — and calls `suite.run([datasource], result_key)` to execute all checks. Results are collected separately via `suite.collect_results()`, which returns `list[AssertionResult]`. `VerificationSuite`, `suite.run()`, `suite.collect_results()`, and `AssertionResult` already exist in the codebase today; only `Contract.from_yaml()` and `contract.to_checks()` are new.
 
 ---
 
@@ -328,13 +330,13 @@ Simple types (primitive, temporal, decimal) use a plain string value. Complex ty
 
 ## Check Types Summary
 
-DQX contracts provide 18 built-in check types across two scopes.
+DQX contracts define 18 check types across two scopes. 11 are implemented today; 7 are planned for upcoming releases (marked below).
 
 **4 table-level checks** validate the dataset as a whole:
 - `num_rows` — asserts total row count
 - `duplicates` — asserts count of duplicate rows
-- `freshness` — asserts that data is not stale (record age does not exceed `max_age_hours`; defaults to most recent, optionally oldest via `aggregation: min`)
-- `completeness` — asserts absence of partition gaps
+- `freshness` — asserts that data is not stale (record age does not exceed `max_age_hours`; defaults to most recent, optionally oldest via `aggregation: min`) *[planned]*
+- `completeness` — asserts absence of partition gaps *[planned]*
 
 **14 column-level checks** validate individual columns. 8 are statistical:
 - `cardinality` — distinct value count
@@ -344,15 +346,15 @@ DQX contracts provide 18 built-in check types across two scopes.
 - `sum` — column sum
 - `count` — non-null count
 - `variance` — statistical variance
-- `percentile` — value at a specified percentile
+- `percentile` — value at a specified percentile *[planned]*
 
 6 are value checks:
 - `nulls` — null value count
 - `duplicates` — duplicate value count within the column
-- `whitelist` — all values belong to an allowed set
-- `blacklist` — no values belong to a forbidden set
-- `pattern` — all values match a regular expression
-- `length` — string or array length
+- `whitelist` — all values belong to an allowed set *[planned]*
+- `blacklist` — no values belong to a forbidden set *[planned]*
+- `pattern` — all values match a regular expression *[planned]*
+- `length` — string or array length *[planned]*
 
 Most checks, table-level or column-level, support validators: `min`, `max`, `between`, `equals`, and `tolerance`. Exceptions are `freshness` (uses `max_age_hours`) and `completeness` (uses `max_gap_count`), which use check-specific implicit parameters instead. See [Check Types Reference](checks.md) for parameter conventions and composition patterns.
 
