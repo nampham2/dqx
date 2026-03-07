@@ -35,6 +35,11 @@
   font-weight: 700;
 }
 
+.md-typeset table:not([class]) td,
+.md-typeset table:not([class]) th {
+  font-size: 0.75rem;
+}
+
 /* API documentation styling */
 .doc-class {
   margin-top: 2rem;

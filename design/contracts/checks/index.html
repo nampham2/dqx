@@ -15,7 +15,7 @@
         <link rel="canonical" href="https://dqx.readthedocs.io/design/contracts/checks/">
       
       
-        <link rel="prev" href="../">
+        <link rel="prev" href="../types/">
       
       
         <link rel="next" href="../sla/">
@@ -29,7 +29,7 @@
     
     
       
-        <title>Check Types Reference - DQX - Data Quality Excellence</title>
+        <title>Checks & Validators - DQX - Data Quality X</title>
       
     
     
@@ -87,7 +87,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#check-types-reference" class="md-skip">
+        <a href="#checks-validators" class="md-skip">
           Skip to content
         </a>
       
@@ -103,7 +103,7 @@
 
 <header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../../.." title="DQX - Data Quality Excellence" class="md-header__button md-logo" aria-label="DQX - Data Quality Excellence" data-md-component="logo">
+    <a href="../../.." title="DQX - Data Quality X" class="md-header__button md-logo" aria-label="DQX - Data Quality X" data-md-component="logo">
       
   <img src="../../../assets/logo.png" alt="logo">
 
@@ -116,13 +116,13 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            DQX - Data Quality Excellence
+            DQX - Data Quality X
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Check Types Reference
+              Checks &amp; Validators
             
           </span>
         </div>
@@ -273,12 +273,12 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../../.." title="DQX - Data Quality Excellence" class="md-nav__button md-logo" aria-label="DQX - Data Quality Excellence" data-md-component="logo">
+    <a href="../../.." title="DQX - Data Quality X" class="md-nav__button md-logo" aria-label="DQX - Data Quality X" data-md-component="logo">
       
   <img src="../../../assets/logo.png" alt="logo">
 
     </a>
-    DQX - Data Quality Excellence
+    DQX - Data Quality X
   </label>
   
     <div class="md-nav__source">
@@ -464,6 +464,34 @@
                 
   
   
+  
+  
+    <li class="md-nav__item">
+      <a href="../types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
     
   
   
@@ -483,7 +511,7 @@
   <span class="md-ellipsis">
     
   
-    Check Types
+    Checks & Validators
   
 
     
@@ -501,7 +529,7 @@
   <span class="md-ellipsis">
     
   
-    Check Types
+    Checks & Validators
   
 
     
@@ -539,15 +567,15 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#check-types-summary" class="md-nav__link">
+  <a href="#checks-summary" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Check Types Summary
+        Checks Summary
       
     </span>
   </a>
   
-    <nav class="md-nav" aria-label="Check Types Summary">
+    <nav class="md-nav" aria-label="Checks Summary">
       <ul class="md-nav__list">
         
           <li class="md-nav__item">
@@ -1136,34 +1164,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="../types/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Type System
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -1178,15 +1178,41 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../../profiles/" class="md-nav__link">
+    
+    
+      
         
+      
+    
+    
+    
+      
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../../misc/profiles/" class="md-nav__link">
+      
   
   
   <span class="md-ellipsis">
     
   
-    Profiles
+    Miscellaneous
   
 
     
@@ -1194,7 +1220,15 @@
   
   
 
-      </a>
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
     </li>
   
 
@@ -1312,7 +1346,7 @@
   
 
 
-<h1 id="check-types-reference">Check Types Reference<a class="headerlink" href="#check-types-reference" title="Anchor link to this section for reference">&para;</a></h1>
+<h1 id="checks-validators">Checks &amp; Validators<a class="headerlink" href="#checks-validators" title="Anchor link to this section for reference">&para;</a></h1>
 <blockquote>
 <p>Part of the <a href="../">Data Contracts Technical Specification</a>.</p>
 </blockquote>
@@ -1343,7 +1377,7 @@
 <p>The <code>name</code> is a descriptive business statement. The <code>type</code> identifies which check to run. <code>severity</code> sets the priority level and defaults to <code>P1</code> when omitted. A single <strong>validator</strong> — <code>min</code>, <code>max</code>, <code>between</code>, <code>not_between</code>, or <code>equals</code> — defines the acceptance condition; only one may be specified per check. The optional <code>tolerance</code> parameter allows acceptable variance. Check-specific parameters (such as <code>return</code>, <code>columns</code>, <code>values</code>, <code>pattern</code>) are documented in each check's detail section.</p>
 <p><strong>Note:</strong> Cross-dataset validation (referential integrity, schema consistency, aggregate reconciliation) should be handled at the orchestration/workflow level rather than in individual data contracts. This keeps contracts focused on single-dataset quality while allowing orchestration tools to manage relationships between datasets.</p>
 <hr />
-<h2 id="check-types-summary">Check Types Summary<a class="headerlink" href="#check-types-summary" title="Anchor link to this section for reference">&para;</a></h2>
+<h2 id="checks-summary">Checks Summary<a class="headerlink" href="#checks-summary" title="Anchor link to this section for reference">&para;</a></h2>
 <h3 id="table-level-checks">Table-Level Checks<a class="headerlink" href="#table-level-checks" title="Anchor link to this section for reference">&para;</a></h3>
 <p>Validate table-wide properties and aggregates. Specified in the top-level <code>checks</code> array.</p>
 <table>
@@ -1476,7 +1510,7 @@
 <p><strong>Total: 17 column-level checks</strong> (9 Statistical + 8 Value Checks)</p>
 <hr />
 <h2 id="validators">Validators<a class="headerlink" href="#validators" title="Anchor link to this section for reference">&para;</a></h2>
-<p>Every check returns a single float metric. Validators compare that metric against a declared acceptance condition. At most one validator may be specified per check. The optional <code>tolerance</code> parameter applies to all four and defaults to <code>0</code> for integer checks and <code>1e-6</code> for floating-point checks.</p>
+<p>Every check returns a single float metric. Validators compare that metric against a declared acceptance condition. At most one validator may be specified per check. The optional <code>tolerance</code> parameter applies to all four and is a float that defaults to <code>1e-9</code>.</p>
 <h3 id="min">min<a class="headerlink" href="#min" title="Anchor link to this section for reference">&para;</a></h3>
 <p>Sets a lower bound. The check passes if <code>actual ≥ (min - tolerance)</code>.</p>
 <div class="language-yaml highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;At</span><span class="nv"> </span><span class="s">least</span><span class="nv"> </span><span class="s">1000</span><span class="nv"> </span><span class="s">rows</span><span class="nv"> </span><span class="s">daily&quot;</span>
@@ -2530,9 +2564,9 @@
 </tr>
 <tr>
 <td><code>tolerance</code></td>
-<td><code>number</code></td>
+<td><code>float</code></td>
 <td>No</td>
-<td><code>0</code> (int) / <code>1e-6</code> (float)</td>
+<td><code>1e-9</code></td>
 <td>Acceptable variance</td>
 </tr>
 </tbody>
@@ -2621,9 +2655,9 @@
 </tr>
 <tr>
 <td><code>tolerance</code></td>
-<td><code>number</code></td>
+<td><code>float</code></td>
 <td>No</td>
-<td><code>0</code> (int) / <code>1e-6</code> (float)</td>
+<td><code>1e-9</code></td>
 <td>Acceptable variance</td>
 </tr>
 </tbody>
@@ -2700,9 +2734,9 @@
 </tr>
 <tr>
 <td><code>tolerance</code></td>
-<td><code>number</code></td>
+<td><code>float</code></td>
 <td>No</td>
-<td><code>0</code> (int) / <code>1e-6</code> (float)</td>
+<td><code>1e-9</code></td>
 <td>Acceptable variance</td>
 </tr>
 </tbody>
@@ -2779,9 +2813,9 @@
 </tr>
 <tr>
 <td><code>tolerance</code></td>
-<td><code>number</code></td>
+<td><code>float</code></td>
 <td>No</td>
-<td><code>0</code> (int) / <code>1e-6</code> (float)</td>
+<td><code>1e-9</code></td>
 <td>Acceptable variance</td>
 </tr>
 </tbody>
@@ -2872,9 +2906,9 @@
 </tr>
 <tr>
 <td><code>tolerance</code></td>
-<td><code>number</code></td>
+<td><code>float</code></td>
 <td>No</td>
-<td><code>0</code> (int) / <code>1e-6</code> (float)</td>
+<td><code>1e-9</code></td>
 <td>Acceptable variance</td>
 </tr>
 </tbody>
@@ -2965,9 +2999,9 @@
 </tr>
 <tr>
 <td><code>tolerance</code></td>
-<td><code>number</code></td>
+<td><code>float</code></td>
 <td>No</td>
-<td><code>0</code> (int) / <code>1e-6</code> (float)</td>
+<td><code>1e-9</code></td>
 <td>Acceptable variance</td>
 </tr>
 </tbody>
@@ -3057,9 +3091,9 @@
 </tr>
 <tr>
 <td><code>tolerance</code></td>
-<td><code>number</code></td>
+<td><code>float</code></td>
 <td>No</td>
-<td><code>0</code> (int) / <code>1e-6</code> (float)</td>
+<td><code>1e-9</code></td>
 <td>Acceptable variance</td>
 </tr>
 </tbody>
@@ -3186,9 +3220,9 @@
 </tr>
 <tr>
 <td><code>tolerance</code></td>
-<td><code>number</code></td>
+<td><code>float</code></td>
 <td>No</td>
-<td><code>0</code> (int) / <code>1e-6</code> (float)</td>
+<td><code>1e-9</code></td>
 <td>Acceptable variance</td>
 </tr>
 </tbody>
@@ -3393,7 +3427,7 @@
       <nav class="md-footer__inner md-grid" aria-label="Footer" >
         
           
-          <a href="../" class="md-footer__link md-footer__link--prev" aria-label="Previous: Overview">
+          <a href="../types/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Type System">
             <div class="md-footer__button md-icon">
               
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
@@ -3403,7 +3437,7 @@
                 Previous
               </span>
               <div class="md-ellipsis">
-                Overview
+                Type System
               </div>
             </div>
           </a>

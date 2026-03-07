@@ -18,7 +18,7 @@
         <link rel="prev" href="../..">
       
       
-        <link rel="next" href="./checks/">
+        <link rel="next" href="./types/">
       
       
         
@@ -29,7 +29,7 @@
     
     
       
-        <title>Data Contracts Technical Specification - DQX - Data Quality Excellence</title>
+        <title>Data Contracts Technical Specification - DQX - Data Quality X</title>
       
     
     
@@ -103,7 +103,7 @@
 
 <header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="../.." title="DQX - Data Quality Excellence" class="md-header__button md-logo" aria-label="DQX - Data Quality Excellence" data-md-component="logo">
+    <a href="../.." title="DQX - Data Quality X" class="md-header__button md-logo" aria-label="DQX - Data Quality X" data-md-component="logo">
       
   <img src="../../assets/logo.png" alt="logo">
 
@@ -116,7 +116,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            DQX - Data Quality Excellence
+            DQX - Data Quality X
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -273,12 +273,12 @@
 
 <nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="../.." title="DQX - Data Quality Excellence" class="md-nav__button md-logo" aria-label="DQX - Data Quality Excellence" data-md-component="logo">
+    <a href="../.." title="DQX - Data Quality X" class="md-nav__button md-logo" aria-label="DQX - Data Quality X" data-md-component="logo">
       
   <img src="../../assets/logo.png" alt="logo">
 
     </a>
-    DQX - Data Quality Excellence
+    DQX - Data Quality X
   </label>
   
     <div class="md-nav__source">
@@ -467,6 +467,34 @@
   
   
     <li class="md-nav__item">
+      <a href="./types/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Type System
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="./checks/" class="md-nav__link">
         
   
@@ -474,7 +502,7 @@
   <span class="md-ellipsis">
     
   
-    Check Types
+    Checks & Validators
   
 
     
@@ -516,34 +544,6 @@
 
               
             
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
-      <a href="./types/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Type System
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
           </ul>
         </nav>
       
@@ -558,15 +558,41 @@
   
   
   
-    <li class="md-nav__item">
-      <a href="../profiles/" class="md-nav__link">
+    
+    
+      
         
+      
+    
+    
+    
+      
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../misc/profiles/" class="md-nav__link">
+      
   
   
   <span class="md-ellipsis">
     
   
-    Profiles
+    Miscellaneous
   
 
     
@@ -574,7 +600,15 @@
   
   
 
-      </a>
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
     </li>
   
 
@@ -1026,7 +1060,7 @@
 </table>
 <p>Simple types (primitive, temporal, decimal) use a plain string value. Complex types (list, struct, map) use an object with a <code>kind</code> field and optional subtype fields. See <a href="types/">Type System</a> for the full compatibility rules per type.</p>
 <hr />
-<h2 id="check-types-summary">Check Types Summary<a class="headerlink" href="#check-types-summary" title="Anchor link to this section for reference">&para;</a></h2>
+<h2 id="checks-summary">Checks Summary<a class="headerlink" href="#checks-summary" title="Anchor link to this section for reference">&para;</a></h2>
 <p>DQX contracts define 21 check types across two scopes.</p>
 <p><strong>4 table-level checks</strong> validate the dataset as a whole:</p>
 <ul>
@@ -1058,13 +1092,13 @@
 <li><code>max_length</code> — maximum string, list, or map element count</li>
 <li><code>avg_length</code> — average string, list, or map element count</li>
 </ul>
-<p>Most checks, table-level or column-level, support validators: <code>min</code>, <code>max</code>, <code>between</code>, <code>not_between</code>, and <code>equals</code>. <code>tolerance</code> is an auxiliary parameter used alongside a validator (not a mutually exclusive validator itself). Exceptions are <code>freshness</code> (uses <code>max_age_hours</code>) and <code>completeness</code> (uses <code>max_gap_count</code>), which use check-specific implicit parameters instead. See <a href="checks/">Check Types Reference</a> for validators and composition patterns.</p>
+<p>Most checks, table-level or column-level, support validators: <code>min</code>, <code>max</code>, <code>between</code>, <code>not_between</code>, and <code>equals</code>. <code>tolerance</code> is an auxiliary parameter used alongside a validator (not a mutually exclusive validator itself). Exceptions are <code>freshness</code> (uses <code>max_age_hours</code>) and <code>completeness</code> (uses <code>max_gap_count</code>), which use check-specific implicit parameters instead. See <a href="checks/">Checks &amp; Validators</a> for validators and composition patterns.</p>
 <hr />
 <h2 id="detailed-references">Detailed References<a class="headerlink" href="#detailed-references" title="Anchor link to this section for reference">&para;</a></h2>
 <ul>
 <li><a href="types/">Type System</a> — Contract type definitions: primitive, temporal, decimal, and complex types</li>
 <li><a href="sla/">SLA Specification</a> — Service level agreements, scheduling, auto-generated checks, and examples</li>
-<li><a href="checks/">Check Types Reference</a> — Overview, parameter conventions, table-level checks, column-level checks, and composition patterns</li>
+<li><a href="checks/">Checks &amp; Validators</a> — Overview, parameter conventions, table-level checks, column-level checks, and composition patterns</li>
 </ul>
 
 
@@ -1122,13 +1156,13 @@
         
         
           
-          <a href="./checks/" class="md-footer__link md-footer__link--next" aria-label="Next: Check Types">
+          <a href="./types/" class="md-footer__link md-footer__link--next" aria-label="Next: Type System">
             <div class="md-footer__title">
               <span class="md-footer__direction">
                 Next
               </span>
               <div class="md-ellipsis">
-                Check Types
+                Type System
               </div>
             </div>
             <div class="md-footer__button md-icon">
