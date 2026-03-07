@@ -742,24 +742,24 @@
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Anchor link to this section for reference">&para;</a></h2>
 <p>A data contract is a versioned YAML document that defines the schema, quality checks, and freshness guarantees for a dataset. Each contract names its dataset, declares the PyArrow type and nullability of every column, specifies optional SLA schedules, and attaches quality checks directly to the columns or dataset they govern.</p>
 <p>Teams need contracts because data requirements must be explicit, version-controlled, testable, and portable. Without contracts, quality rules live in ad-hoc Python scripts that differ across environments, drift from the actual schema, and cannot be reviewed as data specifications. A contract replaces that scattered Python code with a single declarative YAML file that any engineer can read, diff, and own.</p>
-<p>Contracts generate lists of <code>DecoratedCheck</code> functions — the same type that <code>VerificationSuite</code> already accepts. The user combines contract-generated checks with hand-coded checks in a single suite, so contract-based and custom validations run together and produce <code>AssertionResult</code> objects identical to those from hand-coded suites.</p>
+<p>Contracts generate lists of <code>DecoratedCheck</code> functions. The user combines contract-generated checks with hand-coded checks in a single suite, so contract-based and custom validations run together and produce <code>AssertionResult</code> objects.</p>
 <hr />
 <h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Anchor link to this section for reference">&para;</a></h2>
 <h3 id="core-design-principle">Core Design Principle<a class="headerlink" href="#core-design-principle" title="Anchor link to this section for reference">&para;</a></h3>
 <p><strong>Contracts are column-centric YAML specifications that generate checks composable with hand-coded checks inside a standard VerificationSuite.</strong></p>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Contract YAML (schema + checks)
-</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    ↓ Contract.from_yaml()                                          [proposed]
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>    ↓ Contract.from_yaml()
 </span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>Contract instance (with PyArrow schema)
-</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    ↓ contract.to_checks()                                          [proposed]
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>    ↓ contract.to_checks()
 </span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>list[DecoratedCheck]
-</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    ↓ VerificationSuite(checks=contract.to_checks() + [...], ...)   [existing API]
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>    ↓ VerificationSuite(checks=contract.to_checks() + [...], ...)
 </span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>VerificationSuite
-</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    ↓ suite.run([datasource], result_key)                           [existing API]
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>    ↓ suite.run([datasource], result_key)
 </span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>None
-</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    ↓ suite.collect_results()                                       [existing API]
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>    ↓ suite.collect_results()
 </span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>list[AssertionResult]
 </span></code></pre></div>
-<p>The runtime flow combines proposed and existing API. First, <code>Contract.from_yaml()</code> parses the YAML and builds a <code>Contract</code> instance with a fully resolved PyArrow schema — <strong>proposed</strong>. Second, <code>contract.to_checks()</code> translates every column definition and check into a list of <code>DecoratedCheck</code> functions — <strong>proposed</strong>. From here, the flow uses the <strong>existing</strong> <code>VerificationSuite</code> API: the user merges contract-generated checks with any hand-coded checks — <code>VerificationSuite(checks=contract.to_checks() + [custom_check], db=db, name=...)</code> — and calls <code>suite.run([datasource], result_key)</code> to execute all checks. Results are collected separately via <code>suite.collect_results()</code>, which returns <code>list[AssertionResult]</code>. <code>VerificationSuite</code>, <code>suite.run()</code>, <code>suite.collect_results()</code>, and <code>AssertionResult</code> already exist in the codebase today; only <code>Contract.from_yaml()</code> and <code>contract.to_checks()</code> are new. Schema type mismatches raise <code>SchemaValidationError</code> (proposed); contract parse errors raise <code>ContractValidationError</code> (proposed). <code>SchemaValidationError</code> is raised when a column's actual storage type does not match the declared contract type. <code>ContractValidationError</code> is raised when the YAML cannot be parsed into a valid <code>Contract</code> (e.g., missing required fields, invalid cron expression, or unknown check type).</p>
+<p><code>Contract.from_yaml()</code> parses the YAML and builds a <code>Contract</code> instance with a fully resolved PyArrow schema. <code>contract.to_checks()</code> translates every column definition and check into a list of <code>DecoratedCheck</code> functions. The user merges contract-generated checks with any hand-coded checks — <code>VerificationSuite(checks=contract.to_checks() + [custom_check], db=db, name=...)</code> — and calls <code>suite.run([datasource], result_key)</code> to execute all checks. Results are collected separately via <code>suite.collect_results()</code>, which returns <code>list[AssertionResult]</code>. Schema type mismatches raise <code>SchemaValidationError</code>; contract parse errors raise <code>ContractValidationError</code>. <code>SchemaValidationError</code> is raised when a column's actual storage type does not match the declared contract type. <code>ContractValidationError</code> is raised when the YAML cannot be parsed into a valid <code>Contract</code> (e.g., missing required fields, invalid cron expression, or unknown check type).</p>
 <hr />
 <h2 id="contract-structure">Contract Structure<a class="headerlink" href="#contract-structure" title="Anchor link to this section for reference">&para;</a></h2>
 <p>The complete contract below shows every top-level section. The prose paragraphs that follow explain each section.</p>
@@ -1034,13 +1034,13 @@
 <p>Simple types (primitive, temporal, decimal) use a plain string value. Complex types (list, struct, map) use an object with a <code>kind</code> field and optional subtype fields. See <a href="types/">Type System</a> for the full compatibility rules per type.</p>
 <hr />
 <h2 id="check-types-summary">Check Types Summary<a class="headerlink" href="#check-types-summary" title="Anchor link to this section for reference">&para;</a></h2>
-<p>DQX contracts define 18 check types across two scopes. 11 are implemented today; 7 are planned for upcoming releases (marked below).</p>
+<p>DQX contracts define 18 check types across two scopes.</p>
 <p><strong>4 table-level checks</strong> validate the dataset as a whole:</p>
 <ul>
 <li><code>num_rows</code> — asserts total row count</li>
 <li><code>duplicates</code> — asserts count of duplicate rows</li>
-<li><code>freshness</code> — asserts that data is not stale (record age does not exceed <code>max_age_hours</code>; defaults to most recent, optionally oldest via <code>aggregation: min</code>) <em>[planned]</em></li>
-<li><code>completeness</code> — asserts absence of partition gaps <em>[planned]</em></li>
+<li><code>freshness</code> — asserts that data is not stale (record age does not exceed <code>max_age_hours</code>; defaults to most recent, optionally oldest via <code>aggregation: min</code>)</li>
+<li><code>completeness</code> — asserts absence of partition gaps</li>
 </ul>
 <p><strong>14 column-level checks</strong> validate individual columns. 8 are statistical:</p>
 <ul>
@@ -1051,16 +1051,16 @@
 <li><code>sum</code> — column sum</li>
 <li><code>count</code> — non-null count</li>
 <li><code>variance</code> — statistical variance</li>
-<li><code>percentile</code> — value at a specified percentile <em>[planned]</em></li>
+<li><code>percentile</code> — value at a specified percentile</li>
 </ul>
 <p>6 are value checks:</p>
 <ul>
 <li><code>nulls</code> — null value count</li>
 <li><code>duplicates</code> — duplicate value count within the column</li>
-<li><code>whitelist</code> — all values belong to an allowed set <em>[planned]</em></li>
-<li><code>blacklist</code> — no values belong to a forbidden set <em>[planned]</em></li>
-<li><code>pattern</code> — all values match a regular expression <em>[planned]</em></li>
-<li><code>length</code> — string, list, or map element count <em>[planned]</em></li>
+<li><code>whitelist</code> — all values belong to an allowed set</li>
+<li><code>blacklist</code> — no values belong to a forbidden set</li>
+<li><code>pattern</code> — all values match a regular expression</li>
+<li><code>length</code> — string, list, or map element count</li>
 </ul>
 <p>Most checks, table-level or column-level, support validators: <code>min</code>, <code>max</code>, <code>between</code>, <code>equals</code>, and <code>tolerance</code>. Exceptions are <code>freshness</code> (uses <code>max_age_hours</code>) and <code>completeness</code> (uses <code>max_gap_count</code>), which use check-specific implicit parameters instead. See <a href="checks/">Check Types Reference</a> for validators and composition patterns.</p>
 <hr />
