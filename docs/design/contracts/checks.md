@@ -91,183 +91,54 @@ Value checks validate individual values within a column. Each check returns eith
 
 ---
 
-## Parameter Conventions
+## Validators
 
-Data contract checks use two intuitive parameter patterns: **min/max** (explicit bounds) and **between** (range shorthand). These patterns work together—use `between` as a convenience for specifying both bounds.
+Every check returns a single float metric. Validators compare that metric against a declared acceptance condition. At most one validator may be specified per check. The optional `tolerance` parameter applies to all four and defaults to `0` for integer checks and `1e-6` for floating-point checks.
 
-### Pattern 1: Explicit Min/Max
+### min
 
-Use `min` and `max` parameters to set explicit bounds. Use only the bound you need, or both for range validation.
-
-```yaml
-# Lower bound only (for "higher is better" checks)
-checks:
-  - name: "At least 10 distinct merchants"
-    type: cardinality
-    min: 10  # At least 10 distinct values
-    severity: P1
-
-# Upper bound only (for "lower is better" checks)
-checks:
-  - name: "Low null percentage"
-    type: nulls
-    return: pct
-    max: 0.05  # 5% null percentage
-    severity: P1
-
-# Both bounds (range validation)
-checks:
-  - name: "Stable row count"
-    type: num_rows
-    min: 1000
-    max: 100000
-    severity: P1
-```
-
-**When to use which bound:**
-- **`max` for "lower is better"** - nulls (count or pct), variance, duplicates
-- **`min` for "higher is better"** - cardinality (for diversity)
-- **Both for stability** - num_rows, mean, sum, percentile
-
-### Pattern 2: Between (Convenience)
-
-Use `between` as shorthand for inclusive ranges. This is equivalent to specifying both `min` and `max`.
+Sets a lower bound. The check passes if `actual ≥ (min - tolerance)`.
 
 ```yaml
-checks:
-  - name: "Revenue in expected range"
-    type: sum
-    between: [1000000, 5000000]
-    severity: P0
-
-# Equivalent to:
-checks:
-  - name: "Revenue in expected range"
-    type: sum
-    min: 1000000
-    max: 5000000
-    severity: P0
+- name: "At least 1000 rows daily"
+  type: num_rows
+  min: 1000
+  severity: P0
 ```
 
-### Parameter Guidelines
+### max
 
-**Mutual Exclusivity:** `between` cannot be combined with `min` or `max`. Use `between: [100, 1000]` or `min: 100, max: 1000`, not both:
+Sets an upper bound. The check passes if `actual ≤ (max + tolerance)`.
 
 ```yaml
-# Valid: between
-between: [100, 1000]
-
-# Invalid: between + min
-between: [100, 1000]
-min: 50
+- name: "Low null percentage"
+  type: nulls
+  return: pct
+  max: 0.05
+  severity: P1
 ```
 
-**Error Handling:**
+### between
 
-When parameters conflict, validation will fail with a clear message:
-```text
-ValidationError: Cannot use 'between' with 'min' or 'max'.
-Use 'between: [100, 1000]' OR 'min: 100, max: 1000', not both.
-```
-
-### Choosing the Right Parameter
-
-**Use `max` for "lower is better" checks:**
-- Metrics where lower values indicate better quality
-- Examples: `nulls` (with count return), `variance`, `duplicates`, `completeness` (uses `max_gap_count`)
-- Rationale: You want to set an upper bound on "bad" metrics
-
-**Use `min` for "higher is better" checks:**
-- Metrics where higher values indicate better quality
-- Examples: `cardinality` (for diversity), `whitelist`, `blacklist`, `pattern`, `length` (conforming row count/pct)
-- Rationale: You want to set a lower bound on "good" metrics
-
-**Use both `min` and `max` (or `between`) for stability:**
-- Metrics that can be too low OR too high
-- Examples: `num_rows`, `mean`, `sum`, `percentile`
-- Rationale: You want to detect drift in either direction
-
----
-
-### Validator Parameters (Mutually Exclusive)
-
-Most checks support four validator patterns (see Check Structure in the Overview). Note that `freshness` and `completeness` use check-specific implicit parameters (`max_age_hours` and `max_gap_count`, respectively) instead of the standard validator set:
-
-> **Note:** Validators (`min`, `max`, `between`, `equals`) are optional for value checks (e.g., `whitelist`, `blacklist`, `pattern`, `length`) that define their own required parameters such as `values` or `pattern`. When a validator is omitted from a value check, the check acts as a boolean assertion — it passes if all rows conform (equivalent to requiring the conforming count to equal the total row count).
-
-**1. Lower Bound (`min`)**
-```yaml
-type: mean
-min: 10.0
-```
-
-**2. Upper Bound (`max`)**
-```yaml
-type: variance
-max: 100.0
-```
-
-**3. Range (`between`)**
-```yaml
-type: num_rows
-between: [1000, 100000]
-```
-
-**4. Exact Match (`equals`)**
-```yaml
-type: sum
-equals: 1000000.0
-```
-
----
-
-### Tolerance Parameter (Universal)
-
-The `tolerance` parameter applies to ALL numeric comparisons and validators. It provides flexibility for floating-point comparisons and allows for acceptable variance in validations.
-
-**Default Values:**
-- Floating-point checks: `tolerance: 1e-6`
-- Integer checks: `tolerance: 0`
-
-**Semantics:**
-- For `equals`: Passes if `|actual - expected| ≤ tolerance`
-- For `min`: Passes if `actual ≥ (min - tolerance)`
-- For `max`: Passes if `actual ≤ (max + tolerance)`
-- For `between`: Passes if `actual ≥ (min - tolerance) AND actual ≤ (max + tolerance)`
-
-**Examples:**
+Inclusive range — shorthand for specifying both `min` and `max`. The check passes if `actual ≥ (min - tolerance) AND actual ≤ (max + tolerance)`. Cannot be combined with `min` or `max`; doing so raises a `ContractValidationError`.
 
 ```yaml
-# Equals with tolerance
-columns:
-  - name: unit_price
-    checks:
-      - type: mean
-        equals: 50.0
-        tolerance: 0.1  # Passes if 49.9 ≤ actual ≤ 50.1
+- name: "Stable row count"
+  type: num_rows
+  between: [1000, 100000]
+  severity: P1
+```
 
-# Min with tolerance (cardinality)
-columns:
-  - name: merchant_id
-    checks:
-      - type: cardinality
-        min: 100  # At least 100 distinct merchants
-        tolerance: 5  # Passes if actual ≥ 95
+### equals
 
-# Max with tolerance (nulls with pct return uses 0-1 scale)
-columns:
-  - name: email
-    checks:
-      - type: nulls
-        return: pct
-        max: 0.05  # 5% null percentage
-        tolerance: 0.001  # Passes if actual ≤ 0.051
+Exact match. The check passes if `|actual - expected| ≤ tolerance`.
 
-# Between with tolerance
-checks:
-  - type: num_rows
-    between: [1000, 2000]
-    tolerance: 10  # Passes if 990 ≤ actual ≤ 2010
+```yaml
+- name: "Total allocated budget is exactly $1M"
+  type: sum
+  equals: 1000000.0
+  tolerance: 0.01
+  severity: P0
 ```
 
 ---
@@ -284,7 +155,7 @@ Table-level checks are specified in the top-level `checks` array (sibling to `co
 
 The `num_rows` check validates that the total row count falls within specified bounds.
 
-Accepts standard validators — see [Parameter Conventions](#parameter-conventions).
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: Range Validation**
 
@@ -329,6 +200,8 @@ The `duplicates` check validates that the number of duplicate rows (based on spe
 |-----------|------|----------|---------|-------------|
 | `columns` | `list[string]` | Yes | None | Columns to check for duplicates (composite key) |
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
+
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: No Duplicates (Most Common)**
 
@@ -394,6 +267,8 @@ The `freshness` check validates that data is not stale — the most recent times
 | `timestamp_column` | `string` | Yes | None | Column containing timestamps |
 | `aggregation` | `string` | No | "max" | Aggregation method ("max" or "min") |
 
+> Validators: not applicable — uses `max_age_hours` instead of standard validators.
+
 **Example 1: Basic Usage (Auto-generated from SLA)**
 
 ```yaml
@@ -447,6 +322,8 @@ The `completeness` check validates that partitioned data has no missing partitio
 | `lookback_days` | `int` | No | `30` | Days to check for gaps |
 | `allow_future_gaps` | `bool` | No | `true` | Ignore gaps in future dates |
 | `max_gap_count` | `int` | No | `0` | Maximum allowed missing partitions |
+
+> Validators: not applicable — uses `max_gap_count` instead of standard validators.
 
 **Example 1: Daily Partitions (No Gaps)**
 
@@ -511,6 +388,8 @@ The `nulls` check validates null values in a column, returning the count or perc
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
+
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: Maximum Bound (Most Common)**
 
@@ -591,6 +470,8 @@ The `whitelist` check validates that non-null values match a set of allowed valu
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
 | `case_sensitive` | `bool` | No | `true` | Whether comparison is case-sensitive (strings only) |
 
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
+
 **Example 1: Basic Usage**
 
 ```yaml
@@ -670,6 +551,8 @@ The `blacklist` check validates that non-null values do not match any forbidden 
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
 | `case_sensitive` | `bool` | No | `true` | Whether comparison is case-sensitive (strings only) |
 
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
+
 **Example 1: Basic Usage**
 
 ```yaml
@@ -733,6 +616,8 @@ The `duplicates` check (column-level) validates that the count of duplicate valu
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
+
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Note:** To enforce uniqueness (no duplicates), use `max: 0` or `equals: 0`.
 
@@ -824,6 +709,8 @@ The `pattern` check validates that string values match a pattern, supporting eit
 | `return` | `string` | No | `count` | Return type: "count" (absolute) or "pct" (percentage 0-1) |
 
 \* Exactly ONE of `pattern` or `format` must be specified. Specifying `flags` together with `format` is invalid and raises a `ContractValidationError`.
+
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: Email Validation**
 
@@ -988,6 +875,8 @@ The `length` check validates that the length of string, list, or map values fall
 
 \* At least one of `min_length` or `max_length` required
 
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
+
 **Example 1: Basic Usage**
 
 ```yaml
@@ -1109,6 +998,8 @@ The `cardinality` check counts distinct non-null values in a column and validate
 | `equals` | `number` | No | None | Exact expected distinct value count |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
+
 **Example 1: Low Cardinality (Categorical)**
 
 ```yaml
@@ -1170,6 +1061,8 @@ The `min` check validates that the minimum value in a column meets specified cri
 | `equals` | `number` | No | None | Exact expected value for the column minimum |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
+
 **Example 1: Minimum Must Be Non-Negative**
 
 ```yaml
@@ -1216,6 +1109,8 @@ The `max` check validates that the maximum value in a column meets specified cri
 | `equals` | `number` | No | None | Exact expected value for the column maximum |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
+
 **Example 1: Maximum Must Be Reasonable**
 
 ```yaml
@@ -1261,6 +1156,8 @@ The `mean` check validates that the arithmetic mean of numeric values in a colum
 | `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
 | `equals` | `number` | No | None | Exact expected mean value |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
+
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 Use `min`, `max`, `between`, or `equals` to set bounds. Most use cases require range validation to detect drift in either direction.
 
@@ -1326,6 +1223,8 @@ The `sum` check validates that the total of all non-null values in a column meet
 | `equals` | `number` | No | None | Exact expected sum |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
+
 **Example 1: Exact Sum**
 
 ```yaml
@@ -1389,6 +1288,8 @@ The `count` check validates that the number of non-null values in a column falls
 | `equals` | `number` | No | None | Exact expected non-null count |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
+
 **Example 1: Exact Count**
 
 ```yaml
@@ -1450,6 +1351,8 @@ The `variance` check validates that the statistical variance of numeric values i
 | `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
 | `equals` | `number` | No | None | Exact expected variance |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
+
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 **Example 1: Maximum Bound (Most Common)**
 
@@ -1513,6 +1416,8 @@ The `percentile` check validates that a specific percentile value in a column fa
 | `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
 | `equals` | `number` | No | None | Exact expected percentile value |
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
+
+> Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
 
 > **Note:** The `percentile` parameter shares the same name as the check type but operates at a different YAML scope — `type` selects the check, `percentile` specifies the value to compute. They do not conflict.
 
