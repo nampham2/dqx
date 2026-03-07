@@ -123,10 +123,10 @@ uv run pre-commit install
 
 ```bash
 # Serve docs locally
-uv run mkdocs serve
+uv run zensical serve
 
 # Build documentation
-uv run mkdocs build
+uv run zensical build
 ```
 
 ### Development Commands
@@ -918,7 +918,7 @@ tests/             # Test suite (110+ files)
 ├── graph/         # Graph processing tests
 └── fixtures/      # Shared fixtures
 
-docs/              # MkDocs documentation
+docs/              # Zensical documentation
 bin/               # Development scripts
 ```
 
@@ -940,11 +940,3 @@ bin/               # Development scripts
 - Use `SKIP=mypy` only for local exploration; do not skip mypy for commits or PRs
 - Documentation uses Google-style docstrings
 - SQL backends supported: DuckDB (primary), BigQuery, Snowflake
-
----
-
-## Quick Reference
-
-For a quick lookup of common commands and standards, see [docs/quick_reference.md](docs/quick_reference.md).
-
-For a complete end-to-end workflow example, see [docs/workflow_example.md](docs/workflow_example.md).

@@ -90,96 +90,13 @@ theme:
 # Navigation
 nav:
   - Home: index.md
-  - Getting Started:
-      - Installation: installation.md
-      - Quick Start: quickstart.md
-  - User Guide:
-      - Overview: user-guide.md
-      - Plugin System: plugin_system.md
-  - Development:
-      - Architecture: design.md
-      - CI/CD:
-          - Overview: ci-cd-setup.md
-          - Setup Guide: github-cicd-setup-guide.md
-          - Operations Guide: github-cicd-operations-guide.md
-  - Reference:
-      - DQGuard Comparison: dqguard-to-dqx-comparison.md
-      - API Reference: api-reference.md
-  - Changelog: changelog.md
-
-# Plugins
-plugins:
-  # Search
-  - search:
-      separator: '[\s\-\.]+'
-
-  # Include markdown files
-  - include-markdown
-
-  # API documentation generation
-  - mkdocstrings:
-      default_handler: python
-      handlers:
-        python:
-          paths: [src]
-          options:
-            # Rendering options
-            show_source: true
-            show_root_heading: true
-            show_root_toc_entry: true
-            show_object_full_path: false
-            show_category_heading: true
-            show_if_no_docstring: false
-
-            # Members options
-            inherited_members: true
-            members_order: source
-            group_by_category: true
-            show_submodules: false
-
-            # Docstring options
-            docstring_style: google
-            docstring_section_style: table
-            merge_init_into_class: true
-            show_docstring_attributes: true
-            show_docstring_functions: true
-            show_docstring_classes: true
-            show_docstring_modules: true
-            show_docstring_description: true
-            show_docstring_examples: true
-            show_docstring_other_parameters: true
-            show_docstring_parameters: true
-            show_docstring_raises: true
-            show_docstring_returns: true
-            show_docstring_yields: true
-
-            # Signature options
-            line_length: 80
-            show_signature: true
-            show_signature_annotations: true
-            separate_signature: true
-
-            # Heading options
-            heading_level: 2
-
-  # Git information
-  - git-revision-date-localized:
-      enable_creation_date: true
-      type: timeago
-      enable_git_follow: false
-      fallback_to_build_date: true
-
-  # Minify HTML
-  - minify:
-      minify_html: true
-      minify_js: true
-      minify_css: true
-      htmlmin_opts:
-        remove_comments: true
-
-  # Awesome pages (better navigation)
-  - awesome-pages:
-      collapse_single_pages: false
+  - Design:
+      - Contracts:
+          - Overview: design/contracts/index.md
+          - Check Types: design/contracts/checks.md
+          - SLA Specification: design/contracts/sla.md
+          - Type System: design/contracts/types.md
+      - Profiles: design/profiles.md
 
 # Extensions
 markdown_extensions:
@@ -251,10 +168,6 @@ extra:
       as to measure the effectiveness of our documentation and whether users
       find what they're searching for. With your consent, you're helping us to
       make our documentation better.
-
-# Exclude patterns
-exclude_docs: |
-  plans/
 
 # Watch for changes
 watch:
