@@ -358,7 +358,7 @@ DQX contracts define 18 check types across two scopes.
 - `pattern` — all values match a regular expression
 - `length` — string, list, or map element count
 
-Most checks, table-level or column-level, support validators: `min`, `max`, `between`, `equals`, and `tolerance`. Exceptions are `freshness` (uses `max_age_hours`) and `completeness` (uses `max_gap_count`), which use check-specific implicit parameters instead. See [Check Types Reference](checks.md) for validators and composition patterns.
+Most checks, table-level or column-level, support validators: `min`, `max`, `between`, and `equals`. `tolerance` is an auxiliary parameter used alongside a validator (not a mutually exclusive validator itself). Exceptions are `freshness` (uses `max_age_hours`) and `completeness` (uses `max_gap_count`), which use check-specific implicit parameters instead. See [Check Types Reference](checks.md) for validators and composition patterns.
 
 ---
 
