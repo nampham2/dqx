@@ -14,6 +14,7 @@ Data contracts support two categories of checks:
 2. **Column-Level Checks**: Validate individual column values (nullability, uniqueness, ranges, patterns, distributions)
 
 **Naming Conventions:**
+
 - Check names should be descriptive business statements (e.g., "Order ID is unique")
 - Severity levels: `P0` (critical), `P1` (important), `P2` (nice-to-have), `P3` (informational)
 - All checks support optional `tags` parameter for categorization
