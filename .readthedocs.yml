@@ -18,7 +18,7 @@ build:
     # Build documentation
     - uv run zensical build
     - mkdir -p $READTHEDOCS_OUTPUT/html
-    - cp -r site/ $READTHEDOCS_OUTPUT/html
+    - cp -r site/* $READTHEDOCS_OUTPUT/html/
 
 # Optionally build your docs in additional formats such as PDF and ePub
 formats:
