@@ -333,12 +333,14 @@ Simple types (primitive, temporal, decimal) use a plain string value. Complex ty
 DQX contracts define 18 check types across two scopes. 11 are implemented today; 7 are planned for upcoming releases (marked below).
 
 **4 table-level checks** validate the dataset as a whole:
+
 - `num_rows` — asserts total row count
 - `duplicates` — asserts count of duplicate rows
 - `freshness` — asserts that data is not stale (record age does not exceed `max_age_hours`; defaults to most recent, optionally oldest via `aggregation: min`) *[planned]*
 - `completeness` — asserts absence of partition gaps *[planned]*
 
 **14 column-level checks** validate individual columns. 8 are statistical:
+
 - `cardinality` — distinct value count
 - `min` — minimum value
 - `max` — maximum value
@@ -349,6 +351,7 @@ DQX contracts define 18 check types across two scopes. 11 are implemented today;
 - `percentile` — value at a specified percentile *[planned]*
 
 6 are value checks:
+
 - `nulls` — null value count
 - `duplicates` — duplicate value count within the column
 - `whitelist` — all values belong to an allowed set *[planned]*

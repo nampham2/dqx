@@ -305,6 +305,7 @@ The error message names the column, states the full set of accepted physical typ
 ### Integer Type Compatibility
 
 Contract type `int` validates against:
+
 - `pa.int8()` — 8-bit signed integer (-128 to 127)
 - `pa.int16()` — 16-bit signed integer (-32,768 to 32,767)
 - `pa.int32()` — 32-bit signed integer (-2^31 to 2^31-1)
@@ -317,6 +318,7 @@ Contract type `int` validates against:
 ### Float Type Compatibility
 
 Contract type `float` validates against:
+
 - `pa.float32()` — 32-bit single precision (IEEE 754)
 - `pa.float64()` — 64-bit double precision (IEEE 754)
 
@@ -325,12 +327,14 @@ Contract type `float` does **not** validate against `pa.float16()`.
 ### Date Type Compatibility
 
 Contract type `date` validates against:
+
 - `pa.date32()` — 32-bit signed integer, days since UNIX epoch
 - `pa.date64()` — 64-bit signed integer, milliseconds since UNIX epoch
 
 ### Time Type Compatibility
 
 Contract type `time` validates against:
+
 - `pa.time32('s')` — 32-bit signed integer, seconds since midnight
 - `pa.time32('ms')` — 32-bit signed integer, milliseconds since midnight
 - `pa.time64('us')` — 64-bit signed integer, microseconds since midnight
@@ -339,25 +343,30 @@ Contract type `time` validates against:
 ### Timestamp Type Compatibility
 
 **Simple form** (`type: timestamp`):
+
 - Validates against any `pa.timestamp(unit, tz)` regardless of unit or timezone
 
 **Complex form** (`type: {kind: timestamp}` or `type: {kind: timestamp, tz: "UTC"}`):
+
 - Validates unit flexibility (accepts s, ms, us, ns)
 - Validates timezone matches (default: "UTC")
 
 **Complex form with explicit timezone** (`type: {kind: timestamp, tz: "America/New_York"}`):
+
 - Validates unit flexibility (accepts s, ms, us, ns)
 - Validates timezone exactly matches specified value
 
 ### Decimal Type Compatibility
 
 Contract type `decimal` validates against:
+
 - `pa.decimal128(precision, scale)` — Any precision/scale combination
 - `pa.decimal256(precision, scale)` — Any precision/scale combination
 
 ### String Type Compatibility
 
 Contract type `string` validates against:
+
 - `pa.string()` — UTF-8 encoded variable-length string
 - `pa.utf8()` — alias for string
 - `pa.large_string()` — large UTF-8 string (64-bit offsets, common in DuckDB)
@@ -366,5 +375,6 @@ Contract type `string` validates against:
 ### List Type Compatibility
 
 Contract type `list` validates against:
+
 - `pa.list_(value_type)` — standard list with 32-bit offsets
 - `pa.large_list(value_type)` — large list with 64-bit offsets

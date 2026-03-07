@@ -67,6 +67,7 @@ metadata:
 ```
 
 **SLA Type Inference:**
+
 - If `metadata.partitioned_by` exists → Partition-based SLA (incremental data)
 - If `metadata.partitioned_by` absent → Table-based SLA (full table refresh)
 
@@ -441,6 +442,7 @@ Standard 5-field cron format:
 ```
 
 **Special Characters**:
+
 - `*` — Any value (wildcard)
 - `,` — List separator (e.g., `1,3,5`)
 - `-` — Range (e.g., `1-5` = Monday through Friday)

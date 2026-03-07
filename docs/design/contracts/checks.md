@@ -695,6 +695,7 @@ String and collection checks are part of Value Checks. See the Value Checks sect
 The `pattern` check validates that string values match a pattern, supporting either explicit regex or predefined format shortcuts, and returns the count or percentage of conforming values.
 
 **Pattern Specification:** Use either:
+
 - `pattern` parameter with a regex pattern (e.g., `"^[A-Z]{2}\\d{6}$"`)
 - `format` parameter with a predefined format name (e.g., `"email"`, `"phone"`, `"uuid"`)
 
