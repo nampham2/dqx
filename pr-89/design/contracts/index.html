@@ -1034,7 +1034,7 @@
 <p>Simple types (primitive, temporal, decimal) use a plain string value. Complex types (list, struct, map) use an object with a <code>kind</code> field and optional subtype fields. See <a href="types/">Type System</a> for the full compatibility rules per type.</p>
 <hr />
 <h2 id="check-types-summary">Check Types Summary<a class="headerlink" href="#check-types-summary" title="Anchor link to this section for reference">&para;</a></h2>
-<p>DQX contracts define 21 check types across two scopes.</p>
+<p>DQX contracts define 18 check types across two scopes.</p>
 <p><strong>4 table-level checks</strong> validate the dataset as a whole:</p>
 <ul>
 <li><code>num_rows</code> — asserts total row count</li>
@@ -1042,7 +1042,7 @@
 <li><code>freshness</code> — asserts that data is not stale (record age does not exceed <code>max_age_hours</code>; defaults to most recent, optionally oldest via <code>aggregation: min</code>)</li>
 <li><code>completeness</code> — asserts absence of partition gaps</li>
 </ul>
-<p><strong>17 column-level checks</strong> validate individual columns. 9 are statistical:</p>
+<p><strong>14 column-level checks</strong> validate individual columns. 9 are statistical:</p>
 <ul>
 <li><code>cardinality</code> — distinct value count</li>
 <li><code>min</code> — minimum value</li>
@@ -1054,18 +1054,15 @@
 <li><code>stddev</code> — standard deviation</li>
 <li><code>percentile</code> — value at a specified percentile</li>
 </ul>
-<p>8 are value checks:</p>
+<p>5 are value checks:</p>
 <ul>
 <li><code>missing</code> — null value count</li>
 <li><code>duplicates</code> — duplicate value count within the column</li>
 <li><code>whitelist</code> — all values belong to an allowed set</li>
 <li><code>blacklist</code> — no values belong to a forbidden set</li>
 <li><code>pattern</code> — all values match a regular expression</li>
-<li><code>min_length</code> — minimum string, list, or map element count</li>
-<li><code>max_length</code> — maximum string, list, or map element count</li>
-<li><code>avg_length</code> — average string, list, or map element count</li>
 </ul>
-<p>Most checks, table-level or column-level, support validators: <code>min</code>, <code>max</code>, <code>between</code>, <code>not_between</code>, and <code>equals</code>. <code>tolerance</code> is an auxiliary parameter used alongside a validator (not a mutually exclusive validator itself). Exceptions are <code>freshness</code> (uses <code>max_age_hours</code>) and <code>completeness</code> (uses <code>max_gap_count</code>), which use check-specific implicit parameters instead. See <a href="checks/">Check Types Reference</a> for validators and composition patterns.</p>
+<p>Most checks, table-level or column-level, support validators: <code>min</code>, <code>max</code>, <code>between</code>, and <code>equals</code>. <code>tolerance</code> is an auxiliary parameter used alongside a validator (not a mutually exclusive validator itself). Exceptions are <code>freshness</code> (uses <code>max_age_hours</code>) and <code>completeness</code> (uses <code>max_gap_count</code>), which use check-specific implicit parameters instead. See <a href="checks/">Check Types Reference</a> for validators and composition patterns.</p>
 <hr />
 <h2 id="detailed-references">Detailed References<a class="headerlink" href="#detailed-references" title="Anchor link to this section for reference">&para;</a></h2>
 <ul>
