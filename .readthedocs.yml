@@ -16,7 +16,8 @@ build:
     # Install project dependencies (includes zensical)
     - uv sync --frozen
     # Build documentation
-    - uv run zensical build --site-dir $READTHEDOCS_OUTPUT/html
+    - uv run zensical build
+    - cp -r site/ $READTHEDOCS_OUTPUT/html
 
 # Optionally build your docs in additional formats such as PDF and ePub
 formats:

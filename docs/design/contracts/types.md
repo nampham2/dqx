@@ -23,15 +23,13 @@ The type system prioritizes validation flexibility over exact matching. Types ac
 | **Temporal Types** | | | |
 | `date` | `type: date` | date32, date64 | Any date representation |
 | `time` | `type: time` | time32(s/ms), time64(us/ns) | Any time representation |
-| `timestamp` (simple) | `type: timestamp` | timestamp(any unit, any tz) | Accepts any timestamp |
-| `timestamp` (UTC) | `type: {kind: timestamp}` | timestamp(any unit, UTC) | Object form defaults to UTC |
-| `timestamp` (explicit tz) | `type: {kind: timestamp, tz: "..."}` | timestamp(any unit, specified tz) | Validates timezone match |
+| `timestamp` | `type: timestamp` or `type: {kind: timestamp}` or `type: {kind: timestamp, tz: "..."}` | timestamp(any unit, any tz) | Simple form accepts any tz; object form defaults to UTC; explicit `tz` enforces exact match |
 | **Decimal Type** | | | |
 | `decimal` | `type: decimal` | decimal128(any), decimal256(any) | Any precision/scale |
 | **Complex Types** | | | |
-| `list` | `type: {kind: list, value_type: T}` | list\<T\> | Recursive validation of element type; also accepts large_list |
-| `struct` | `type: {kind: struct, fields: [...]}` | struct\<fields\> | Recursive validation of field structure |
-| `map` | `type: {kind: map, key_type: K, value_type: V}` | map\<K, V\> | Recursive validation of key/value types |
+| `list` | `type: {kind: list, value_type: T}` | list&lt;T&gt; | Recursive validation of element type; also accepts large_list |
+| `struct` | `type: {kind: struct, fields: [...]}` | struct&lt;fields&gt; | Recursive validation of field structure |
+| `map` | `type: {kind: map, key_type: K, value_type: V}` | map&lt;K, V&gt; | Recursive validation of key/value types |
 
 ---
 

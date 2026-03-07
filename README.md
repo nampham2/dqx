@@ -1,4 +1,4 @@
-# DQX - Data Quality Excellence
+# DQX - Data Quality X
 
 Data quality as code. Works with your warehouse, scales with your needs.
 

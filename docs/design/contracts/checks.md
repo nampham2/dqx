@@ -1,4 +1,4 @@
-# Check Types Reference
+# Checks & Validators
 
 > Part of the [Data Contracts Technical Specification](index.md).
 
@@ -39,7 +39,7 @@ The `name` is a descriptive business statement. The `type` identifies which chec
 
 ---
 
-## Check Types Summary
+## Checks Summary
 
 ### Table-Level Checks
 
@@ -97,7 +97,7 @@ Value checks validate individual values within a column. Each check returns eith
 
 ## Validators
 
-Every check returns a single float metric. Validators compare that metric against a declared acceptance condition. At most one validator may be specified per check. The optional `tolerance` parameter applies to all four and defaults to `0` for integer checks and `1e-6` for floating-point checks.
+Every check returns a single float metric. Validators compare that metric against a declared acceptance condition. At most one validator may be specified per check. The optional `tolerance` parameter applies to all four and is a float that defaults to `1e-9`.
 
 ### min
 
@@ -1030,7 +1030,7 @@ The `cardinality` check counts distinct non-null values in a column and validate
 | `max` | `number` | No | None | Maximum allowed distinct value count |
 | `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
 | `equals` | `number` | No | None | Exact expected distinct value count |
-| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
+| `tolerance` | `float` | No | `1e-9` | Acceptable variance |
 
 > Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
 
@@ -1093,7 +1093,7 @@ The `min` check validates that the minimum value in a column meets specified cri
 | `max` | `number` | No | None | Maximum allowed value for the column minimum |
 | `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
 | `equals` | `number` | No | None | Exact expected value for the column minimum |
-| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
+| `tolerance` | `float` | No | `1e-9` | Acceptable variance |
 
 > Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
 
@@ -1141,7 +1141,7 @@ The `max` check validates that the maximum value in a column meets specified cri
 | `max` | `number` | No | None | Maximum allowed value for the column maximum |
 | `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
 | `equals` | `number` | No | None | Exact expected value for the column maximum |
-| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
+| `tolerance` | `float` | No | `1e-9` | Acceptable variance |
 
 > Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
 
@@ -1189,7 +1189,7 @@ The `mean` check validates that the arithmetic mean of numeric values in a colum
 | `max` | `number` | No | None | Maximum allowed mean value |
 | `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
 | `equals` | `number` | No | None | Exact expected mean value |
-| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
+| `tolerance` | `float` | No | `1e-9` | Acceptable variance |
 
 > Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
 
@@ -1255,7 +1255,7 @@ The `sum` check validates that the total of all non-null values in a column meet
 | `max` | `number` | No | None | Maximum allowed sum |
 | `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
 | `equals` | `number` | No | None | Exact expected sum |
-| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
+| `tolerance` | `float` | No | `1e-9` | Acceptable variance |
 
 > Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
 
@@ -1320,7 +1320,7 @@ The `count` check validates that the number of non-null values in a column falls
 | `max` | `number` | No | None | Maximum allowed non-null count |
 | `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
 | `equals` | `number` | No | None | Exact expected non-null count |
-| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
+| `tolerance` | `float` | No | `1e-9` | Acceptable variance |
 
 > Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
 
@@ -1384,7 +1384,7 @@ The `variance` check validates that the statistical variance of numeric values i
 | `max` | `number` | No | None | Maximum allowed variance |
 | `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
 | `equals` | `number` | No | None | Exact expected variance |
-| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
+| `tolerance` | `float` | No | `1e-9` | Acceptable variance |
 
 > Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
 
@@ -1487,7 +1487,7 @@ The `percentile` check validates that a specific percentile value in a column fa
 | `max` | `number` | No | None | Maximum allowed percentile value |
 | `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
 | `equals` | `number` | No | None | Exact expected percentile value |
-| `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
+| `tolerance` | `float` | No | `1e-9` | Acceptable variance |
 
 > Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators). The `percentile` parameter shares the same name as the check type but operates at a different YAML scope — `type` selects the check, `percentile` specifies the value to compute. They do not conflict.
 
