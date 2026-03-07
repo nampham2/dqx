@@ -1284,6 +1284,14 @@
 </span><span id="__span-9-35"><a id="__codelineno-9-35" name="__codelineno-9-35" href="#__codelineno-9-35"></a><span class="c1">#     max_age_hours: 1              # 0 (lag) + 1 (buffer)</span>
 </span><span id="__span-9-36"><a id="__codelineno-9-36" name="__codelineno-9-36" href="#__codelineno-9-36"></a><span class="c1">#     timestamp_column: last_updated  # Must be specified — cannot be inferred for non-partitioned tables</span>
 </span><span id="__span-9-37"><a id="__codelineno-9-37" name="__codelineno-9-37" href="#__codelineno-9-37"></a><span class="c1">#     severity: P0</span>
+</span><span id="__span-9-38"><a id="__codelineno-9-38" name="__codelineno-9-38" href="#__codelineno-9-38"></a><span class="c1">#</span>
+</span><span id="__span-9-39"><a id="__codelineno-9-39" name="__codelineno-9-39" href="#__codelineno-9-39"></a><span class="c1"># NOTE: For non-partitioned tables, `timestamp_column` is NOT automatically inferred</span>
+</span><span id="__span-9-40"><a id="__codelineno-9-40" name="__codelineno-9-40" href="#__codelineno-9-40"></a><span class="c1"># because there is no `metadata.partitioned_by` list to read from. The generated</span>
+</span><span id="__span-9-41"><a id="__codelineno-9-41" name="__codelineno-9-41" href="#__codelineno-9-41"></a><span class="c1"># freshness check uses the column named in a `timestamp_column` field that must be</span>
+</span><span id="__span-9-42"><a id="__codelineno-9-42" name="__codelineno-9-42" href="#__codelineno-9-42"></a><span class="c1"># provided when calling the SLA generator (or in an explicit manual check). In this</span>
+</span><span id="__span-9-43"><a id="__codelineno-9-43" name="__codelineno-9-43" href="#__codelineno-9-43"></a><span class="c1"># example `last_updated` is explicitly supplied as the timestamp column at generation</span>
+</span><span id="__span-9-44"><a id="__codelineno-9-44" name="__codelineno-9-44" href="#__codelineno-9-44"></a><span class="c1"># time. If you prefer direct control, omit the `sla` block and write a manual</span>
+</span><span id="__span-9-45"><a id="__codelineno-9-45" name="__codelineno-9-45" href="#__codelineno-9-45"></a><span class="c1"># freshness check with `timestamp_column: last_updated` instead.</span>
 </span></code></pre></div>
 <h2 id="validation-rules">Validation Rules<a class="headerlink" href="#validation-rules" title="Anchor link to this section for reference">&para;</a></h2>
 <p>DQX enforces the following rules when it parses an <code>sla</code> block.</p>
@@ -1340,6 +1348,7 @@
 <li><code>/</code> — Step values (e.g., <code>*/6</code> = every 6 units)</li>
 </ul>
 <h3 id="common-cron-patterns">Common Cron Patterns<a class="headerlink" href="#common-cron-patterns" title="Anchor link to this section for reference">&para;</a></h3>
+<p>The following patterns are supported by DQX's SLA validator (corresponding to the Hourly, Daily, Every N hours, Business days, Weekly, and Monthly period rules). Expressions outside these patterns raise <code>ContractValidationError</code>.</p>
 <table>
 <thead>
 <tr>
@@ -1385,24 +1394,36 @@
 <td>Every Monday at midnight</td>
 </tr>
 <tr>
-<td><strong>Tuesday and Thursday</strong></td>
-<td><code>0 0 * * 2,4</code></td>
-<td>Tue and Thu at midnight</td>
-</tr>
-<tr>
 <td><strong>First of month</strong></td>
 <td><code>0 0 1 * *</code></td>
 <td>1<sup>st</sup> day at midnight</td>
 </tr>
+</tbody>
+</table>
+<p>The following patterns are <strong>unsupported</strong> and will raise <code>ContractValidationError</code>. Use the equivalent supported patterns above or write a manual freshness check instead.</p>
+<table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Cron Expression</th>
+<th>Why unsupported</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Tuesday and Thursday</strong></td>
+<td><code>0 0 * * 2,4</code></td>
+<td>List-based day-of-week; no single period can be inferred</td>
+</tr>
 <tr>
 <td><strong>First and 15<sup>th</sup></strong></td>
 <td><code>0 0 1,15 * *</code></td>
-<td>1<sup>st</sup> and 15<sup>th</sup> at midnight</td>
+<td>List-based day-of-month; no single period can be inferred</td>
 </tr>
 <tr>
 <td><strong>Mon/Wed/Fri</strong></td>
 <td><code>0 0 * * 1,3,5</code></td>
-<td>Mon, Wed, Fri at midnight</td>
+<td>List-based day-of-week; no single period can be inferred</td>
 </tr>
 </tbody>
 </table>
