@@ -374,7 +374,7 @@ Column-level checks are specified within the `checks` array of a column definiti
 
 ### Value Checks
 
-Value checks validate individual values within a column (rather than computing aggregates over the column). Each check defines its own return semantics. For `nulls` and `duplicates`, the return value represents null or duplicate values found. For `whitelist`, `blacklist`, `pattern`, and `length`, the return value represents conforming (valid) rows. Use the `return` parameter to specify the return type (`count` or `pct`). When `return: pct` is used, the percentage is computed as the conforming count divided by the total row count including nulls.
+Value checks validate individual values within a column (rather than computing aggregates over the column). Each check defines its own return semantics. For `nulls` and `duplicates`, the return value represents null or duplicate values found. For `whitelist`, `blacklist`, `pattern`, and `length`, the return value represents conforming (valid) rows. Use the `return` parameter to specify the return type (`count` or `pct`). When `return: pct` is used, the percentage denominator is always the total row count including nulls; the numerator differs by check family: for `nulls` and `duplicates` the numerator is the count of null or duplicate values respectively, while for `whitelist`, `blacklist`, `pattern`, and `length` the numerator is the count of conforming (valid) rows.
 
 ---
 
@@ -608,7 +608,7 @@ columns:
 
 The `duplicates` check (column-level) validates that the count of duplicate values in a column is within specified bounds. This is the column-level version of the table-level `duplicates` check, which validates duplicates across multiple columns.
 
-**Semantics:** Duplicate count is computed as `COUNT(*) - COUNT(DISTINCT col)` — the total number of non-first occurrences. If value "A" appears 3 times, it contributes 2 to the count.
+**Semantics:** Duplicate count is computed as `COUNT(*) - COUNT(DISTINCT col)` — the total number of non-first occurrences. If value "A" appears 3 times, it contributes 2 to the count. **NULL handling:** `COUNT(*)` includes all rows while `COUNT(DISTINCT col)` excludes NULLs, so NULL values are counted as duplicates. For example, `[A, A, NULL]` yields a duplicate count of 2 (one extra "A" plus one NULL). This is the intended behavior: NULLs are treated as duplicate occurrences. If you need to exclude NULLs, use `COUNT(col) - COUNT(DISTINCT col)` in a manual check instead.
 
 **Return Parameter:** Use `return: count` (default) to return absolute duplicate count, or `return: pct` to return duplicate percentage (0-1 scale).
 
@@ -1420,7 +1420,7 @@ The `percentile` check validates that a specific percentile value in a column fa
 | `tolerance` | `number` | No | `0` (int) / `1e-6` (float) | Acceptable variance |
 
 > Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`equals`](#equals) — see [Validators](#validators).
-
+>
 > **Note:** The `percentile` parameter shares the same name as the check type but operates at a different YAML scope — `type` selects the check, `percentile` specifies the value to compute. They do not conflict.
 
 Use `min`, `max`, `between`, or `equals` to set bounds. Most use cases require range validation to detect drift in either direction.
@@ -1526,8 +1526,7 @@ columns:
       # Statistical monitoring: Average is stable
       - name: "Average order value is typical"
         type: mean
-        min: 50.0
-        max: 500.0
+        between: [50.0, 500.0]
         severity: P2
 ```
 
@@ -1569,8 +1568,7 @@ checks:
   # Volume check
   - name: "Daily volume within bounds"
     type: num_rows
-    min: 1000
-    max: 100000
+    between: [1000, 100000]
     severity: P1
 
   # Freshness check

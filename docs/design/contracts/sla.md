@@ -410,6 +410,14 @@ columns:
 #     max_age_hours: 1              # 0 (lag) + 1 (buffer)
 #     timestamp_column: last_updated  # Must be specified — cannot be inferred for non-partitioned tables
 #     severity: P0
+#
+# NOTE: For non-partitioned tables, `timestamp_column` is NOT automatically inferred
+# because there is no `metadata.partitioned_by` list to read from. The generated
+# freshness check uses the column named in a `timestamp_column` field that must be
+# provided when calling the SLA generator (or in an explicit manual check). In this
+# example `last_updated` is explicitly supplied as the timestamp column at generation
+# time. If you prefer direct control, omit the `sla` block and write a manual
+# freshness check with `timestamp_column: last_updated` instead.
 ```
 
 ## Validation Rules
@@ -450,6 +458,8 @@ Standard 5-field cron format:
 
 ### Common Cron Patterns
 
+The following patterns are supported by DQX's SLA validator (corresponding to the Hourly, Daily, Every N hours, Business days, Weekly, and Monthly period rules). Expressions outside these patterns raise `ContractValidationError`.
+
 | Pattern | Cron Expression | Description |
 |---------|-----------------|-------------|
 | **Daily at midnight** | `0 0 * * *` | Every day at 00:00 |
@@ -459,10 +469,15 @@ Standard 5-field cron format:
 | **Business days** | `0 0 * * 1-5` | Mon-Fri at midnight |
 | **Business days at 6 AM** | `0 6 * * 1-5` | Mon-Fri at 06:00 |
 | **Monday only** | `0 0 * * 1` | Every Monday at midnight |
-| **Tuesday and Thursday** | `0 0 * * 2,4` | Tue and Thu at midnight |
 | **First of month** | `0 0 1 * *` | 1st day at midnight |
-| **First and 15th** | `0 0 1,15 * *` | 1st and 15th at midnight |
-| **Mon/Wed/Fri** | `0 0 * * 1,3,5` | Mon, Wed, Fri at midnight |
+
+The following patterns are **unsupported** and will raise `ContractValidationError`. Use the equivalent supported patterns above or write a manual freshness check instead.
+
+| Pattern | Cron Expression | Why unsupported |
+|---------|-----------------|-----------------|
+| **Tuesday and Thursday** | `0 0 * * 2,4` | List-based day-of-week; no single period can be inferred |
+| **First and 15th** | `0 0 1,15 * *` | List-based day-of-month; no single period can be inferred |
+| **Mon/Wed/Fri** | `0 0 * * 1,3,5` | List-based day-of-week; no single period can be inferred |
 
 **Cron Testing Tools**:
 - https://crontab.guru/ — Cron expression explainer

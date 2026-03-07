@@ -42,7 +42,7 @@ None
 list[AssertionResult]
 ```
 
-The runtime flow combines proposed and existing API. First, `Contract.from_yaml()` parses the YAML and builds a `Contract` instance with a fully resolved PyArrow schema — **proposed**. Second, `contract.to_checks()` translates every column definition and check into a list of `DecoratedCheck` functions — **proposed**. From here, the flow uses the **existing** `VerificationSuite` API: the user merges contract-generated checks with any hand-coded checks — `VerificationSuite(checks=contract.to_checks() + [custom_check], db=db, name=...)` — and calls `suite.run([datasource], result_key)` to execute all checks. Results are collected separately via `suite.collect_results()`, which returns `list[AssertionResult]`. `VerificationSuite`, `suite.run()`, `suite.collect_results()`, and `AssertionResult` already exist in the codebase today; only `Contract.from_yaml()` and `contract.to_checks()` are new. Schema type mismatches raise `SchemaValidationError`; contract parse errors raise `ContractValidationError`.
+The runtime flow combines proposed and existing API. First, `Contract.from_yaml()` parses the YAML and builds a `Contract` instance with a fully resolved PyArrow schema — **proposed**. Second, `contract.to_checks()` translates every column definition and check into a list of `DecoratedCheck` functions — **proposed**. From here, the flow uses the **existing** `VerificationSuite` API: the user merges contract-generated checks with any hand-coded checks — `VerificationSuite(checks=contract.to_checks() + [custom_check], db=db, name=...)` — and calls `suite.run([datasource], result_key)` to execute all checks. Results are collected separately via `suite.collect_results()`, which returns `list[AssertionResult]`. `VerificationSuite`, `suite.run()`, `suite.collect_results()`, and `AssertionResult` already exist in the codebase today; only `Contract.from_yaml()` and `contract.to_checks()` are new. Schema type mismatches raise `SchemaValidationError` (proposed); contract parse errors raise `ContractValidationError` (proposed). `SchemaValidationError` is raised when a column's actual storage type does not match the declared contract type. `ContractValidationError` is raised when the YAML cannot be parsed into a valid `Contract` (e.g., missing required fields, invalid cron expression, or unknown check type).
 
 ---
 
@@ -95,7 +95,7 @@ columns:
         severity: P0
 ```
 
-**Metadata.** Every contract begins with five required metadata fields that identify the dataset and its owner: `name` (a human-readable label), `version` (a semantic version string), `description` (a plain-English statement of what the data represents), `owner` (the responsible team), and `dataset` (the table or view name used at query time). An optional `tags` field accepts a list of strings for filtering and discovery.
+**Metadata.** Every contract begins with five required metadata fields that identify the dataset and its owner: `name` (a human-readable label), `version` (a version string; semantic versioning is recommended but not enforced — e.g., `"1.0.0"` or `"2025-03-07"`), `description` (a plain-English statement of what the data represents), `owner` (the responsible team), and `dataset` (the table or view name used at query time). An optional `tags` field accepts a list of strings for filtering and discovery.
 
 **SLA.** The optional `sla` block defines when data should arrive. It takes two fields: `schedule`, a standard 5-field cron expression that declares the expected delivery cadence, and `lag_hours`, the number of hours the data may lag behind the scheduled time before triggering a failure. When both fields are present, DQX auto-generates a freshness check — no additional configuration required. See [SLA Specification](sla.md) for cron format reference and examples.
 
@@ -304,8 +304,7 @@ columns:
 checks:
   - name: "Daily volume within bounds"
     type: num_rows
-    min: 100
-    max: 1000000
+    between: [100, 1000000]
     severity: P1
 ```
 
