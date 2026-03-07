@@ -31,7 +31,7 @@ dev = [
     "faker>=40.5.1",
     "freezegun>=1.5.5",
     "gitchangelog>=3.0.4",
-    "zensical",
+    "zensical>=0.0.24",
     "mypy>=1.19.1",
     "pre-commit>=4.5.1",
     "pytest>=9.0.2",

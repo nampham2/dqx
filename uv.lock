@@ -336,7 +336,7 @@ dev = [
     { name = "pytest-randomly", specifier = ">=4.0.1" },
     { name = "ruff", specifier = ">=0.15.4" },
     { name = "types-pyyaml", specifier = ">=6.0.12.20250915" },
-    { name = "zensical" },
+    { name = "zensical", specifier = ">=0.0.24" },
 ]
 
 [[package]]

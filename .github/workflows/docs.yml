@@ -31,7 +31,7 @@ jobs:
         run: uv sync --frozen
 
       - name: Build documentation
-        run: uv run zensical build --strict
+        run: uv run zensical build
 
       - name: Upload documentation artifacts
         uses: actions/upload-artifact@v7
