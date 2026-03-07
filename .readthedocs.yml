@@ -13,15 +13,10 @@ build:
     # Install uv for dependency management
     - pip install --upgrade pip
     - pip install uv
-    # Install project dependencies
+    # Install project dependencies (includes zensical)
     - uv sync --frozen
-    # Install MkDocs and extensions
-    - uv pip install mkdocs mkdocs-material mkdocstrings[python] \
-        mkdocs-git-revision-date-localized-plugin \
-        mkdocs-minify-plugin \
-        mkdocs-awesome-pages-plugin
     # Build documentation
-    - uv run mkdocs build --strict --site-dir $READTHEDOCS_OUTPUT/html
+    - uv run zensical build --site-dir $READTHEDOCS_OUTPUT/html
 
 # Optionally build your docs in additional formats such as PDF and ePub
 formats:

@@ -97,7 +97,7 @@ autolabeler:
     files:
       - '*.md'
       - 'docs/**/*'
-      - 'mkdocs.yml'
+      - 'zensical.toml'
 
   - label: 'tests'
     files:
