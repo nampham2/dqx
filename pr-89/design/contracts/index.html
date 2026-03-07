@@ -1062,7 +1062,7 @@
 <li><code>pattern</code> — all values match a regular expression</li>
 <li><code>length</code> — string, list, or map element count</li>
 </ul>
-<p>Most checks, table-level or column-level, support validators: <code>min</code>, <code>max</code>, <code>between</code>, <code>equals</code>, and <code>tolerance</code>. Exceptions are <code>freshness</code> (uses <code>max_age_hours</code>) and <code>completeness</code> (uses <code>max_gap_count</code>), which use check-specific implicit parameters instead. See <a href="checks/">Check Types Reference</a> for validators and composition patterns.</p>
+<p>Most checks, table-level or column-level, support validators: <code>min</code>, <code>max</code>, <code>between</code>, and <code>equals</code>. <code>tolerance</code> is an auxiliary parameter used alongside a validator (not a mutually exclusive validator itself). Exceptions are <code>freshness</code> (uses <code>max_age_hours</code>) and <code>completeness</code> (uses <code>max_gap_count</code>), which use check-specific implicit parameters instead. See <a href="checks/">Check Types Reference</a> for validators and composition patterns.</p>
 <hr />
 <h2 id="detailed-references">Detailed References<a class="headerlink" href="#detailed-references" title="Anchor link to this section for reference">&para;</a></h2>
 <ul>
