@@ -74,7 +74,6 @@ class StructField:
         name: Field name (non-empty).
         type: The field's data type.
         description: Human-readable description (non-empty).
-        nullable: Whether the field may be null. Defaults to True.
 
     Raises:
         ContractValidationError: If name or description is empty.
@@ -83,7 +82,6 @@ class StructField:
     name: str
     type: ContractType
     description: str
-    nullable: bool = True
 
     def __post_init__(self) -> None:
         """Validate name and description are non-empty."""
@@ -137,8 +135,10 @@ ContractType = SimpleContractType | TimestampType | ListType | StructType | MapT
 class ValidatorSpec:
     """Specification for a numeric range/value validator.
 
-    All fields are optional; an all-None instance means no validator is
-    required.
+    All fields are optional; an all-None instance is a valid **noop** — the
+    check runs and records the computed metric but never fails on the value
+    comparison.  Useful for informational or schema-only checks where you want
+    to observe a metric without enforcing a bound.
 
     Args:
         min: Lower bound (inclusive).
@@ -147,7 +147,8 @@ class ValidatorSpec:
             ``min``/``max``.
         not_between: Exclusion interval ``(lo, hi)`` — mutually exclusive
             with ``min``, ``max``, and ``between``.
-        equals: Exact equality target.
+        equals: Exact equality target — mutually exclusive with ``min``,
+            ``max``, ``between``, and ``not_between``.
         tolerance: Floating-point comparison tolerance (must be >= 0).
 
     Raises:
@@ -170,6 +171,11 @@ class ValidatorSpec:
         if self.not_between is not None and (self.min is not None or self.max is not None or self.between is not None):
             raise ContractValidationError(
                 "ValidatorSpec: 'not_between' cannot be combined with 'min', 'max', or 'between'"
+            )
+        # equals mutual exclusivity
+        if self.equals is not None and any(v is not None for v in (self.min, self.max, self.between, self.not_between)):
+            raise ContractValidationError(
+                "ValidatorSpec: 'equals' cannot be combined with 'min', 'max', 'between', or 'not_between'"
             )
         # between range check
         if self.between is not None and self.between[0] > self.between[1]:
@@ -607,6 +613,8 @@ class AvgLengthCheck:
     Args:
         name: Check name (non-empty).
         validator: Numeric validator for average string length.
+        return_type: Whether to return a count or percentage. Defaults to
+            "count".
         severity: Severity level. Defaults to "P1".
         tags: Optional set of tags for categorization.
 
@@ -616,6 +624,7 @@ class AvgLengthCheck:
 
     name: str
     validator: ValidatorSpec
+    return_type: ReturnType = "count"
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
@@ -978,6 +987,8 @@ class SLASpec:
         """Validate lag_hours and cron schedule."""
         if self.lag_hours < 0:
             raise ContractValidationError(f"SLASpec lag_hours must be >= 0, got {self.lag_hours}")
+        # TODO: emit a warning when lag_hours > 168 on hourly/daily schedules
+        # (per spec sla.md validation rules — currently not enforced)
         _validate_cron(self.schedule)
 
 
@@ -1024,7 +1035,7 @@ class Contract:
     def __post_init__(self) -> None:
         """Validate all contract fields."""
         if not self.name or len(self.name) > 255:
-            raise ContractValidationError(f"Contract name must be between 1 and 255 characters, got {len(self.name)!r}")
+            raise ContractValidationError(f"Contract name must be between 1 and 255 characters, got {len(self.name)}")
         if not self.version:
             raise ContractValidationError("Contract version must be non-empty")
         if not self.description:
@@ -1049,5 +1060,12 @@ class Contract:
         for part_col in self.partitioned_by:
             if part_col not in col_name_set:
                 raise ContractValidationError(f"Contract partitioned_by column '{part_col}' not found in columns")
+        # Non-partitioned SLA requires metadata.timestamp_column
+        if self.sla is not None and not self.partitioned_by:
+            metadata_keys = {k for k, _ in self.metadata}
+            if "timestamp_column" not in metadata_keys:
+                raise ContractValidationError(
+                    "Contract: sla on a non-partitioned table requires metadata.timestamp_column"
+                )
         validated = validate_tags(self.tags)
         object.__setattr__(self, "tags", validated)

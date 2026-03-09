@@ -163,17 +163,14 @@ The validator confirms the column is a decimal type regardless of precision or s
         - name: timestamp
           type:
             kind: timestamp
-          nullable: false
           description: "Event timestamp"
 
         - name: event_type
           type: string
-          nullable: false
           description: "Event type"
 
         - name: value
           type: float
-          nullable: true
           description: "Event value"
   nullable: false
   description: "Event history"
@@ -189,17 +186,14 @@ The validator confirms the column is a decimal type regardless of precision or s
     fields:
       - name: latitude
         type: float
-        nullable: false
         description: "Latitude coordinate"
 
       - name: longitude
         type: float
-        nullable: false
         description: "Longitude coordinate"
 
       - name: label
         type: string
-        nullable: true
         description: "Location label"
   nullable: true
   description: "Geographic location"
@@ -211,12 +205,10 @@ The validator confirms the column is a decimal type regardless of precision or s
     fields:
       - name: street
         type: string
-        nullable: false
         description: "Street address"
 
       - name: city
         type: string
-        nullable: false
         description: "City name"
 
       - name: coordinates
@@ -225,20 +217,17 @@ The validator confirms the column is a decimal type regardless of precision or s
           fields:
             - name: lat
               type: float
-              nullable: false
               description: "Latitude"
 
             - name: lon
               type: float
-              nullable: false
               description: "Longitude"
-        nullable: true
         description: "GPS coordinates"
   nullable: false
   description: "Complete address"
 ```
 
-> **Note:** The `nullable` flag on nested struct and list element fields is for documentation purposes only. Schema validation enforces nullability at the top-level column only; nested field nullability is not validated.
+> **Note:** Nested struct and list element fields have no `nullable` flag — nullability is only enforced at the top-level column. Schema validation enforces nullability at the top-level column only; nested field nullability is not validated.
 
 ### Map Type
 
@@ -271,12 +260,10 @@ The validator confirms the column is a decimal type regardless of precision or s
       fields:
         - name: value
           type: float
-          nullable: false
           description: "Metric value"
 
         - name: unit
           type: string
-          nullable: false
           description: "Unit of measurement"
   nullable: false
   description: "Performance metrics"

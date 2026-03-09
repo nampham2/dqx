@@ -126,6 +126,7 @@ sla:
 # Optional: Table-level metadata (flat at top level)
 metadata:
   partitioned_by: [string, ...]  # Column names used for partitioning
+  timestamp_column: string        # Required for non-partitioned SLA tables
   # ... custom metadata key-value pairs
 
 # Optional: Table-level checks

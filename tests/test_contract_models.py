@@ -81,7 +81,7 @@ class TestValidatorSpec:
     """Tests for ValidatorSpec dataclass."""
 
     def test_all_none_is_valid(self) -> None:
-        """All-None ValidatorSpec is valid (no validator required)."""
+        """All-None ValidatorSpec is a valid noop validator — the check runs and records the metric but never fails."""
         v = ValidatorSpec()
         assert v.min is None
         assert v.max is None
@@ -193,6 +193,26 @@ class TestValidatorSpec:
         with pytest.raises(ContractValidationError, match="tolerance"):
             ValidatorSpec(tolerance=-1e-9)
 
+    def test_equals_with_min_raises(self) -> None:
+        """equals + min combo raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="equals"):
+            ValidatorSpec(equals=5.0, min=1.0)
+
+    def test_equals_with_max_raises(self) -> None:
+        """equals + max combo raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="equals"):
+            ValidatorSpec(equals=5.0, max=10.0)
+
+    def test_equals_with_between_raises(self) -> None:
+        """equals + between combo raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="equals"):
+            ValidatorSpec(equals=5.0, between=(1.0, 10.0))
+
+    def test_equals_with_not_between_raises(self) -> None:
+        """equals + not_between combo raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="equals"):
+            ValidatorSpec(equals=5.0, not_between=(1.0, 10.0))
+
     def test_frozen(self) -> None:
         """ValidatorSpec is immutable (frozen dataclass)."""
         v = ValidatorSpec(min=0.0)
@@ -280,12 +300,11 @@ class TestStructField:
         assert sf.name == "col1"
         assert sf.type == "int"
         assert sf.description == "An integer column"
-        assert sf.nullable is True
 
-    def test_non_nullable(self) -> None:
-        """StructField with nullable=False is valid."""
-        sf = StructField(name="id", type="string", description="Primary key", nullable=False)
-        assert sf.nullable is False
+    def test_nullable_kwarg_not_accepted(self) -> None:
+        """StructField does not accept nullable keyword argument."""
+        with pytest.raises(TypeError):
+            StructField(name="x", type="int", description="d", nullable=True)  # type: ignore[call-arg]
 
     def test_empty_name_raises(self) -> None:
         """Empty name raises ContractValidationError."""
@@ -876,6 +895,18 @@ class TestAvgLengthCheck:
         check = AvgLengthCheck(name="avg_len", validator=v)
         assert check.name == "avg_len"
 
+    def test_default_return_type(self) -> None:
+        """AvgLengthCheck default return_type is 'count'."""
+        v = ValidatorSpec(between=(5.0, 50.0))
+        check = AvgLengthCheck(name="avg_len", validator=v)
+        assert check.return_type == "count"
+
+    def test_pct_return_type(self) -> None:
+        """AvgLengthCheck accepts return_type='pct'."""
+        v = ValidatorSpec(between=(5.0, 50.0))
+        check = AvgLengthCheck(name="avg_len", validator=v, return_type="pct")
+        assert check.return_type == "pct"
+
     def test_empty_name_raises(self) -> None:
         """Empty name raises ContractValidationError."""
         v = ValidatorSpec(between=(5.0, 50.0))
@@ -1253,9 +1284,11 @@ class TestContract:
         assert contract.checks == ()
 
     def test_with_sla(self) -> None:
-        """Contract with SLASpec is valid."""
+        """Contract with SLASpec is valid when partitioned_by is set (no timestamp_column required)."""
         sla = SLASpec(schedule="0 6 * * *", lag_hours=2.0)
-        contract = _make_contract(sla=sla)
+        col_date = _make_column(name="date", col_type="date", description="Partition date")
+        col_id = _make_column(name="user_id")
+        contract = _make_contract(columns=(col_id, col_date), sla=sla, partitioned_by=("date",))
         assert contract.sla == sla
 
     def test_with_tags(self) -> None:
@@ -1370,3 +1403,28 @@ class TestContract:
         contract = _make_contract()
         with pytest.raises(Exception):
             contract.name = "other"  # type: ignore[misc]
+
+    def test_sla_with_partitioned_by_no_timestamp_column_in_metadata_is_valid(self) -> None:
+        """Contract with SLA + partitioned_by but no metadata.timestamp_column is valid."""
+        sla = SLASpec(schedule="0 6 * * *", lag_hours=2.0)
+        col_date = _make_column(name="date", col_type="date", description="Partition date")
+        col_id = _make_column(name="user_id")
+        contract = _make_contract(columns=(col_id, col_date), sla=sla, partitioned_by=("date",))
+        assert contract.sla == sla
+
+    def test_sla_without_partitioned_by_missing_metadata_timestamp_column_raises(self) -> None:
+        """Contract with SLA + no partitioned_by + no metadata.timestamp_column raises ContractValidationError."""
+        sla = SLASpec(schedule="0 6 * * *", lag_hours=0.0)
+        with pytest.raises(ContractValidationError, match="timestamp_column"):
+            _make_contract(sla=sla)
+
+    def test_sla_without_partitioned_by_with_metadata_timestamp_column_is_valid(self) -> None:
+        """Contract with SLA + no partitioned_by + metadata.timestamp_column is valid."""
+        sla = SLASpec(schedule="0 6 * * *", lag_hours=0.0)
+        contract = _make_contract(sla=sla, metadata=(("timestamp_column", "last_updated"),))
+        assert contract.sla == sla
+
+    def test_no_sla_no_metadata_timestamp_column_required(self) -> None:
+        """Contract with no SLA and no metadata is valid."""
+        contract = _make_contract()
+        assert contract.sla is None

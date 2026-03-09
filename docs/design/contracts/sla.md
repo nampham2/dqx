@@ -370,7 +370,7 @@ columns:
 
 ### Example 4: Non-Partitioned Daily Refresh (6 AM)
 
-A daily customer aggregate table with a full-table refresh. Because there is no `partitioned_by`, DQX uses the table-based SLA formula and the freshness check must name the timestamp column explicitly.
+A daily customer aggregate table with a full-table refresh. Because there is no `partitioned_by`, DQX uses the table-based SLA formula. For non-partitioned tables, `metadata.timestamp_column` must be set when `sla` is specified — DQX requires it to know which column carries the freshness timestamp.
 
 ```yaml
 name: "Customer Aggregates Contract"
@@ -383,8 +383,8 @@ sla:
   schedule: "0 6 * * *"          # Daily at 6 AM
   lag_hours: 0                   # Available promptly at 6 AM
 
-# NO metadata.partitioned_by → Table-based SLA
-# timestamp_column must be specified in the freshness check
+metadata:
+  timestamp_column: last_updated    # Required for non-partitioned SLA tables
 
 columns:
   - name: customer_id
@@ -408,16 +408,8 @@ columns:
 #   - name: "SLA: Freshness check"
 #     type: freshness
 #     max_age_hours: 1              # 0 (lag) + 1 (buffer)
-#     timestamp_column: last_updated  # Must be specified — cannot be inferred for non-partitioned tables
+#     timestamp_column: last_updated  # Read from metadata.timestamp_column
 #     severity: P0
-#
-# NOTE: For non-partitioned tables, `timestamp_column` is NOT automatically inferred
-# because there is no `metadata.partitioned_by` list to read from. The generated
-# freshness check uses the column named in a `timestamp_column` field that must be
-# provided when calling the SLA generator (or in an explicit manual check). In this
-# example `last_updated` is explicitly supplied as the timestamp column at generation
-# time. If you prefer direct control, omit the `sla` block and write a manual
-# freshness check with `timestamp_column: last_updated` instead.
 ```
 
 ## Validation Rules
@@ -431,7 +423,7 @@ DQX enforces the following rules when it parses an `sla` block.
 | Valid cron expression | `schedule` must be a valid 5-field cron expression |
 | Reasonable lag | `lag_hours` exceeding 168 hours on an hourly or daily schedule triggers a warning |
 | Partitioned timestamp | For partitioned tables, DQX uses the first column in `partitioned_by` as `timestamp_column` |
-| Non-partitioned timestamp | For non-partitioned tables, the freshness check must specify `timestamp_column` explicitly |
+| Non-partitioned timestamp | For non-partitioned tables, `metadata.timestamp_column` must be set when `sla` is specified |
 
 ---
 

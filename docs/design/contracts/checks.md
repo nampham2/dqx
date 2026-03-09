@@ -156,6 +156,16 @@ Exact match. The check passes if `|actual - expected| ≤ tolerance`.
   severity: P0
 ```
 
+### Noop (no validator)
+
+Omitting all validators produces a noop: the check runs and records the computed metric but never fails on the value. Use this for informational checks or when you want to observe a metric without enforcing a bound.
+
+```yaml
+- name: "Record average order amount (informational)"
+  type: mean
+  severity: P3
+```
+
 ---
 
 ## Table-Level Checks
@@ -976,7 +986,7 @@ The `avg_length` check computes the average length of non-null values in a strin
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| (none beyond validators) | — | — | — | — |
+| `return` | `string` | No | `count` | Return type: `count` (rows below/above threshold) or `pct` |
 
 > Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
 
@@ -1010,6 +1020,22 @@ columns:
         type: avg_length
         between: [1, 10]
         severity: P3
+```
+
+**Example 3: Using Percentage Return**
+
+```yaml
+columns:
+  - name: description
+    type: string
+    nullable: true
+    description: "Product description"
+    checks:
+      - name: "Most descriptions have reasonable average length"
+        type: avg_length
+        return: pct
+        min: 0.90  # At least 90% are within acceptable range
+        severity: P2
 ```
 
 ---
