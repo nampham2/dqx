@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from typing import cast
 
 import pytest
@@ -216,7 +217,7 @@ class TestValidatorSpec:
     def test_frozen(self) -> None:
         """ValidatorSpec is immutable (frozen dataclass)."""
         v = ValidatorSpec(min=0.0)
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             v.min = 1.0  # type: ignore[misc]
 
 
@@ -251,7 +252,7 @@ class TestTimestampType:
     def test_frozen(self) -> None:
         """TimestampType is immutable."""
         t = TimestampType(tz="UTC")
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             t.tz = "other"  # type: ignore[misc]
 
 
@@ -282,7 +283,7 @@ class TestListType:
     def test_frozen(self) -> None:
         """ListType is immutable."""
         lt = ListType(value_type="int")
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             lt.value_type = "string"  # type: ignore[misc]
 
 
@@ -319,7 +320,7 @@ class TestStructField:
     def test_frozen(self) -> None:
         """StructField is immutable."""
         sf = StructField(name="col1", type="int", description="desc")
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             sf.name = "other"  # type: ignore[misc]
 
 
@@ -353,7 +354,7 @@ class TestStructType:
         """StructType is immutable."""
         sf = StructField(name="col1", type="int", description="An int")
         st = StructType(fields=(sf,))
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             st.fields = ()  # type: ignore[misc]
 
 
@@ -379,7 +380,7 @@ class TestMapType:
     def test_frozen(self) -> None:
         """MapType is immutable."""
         mt = MapType(key_type="string", value_type="int")
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             mt.key_type = "int"  # type: ignore[misc]
 
 
@@ -426,7 +427,7 @@ class TestNumRowsCheck:
         """NumRowsCheck is immutable."""
         v = ValidatorSpec(min=1.0)
         check = NumRowsCheck(name="row_count", validator=v)
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
 
@@ -475,7 +476,7 @@ class TestTableDuplicatesCheck:
         """TableDuplicatesCheck is immutable."""
         v = ValidatorSpec(equals=0.0)
         check = TableDuplicatesCheck(name="dedup_check", columns=("id",), validator=v)
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
 
@@ -523,7 +524,7 @@ class TestFreshnessCheck:
     def test_frozen(self) -> None:
         """FreshnessCheck is immutable."""
         check = FreshnessCheck(name="freshness", max_age_hours=24.0, timestamp_column="ts")
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
 
@@ -594,7 +595,7 @@ class TestCompletenessCheck:
     def test_frozen(self) -> None:
         """CompletenessCheck is immutable."""
         check = CompletenessCheck(name="c", partition_column="date", granularity="daily")
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
 
@@ -629,7 +630,7 @@ class TestMissingCheck:
         """MissingCheck is immutable."""
         v = ValidatorSpec(equals=0.0)
         check = MissingCheck(name="missing", validator=v)
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
 
@@ -658,7 +659,7 @@ class TestColumnDuplicatesCheck:
         """ColumnDuplicatesCheck is immutable."""
         v = ValidatorSpec(equals=0.0)
         check = ColumnDuplicatesCheck(name="col_dedup", validator=v)
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
 
@@ -712,7 +713,7 @@ class TestWhitelistCheck:
         """WhitelistCheck is immutable."""
         v = ValidatorSpec(equals=0.0)
         check = WhitelistCheck(name="whitelist", values=("a",), validator=v)
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
 
@@ -748,7 +749,7 @@ class TestBlacklistCheck:
         """BlacklistCheck is immutable."""
         v = ValidatorSpec(equals=0.0)
         check = BlacklistCheck(name="blacklist", values=("a",), validator=v)
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
 
@@ -821,7 +822,7 @@ class TestPatternCheck:
         """PatternCheck is immutable."""
         v = ValidatorSpec(equals=0.0)
         check = PatternCheck(name="pattern_check", validator=v, pattern=r"\d+")
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
 
@@ -849,7 +850,7 @@ class TestMinLengthCheck:
         """MinLengthCheck is immutable."""
         v = ValidatorSpec(min=1.0)
         check = MinLengthCheck(name="min_len", validator=v)
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
 
@@ -877,7 +878,7 @@ class TestMaxLengthCheck:
         """MaxLengthCheck is immutable."""
         v = ValidatorSpec(max=255.0)
         check = MaxLengthCheck(name="max_len", validator=v)
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
 
@@ -917,7 +918,7 @@ class TestAvgLengthCheck:
         """AvgLengthCheck is immutable."""
         v = ValidatorSpec(between=(5.0, 50.0))
         check = AvgLengthCheck(name="avg_len", validator=v)
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
 
@@ -945,7 +946,7 @@ class TestCardinalityCheck:
         """CardinalityCheck is immutable."""
         v = ValidatorSpec(max=1000.0)
         check = CardinalityCheck(name="cardinality", validator=v)
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
 
@@ -1047,7 +1048,7 @@ class TestStatisticalChecks:
             StddevCheck(name="x", validator=v),
         ]
         for check in checks:
-            with pytest.raises(Exception):
+            with pytest.raises(dataclasses.FrozenInstanceError):
                 check.name = "other"  # type: ignore[misc]
 
 
@@ -1097,7 +1098,7 @@ class TestPercentileCheck:
         """PercentileCheck is immutable."""
         v = ValidatorSpec()
         check = PercentileCheck(name="p50", percentile=50.0, validator=v)
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
 
@@ -1170,7 +1171,7 @@ class TestColumnSpec:
     def test_frozen(self) -> None:
         """ColumnSpec is immutable."""
         col = ColumnSpec(name="col", type="int", description="An int")
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             col.name = "other"  # type: ignore[misc]
 
 
@@ -1237,7 +1238,7 @@ class TestSLASpec:
     def test_frozen(self) -> None:
         """SLASpec is immutable."""
         sla = SLASpec(schedule="0 6 * * *", lag_hours=2.0)
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             sla.lag_hours = 3.0  # type: ignore[misc]
 
 
@@ -1401,7 +1402,7 @@ class TestContract:
     def test_frozen(self) -> None:
         """Contract is immutable."""
         contract = _make_contract()
-        with pytest.raises(Exception):
+        with pytest.raises(dataclasses.FrozenInstanceError):
             contract.name = "other"  # type: ignore[misc]
 
     def test_sla_with_partitioned_by_no_timestamp_column_in_metadata_is_valid(self) -> None:

@@ -1002,7 +1002,7 @@ class Contract:
     """Top-level data contract definition.
 
     Args:
-        name: Contract name (1–255 characters).
+        name: Contract name (1-255 characters).
         version: Version string (non-empty).
         description: Human-readable description (non-empty).
         owner: Owning team or person (non-empty).
