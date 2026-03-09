@@ -423,6 +423,12 @@ class TestNumRowsCheck:
         with pytest.raises(ContractValidationError, match="name"):
             NumRowsCheck(name="", validator=v)
 
+    def test_invalid_tag_raises_contract_validation_error(self) -> None:
+        """Invalid tag value raises ContractValidationError (not ValueError)."""
+        v = ValidatorSpec(min=1.0)
+        with pytest.raises(ContractValidationError):
+            NumRowsCheck(name="check", validator=v, tags=frozenset({"invalid tag!"}))
+
     def test_frozen(self) -> None:
         """NumRowsCheck is immutable."""
         v = ValidatorSpec(min=1.0)
@@ -521,6 +527,16 @@ class TestFreshnessCheck:
         with pytest.raises(ContractValidationError, match="timestamp_column"):
             FreshnessCheck(name="freshness", max_age_hours=24.0, timestamp_column="")
 
+    def test_invalid_aggregation_raises(self) -> None:
+        """Invalid aggregation value raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="aggregation"):
+            FreshnessCheck(  # type: ignore[arg-type]
+                name="freshness",
+                max_age_hours=24.0,
+                timestamp_column="ts",
+                aggregation="latest",  # type: ignore[arg-type]
+            )
+
     def test_frozen(self) -> None:
         """FreshnessCheck is immutable."""
         check = FreshnessCheck(name="freshness", max_age_hours=24.0, timestamp_column="ts")
@@ -591,6 +607,15 @@ class TestCompletenessCheck:
         """Negative max_gap_count raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="max_gap_count"):
             CompletenessCheck(name="c", partition_column="date", granularity="daily", max_gap_count=-1)
+
+    def test_invalid_granularity_raises(self) -> None:
+        """Invalid granularity value raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="granularity"):
+            CompletenessCheck(  # type: ignore[arg-type]
+                name="c",
+                partition_column="date",
+                granularity="quarterly",  # type: ignore[arg-type]
+            )
 
     def test_frozen(self) -> None:
         """CompletenessCheck is immutable."""
@@ -824,6 +849,31 @@ class TestPatternCheck:
         check = PatternCheck(name="pattern_check", validator=v, pattern=r"\d+")
         with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
+
+    def test_invalid_regex_pattern_raises(self) -> None:
+        """Invalid regex pattern raises ContractValidationError."""
+        v = ValidatorSpec(equals=0.0)
+        with pytest.raises(ContractValidationError, match="invalid regex"):
+            PatternCheck(name="check", validator=v, pattern="[")
+
+    def test_invalid_flag_name_raises(self) -> None:
+        """Unknown flag name raises ContractValidationError."""
+        v = ValidatorSpec(equals=0.0)
+        with pytest.raises(ContractValidationError, match="unknown flag"):
+            PatternCheck(name="check", validator=v, pattern=r"\d+", flags=("BADFLG",))
+
+    def test_invalid_format_shortcut_raises(self) -> None:
+        """Unknown format shortcut raises ContractValidationError."""
+        v = ValidatorSpec(equals=0.0)
+        with pytest.raises(ContractValidationError, match="unknown format"):
+            PatternCheck(name="check", validator=v, format="ssn")  # type: ignore[arg-type]
+
+    def test_all_valid_flag_names(self) -> None:
+        """All recognized flag names are accepted."""
+        v = ValidatorSpec(equals=0.0)
+        for flag in ("IGNORECASE", "MULTILINE", "DOTALL", "VERBOSE", "ASCII", "UNICODE", "LOCALE"):
+            check = PatternCheck(name="check", validator=v, pattern=r"\w+", flags=(flag,))
+            assert flag in check.flags
 
 
 # ---------------------------------------------------------------------------
@@ -1241,6 +1291,66 @@ class TestSLASpec:
         with pytest.raises(dataclasses.FrozenInstanceError):
             sla.lag_hours = 3.0  # type: ignore[misc]
 
+    def test_out_of_range_minute_raises(self) -> None:
+        """Out-of-range minute field raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="minute"):
+            SLASpec(schedule="60 0 * * *", lag_hours=1.0)
+
+    def test_out_of_range_hour_raises(self) -> None:
+        """Out-of-range hour field raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="hour"):
+            SLASpec(schedule="0 24 * * *", lag_hours=1.0)
+
+    def test_out_of_range_day_of_month_raises(self) -> None:
+        """Out-of-range day-of-month field raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="day-of-month"):
+            SLASpec(schedule="0 0 32 * *", lag_hours=1.0)
+
+    def test_out_of_range_month_raises(self) -> None:
+        """Out-of-range month field raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="month"):
+            SLASpec(schedule="0 0 * 13 *", lag_hours=1.0)
+
+    def test_out_of_range_day_of_week_raises(self) -> None:
+        """Out-of-range day-of-week field raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="day-of-week"):
+            SLASpec(schedule="0 0 * * 8", lag_hours=1.0)
+
+    def test_garbage_field_raises(self) -> None:
+        """Garbage cron fields like 'foo bar baz qux quux' raise ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="cron|minute"):
+            SLASpec(schedule="foo bar baz qux quux", lag_hours=1.0)
+
+    def test_all_out_of_range_raises(self) -> None:
+        """All out-of-range fields like '99 99 99 99 99' raise ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="minute|hour|day"):
+            SLASpec(schedule="99 99 99 99 99", lag_hours=1.0)
+
+    def test_symbolic_month_names_valid(self) -> None:
+        """Symbolic month names (JAN-DEC) are accepted."""
+        sla = SLASpec(schedule="0 6 1 JAN *", lag_hours=1.0)
+        assert sla.schedule == "0 6 1 JAN *"
+
+    def test_symbolic_day_of_week_names_valid(self) -> None:
+        """Symbolic day-of-week names (SUN-SAT) are accepted."""
+        sla = SLASpec(schedule="0 6 * * MON", lag_hours=1.0)
+        assert sla.schedule == "0 6 * * MON"
+
+    def test_step_expression_valid(self) -> None:
+        """Step expressions like '*/15' are accepted."""
+        sla = SLASpec(schedule="*/15 * * * *", lag_hours=0.0)
+        assert sla.schedule == "*/15 * * * *"
+
+    def test_invalid_step_zero_raises(self) -> None:
+        """Step value of 0 in a cron field raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="minute"):
+            SLASpec(schedule="0/0 * * * *", lag_hours=1.0)
+
+    def test_symbolic_month_name_with_day_valid(self) -> None:
+        """Specific day+month using symbolic names is accepted."""
+        sla = SLASpec(schedule="0 6 1 JAN *", lag_hours=1.0)
+        assert sla.schedule == "0 6 1 JAN *"
+
 
 # ---------------------------------------------------------------------------
 # TestContract
@@ -1420,12 +1530,30 @@ class TestContract:
             _make_contract(sla=sla)
 
     def test_sla_without_partitioned_by_with_metadata_timestamp_column_is_valid(self) -> None:
-        """Contract with SLA + no partitioned_by + metadata.timestamp_column is valid."""
+        """Contract with SLA + no partitioned_by + metadata.timestamp_column referencing a real column is valid."""
         sla = SLASpec(schedule="0 6 * * *", lag_hours=0.0)
-        contract = _make_contract(sla=sla, metadata=(("timestamp_column", "last_updated"),))
+        col_ts = _make_column(name="last_updated", col_type="timestamp", description="Update timestamp")
+        col_id = _make_column()
+        contract = _make_contract(
+            columns=(col_id, col_ts),
+            sla=sla,
+            metadata=(("timestamp_column", "last_updated"),),
+        )
         assert contract.sla == sla
 
     def test_no_sla_no_metadata_timestamp_column_required(self) -> None:
         """Contract with no SLA and no metadata is valid."""
         contract = _make_contract()
         assert contract.sla is None
+
+    def test_sla_without_partitioned_by_empty_timestamp_column_value_raises(self) -> None:
+        """Contract with SLA + no partitioned_by + empty timestamp_column value raises ContractValidationError."""
+        sla = SLASpec(schedule="0 6 * * *", lag_hours=0.0)
+        with pytest.raises(ContractValidationError, match="timestamp_column"):
+            _make_contract(sla=sla, metadata=(("timestamp_column", ""),))
+
+    def test_sla_without_partitioned_by_nonexistent_timestamp_column_raises(self) -> None:
+        """Contract with SLA + no partitioned_by + unknown column in timestamp_column raises ContractValidationError."""
+        sla = SLASpec(schedule="0 6 * * *", lag_hours=0.0)
+        with pytest.raises(ContractValidationError, match="does not reference a known column"):
+            _make_contract(sla=sla, metadata=(("timestamp_column", "missing_col"),))
