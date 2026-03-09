@@ -14,6 +14,29 @@ from typing import Literal
 from dqx.common import SeverityLevel, validate_tags
 
 # ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _normalize_tags(tags: frozenset[str] | set[str] | None) -> frozenset[str]:
+    """Normalize and validate tags, re-raising ValueError as ContractValidationError.
+
+    Args:
+        tags: Tag set to normalize.
+
+    Returns:
+        Validated frozenset of tags.
+
+    Raises:
+        ContractValidationError: If any tag is invalid.
+    """
+    try:
+        return validate_tags(tags)
+    except ValueError as exc:
+        raise ContractValidationError(str(exc)) from exc
+
+
+# ---------------------------------------------------------------------------
 # Error classes
 # ---------------------------------------------------------------------------
 
@@ -226,7 +249,7 @@ class NumRowsCheck:
         """Validate name and normalize tags."""
         if not self.name:
             raise ContractValidationError("NumRowsCheck name must be non-empty")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -265,7 +288,7 @@ class TableDuplicatesCheck:
         for col in self.columns:
             if not col:
                 raise ContractValidationError("Each column name in TableDuplicatesCheck must be non-empty")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -283,8 +306,8 @@ class FreshnessCheck:
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty, max_age_hours <= 0, or
-            timestamp_column is empty.
+        ContractValidationError: If name is empty, max_age_hours <= 0,
+            timestamp_column is empty, or aggregation is invalid.
     """
 
     name: str
@@ -295,14 +318,18 @@ class FreshnessCheck:
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name, max_age_hours, and timestamp_column."""
+        """Validate name, max_age_hours, timestamp_column, and aggregation."""
         if not self.name:
             raise ContractValidationError("FreshnessCheck name must be non-empty")
         if self.max_age_hours <= 0:
             raise ContractValidationError(f"FreshnessCheck max_age_hours must be > 0, got {self.max_age_hours}")
         if not self.timestamp_column:
             raise ContractValidationError("FreshnessCheck timestamp_column must be non-empty")
-        validated = validate_tags(self.tags)
+        if self.aggregation not in _AGGREGATION_VALUES:
+            raise ContractValidationError(
+                f"FreshnessCheck aggregation must be one of {sorted(_AGGREGATION_VALUES)}, got '{self.aggregation}'"
+            )
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -326,7 +353,7 @@ class CompletenessCheck:
 
     Raises:
         ContractValidationError: If name or partition_column is empty,
-            lookback_days <= 0, or max_gap_count < 0.
+            lookback_days <= 0, max_gap_count < 0, or granularity is invalid.
     """
 
     name: str
@@ -339,16 +366,20 @@ class CompletenessCheck:
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name, partition_column, lookback_days, and max_gap_count."""
+        """Validate name, partition_column, granularity, lookback_days, and max_gap_count."""
         if not self.name:
             raise ContractValidationError("CompletenessCheck name must be non-empty")
         if not self.partition_column:
             raise ContractValidationError("CompletenessCheck partition_column must be non-empty")
+        if self.granularity not in _GRANULARITY_VALUES:
+            raise ContractValidationError(
+                f"CompletenessCheck granularity must be one of {sorted(_GRANULARITY_VALUES)}, got '{self.granularity}'"
+            )
         if self.lookback_days <= 0:
             raise ContractValidationError(f"CompletenessCheck lookback_days must be > 0, got {self.lookback_days}")
         if self.max_gap_count < 0:
             raise ContractValidationError(f"CompletenessCheck max_gap_count must be >= 0, got {self.max_gap_count}")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -358,7 +389,15 @@ TableCheck = NumRowsCheck | TableDuplicatesCheck | FreshnessCheck | Completeness
 # Column-level check dataclasses
 # ---------------------------------------------------------------------------
 
+_AGGREGATION_VALUES: frozenset[str] = frozenset({"max", "min"})
+_GRANULARITY_VALUES: frozenset[str] = frozenset({"hourly", "daily", "weekly", "monthly"})
+
 FormatShortcut = Literal["email", "phone", "uuid", "url", "ipv4", "ipv6", "date", "datetime"]
+_FORMAT_SHORTCUTS: frozenset[str] = frozenset({"email", "phone", "uuid", "url", "ipv4", "ipv6", "date", "datetime"})
+
+_VALID_FLAG_NAMES: frozenset[str] = frozenset(
+    {"IGNORECASE", "MULTILINE", "DOTALL", "VERBOSE", "ASCII", "UNICODE", "LOCALE"}
+)
 
 
 @dataclass(frozen=True)
@@ -387,7 +426,7 @@ class MissingCheck:
         """Validate name and normalize tags."""
         if not self.name:
             raise ContractValidationError("MissingCheck name must be non-empty")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -417,7 +456,7 @@ class ColumnDuplicatesCheck:
         """Validate name and normalize tags."""
         if not self.name:
             raise ContractValidationError("ColumnDuplicatesCheck name must be non-empty")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -454,7 +493,7 @@ class WhitelistCheck:
             raise ContractValidationError("WhitelistCheck name must be non-empty")
         if not self.values:
             raise ContractValidationError("WhitelistCheck values must be non-empty")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -491,7 +530,7 @@ class BlacklistCheck:
             raise ContractValidationError("BlacklistCheck name must be non-empty")
         if not self.values:
             raise ContractValidationError("BlacklistCheck values must be non-empty")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -515,8 +554,9 @@ class PatternCheck:
 
     Raises:
         ContractValidationError: If name is empty, neither/both of
-            pattern/format are set, flags are used with format, or pattern
-            is an empty string.
+            pattern/format are set, flags are used with format, pattern
+            is an empty string, format is unknown, pattern is invalid
+            regex, or flags contain unknown names.
     """
 
     name: str
@@ -529,7 +569,7 @@ class PatternCheck:
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name, pattern/format exclusivity, and flags."""
+        """Validate name, pattern/format exclusivity, regex syntax, and flags."""
         if not self.name:
             raise ContractValidationError("PatternCheck name must be non-empty")
         has_pattern = self.pattern is not None
@@ -542,7 +582,21 @@ class PatternCheck:
             raise ContractValidationError("PatternCheck: flags cannot be combined with a format shortcut")
         if has_pattern and self.pattern == "":
             raise ContractValidationError("PatternCheck: pattern must be non-empty when provided")
-        validated = validate_tags(self.tags)
+        if has_format and self.format not in _FORMAT_SHORTCUTS:
+            raise ContractValidationError(
+                f"PatternCheck: unknown format shortcut '{self.format}'; must be one of {sorted(_FORMAT_SHORTCUTS)}"
+            )
+        if has_pattern and self.pattern is not None:
+            try:
+                re.compile(self.pattern)
+            except re.error as exc:
+                raise ContractValidationError(f"PatternCheck: invalid regex pattern '{self.pattern}': {exc}") from exc
+        for flag in self.flags:
+            if flag not in _VALID_FLAG_NAMES:
+                raise ContractValidationError(
+                    f"PatternCheck: unknown flag '{flag}'; must be one of {sorted(_VALID_FLAG_NAMES)}"
+                )
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -572,7 +626,7 @@ class MinLengthCheck:
         """Validate name and normalize tags."""
         if not self.name:
             raise ContractValidationError("MinLengthCheck name must be non-empty")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -602,7 +656,7 @@ class MaxLengthCheck:
         """Validate name and normalize tags."""
         if not self.name:
             raise ContractValidationError("MaxLengthCheck name must be non-empty")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -632,7 +686,7 @@ class AvgLengthCheck:
         """Validate name and normalize tags."""
         if not self.name:
             raise ContractValidationError("AvgLengthCheck name must be non-empty")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -659,7 +713,7 @@ class CardinalityCheck:
         """Validate name and normalize tags."""
         if not self.name:
             raise ContractValidationError("CardinalityCheck name must be non-empty")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -686,7 +740,7 @@ class MinCheck:
         """Validate name and normalize tags."""
         if not self.name:
             raise ContractValidationError("MinCheck name must be non-empty")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -713,7 +767,7 @@ class MaxCheck:
         """Validate name and normalize tags."""
         if not self.name:
             raise ContractValidationError("MaxCheck name must be non-empty")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -740,7 +794,7 @@ class MeanCheck:
         """Validate name and normalize tags."""
         if not self.name:
             raise ContractValidationError("MeanCheck name must be non-empty")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -767,7 +821,7 @@ class SumCheck:
         """Validate name and normalize tags."""
         if not self.name:
             raise ContractValidationError("SumCheck name must be non-empty")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -794,7 +848,7 @@ class CountCheck:
         """Validate name and normalize tags."""
         if not self.name:
             raise ContractValidationError("CountCheck name must be non-empty")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -821,7 +875,7 @@ class VarianceCheck:
         """Validate name and normalize tags."""
         if not self.name:
             raise ContractValidationError("VarianceCheck name must be non-empty")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -848,7 +902,7 @@ class StddevCheck:
         """Validate name and normalize tags."""
         if not self.name:
             raise ContractValidationError("StddevCheck name must be non-empty")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -880,7 +934,7 @@ class PercentileCheck:
             raise ContractValidationError("PercentileCheck name must be non-empty")
         if not (0.0 <= self.percentile <= 100.0):
             raise ContractValidationError(f"PercentileCheck percentile must be in [0.0, 100.0], got {self.percentile}")
-        validated = validate_tags(self.tags)
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
@@ -946,25 +1000,115 @@ class ColumnSpec:
 
 _CRON_PATTERN = re.compile(r"^\S+ \S+ \S+ \S+ \S+$")
 
+# Per-field patterns: allow *, numeric literals, ranges (n-m), steps (*/n, n/n, n-m/n)
+# Month also allows JAN-DEC names; day-of-week allows SUN-SAT names (0-7)
+_MONTH_NAMES = frozenset({"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"})
+_DOW_NAMES = frozenset({"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"})
+
+# Regex for a single cron step token (either * or numeric/name, with optional /step or -range/step)
+_CRON_FIELD_RE = re.compile(
+    r"^\*"  # wildcard
+    r"(?:/\d+)?"  # optional step on wildcard
+    r"$"
+    r"|"
+    r"^\d+"  # numeric literal
+    r"(?:-\d+)?"  # optional range end
+    r"(?:/\d+)?"  # optional step
+    r"$"
+)
+
+
+def _cron_field_in_range(token: str, lo: int, hi: int, names: frozenset[str] | None = None) -> bool:
+    """Return True if a single (non-list) cron token is numeric and within [lo, hi].
+
+    Args:
+        token: Single cron token (no commas).
+        lo: Minimum allowed numeric value.
+        hi: Maximum allowed numeric value.
+        names: Optional set of allowed symbolic names (uppercase).
+
+    Returns:
+        True if the token is valid for the given range.
+    """
+    if token == "*":
+        return True
+    # Handle step on wildcard: */n
+    if token.startswith("*/"):
+        step_str = token[2:]
+        return step_str.isdigit() and int(step_str) >= 1
+    # Accept symbolic name
+    if names and token.upper() in names:
+        return True
+    # Numeric / range / step patterns
+    if not _CRON_FIELD_RE.match(token):
+        return False
+    # Parse numeric parts
+    parts = token.split("/")
+    range_part = parts[0]
+    if len(parts) == 2:
+        step_str = parts[1]
+        # _CRON_FIELD_RE guarantees step_str is \d+, so isdigit() is always True here
+        if int(step_str) < 1:
+            return False
+    range_ends = range_part.split("-")
+    for part in range_ends:
+        if not part.isdigit():
+            # Might be a name — unreachable via _CRON_FIELD_RE but kept as a defensive guard
+            if names and part.upper() in names:  # pragma: no cover
+                continue  # pragma: no cover
+            return False  # pragma: no cover
+        val = int(part)
+        if not lo <= val <= hi:
+            return False
+    return True
+
 
 def _validate_cron(schedule: str) -> None:
-    """Validate a 5-field cron expression.
+    """Validate a 5-field cron expression with per-field range checks.
+
+    Validates that each field is syntactically valid and numerically within
+    the allowed range for that position:
+
+    * minute: 0-59
+    * hour: 0-23
+    * day-of-month: 1-31 (or *)
+    * month: 1-12 (or JAN-DEC or *)
+    * day-of-week: 0-7 (or SUN-SAT or *)
+
+    List-based patterns (comma-separated values) in day-of-month and
+    day-of-week are not supported.
 
     Args:
         schedule: Cron expression string to validate.
 
     Raises:
         ContractValidationError: If the expression is not a valid 5-field
-            cron or uses unsupported list-based patterns.
+            cron, uses unsupported list-based patterns, or contains
+            out-of-range numeric values.
     """
     if not _CRON_PATTERN.match(schedule):
         raise ContractValidationError(f"Invalid cron expression: '{schedule}' must be a 5-field cron")
-    fields = schedule.split()
-    day_of_month, day_of_week = fields[2], fields[4]
-    if "," in day_of_month and day_of_month != "*":
+    minute, hour, day_of_month, month, day_of_week = schedule.split()
+    if "," in day_of_month:
         raise ContractValidationError(f"Unsupported cron: list-based day-of-month '{day_of_month}'")
-    if "," in day_of_week and day_of_week != "*":
+    if "," in day_of_week:
         raise ContractValidationError(f"Unsupported cron: list-based day-of-week '{day_of_week}'")
+    if not _cron_field_in_range(minute, 0, 59):
+        raise ContractValidationError(f"Invalid cron minute field '{minute}': must be 0-59, *, or a valid expression")
+    if not _cron_field_in_range(hour, 0, 23):
+        raise ContractValidationError(f"Invalid cron hour field '{hour}': must be 0-23, *, or a valid expression")
+    if not _cron_field_in_range(day_of_month, 1, 31):
+        raise ContractValidationError(
+            f"Invalid cron day-of-month field '{day_of_month}': must be 1-31, *, or a valid expression"
+        )
+    if not _cron_field_in_range(month, 1, 12, _MONTH_NAMES):
+        raise ContractValidationError(
+            f"Invalid cron month field '{month}': must be 1-12, JAN-DEC, *, or a valid expression"
+        )
+    if not _cron_field_in_range(day_of_week, 0, 7, _DOW_NAMES):
+        raise ContractValidationError(
+            f"Invalid cron day-of-week field '{day_of_week}': must be 0-7, SUN-SAT, *, or a valid expression"
+        )
 
 
 @dataclass(frozen=True)
@@ -1062,10 +1206,17 @@ class Contract:
                 raise ContractValidationError(f"Contract partitioned_by column '{part_col}' not found in columns")
         # Non-partitioned SLA requires metadata.timestamp_column
         if self.sla is not None and not self.partitioned_by:
-            metadata_keys = {k for k, _ in self.metadata}
-            if "timestamp_column" not in metadata_keys:
+            metadata_dict = dict(self.metadata)
+            ts_col = metadata_dict.get("timestamp_column")
+            if ts_col is None:
                 raise ContractValidationError(
                     "Contract: sla on a non-partitioned table requires metadata.timestamp_column"
                 )
-        validated = validate_tags(self.tags)
+            if not ts_col:
+                raise ContractValidationError("Contract: metadata.timestamp_column must be a non-empty string")
+            if ts_col not in col_name_set:
+                raise ContractValidationError(
+                    f"Contract: metadata.timestamp_column '{ts_col}' does not reference a known column"
+                )
+        validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
