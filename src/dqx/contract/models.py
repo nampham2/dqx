@@ -2192,13 +2192,9 @@ def _apply_validators(
                 validator.low, validator.high, tol=validator.tolerance
             )
         elif isinstance(validator, NotBetweenValidator):
-            lower_name = f"{check_name} [not_between < {validator.low}]"
-            upper_name = f"{check_name} [not_between > {validator.high}]"
-            ctx.assert_that(metric).config(name=lower_name, severity=severity, tags=tags).is_lt(
-                validator.low, tol=validator.tolerance
-            )
-            ctx.assert_that(metric).config(name=upper_name, severity=severity, tags=tags).is_gt(
-                validator.high, tol=validator.tolerance
+            assertion_name = f"{check_name} [not_between {validator.low} and {validator.high}]"
+            ctx.assert_that(metric).config(name=assertion_name, severity=severity, tags=tags).is_not_between(
+                validator.low, validator.high, tol=validator.tolerance
             )
         elif isinstance(validator, EqualsValidator):
             assertion_name = f"{check_name} [equals {validator.value}]"

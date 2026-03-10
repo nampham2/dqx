@@ -202,13 +202,48 @@ class TestNumRowsToDqx:
         results = _run_and_collect(contract, _simple_table(5))
         assert results[0].status == "FAILED"
 
-    def test_not_between_produces_two_assertions(self) -> None:
-        """NotBetweenValidator produces exactly two assertions."""
+    def test_not_between_produces_single_assertion(self) -> None:
+        """NotBetweenValidator produces exactly one assertion with OR semantics."""
         contract = _minimal_contract(
             checks=(NumRowsCheck(name="Not between", validators=(NotBetweenValidator(low=10, high=20),)),)
         )
         results = _run_and_collect(contract, _simple_table(5))
-        assert len(results) == 2
+        assert len(results) == 1
+
+    def test_not_between_passes_when_below_range(self) -> None:
+        """NotBetweenValidator passes when metric is below the lower bound."""
+        contract = _minimal_contract(
+            checks=(NumRowsCheck(name="Not between", validators=(NotBetweenValidator(low=10, high=20),)),)
+        )
+        # 5 rows < 10 → outside range → PASSED
+        results = _run_and_collect(contract, _simple_table(5))
+        assert results[0].status == "PASSED"
+
+    def test_not_between_passes_when_above_range(self) -> None:
+        """NotBetweenValidator passes when metric is above the upper bound."""
+        contract = _minimal_contract(
+            checks=(NumRowsCheck(name="Not between", validators=(NotBetweenValidator(low=10, high=20),)),)
+        )
+        # 25 rows > 20 → outside range → PASSED
+        results = _run_and_collect(contract, _simple_table(25))
+        assert results[0].status == "PASSED"
+
+    def test_not_between_fails_when_inside_range(self) -> None:
+        """NotBetweenValidator fails when metric is inside the [low, high] range."""
+        contract = _minimal_contract(
+            checks=(NumRowsCheck(name="Not between", validators=(NotBetweenValidator(low=10, high=20),)),)
+        )
+        # 15 rows is within [10, 20] → FAILED
+        results = _run_and_collect(contract, _simple_table(15))
+        assert results[0].status == "FAILED"
+
+    def test_not_between_assertion_name_encodes_bounds(self) -> None:
+        """NotBetweenValidator assertion name includes both bounds."""
+        contract = _minimal_contract(
+            checks=(NumRowsCheck(name="Out of range", validators=(NotBetweenValidator(low=10, high=20),)),)
+        )
+        results = _run_and_collect(contract, _simple_table(5))
+        assert results[0].assertion == "Out of range [not_between 10 and 20]"
 
     def test_equals_validator_passes(self) -> None:
         """EqualsValidator passes when row count equals expected value."""

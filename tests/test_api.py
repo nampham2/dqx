@@ -474,6 +474,19 @@ def test_is_between_invalid_bounds() -> None:
     invalid_check(context.provider, context)
 
 
+def test_is_not_between_invalid_bounds() -> None:
+    """Test is_not_between with invalid bounds raises ValueError."""
+    db = InMemoryMetricDB()
+    context = Context("test", db, execution_id="test-exec-123", data_av_threshold=0.9)
+
+    @check(name="Invalid Not-Between Check")
+    def invalid_check(mp: MetricProvider, ctx: Context) -> None:
+        with pytest.raises(ValueError, match="Invalid range: lower bound .* must be less than or equal to upper bound"):
+            ctx.assert_that(sp.Symbol("x")).config(name="Invalid not-between").is_not_between(20.0, 10.0)
+
+    invalid_check(context.provider, context)
+
+
 def test_assertion_ready_has_noop_method() -> None:
     """AssertionReady should have noop method."""
     from dqx.api import AssertionReady

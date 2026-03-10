@@ -470,6 +470,34 @@ class AssertionReady:
             validator = SymbolicValidator(f"in [{lower_name}, {upper_name}]", between_validator)
             self._create_assertion_node_with_tunables(validator, tunables_dict)
 
+    def is_not_between(self, lower: float, upper: float, tol: float = functions.EPSILON) -> None:
+        """
+        Assert that the expression lies outside the closed interval [lower, upper].
+
+        The assertion passes when the metric is strictly less than ``lower`` or strictly
+        greater than ``upper`` (OR semantics), matching the ``NotBetweenValidator`` contract.
+
+        Args:
+            lower: Lower bound of the excluded interval.
+            upper: Upper bound of the excluded interval.
+            tol: Numeric tolerance applied to the comparison.
+
+        Raises:
+            ValueError: If lower > upper.
+
+        Example:
+            >>> ctx.assert_that(mp.null_count("col")).config(name="Not in range").is_not_between(10, 20)
+        """
+        if lower > upper:
+            raise ValueError(
+                f"Invalid range: lower bound ({lower}) must be less than or equal to upper bound ({upper})"
+            )
+        validator = SymbolicValidator(
+            f"not in [{lower}, {upper}]",
+            lambda x: functions.is_not_between(x, lower, upper, tol),
+        )
+        self._create_assertion_node(validator)
+
     def is_negative(self, tol: float = functions.EPSILON) -> None:
         """Assert that the expression is negative."""
         validator = SymbolicValidator("< 0", lambda x: functions.is_negative(x, tol))
