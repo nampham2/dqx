@@ -70,7 +70,7 @@ def _normalize_tags(tags: frozenset[str] | set[str] | None) -> frozenset[str]:
 # Type system
 # ---------------------------------------------------------------------------
 
-SimpleContractType = Literal["int", "float", "bool", "string", "bytes", "date", "time", "decimal"]
+SimpleContractType = Literal["int", "float", "bool", "string", "bytes", "date", "time", "decimal", "timestamp"]
 
 SIMPLE_TYPES: frozenset[str] = frozenset(get_args(SimpleContractType))
 
@@ -307,15 +307,29 @@ Validator = MinValidator | MaxValidator | BetweenValidator | NotBetweenValidator
 
 ReturnType = Literal["count", "pct"]
 
+_RETURN_TYPES: frozenset[str] = frozenset({"count", "pct"})
+
+
+def _validate_return_type(value: str) -> None:
+    """Validate that value is a valid ReturnType.
+
+    Args:
+        value: The return_type value to validate.
+
+    Raises:
+        ContractValidationError: If value is not 'count' or 'pct'.
+    """
+    if value not in _RETURN_TYPES:
+        raise ContractValidationError(f"return_type must be 'count' or 'pct', got '{value}'")
+
+
 _AGGREGATION_VALUES: frozenset[str] = frozenset({"max", "min"})
 _GRANULARITY_VALUES: frozenset[str] = frozenset({"hourly", "daily", "weekly", "monthly"})
 
 FormatShortcut = Literal["email", "phone", "uuid", "url", "ipv4", "ipv6", "date", "datetime"]
 _FORMAT_SHORTCUTS: frozenset[str] = frozenset({"email", "phone", "uuid", "url", "ipv4", "ipv6", "date", "datetime"})
 
-_VALID_FLAG_NAMES: frozenset[str] = frozenset(
-    {"IGNORECASE", "MULTILINE", "DOTALL", "VERBOSE", "ASCII", "UNICODE", "LOCALE"}
-)
+_VALID_FLAG_NAMES: frozenset[str] = frozenset({"IGNORECASE", "MULTILINE", "DOTALL", "VERBOSE", "ASCII", "UNICODE"})
 
 # ---------------------------------------------------------------------------
 # Table-level check dataclasses
@@ -383,7 +397,8 @@ class TableDuplicatesCheck:
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name, columns, validators length, and normalize tags."""
+        """Validate name, columns, return_type, validators length, and normalize tags."""
+        _validate_return_type(self.return_type)
         if not self.name:
             raise ContractValidationError("TableDuplicatesCheck name must be non-empty")
         if not self.columns:
@@ -522,7 +537,8 @@ class MissingCheck:
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name, validators length, and normalize tags."""
+        """Validate name, return_type, validators length, and normalize tags."""
+        _validate_return_type(self.return_type)
         if not self.name:
             raise ContractValidationError("MissingCheck name must be non-empty")
         if len(self.validators) > 1:
@@ -558,7 +574,8 @@ class ColumnDuplicatesCheck:
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name, validators length, and normalize tags."""
+        """Validate name, return_type, validators length, and normalize tags."""
+        _validate_return_type(self.return_type)
         if not self.name:
             raise ContractValidationError("ColumnDuplicatesCheck name must be non-empty")
         if len(self.validators) > 1:
@@ -599,7 +616,8 @@ class WhitelistCheck:
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name, values, validators length, and normalize tags."""
+        """Validate name, values, return_type, validators length, and normalize tags."""
+        _validate_return_type(self.return_type)
         if not self.name:
             raise ContractValidationError("WhitelistCheck name must be non-empty")
         if not self.values:
@@ -642,7 +660,8 @@ class BlacklistCheck:
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name, values, validators length, and normalize tags."""
+        """Validate name, values, return_type, validators length, and normalize tags."""
+        _validate_return_type(self.return_type)
         if not self.name:
             raise ContractValidationError("BlacklistCheck name must be non-empty")
         if not self.values:
@@ -692,7 +711,8 @@ class PatternCheck:
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name, pattern/format exclusivity, regex syntax, flags, and validators length."""
+        """Validate name, pattern/format exclusivity, return_type, regex syntax, flags, and validators length."""
+        _validate_return_type(self.return_type)
         if not self.name:
             raise ContractValidationError("PatternCheck name must be non-empty")
         has_pattern = self.pattern is not None
@@ -710,15 +730,28 @@ class PatternCheck:
                 f"PatternCheck: unknown format shortcut '{self.format}'; must be one of {sorted(_FORMAT_SHORTCUTS)}"
             )
         if has_pattern and self.pattern is not None:
+            flags_bitmask = 0
+            for flag in self.flags:
+                if flag not in _VALID_FLAG_NAMES:
+                    raise ContractValidationError(
+                        f"PatternCheck: unknown flag '{flag}'; must be one of {sorted(_VALID_FLAG_NAMES)}"
+                    )
+                flag_value = getattr(re, flag, None)
+                if flag_value is None:  # pragma: no cover
+                    raise ContractValidationError(
+                        f"PatternCheck: unknown flag '{flag}'; must be one of {sorted(_VALID_FLAG_NAMES)}"
+                    )
+                flags_bitmask |= int(flag_value)
             try:
-                re.compile(self.pattern)
+                re.compile(self.pattern, flags_bitmask)
             except re.error as exc:
                 raise ContractValidationError(f"PatternCheck: invalid regex pattern '{self.pattern}': {exc}") from exc
-        for flag in self.flags:
-            if flag not in _VALID_FLAG_NAMES:
-                raise ContractValidationError(
-                    f"PatternCheck: unknown flag '{flag}'; must be one of {sorted(_VALID_FLAG_NAMES)}"
-                )
+        else:
+            for flag in self.flags:  # pragma: no cover
+                if flag not in _VALID_FLAG_NAMES:
+                    raise ContractValidationError(
+                        f"PatternCheck: unknown flag '{flag}'; must be one of {sorted(_VALID_FLAG_NAMES)}"
+                    )
         if len(self.validators) > 1:
             raise ContractValidationError(
                 f"PatternCheck validators must have at most 1 entry, got {len(self.validators)}"
@@ -752,7 +785,8 @@ class MinLengthCheck:
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name, validators length, and normalize tags."""
+        """Validate name, return_type, validators length, and normalize tags."""
+        _validate_return_type(self.return_type)
         if not self.name:
             raise ContractValidationError("MinLengthCheck name must be non-empty")
         if len(self.validators) > 1:
@@ -788,7 +822,8 @@ class MaxLengthCheck:
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name, validators length, and normalize tags."""
+        """Validate name, return_type, validators length, and normalize tags."""
+        _validate_return_type(self.return_type)
         if not self.name:
             raise ContractValidationError("MaxLengthCheck name must be non-empty")
         if len(self.validators) > 1:
@@ -824,7 +859,8 @@ class AvgLengthCheck:
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name, validators length, and normalize tags."""
+        """Validate name, return_type, validators length, and normalize tags."""
+        _validate_return_type(self.return_type)
         if not self.name:
             raise ContractValidationError("AvgLengthCheck name must be non-empty")
         if len(self.validators) > 1:
@@ -1308,6 +1344,32 @@ def _validate_cron(schedule: str) -> None:
         )
 
 
+def _is_hourly_or_daily(schedule: str) -> bool:
+    """Return True if the cron schedule is hourly or daily (not catch-all, weekly, or monthly).
+
+    An hourly or daily schedule satisfies all of:
+    - ``minute`` is NOT ``"*"`` (has a specific minute, ruling out the every-minute catch-all)
+    - ``day_of_month == "*"`` (not pinned to specific days of month)
+    - ``month == "*"`` (not pinned to specific months)
+    - ``day_of_week == "*"`` (not pinned to specific days of week)
+
+    The pure catch-all ``"* * * * *"`` has a wildcard minute and returns ``False``.
+    Weekly schedules (pinned ``day_of_week``) and monthly schedules (pinned
+    ``day_of_month``) also return ``False``.
+
+    Args:
+        schedule: A validated 5-field cron expression.
+
+    Returns:
+        True if the schedule is an hourly or daily (but not catch-all) pattern.
+    """
+    parts = schedule.split()
+    if len(parts) != 5:  # pragma: no cover
+        return False
+    minute, _hour, day_of_month, month, day_of_week = parts
+    return minute != "*" and day_of_month == "*" and month == "*" and day_of_week == "*"
+
+
 @dataclass(frozen=True)
 class SLASpec:
     """Service Level Agreement specification.
@@ -1329,13 +1391,12 @@ class SLASpec:
         if self.lag_hours < 0:
             raise ContractValidationError(f"SLASpec lag_hours must be >= 0, got {self.lag_hours}")
         _validate_cron(self.schedule)
-        # Emit a warning when lag_hours > 168 on hourly/daily schedules.
-        # A schedule is considered hourly or daily when it is not the catch-all
-        # "* * * * *" (i.e., it has at least one fixed/specific field).
-        if self.lag_hours > 168 and self.schedule != "* * * * *":
+        # Emit a warning when lag_hours > 168 on hourly or daily schedules only.
+        # Weekly, monthly, or catch-all schedules are excluded.
+        if self.lag_hours > 168 and _is_hourly_or_daily(self.schedule):
             warnings.warn(
                 f"SLASpec lag_hours={self.lag_hours} exceeds 168 hours (7 days) "
-                f"on a non-catch-all schedule '{self.schedule}'. "
+                f"on an hourly or daily schedule '{self.schedule}'. "
                 "This may indicate a misconfigured SLA.",
                 ContractWarning,
                 stacklevel=2,
@@ -1410,6 +1471,24 @@ class Contract:
         for part_col in self.partitioned_by:
             if part_col not in col_name_set:
                 raise ContractValidationError(f"Contract partitioned_by column '{part_col}' not found in columns")
+        # Validate table-level check column references
+        for check in self.checks:
+            if isinstance(check, TableDuplicatesCheck):
+                for col in check.columns:
+                    if col not in col_name_set:
+                        raise ContractValidationError(
+                            f"Contract TableDuplicatesCheck references unknown column '{col}'"
+                        )
+            elif isinstance(check, FreshnessCheck):
+                if check.timestamp_column not in col_name_set:
+                    raise ContractValidationError(
+                        f"Contract FreshnessCheck references unknown column '{check.timestamp_column}'"
+                    )
+            elif isinstance(check, CompletenessCheck):
+                if check.partition_column not in col_name_set:
+                    raise ContractValidationError(
+                        f"Contract CompletenessCheck references unknown column '{check.partition_column}'"
+                    )
         # Non-partitioned SLA requires metadata.timestamp_column
         if self.sla is not None and not self.partitioned_by:
             metadata_dict = dict(self.metadata)

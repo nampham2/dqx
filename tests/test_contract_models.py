@@ -572,6 +572,11 @@ class TestTableDuplicatesCheck:
                 validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0)),
             )
 
+    def test_invalid_return_type_raises(self) -> None:
+        """TableDuplicatesCheck with invalid return_type raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="return_type"):
+            TableDuplicatesCheck(name="dedup_check", columns=("id",), return_type="ratio")  # type: ignore[arg-type]
+
     def test_frozen(self) -> None:
         """TableDuplicatesCheck is immutable."""
         check = TableDuplicatesCheck(name="dedup_check", columns=("id",))
@@ -751,6 +756,11 @@ class TestMissingCheck:
         with pytest.raises(ContractValidationError, match="validators"):
             MissingCheck(name="missing", validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0)))
 
+    def test_invalid_return_type_raises(self) -> None:
+        """MissingCheck with invalid return_type raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="return_type"):
+            MissingCheck(name="missing", return_type="ratio")  # type: ignore[arg-type]
+
     def test_frozen(self) -> None:
         """MissingCheck is immutable."""
         check = MissingCheck(name="missing")
@@ -788,6 +798,11 @@ class TestColumnDuplicatesCheck:
             ColumnDuplicatesCheck(
                 name="col_dedup", validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0))
             )
+
+    def test_invalid_return_type_raises(self) -> None:
+        """ColumnDuplicatesCheck with invalid return_type raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="return_type"):
+            ColumnDuplicatesCheck(name="col_dedup", return_type="ratio")  # type: ignore[arg-type]
 
     def test_frozen(self) -> None:
         """ColumnDuplicatesCheck is immutable."""
@@ -852,6 +867,11 @@ class TestWhitelistCheck:
                 validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0)),
             )
 
+    def test_invalid_return_type_raises(self) -> None:
+        """WhitelistCheck with invalid return_type raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="return_type"):
+            WhitelistCheck(name="whitelist", values=("a",), return_type="ratio")  # type: ignore[arg-type]
+
     def test_frozen(self) -> None:
         """WhitelistCheck is immutable."""
         check = WhitelistCheck(name="whitelist", values=("a",))
@@ -897,6 +917,11 @@ class TestBlacklistCheck:
                 values=("a",),
                 validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0)),
             )
+
+    def test_invalid_return_type_raises(self) -> None:
+        """BlacklistCheck with invalid return_type raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="return_type"):
+            BlacklistCheck(name="blacklist", values=("a",), return_type="ratio")  # type: ignore[arg-type]
 
     def test_frozen(self) -> None:
         """BlacklistCheck is immutable."""
@@ -989,9 +1014,30 @@ class TestPatternCheck:
 
     def test_all_valid_flag_names(self) -> None:
         """All recognized flag names are accepted."""
-        for flag in ("IGNORECASE", "MULTILINE", "DOTALL", "VERBOSE", "ASCII", "UNICODE", "LOCALE"):
+        for flag in ("IGNORECASE", "MULTILINE", "DOTALL", "VERBOSE", "ASCII", "UNICODE"):
             check = PatternCheck(name="check", pattern=r"\w+", flags=(flag,))
             assert flag in check.flags
+
+    def test_flags_compiled_with_pattern(self) -> None:
+        """PatternCheck with flags compiles the pattern using those flags."""
+        # IGNORECASE flag: pattern should match regardless of case when compiled with the flag
+        check = PatternCheck(name="check", pattern=r"[a-z]+", flags=("IGNORECASE",))
+        assert check.flags == ("IGNORECASE",)
+
+    def test_locale_flag_rejected(self) -> None:
+        """LOCALE flag is rejected as an unknown flag name."""
+        with pytest.raises(ContractValidationError, match="unknown flag"):
+            PatternCheck(name="check", pattern=r"\w+", flags=("LOCALE",))
+
+    def test_invalid_pattern_with_flags_raises(self) -> None:
+        """Invalid regex pattern raises ContractValidationError even when flags are present."""
+        with pytest.raises(ContractValidationError, match="invalid regex"):
+            PatternCheck(name="check", pattern="[", flags=("IGNORECASE",))
+
+    def test_invalid_return_type_raises(self) -> None:
+        """PatternCheck with invalid return_type raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="return_type"):
+            PatternCheck(name="check", pattern=r"\d+", return_type="ratio")  # type: ignore[arg-type]
 
     def test_multiple_validators_raises(self) -> None:
         """More than 1 validator raises ContractValidationError."""
@@ -1031,6 +1077,11 @@ class TestMinLengthCheck:
         with pytest.raises(ContractValidationError, match="validators"):
             MinLengthCheck(name="min_len", validators=(MinValidator(threshold=1.0), MaxValidator(threshold=10.0)))
 
+    def test_invalid_return_type_raises(self) -> None:
+        """MinLengthCheck with invalid return_type raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="return_type"):
+            MinLengthCheck(name="min_len", return_type="ratio")  # type: ignore[arg-type]
+
     def test_frozen(self) -> None:
         """MinLengthCheck is immutable."""
         check = MinLengthCheck(name="min_len")
@@ -1065,6 +1116,11 @@ class TestMaxLengthCheck:
         """More than 1 validator raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="validators"):
             MaxLengthCheck(name="max_len", validators=(MinValidator(threshold=1.0), MaxValidator(threshold=10.0)))
+
+    def test_invalid_return_type_raises(self) -> None:
+        """MaxLengthCheck with invalid return_type raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="return_type"):
+            MaxLengthCheck(name="max_len", return_type="ratio")  # type: ignore[arg-type]
 
     def test_frozen(self) -> None:
         """MaxLengthCheck is immutable."""
@@ -1110,6 +1166,11 @@ class TestAvgLengthCheck:
         """More than 1 validator raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="validators"):
             AvgLengthCheck(name="avg_len", validators=(MinValidator(threshold=1.0), MaxValidator(threshold=10.0)))
+
+    def test_invalid_return_type_raises(self) -> None:
+        """AvgLengthCheck with invalid return_type raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="return_type"):
+            AvgLengthCheck(name="avg_len", return_type="ratio")  # type: ignore[arg-type]
 
     def test_frozen(self) -> None:
         """AvgLengthCheck is immutable."""
@@ -1433,7 +1494,7 @@ class TestColumnSpec:
 
     def test_timestamp_string_normalizes_to_timestamp_type(self) -> None:
         """ColumnSpec with type 'timestamp' is normalized to TimestampType()."""
-        col = ColumnSpec(name="ts", type="timestamp", description="A timestamp")  # type: ignore[arg-type]
+        col = ColumnSpec(name="ts", type="timestamp", description="A timestamp")
         assert col.type == TimestampType()
         assert isinstance(col.type, TimestampType)
         assert col.type.tz is None
@@ -1614,6 +1675,34 @@ class TestSLASpec:
         """Specific day+month using symbolic names is accepted."""
         sla = SLASpec(schedule="0 6 1 JAN *", lag_hours=1.0)
         assert sla.schedule == "0 6 1 JAN *"
+
+    def test_lag_hours_above_168_on_weekly_schedule_no_warning(self) -> None:
+        """lag_hours > 168 on a weekly schedule (pinned day-of-week) does NOT warn."""
+        import warnings as _warnings
+
+        with _warnings.catch_warnings():
+            _warnings.simplefilter("error")  # any warning would become an error
+            sla = SLASpec(schedule="0 6 * * 1", lag_hours=200.0)
+        assert sla.lag_hours == pytest.approx(200.0)
+
+    def test_lag_hours_above_168_on_monthly_schedule_no_warning(self) -> None:
+        """lag_hours > 168 on a monthly schedule (pinned day-of-month) does NOT warn."""
+        import warnings as _warnings
+
+        with _warnings.catch_warnings():
+            _warnings.simplefilter("error")  # any warning would become an error
+            sla = SLASpec(schedule="0 6 1 * *", lag_hours=200.0)
+        assert sla.lag_hours == pytest.approx(200.0)
+
+    def test_lag_hours_above_168_on_daily_schedule_warns(self) -> None:
+        """lag_hours > 168 on a daily schedule emits a ContractWarning."""
+        with pytest.warns(ContractWarning, match="lag_hours=200"):
+            SLASpec(schedule="0 6 * * *", lag_hours=200.0)
+
+    def test_lag_hours_above_168_on_hourly_schedule_warns(self) -> None:
+        """lag_hours > 168 on an hourly schedule emits a ContractWarning."""
+        with pytest.warns(ContractWarning, match="lag_hours=200"):
+            SLASpec(schedule="0 * * * *", lag_hours=200.0)
 
 
 # ---------------------------------------------------------------------------
@@ -1821,3 +1910,21 @@ class TestContract:
         sla = SLASpec(schedule="0 6 * * *", lag_hours=0.0)
         with pytest.raises(ContractValidationError, match="does not reference a known column"):
             _make_contract(sla=sla, metadata=(("timestamp_column", "missing_col"),))
+
+    def test_table_duplicates_check_unknown_column_raises(self) -> None:
+        """TableDuplicatesCheck referencing an unknown column raises ContractValidationError."""
+        check = TableDuplicatesCheck(name="dedup", columns=("nonexistent",))
+        with pytest.raises(ContractValidationError, match="TableDuplicatesCheck references unknown column"):
+            _make_contract(checks=(check,))
+
+    def test_freshness_check_unknown_timestamp_column_raises(self) -> None:
+        """FreshnessCheck with timestamp_column not in columns raises ContractValidationError."""
+        check = FreshnessCheck(name="fresh", max_age_hours=1.0, timestamp_column="nonexistent")
+        with pytest.raises(ContractValidationError, match="FreshnessCheck references unknown column"):
+            _make_contract(checks=(check,))
+
+    def test_completeness_check_unknown_partition_column_raises(self) -> None:
+        """CompletenessCheck with partition_column not in columns raises ContractValidationError."""
+        check = CompletenessCheck(name="complete", partition_column="nonexistent", granularity="daily")
+        with pytest.raises(ContractValidationError, match="CompletenessCheck references unknown column"):
+            _make_contract(checks=(check,))

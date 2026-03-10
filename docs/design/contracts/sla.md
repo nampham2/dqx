@@ -120,7 +120,7 @@ checks:
     severity: P0
 ```
 
-**Note:** DQX infers `timestamp_column` from the first column in `metadata.partitioned_by` for partitioned tables. For non-partitioned tables, the freshness check must explicitly specify `timestamp_column`.
+**Note:** DQX infers `timestamp_column` from the first column in `metadata.partitioned_by` for partitioned tables. For non-partitioned tables, set `metadata.timestamp_column` to the column that carries the freshness timestamp — DQX uses this value when `sla` is specified without a `partitioned_by`.
 
 Gap detection is NOT auto-generated. Add `completeness` checks in the `checks` section explicitly when needed.
 
