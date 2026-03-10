@@ -18,6 +18,7 @@ from dqx.contract.models import (
     Contract,
     ContractValidationError,
     ContractType,
+    ContractWarning,
     CountCheck,
     EqualsValidator,
     FreshnessCheck,
@@ -76,6 +77,10 @@ class TestContractErrors:
     def test_schema_validation_error_hierarchy(self) -> None:
         """SchemaValidationError should not be a subclass of ContractValidationError."""
         assert not issubclass(SchemaValidationError, ContractValidationError)
+
+    def test_contract_warning_is_user_warning(self) -> None:
+        """ContractWarning should be a subclass of UserWarning."""
+        assert issubclass(ContractWarning, UserWarning)
 
 
 # ---------------------------------------------------------------------------
@@ -1583,8 +1588,8 @@ class TestSLASpec:
             SLASpec(schedule="0 0 31-1 * *", lag_hours=1.0)
 
     def test_lag_hours_above_168_on_specific_schedule_warns(self) -> None:
-        """lag_hours > 168 on a non-catch-all schedule emits a UserWarning."""
-        with pytest.warns(UserWarning, match="lag_hours=200"):
+        """lag_hours > 168 on a non-catch-all schedule emits a ContractWarning."""
+        with pytest.warns(ContractWarning, match="lag_hours=200"):
             SLASpec(schedule="0 6 * * *", lag_hours=200.0)
 
     def test_lag_hours_above_168_on_catch_all_no_warning(self) -> None:

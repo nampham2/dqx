@@ -35,6 +35,14 @@ class SchemaValidationError(Exception):
     """
 
 
+class ContractWarning(UserWarning):
+    """Emitted for contract configurations that are valid but potentially misconfigured.
+
+    Use this class to filter DQX contract warnings independently of other
+    ``UserWarning`` instances in your application.
+    """
+
+
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
@@ -1329,6 +1337,7 @@ class SLASpec:
                 f"SLASpec lag_hours={self.lag_hours} exceeds 168 hours (7 days) "
                 f"on a non-catch-all schedule '{self.schedule}'. "
                 "This may indicate a misconfigured SLA.",
+                ContractWarning,
                 stacklevel=2,
             )
 
