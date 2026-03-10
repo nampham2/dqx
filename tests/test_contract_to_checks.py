@@ -921,7 +921,7 @@ class TestApplyValidators:
 class TestTableDuplicatesEmptyTable:
     """Edge-case tests for TableDuplicatesCheck on empty tables."""
 
-    def test_pct_on_empty_table_fails(self) -> None:
+    def test_pct_on_empty_table_passes(self) -> None:
         """TableDuplicatesCheck pct on 0-row table passes (0 dups / 0 rows = 0 <= 0.0)."""
         contract = _minimal_contract(
             checks=(
