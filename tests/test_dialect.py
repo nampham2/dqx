@@ -430,28 +430,31 @@ def test_max_length_translation() -> None:
     # string type: LENGTH
     op_str = ops.MaxLength("name", "string")
     sql = duckdb.translate_sql_op(op_str)
-    assert sql == f"CAST(MAX(LENGTH(name)) AS DOUBLE) AS '{op_str.sql_col}'"
+    assert sql == f"CAST(COALESCE(MAX(LENGTH(name)), '-inf') AS DOUBLE) AS '{op_str.sql_col}'"
 
     # list type: LEN
     op_list = ops.MaxLength("tags", "list")
     sql = duckdb.translate_sql_op(op_list)
-    assert sql == f"CAST(MAX(LEN(tags)) AS DOUBLE) AS '{op_list.sql_col}'"
+    assert sql == f"CAST(COALESCE(MAX(LEN(tags)), '-inf') AS DOUBLE) AS '{op_list.sql_col}'"
 
     # map type: CARDINALITY
     op_map = ops.MaxLength("attrs", "map")
     sql = duckdb.translate_sql_op(op_map)
-    assert sql == f"CAST(MAX(CARDINALITY(attrs)) AS DOUBLE) AS '{op_map.sql_col}'"
+    assert sql == f"CAST(COALESCE(MAX(CARDINALITY(attrs)), '-inf') AS DOUBLE) AS '{op_map.sql_col}'"
 
     # BigQuery dialect
     bq = BigQueryDialect()
 
     # string type: LENGTH
     sql_bq_str = bq.translate_sql_op(op_str)
-    assert sql_bq_str == f"CAST(MAX(LENGTH(name)) AS FLOAT64) AS `{op_str.sql_col}`"
+    assert sql_bq_str == f"CAST(COALESCE(MAX(LENGTH(name)), CAST('-inf' AS FLOAT64)) AS FLOAT64) AS `{op_str.sql_col}`"
 
     # list type: ARRAY_LENGTH
     sql_bq_list = bq.translate_sql_op(op_list)
-    assert sql_bq_list == f"CAST(MAX(ARRAY_LENGTH(tags)) AS FLOAT64) AS `{op_list.sql_col}`"
+    assert (
+        sql_bq_list
+        == f"CAST(COALESCE(MAX(ARRAY_LENGTH(tags)), CAST('-inf' AS FLOAT64)) AS FLOAT64) AS `{op_list.sql_col}`"
+    )
 
     # map type: not supported in BigQuery
     with pytest.raises(DQXError, match="MaxLength with column_type='map' is not supported for BigQuery"):

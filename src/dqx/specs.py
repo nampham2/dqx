@@ -849,6 +849,38 @@ class MinLength(SimpleMetricSpec):
 
 @auto_register
 class MaxLength(SimpleMetricSpec):
+    """Metric that measures the maximum length or cardinality of a column's values.
+
+    Computes the maximum length of string values, the maximum number of elements
+    in list columns, or the maximum number of entries in map columns. The result
+    is stored as a ``states.MaxLength`` state whose identity value is
+    ``float("-inf")``, so merging over empty partitions yields the correct
+    maximum.
+
+    Supported ``column_type`` variants:
+
+    - ``"string"``: maximum character length via SQL ``LENGTH()`` (DuckDB) or
+      ``LENGTH()`` (BigQuery).
+    - ``"list"``: maximum element count via SQL ``LEN()`` (DuckDB) or
+      ``ARRAY_LENGTH()`` (BigQuery).
+    - ``"map"``: maximum entry count via SQL ``CARDINALITY()`` (DuckDB only;
+      raises :class:`~dqx.common.DQXError` on BigQuery).
+
+    Example:
+        >>> spec = MaxLength("description", "string")
+        >>> spec.name
+        'max_length_string(description)'
+        >>> spec.parameters
+        {'column': 'description', 'column_type': 'string'}
+
+    Args:
+        column: Name of the column to analyse.
+        column_type: One of ``"string"``, ``"list"``, or ``"map"``.
+        parameters: Optional extra key/value parameters forwarded to the
+            underlying :class:`~dqx.ops.MaxLength` analyzer and preserved in
+            :attr:`parameters`.
+    """
+
     metric_type: MetricType = "MaxLength"
     is_extended: Literal[False] = False
 

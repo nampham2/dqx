@@ -1571,6 +1571,8 @@ class TestReconstructBaseSpec:
             ("CountValues", {"column": "status", "values": 1}),
             ("UniqueCount", {"column": "user_id"}),
             ("CustomSQL", {"sql_expression": "COUNT(*)"}),
+            ("MinLength", {"column": "name", "column_type": "string"}),
+            ("MaxLength", {"column": "name", "column_type": "string"}),
         ]
 
         for metric_type, params in test_cases:
@@ -1626,6 +1628,8 @@ class TestCloneMethods:
             specs.CountValues("col", [1, 2], parameters={"mode": "strict"}),
             specs.UniqueCount("col", parameters={"sample": "full"}),
             specs.CustomSQL("COUNT(*)", parameters={"db": "main"}),
+            specs.MinLength("col", "string", parameters={"region": "US"}),
+            specs.MaxLength("col", "string", parameters={"region": "US"}),
         ]
 
         for spec in test_specs:
@@ -1678,6 +1682,7 @@ class TestProtocolsRuntime:
             specs.UniqueCount("col"),
             specs.CustomSQL("COUNT(*)"),
             specs.MinLength("col", "string"),
+            specs.MaxLength("col", "string"),
         ]
 
         for spec in simple_specs:
@@ -1735,6 +1740,8 @@ class TestProtocolsRuntime:
                 instance = specs.UniqueCount("test_col")
             elif spec_class == specs.MinLength:
                 instance = specs.MinLength("test_col", "string")
+            elif spec_class == specs.MaxLength:
+                instance = specs.MaxLength("test_col", "string")
             else:
                 # This should never happen but helps with type checking
                 continue
@@ -1783,6 +1790,7 @@ class TestMetricTypes:
             (specs.UniqueCount("col"), "UniqueCount"),
             (specs.CustomSQL("COUNT(*)"), "CustomSQL"),
             (specs.MinLength("col", "string"), "MinLength"),
+            (specs.MaxLength("col", "string"), "MaxLength"),
         ]
 
         for instance, expected_type in spec_instances:
