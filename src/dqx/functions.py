@@ -195,6 +195,24 @@ def is_between(a: float, lower: float, upper: float, tol: float = EPSILON) -> bo
     return is_geq(a, lower, tol) and is_leq(a, upper, tol)
 
 
+def is_not_between(a: float, lower: float, upper: float, tol: float = EPSILON) -> bool:
+    """
+    Determine whether a value lies outside the closed interval [lower, upper], using a tolerance for comparisons.
+
+    The value passes if it is strictly less than ``lower`` or strictly greater than ``upper``.
+
+    Args:
+        a: Value to test.
+        lower: Lower bound of the excluded interval.
+        upper: Upper bound of the excluded interval.
+        tol: Tolerance applied to both bound comparisons.
+
+    Returns:
+        bool: ``True`` if ``a < lower`` or ``a > upper`` within ``tol``, ``False`` otherwise.
+    """
+    return is_lt(a, lower, tol) or is_gt(a, upper, tol)
+
+
 class Coalesce(sp.Function):
     """
     Sympy function that returns the first non-None/non-NaN value from its arguments.
