@@ -23,7 +23,7 @@ The type system prioritizes validation flexibility over exact matching. Types ac
 | **Temporal Types** | | | |
 | `date` | `type: date` | date32, date64 | Any date representation |
 | `time` | `type: time` | time32(s/ms), time64(us/ns) | Any time representation |
-| `timestamp` | `type: timestamp` or `type: {kind: timestamp}` or `type: {kind: timestamp, tz: "..."}` | timestamp(any unit, any tz) | Simple form accepts any tz; object form defaults to UTC; explicit `tz` enforces exact match |
+| `timestamp` | `type: timestamp` or `type: {kind: timestamp}` or `type: {kind: timestamp, tz: "..."}` | timestamp(any unit, any tz) | Simple form and object form without `tz` are timezone-naive (`tz=None`); explicit `tz` enforces exact match |
 | **Decimal Type** | | | |
 | `decimal` | `type: decimal` | decimal128(any), decimal256(any) | Any precision/scale |
 | **Complex Types** | | | |
@@ -89,13 +89,13 @@ Store timestamps in UTC for consistency. The type system offers three levels of 
   type: timestamp
   description: "Event timestamp"
 
-# 2. Complex form with default UTC timezone
+# 2. Complex form with timezone-naive default
 - name: created_at
   type:
     kind: timestamp
-    # tz defaults to "UTC" (omitted)
+    # tz defaults to None (timezone-naive) when omitted
   nullable: false
-  description: "Creation timestamp in UTC"
+  description: "Creation timestamp (timezone-naive)"
 
 # 3. Complex form with explicit timezone
 - name: created_at_ny
@@ -112,7 +112,7 @@ Store timestamps in UTC for consistency. The type system offers three levels of 
   description: "Time of day when event occurred"
 ```
 
-Use simple form when timezone doesn't matter or varies; use complex form with UTC (default) for most cases; use explicit timezone when data must be in a specific timezone.
+Use simple form or object form without tz for timezone-naive timestamps; use explicit tz (e.g. "UTC") when the timezone must match exactly.
 
 ---
 
@@ -336,7 +336,7 @@ Contract type `time` validates against:
 **Complex form** (`type: {kind: timestamp}` or `type: {kind: timestamp, tz: "UTC"}`):
 
 - Validates unit flexibility (accepts s, ms, us, ns)
-- Validates timezone matches (default: "UTC")
+- object form without tz is timezone-naive (tz=None); explicit tz validates timezone matches
 
 **Complex form with explicit timezone** (`type: {kind: timestamp, tz: "America/New_York"}`):
 

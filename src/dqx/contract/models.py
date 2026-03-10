@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 import warnings
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, get_args
 
 from dqx.common import SeverityLevel, validate_tags
 
@@ -62,18 +62,27 @@ def _normalize_tags(tags: frozenset[str] | set[str] | None) -> frozenset[str]:
 # Type system
 # ---------------------------------------------------------------------------
 
-SIMPLE_TYPES = frozenset({"int", "float", "bool", "string", "bytes", "date", "time", "timestamp", "decimal"})
+SimpleContractType = Literal["int", "float", "bool", "string", "bytes", "date", "time", "decimal"]
 
-SimpleContractType = Literal["int", "float", "bool", "string", "bytes", "date", "time", "timestamp", "decimal"]
+SIMPLE_TYPES: frozenset[str] = frozenset(get_args(SimpleContractType))
 
 
 @dataclass(frozen=True)
 class TimestampType:
     """A timestamp type with an optional timezone.
 
+    ``tz=None`` (the default) means timezone-naive, corresponding to
+    ``pa.timestamp(unit, tz=None)`` in PyArrow.  Set ``tz="UTC"`` for an
+    explicit UTC timestamp, or any other IANA timezone string for a
+    timezone-aware timestamp.
+
+    The simple ``"timestamp"`` string form in YAML/user-facing API is
+    normalised to ``TimestampType()`` (i.e. ``tz=None``) at
+    :class:`ColumnSpec` construction time.
+
     Args:
-        tz: IANA timezone string (e.g. "UTC", "America/New_York"). If None,
-            the timestamp is timezone-naive.
+        tz: IANA timezone string (e.g. ``"UTC"``, ``"America/New_York"``).
+            Defaults to ``None`` (timezone-naive).
 
     Raises:
         ContractValidationError: If tz is an empty string.
@@ -1004,6 +1013,8 @@ class ColumnSpec:
             raise ContractValidationError("ColumnSpec name must be non-empty")
         if not self.description:
             raise ContractValidationError("ColumnSpec description must be non-empty")
+        if self.type == "timestamp":
+            object.__setattr__(self, "type", TimestampType())
         if isinstance(self.type, str) and self.type not in SIMPLE_TYPES:
             raise ContractValidationError(
                 f"ColumnSpec type '{self.type}' is not a valid simple type; "

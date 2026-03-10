@@ -234,8 +234,8 @@ class TestValidatorSpec:
 class TestTimestampType:
     """Tests for TimestampType dataclass."""
 
-    def test_no_tz(self) -> None:
-        """TimestampType with no tz is valid."""
+    def test_no_tz_is_timezone_naive(self) -> None:
+        """TimestampType with no tz is timezone-naive (tz=None)."""
         t = TimestampType()
         assert t.tz is None
 
@@ -1211,6 +1211,13 @@ class TestColumnSpec:
         """ColumnSpec with TimestampType is valid."""
         col = ColumnSpec(name="ts", type=TimestampType(tz="UTC"), description="A timestamp")
         assert isinstance(col.type, TimestampType)
+
+    def test_timestamp_string_normalizes_to_timestamp_type(self) -> None:
+        """ColumnSpec with type 'timestamp' is normalized to TimestampType()."""
+        col = ColumnSpec(name="ts", type="timestamp", description="A timestamp")  # type: ignore[arg-type]
+        assert col.type == TimestampType()
+        assert isinstance(col.type, TimestampType)
+        assert col.type.tz is None
 
     def test_with_list_type(self) -> None:
         """ColumnSpec with ListType is valid."""
