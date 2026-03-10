@@ -6,6 +6,27 @@ import pytest
 
 from dqx import ops, specs, states
 
+EXPECTED_METRIC_TYPES: set[str] = {
+    "NumRows",
+    "First",
+    "Average",
+    "Minimum",
+    "Maximum",
+    "Sum",
+    "NegativeCount",
+    "NullCount",
+    "Variance",
+    "DuplicateCount",
+    "CountValues",
+    "UniqueCount",
+    "CustomSQL",
+    "MinLength",
+    "MaxLength",
+    "DayOverDay",
+    "WeekOverWeek",
+    "Stddev",
+}
+
 
 class TestMetricSpec:
     """Test the MetricSpec Protocol"""
@@ -1013,26 +1034,7 @@ class TestBuildRegistry:
 
     def test_registry_contains_all_expected_classes(self) -> None:
         """Test that registry contains all expected metric spec classes."""
-        expected_types = {
-            "NumRows",
-            "First",
-            "Average",
-            "Minimum",
-            "Maximum",
-            "Sum",
-            "NegativeCount",
-            "NullCount",
-            "Variance",
-            "DuplicateCount",
-            "CountValues",
-            "UniqueCount",
-            "CustomSQL",
-            "MinLength",
-            "DayOverDay",
-            "WeekOverWeek",
-            "Stddev",
-        }
-        assert set(specs.registry.keys()) == expected_types
+        assert set(specs.registry.keys()) == EXPECTED_METRIC_TYPES
 
     def test_registry_maps_correct_classes(self) -> None:
         """Test that registry maps metric types to correct classes."""
@@ -1069,26 +1071,7 @@ class TestRegistry:
     """Test the registry dictionary"""
 
     def test_registry_contains_all_metric_types(self) -> None:
-        expected_types = {
-            "NumRows",
-            "First",
-            "Average",
-            "Minimum",
-            "Maximum",
-            "Sum",
-            "NegativeCount",
-            "NullCount",
-            "Variance",
-            "DuplicateCount",
-            "CountValues",
-            "UniqueCount",
-            "CustomSQL",
-            "MinLength",
-            "DayOverDay",
-            "WeekOverWeek",
-            "Stddev",
-        }
-        assert set(specs.registry.keys()) == expected_types
+        assert set(specs.registry.keys()) == EXPECTED_METRIC_TYPES
 
     def test_registry_maps_to_correct_classes(self) -> None:
         assert specs.registry["NumRows"] == specs.NumRows
@@ -1104,7 +1087,7 @@ class TestRegistry:
     def test_registry_is_built_automatically(self) -> None:
         """Test that the registry is built automatically by decorators."""
         # All expected classes should be in the registry
-        assert len(specs.registry) == 17  # Total number of metric types
+        assert len(specs.registry) == len(EXPECTED_METRIC_TYPES)
 
         # Each class should have been registered with its metric_type
         for metric_type, spec_class in specs.registry.items():
@@ -1569,6 +1552,8 @@ class TestReconstructBaseSpec:
             ("CountValues", {"column": "status", "values": 1}),
             ("UniqueCount", {"column": "user_id"}),
             ("CustomSQL", {"sql_expression": "COUNT(*)"}),
+            ("MinLength", {"column": "name", "column_type": "string"}),
+            ("MaxLength", {"column": "name", "column_type": "string"}),
         ]
 
         for metric_type, params in test_cases:
@@ -1624,6 +1609,8 @@ class TestCloneMethods:
             specs.CountValues("col", [1, 2], parameters={"mode": "strict"}),
             specs.UniqueCount("col", parameters={"sample": "full"}),
             specs.CustomSQL("COUNT(*)", parameters={"db": "main"}),
+            specs.MinLength("col", "string", parameters={"region": "US"}),
+            specs.MaxLength("col", "string", parameters={"region": "US"}),
         ]
 
         for spec in test_specs:
@@ -1676,6 +1663,7 @@ class TestProtocolsRuntime:
             specs.UniqueCount("col"),
             specs.CustomSQL("COUNT(*)"),
             specs.MinLength("col", "string"),
+            specs.MaxLength("col", "string"),
         ]
 
         for spec in simple_specs:
@@ -1733,6 +1721,8 @@ class TestProtocolsRuntime:
                 instance = specs.UniqueCount("test_col")
             elif spec_class == specs.MinLength:
                 instance = specs.MinLength("test_col", "string")
+            elif spec_class == specs.MaxLength:
+                instance = specs.MaxLength("test_col", "string")
             else:
                 # This should never happen but helps with type checking
                 continue
@@ -1781,6 +1771,7 @@ class TestMetricTypes:
             (specs.UniqueCount("col"), "UniqueCount"),
             (specs.CustomSQL("COUNT(*)"), "CustomSQL"),
             (specs.MinLength("col", "string"), "MinLength"),
+            (specs.MaxLength("col", "string"), "MaxLength"),
         ]
 
         for instance, expected_type in spec_instances:
@@ -1886,4 +1877,89 @@ class TestMinLength:
 
     def test_is_not_extended(self) -> None:
         spec = specs.MinLength("name", "string")
+        assert spec.is_extended is False
+
+
+class TestMaxLength:
+    """Test MaxLength metric spec."""
+
+    def test_metric_type(self) -> None:
+        spec = specs.MaxLength("name", "string")
+        assert spec.metric_type == "MaxLength"
+
+    def test_name_string(self) -> None:
+        spec = specs.MaxLength("name", "string")
+        assert spec.name == "max_length_string(name)"
+
+    def test_name_list(self) -> None:
+        spec = specs.MaxLength("tags", "list")
+        assert spec.name == "max_length_list(tags)"
+
+    def test_name_map(self) -> None:
+        spec = specs.MaxLength("attrs", "map")
+        assert spec.name == "max_length_map(attrs)"
+
+    def test_parameters(self) -> None:
+        spec = specs.MaxLength("name", "string")
+        assert spec.parameters == {"column": "name", "column_type": "string"}
+
+    def test_parameters_with_extra(self) -> None:
+        spec = specs.MaxLength("name", "string", parameters={"region": "US"})
+        assert spec.parameters == {"column": "name", "column_type": "string", "region": "US"}
+
+    def test_analyzers(self) -> None:
+        spec = specs.MaxLength("name", "string")
+        assert len(spec.analyzers) == 1
+        assert isinstance(spec.analyzers[0], ops.MaxLength)
+        assert spec.analyzers[0].column == "name"
+        assert spec.analyzers[0].column_type == "string"
+
+    def test_state(self) -> None:
+        spec = specs.MaxLength("name", "string")
+        spec._analyzers[0].assign(3.0)
+        state = spec.state()
+        assert isinstance(state, states.MaxLength)
+        assert state.value == pytest.approx(3.0)
+
+    def test_deserialize(self) -> None:
+        original = states.MaxLength(value=5.0)
+        serialized = original.serialize()
+        result = specs.MaxLength.deserialize(serialized)
+        assert isinstance(result, states.MaxLength)
+        assert result.value == pytest.approx(5.0)
+
+    def test_clone(self) -> None:
+        spec = specs.MaxLength("name", "string", parameters={"region": "US"})
+        cloned = spec.clone()
+        assert cloned.name == spec.name
+        assert cloned.parameters == spec.parameters
+        assert cloned is not spec
+
+    def test_hash(self) -> None:
+        spec1 = specs.MaxLength("name", "string")
+        spec2 = specs.MaxLength("name", "string")
+        assert hash(spec1) == hash(spec2)
+
+    def test_equality(self) -> None:
+        spec1 = specs.MaxLength("name", "string")
+        spec2 = specs.MaxLength("name", "string")
+        spec3 = specs.MaxLength("name", "list")
+        spec4 = specs.MaxLength("other", "string")
+
+        assert spec1 == spec2
+        assert spec1 != spec3
+        assert spec1 != spec4
+        assert spec1 != "not_a_spec"
+
+    def test_str(self) -> None:
+        spec = specs.MaxLength("name", "string")
+        assert str(spec) == "max_length_string(name)"
+
+    def test_is_metric_spec(self) -> None:
+        spec = specs.MaxLength("name", "string")
+        assert isinstance(spec, specs.MetricSpec)
+        assert isinstance(spec, specs.SimpleMetricSpec)
+
+    def test_is_not_extended(self) -> None:
+        spec = specs.MaxLength("name", "string")
         assert spec.is_extended is False

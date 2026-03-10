@@ -374,6 +374,9 @@ def test_all_ops_covered() -> None:
         ops.MinLength("col", "string"),
         ops.MinLength("col", "list"),
         ops.MinLength("col", "map"),
+        ops.MaxLength("col", "string"),
+        ops.MaxLength("col", "list"),
+        ops.MaxLength("col", "map"),
     ]
 
     # All should translate without error
@@ -416,4 +419,43 @@ def test_min_length_translation() -> None:
 
     # map type: not supported in BigQuery
     with pytest.raises(DQXError, match="MinLength with column_type='map' is not supported for BigQuery"):
+        bq.translate_sql_op(op_map)
+
+
+def test_max_length_translation() -> None:
+    """Test MaxLength SQL translation for both dialects."""
+    # DuckDB dialect
+    duckdb = DuckDBDialect()
+
+    # string type: LENGTH
+    op_str = ops.MaxLength("name", "string")
+    sql = duckdb.translate_sql_op(op_str)
+    assert sql == f"COALESCE(CAST(MAX(LENGTH(name)) AS DOUBLE), CAST('-inf' AS DOUBLE)) AS '{op_str.sql_col}'"
+
+    # list type: LEN
+    op_list = ops.MaxLength("tags", "list")
+    sql = duckdb.translate_sql_op(op_list)
+    assert sql == f"COALESCE(CAST(MAX(LEN(tags)) AS DOUBLE), CAST('-inf' AS DOUBLE)) AS '{op_list.sql_col}'"
+
+    # map type: CARDINALITY
+    op_map = ops.MaxLength("attrs", "map")
+    sql = duckdb.translate_sql_op(op_map)
+    assert sql == f"COALESCE(CAST(MAX(CARDINALITY(attrs)) AS DOUBLE), CAST('-inf' AS DOUBLE)) AS '{op_map.sql_col}'"
+
+    # BigQuery dialect
+    bq = BigQueryDialect()
+
+    # string type: LENGTH
+    sql_bq_str = bq.translate_sql_op(op_str)
+    assert sql_bq_str == f"CAST(COALESCE(MAX(LENGTH(name)), CAST('-inf' AS FLOAT64)) AS FLOAT64) AS `{op_str.sql_col}`"
+
+    # list type: ARRAY_LENGTH
+    sql_bq_list = bq.translate_sql_op(op_list)
+    assert (
+        sql_bq_list
+        == f"CAST(COALESCE(MAX(ARRAY_LENGTH(tags)), CAST('-inf' AS FLOAT64)) AS FLOAT64) AS `{op_list.sql_col}`"
+    )
+
+    # map type: not supported in BigQuery
+    with pytest.raises(DQXError, match="MaxLength with column_type='map' is not supported for BigQuery"):
         bq.translate_sql_op(op_map)
