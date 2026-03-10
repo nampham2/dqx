@@ -1382,10 +1382,46 @@ def _parse_tags(raw: Any) -> frozenset[str]:
 
     Returns:
         frozenset of tag strings.
+
+    Raises:
+        ContractValidationError: If raw is a string or non-iterable (not a list).
     """
     if raw is None:
         return frozenset()
+    if isinstance(raw, (str, bytes)):
+        raise ContractValidationError(f"'tags' must be a list, got a string: {raw!r}")
+    if not isinstance(raw, list):
+        raise ContractValidationError(f"'tags' must be a list, got: {type(raw).__name__}")
     return frozenset(str(t) for t in raw)
+
+
+def _parse_bool(value: Any, field_name: str, default: bool) -> bool:
+    """Parse a boolean YAML value, supporting common string representations.
+
+    Args:
+        value: The raw YAML value (None, bool, int, or str).
+        field_name: Name of the field for error messages.
+        default: Default value to return if value is None.
+
+    Returns:
+        Parsed boolean value.
+
+    Raises:
+        ContractValidationError: If the value cannot be interpreted as a boolean.
+    """
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int) and value in (0, 1):
+        return bool(value)
+    if isinstance(value, str):
+        low = value.lower()
+        if low in ("true", "yes", "1"):
+            return True
+        if low in ("false", "no", "0"):
+            return False
+    raise ContractValidationError(f"'{field_name}' must be a boolean (true/false), got: {value!r}")
 
 
 def _parse_severity(raw: Any) -> SeverityLevel:
@@ -1451,7 +1487,7 @@ def _parse_type(raw: Any) -> ContractType:
     raise ContractValidationError(f"Unknown type kind: {raw!r}")
 
 
-def _parse_struct_field(raw: dict[str, Any]) -> StructField:
+def _parse_struct_field(raw: Any) -> StructField:
     """Parse a struct field dict into a StructField.
 
     Args:
@@ -1461,8 +1497,10 @@ def _parse_struct_field(raw: dict[str, Any]) -> StructField:
         StructField instance.
 
     Raises:
-        ContractValidationError: If required fields are missing.
+        ContractValidationError: If raw is not a mapping or required fields are missing.
     """
+    if not isinstance(raw, dict):
+        raise ContractValidationError(f"StructField entry must be a mapping, got: {type(raw).__name__}")
     for key in ("name", "type", "description"):
         if key not in raw:
             raise ContractValidationError(f"StructField missing required field: '{key}'")
@@ -1471,6 +1509,25 @@ def _parse_struct_field(raw: dict[str, Any]) -> StructField:
         type=_parse_type(raw["type"]),
         description=raw["description"],
     )
+
+
+def _parse_float_field(value: Any, field_name: str) -> float:
+    """Convert a YAML value to float, raising ContractValidationError on failure.
+
+    Args:
+        value: The raw YAML value to convert.
+        field_name: Name of the field for error messages.
+
+    Returns:
+        Float representation of value.
+
+    Raises:
+        ContractValidationError: If the value cannot be converted to float.
+    """
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        raise ContractValidationError(f"'{field_name}' must be a numeric value, got: {value!r}") from exc
 
 
 def _parse_validator(raw: dict[str, Any]) -> Validator | None:
@@ -1485,9 +1542,12 @@ def _parse_validator(raw: dict[str, Any]) -> Validator | None:
         Validator instance or None if no validator key found.
 
     Raises:
-        ContractValidationError: If multiple validator keys are present.
+        ContractValidationError: If multiple validator keys are present, or if
+            numeric values cannot be parsed, or if between/not_between do not
+            provide exactly two values.
     """
-    tolerance = float(raw.get("tolerance", 1e-9))
+    raw_tolerance = raw.get("tolerance")
+    tolerance = _parse_float_field(raw_tolerance, "tolerance") if raw_tolerance is not None else 1e-9
     validator_keys = [k for k in ("min", "max", "between", "not_between", "equals") if k in raw]
     if len(validator_keys) > 1:
         raise ContractValidationError(f"Check specifies multiple validators: {validator_keys}")
@@ -1495,17 +1555,25 @@ def _parse_validator(raw: dict[str, Any]) -> Validator | None:
         return None
     key = validator_keys[0]
     if key == "min":
-        return MinValidator(threshold=float(raw["min"]), tolerance=tolerance)
+        return MinValidator(threshold=_parse_float_field(raw["min"], "min"), tolerance=tolerance)
     if key == "max":
-        return MaxValidator(threshold=float(raw["max"]), tolerance=tolerance)
+        return MaxValidator(threshold=_parse_float_field(raw["max"], "max"), tolerance=tolerance)
     if key == "between":
-        low, high = raw["between"]
-        return BetweenValidator(low=float(low), high=float(high), tolerance=tolerance)
+        bounds = raw["between"]
+        if not isinstance(bounds, list) or len(bounds) != 2:
+            raise ContractValidationError(f"'between' must be a list of exactly 2 numeric values, got: {bounds!r}")
+        low = _parse_float_field(bounds[0], "between[0]")
+        high = _parse_float_field(bounds[1], "between[1]")
+        return BetweenValidator(low=low, high=high, tolerance=tolerance)
     if key == "not_between":
-        low, high = raw["not_between"]
-        return NotBetweenValidator(low=float(low), high=float(high), tolerance=tolerance)
+        bounds = raw["not_between"]
+        if not isinstance(bounds, list) or len(bounds) != 2:
+            raise ContractValidationError(f"'not_between' must be a list of exactly 2 numeric values, got: {bounds!r}")
+        low = _parse_float_field(bounds[0], "not_between[0]")
+        high = _parse_float_field(bounds[1], "not_between[1]")
+        return NotBetweenValidator(low=low, high=high, tolerance=tolerance)
     # key == "equals"
-    return EqualsValidator(value=float(raw["equals"]), tolerance=tolerance)
+    return EqualsValidator(value=_parse_float_field(raw["equals"], "equals"), tolerance=tolerance)
 
 
 def _parse_table_check(raw: dict[str, Any]) -> TableCheck:
@@ -1535,6 +1603,14 @@ def _parse_table_check(raw: dict[str, Any]) -> TableCheck:
         columns_raw = raw.get("columns")
         if columns_raw is None:
             raise ContractValidationError("TableDuplicatesCheck missing required field: 'columns'")
+        if isinstance(columns_raw, (str, bytes)):
+            raise ContractValidationError(
+                f"TableDuplicatesCheck 'columns' must be a list, got a string: {columns_raw!r}"
+            )
+        if not isinstance(columns_raw, list):
+            raise ContractValidationError(
+                f"TableDuplicatesCheck 'columns' must be a list, got: {type(columns_raw).__name__}"
+            )
         return TableDuplicatesCheck(
             name=name,
             columns=tuple(columns_raw),
@@ -1552,7 +1628,7 @@ def _parse_table_check(raw: dict[str, Any]) -> TableCheck:
             raise ContractValidationError("FreshnessCheck missing required field: 'timestamp_column'")
         return FreshnessCheck(
             name=name,
-            max_age_hours=float(max_age_hours_raw),
+            max_age_hours=_parse_float_field(max_age_hours_raw, "max_age_hours"),
             timestamp_column=timestamp_column,
             aggregation=raw.get("aggregation", "max"),  # type: ignore[arg-type]
             severity=severity,
@@ -1570,7 +1646,7 @@ def _parse_table_check(raw: dict[str, Any]) -> TableCheck:
             partition_column=partition_column,
             granularity=granularity,  # type: ignore[arg-type]
             lookback_days=int(raw.get("lookback_days", 30)),
-            allow_future_gaps=bool(raw.get("allow_future_gaps", True)),
+            allow_future_gaps=_parse_bool(raw.get("allow_future_gaps"), "allow_future_gaps", default=True),
             max_gap_count=int(raw.get("max_gap_count", 0)),
             severity=severity,
             tags=tags,
@@ -1620,12 +1696,16 @@ def _parse_column_check(raw: dict[str, Any]) -> ColumnCheck:
         values_raw = raw.get("values")
         if values_raw is None:
             raise ContractValidationError("WhitelistCheck missing required field: 'values'")
+        if isinstance(values_raw, (str, bytes)):
+            raise ContractValidationError(f"WhitelistCheck 'values' must be a list, got a string: {values_raw!r}")
+        if not isinstance(values_raw, list):
+            raise ContractValidationError(f"WhitelistCheck 'values' must be a list, got: {type(values_raw).__name__}")
         return WhitelistCheck(
             name=name,
             values=tuple(values_raw),
             validators=validators,
             return_type=return_type,  # type: ignore[arg-type]
-            case_sensitive=bool(raw.get("case_sensitive", True)),
+            case_sensitive=_parse_bool(raw.get("case_sensitive"), "case_sensitive", default=True),
             severity=severity,
             tags=tags,
         )
@@ -1633,22 +1713,31 @@ def _parse_column_check(raw: dict[str, Any]) -> ColumnCheck:
         values_raw = raw.get("values")
         if values_raw is None:
             raise ContractValidationError("BlacklistCheck missing required field: 'values'")
+        if isinstance(values_raw, (str, bytes)):
+            raise ContractValidationError(f"BlacklistCheck 'values' must be a list, got a string: {values_raw!r}")
+        if not isinstance(values_raw, list):
+            raise ContractValidationError(f"BlacklistCheck 'values' must be a list, got: {type(values_raw).__name__}")
         return BlacklistCheck(
             name=name,
             values=tuple(values_raw),
             validators=validators,
             return_type=return_type,  # type: ignore[arg-type]
-            case_sensitive=bool(raw.get("case_sensitive", True)),
+            case_sensitive=_parse_bool(raw.get("case_sensitive"), "case_sensitive", default=True),
             severity=severity,
             tags=tags,
         )
     if check_type == "pattern":
+        flags_raw = raw.get("flags", [])
+        if isinstance(flags_raw, (str, bytes)):
+            raise ContractValidationError(f"PatternCheck 'flags' must be a list, got a string: {flags_raw!r}")
+        if not isinstance(flags_raw, list):
+            raise ContractValidationError(f"PatternCheck 'flags' must be a list, got: {type(flags_raw).__name__}")
         return PatternCheck(
             name=name,
             validators=validators,
             pattern=raw.get("pattern"),
             format=raw.get("format"),  # type: ignore[arg-type]
-            flags=tuple(raw.get("flags", [])),
+            flags=tuple(flags_raw),
             return_type=return_type,  # type: ignore[arg-type]
             severity=severity,
             tags=tags,
@@ -1699,7 +1788,7 @@ def _parse_column_check(raw: dict[str, Any]) -> ColumnCheck:
             raise ContractValidationError("PercentileCheck missing required field: 'percentile'")
         return PercentileCheck(
             name=name,
-            percentile=float(percentile_raw),
+            percentile=_parse_float_field(percentile_raw, "percentile"),
             validators=validators,
             severity=severity,
             tags=tags,
@@ -1723,7 +1812,7 @@ def _parse_column(raw: dict[str, Any]) -> ColumnSpec:
         if key not in raw:
             raise ContractValidationError(f"Column missing required field: '{key}'")
 
-    nullable = bool(raw.get("nullable", True))
+    nullable = _parse_bool(raw.get("nullable"), "nullable", default=True)
 
     # Parse column metadata
     raw_metadata = raw.get("metadata") or {}
@@ -1887,7 +1976,12 @@ class Contract:
         raw_metadata = data.get("metadata") or {}
         partitioned_by: tuple[str, ...] = ()
         if "partitioned_by" in raw_metadata:
-            partitioned_by = tuple(str(c) for c in raw_metadata["partitioned_by"])
+            pb_raw = raw_metadata["partitioned_by"]
+            if isinstance(pb_raw, (str, bytes)):
+                raise ContractValidationError(f"Contract 'partitioned_by' must be a list, got a string: {pb_raw!r}")
+            if not isinstance(pb_raw, list):
+                raise ContractValidationError(f"Contract 'partitioned_by' must be a list, got: {type(pb_raw).__name__}")
+            partitioned_by = tuple(str(c) for c in pb_raw)
         # All other k/v pairs (except partitioned_by) become contract metadata
         contract_metadata: tuple[tuple[str, str], ...] = tuple(
             (str(k), str(v)) for k, v in raw_metadata.items() if k != "partitioned_by"
