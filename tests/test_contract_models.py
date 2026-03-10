@@ -3767,6 +3767,70 @@ class TestContractFromYaml:
         with pytest.raises(ContractValidationError, match="cron"):
             Contract.from_yaml(path)
 
+    def test_table_check_missing_type_raises(self, tmp_path: Path) -> None:
+        """Table check with no 'type' field → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - name: no_type_check
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="missing required field.*type"):
+            Contract.from_yaml(path)
+
+    def test_table_duplicates_missing_columns_raises(self, tmp_path: Path) -> None:
+        """Table duplicates check with no 'columns' field → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: duplicates
+                name: dedup
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="missing required field.*columns"):
+            Contract.from_yaml(path)
+
+    def test_column_check_missing_type_raises(self, tmp_path: Path) -> None:
+        """Column check with no 'type' field → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+                checks:
+                  - name: no_type_check
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="missing required field.*type"):
+            Contract.from_yaml(path)
+
     def test_table_freshness_missing_max_age_hours_raises(self, tmp_path: Path) -> None:
         """Table freshness check missing max_age_hours → ContractValidationError."""
         path = _write_yaml(
@@ -3790,7 +3854,7 @@ class TestContractFromYaml:
                 description: "ts"
             """,
         )
-        with pytest.raises((ContractValidationError, KeyError)):
+        with pytest.raises(ContractValidationError):
             Contract.from_yaml(path)
 
     def test_table_freshness_missing_timestamp_column_raises(self, tmp_path: Path) -> None:
@@ -3813,7 +3877,7 @@ class TestContractFromYaml:
                 description: "id"
             """,
         )
-        with pytest.raises((ContractValidationError, KeyError)):
+        with pytest.raises(ContractValidationError):
             Contract.from_yaml(path)
 
     def test_table_completeness_missing_partition_column_raises(self, tmp_path: Path) -> None:
@@ -3836,7 +3900,7 @@ class TestContractFromYaml:
                 description: "id"
             """,
         )
-        with pytest.raises((ContractValidationError, KeyError)):
+        with pytest.raises(ContractValidationError):
             Contract.from_yaml(path)
 
     def test_table_completeness_missing_granularity_raises(self, tmp_path: Path) -> None:
@@ -3862,7 +3926,7 @@ class TestContractFromYaml:
                 description: "event date"
             """,
         )
-        with pytest.raises((ContractValidationError, KeyError)):
+        with pytest.raises(ContractValidationError):
             Contract.from_yaml(path)
 
     def test_column_whitelist_missing_values_raises(self, tmp_path: Path) -> None:
@@ -3884,7 +3948,7 @@ class TestContractFromYaml:
                     name: status_whitelist
             """,
         )
-        with pytest.raises((ContractValidationError, KeyError)):
+        with pytest.raises(ContractValidationError):
             Contract.from_yaml(path)
 
     def test_column_blacklist_missing_values_raises(self, tmp_path: Path) -> None:
@@ -3906,7 +3970,7 @@ class TestContractFromYaml:
                     name: col_blacklist
             """,
         )
-        with pytest.raises((ContractValidationError, KeyError)):
+        with pytest.raises(ContractValidationError):
             Contract.from_yaml(path)
 
     def test_column_percentile_missing_percentile_raises(self, tmp_path: Path) -> None:
@@ -3929,7 +3993,7 @@ class TestContractFromYaml:
                     max: 100
             """,
         )
-        with pytest.raises((ContractValidationError, KeyError)):
+        with pytest.raises(ContractValidationError):
             Contract.from_yaml(path)
 
     def test_map_type_missing_key_type_raises(self, tmp_path: Path) -> None:
@@ -3992,3 +4056,70 @@ class TestContractFromYaml:
         )
         with pytest.raises(ContractValidationError):
             Contract.from_yaml(path)
+
+    def test_invalid_severity_raises(self, tmp_path: Path) -> None:
+        """Unknown severity value → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+                checks:
+                  - type: missing
+                    name: id_missing
+                    severity: sev0
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="Unknown severity"):
+            Contract.from_yaml(path)
+
+    def test_invalid_nested_simple_type_in_list_raises(self, tmp_path: Path) -> None:
+        """value_type: bigint inside a list → ContractValidationError from _parse_type."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: tags
+                type:
+                  kind: list
+                  value_type: bigint
+                description: "tags"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="Unknown type"):
+            Contract.from_yaml(path)
+
+    def test_nested_timestamp_string_in_list_normalizes(self, tmp_path: Path) -> None:
+        """value_type: timestamp inside a list is normalized to TimestampType()."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: events
+                type:
+                  kind: list
+                  value_type: timestamp
+                description: "events"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        col = contract.columns[0]
+        assert isinstance(col.type, ListType)
+        assert isinstance(col.type.value_type, TimestampType)
