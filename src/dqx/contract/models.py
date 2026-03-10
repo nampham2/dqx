@@ -444,9 +444,10 @@ class TableDuplicatesCheck:
             mp: MetricProvider used to compute the duplicate-count metric.
             ctx: Context in which assertions are registered.
         """
-        _apply_validators(
-            mp.duplicate_count(list(self.columns)), ctx, self.name, self.severity, self.tags, self.validators
-        )
+        metric = mp.duplicate_count(list(self.columns))
+        if self.return_type == "pct":
+            metric = metric / mp.num_rows()
+        _apply_validators(metric, ctx, self.name, self.severity, self.tags, self.validators)
 
 
 @dataclass(frozen=True)
@@ -716,6 +717,8 @@ class WhitelistCheck:
             ctx: Context in which assertions are registered.
         """
         metric = mp.count_values(column, list(self.values))  # type: ignore[arg-type]
+        if self.return_type == "pct":
+            metric = metric / mp.num_rows()
         _apply_validators(metric, ctx, self.name, self.severity, self.tags, self.validators)
 
 
@@ -770,6 +773,8 @@ class BlacklistCheck:
             ctx: Context in which assertions are registered.
         """
         metric = mp.num_rows() - mp.count_values(column, list(self.values))  # type: ignore[arg-type]
+        if self.return_type == "pct":
+            metric = metric / mp.num_rows()
         _apply_validators(metric, ctx, self.name, self.severity, self.tags, self.validators)
 
 

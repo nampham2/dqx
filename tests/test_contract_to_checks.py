@@ -327,6 +327,23 @@ class TestTableDuplicatesToDqx:
         results = _run_and_collect(contract, data)
         assert results[0].assertion == "Dup check [max <= 0.0]"
 
+    def test_pct_return_type_divides_by_num_rows(self) -> None:
+        """TableDuplicatesCheck with return_type='pct' reports proportion of duplicates."""
+        contract = _minimal_contract(
+            checks=(
+                TableDuplicatesCheck(
+                    name="Dup pct",
+                    columns=("order_id",),
+                    return_type="pct",
+                    validators=(MaxValidator(threshold=0.5),),
+                ),
+            )
+        )
+        # 1 duplicate out of 3 rows ≈ 33% < 50% → PASSED
+        data = pa.table({"order_id": [1, 1, 2]})
+        results = _run_and_collect(contract, data)
+        assert results[0].status == "PASSED"
+
 
 # ---------------------------------------------------------------------------
 # TestFreshnessAndCompletenessToDqx
@@ -374,10 +391,6 @@ class TestMissingCheckToDqx:
 
     def test_no_nulls_passes_max_zero(self) -> None:
         """Zero nulls passes a max <= 0 validator."""
-        contract = _minimal_contract(
-            columns=(ColumnSpec(name="val", type="float", description="Value", nullable=True),),
-            checks=(),
-        )
         contract = _minimal_contract(
             columns=(
                 ColumnSpec(
@@ -603,6 +616,56 @@ class TestWhitelistAndBlacklistToDqx:
         data = pa.table({"status": ["active", "banned", "inactive"]})
         results = _run_and_collect(contract, data)
         assert results[0].status == "FAILED"
+
+    def test_whitelist_pct_return_type_divides_by_num_rows(self) -> None:
+        """WhitelistCheck with return_type='pct' reports proportion of matching rows."""
+        contract = _minimal_contract(
+            columns=(
+                ColumnSpec(
+                    name="status",
+                    type="string",
+                    description="Status",
+                    nullable=False,
+                    checks=(
+                        WhitelistCheck(
+                            name="Valid pct",
+                            values=("active", "inactive"),
+                            return_type="pct",
+                            validators=(MinValidator(threshold=0.5),),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        # 2 matching out of 3 rows ≈ 67% >= 50% → PASSED
+        data = pa.table({"status": ["active", "unknown", "inactive"]})
+        results = _run_and_collect(contract, data)
+        assert results[0].status == "PASSED"
+
+    def test_blacklist_pct_return_type_divides_by_num_rows(self) -> None:
+        """BlacklistCheck with return_type='pct' reports proportion of safe rows."""
+        contract = _minimal_contract(
+            columns=(
+                ColumnSpec(
+                    name="status",
+                    type="string",
+                    description="Status",
+                    nullable=False,
+                    checks=(
+                        BlacklistCheck(
+                            name="Safe pct",
+                            values=("banned",),
+                            return_type="pct",
+                            validators=(MinValidator(threshold=0.5),),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        # 2 safe rows out of 3 ≈ 67% >= 50% → PASSED
+        data = pa.table({"status": ["active", "banned", "inactive"]})
+        results = _run_and_collect(contract, data)
+        assert results[0].status == "PASSED"
 
 
 # ---------------------------------------------------------------------------
