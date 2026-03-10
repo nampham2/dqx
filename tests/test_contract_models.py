@@ -4123,3 +4123,582 @@ class TestContractFromYaml:
         col = contract.columns[0]
         assert isinstance(col.type, ListType)
         assert isinstance(col.type.value_type, TimestampType)
+
+    def test_tags_scalar_string_raises(self, tmp_path: Path) -> None:
+        """tags: prod (scalar string) → ContractValidationError instead of char-split."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            tags: prod
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'tags' must be a list"):
+            Contract.from_yaml(path)
+
+    def test_table_duplicates_columns_scalar_string_raises(self, tmp_path: Path) -> None:
+        """duplicates check with columns: id (scalar) → ContractValidationError instead of char-split."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: duplicates
+                name: dup
+                columns: id
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'columns' must be a list"):
+            Contract.from_yaml(path)
+
+    def test_whitelist_values_scalar_string_raises(self, tmp_path: Path) -> None:
+        """whitelist check with values: active (scalar) → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: status
+                type: string
+                description: "status"
+                checks:
+                  - type: whitelist
+                    name: wl
+                    values: active
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'values' must be a list"):
+            Contract.from_yaml(path)
+
+    def test_blacklist_values_scalar_string_raises(self, tmp_path: Path) -> None:
+        """blacklist check with values: bad (scalar) → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: status
+                type: string
+                description: "status"
+                checks:
+                  - type: blacklist
+                    name: bl
+                    values: bad
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'values' must be a list"):
+            Contract.from_yaml(path)
+
+    def test_pattern_flags_scalar_string_raises(self, tmp_path: Path) -> None:
+        """pattern check with flags: IGNORECASE (scalar) → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type: string
+                description: "col"
+                checks:
+                  - type: pattern
+                    name: pat
+                    pattern: "^[A-Z]"
+                    flags: IGNORECASE
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'flags' must be a list"):
+            Contract.from_yaml(path)
+
+    def test_partitioned_by_scalar_string_raises(self, tmp_path: Path) -> None:
+        """partitioned_by: event_date (scalar) → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            metadata:
+              partitioned_by: event_date
+            columns:
+              - name: event_date
+                type: date
+                description: "event date"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'partitioned_by' must be a list"):
+            Contract.from_yaml(path)
+
+    def test_validator_tolerance_non_numeric_raises(self, tmp_path: Path) -> None:
+        """tolerance: nope → ContractValidationError instead of ValueError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: score
+                type: float
+                description: "score"
+                checks:
+                  - type: min
+                    name: score_min
+                    min: 0.0
+                    tolerance: nope
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'tolerance' must be a numeric value"):
+            Contract.from_yaml(path)
+
+    def test_validator_between_wrong_length_raises(self, tmp_path: Path) -> None:
+        """between: [1] (single element) → ContractValidationError instead of ValueError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: score
+                type: float
+                description: "score"
+                checks:
+                  - type: min
+                    name: score_range
+                    between: [1]
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'between' must be a list of exactly 2"):
+            Contract.from_yaml(path)
+
+    def test_validator_between_non_numeric_raises(self, tmp_path: Path) -> None:
+        """between: [a, b] (non-numeric) → ContractValidationError instead of ValueError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: score
+                type: float
+                description: "score"
+                checks:
+                  - type: min
+                    name: score_range
+                    between: [a, b]
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="must be a numeric value"):
+            Contract.from_yaml(path)
+
+    def test_validator_not_between_wrong_length_raises(self, tmp_path: Path) -> None:
+        """not_between: [1, 2, 3] (three elements) → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: score
+                type: float
+                description: "score"
+                checks:
+                  - type: min
+                    name: score_range
+                    not_between: [1, 2, 3]
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'not_between' must be a list of exactly 2"):
+            Contract.from_yaml(path)
+
+    def test_validator_min_non_numeric_raises(self, tmp_path: Path) -> None:
+        """min: abc (non-numeric) → ContractValidationError instead of ValueError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: score
+                type: float
+                description: "score"
+                checks:
+                  - type: min
+                    name: score_min
+                    min: abc
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'min' must be a numeric value"):
+            Contract.from_yaml(path)
+
+    def test_validator_max_non_numeric_raises(self, tmp_path: Path) -> None:
+        """max: abc (non-numeric) → ContractValidationError instead of ValueError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: score
+                type: float
+                description: "score"
+                checks:
+                  - type: max
+                    name: score_max
+                    max: abc
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'max' must be a numeric value"):
+            Contract.from_yaml(path)
+
+    def test_validator_equals_non_numeric_raises(self, tmp_path: Path) -> None:
+        """equals: abc (non-numeric) → ContractValidationError instead of ValueError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: score
+                type: float
+                description: "score"
+                checks:
+                  - type: min
+                    name: score_eq
+                    equals: abc
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'equals' must be a numeric value"):
+            Contract.from_yaml(path)
+
+    def test_bool_false_string_parses_correctly(self, tmp_path: Path) -> None:
+        """nullable: 'false' string → parsed as False (not True via bool())."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+                nullable: "false"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        assert contract.columns[0].nullable is False
+
+    def test_bool_true_string_parses_correctly(self, tmp_path: Path) -> None:
+        """allow_future_gaps: 'true' string → parsed as True."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: completeness
+                name: comp
+                partition_column: event_date
+                granularity: daily
+                allow_future_gaps: "true"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+              - name: event_date
+                type: date
+                description: "event date"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        assert len(contract.checks) == 1
+        from dqx.contract.models import CompletenessCheck
+
+        check = contract.checks[0]
+        assert isinstance(check, CompletenessCheck)
+        assert check.allow_future_gaps is True
+
+    def test_bool_false_zero_string_parses_correctly(self, tmp_path: Path) -> None:
+        """case_sensitive: '0' string → parsed as False."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: status
+                type: string
+                description: "status"
+                checks:
+                  - type: whitelist
+                    name: wl
+                    values: [active, inactive]
+                    case_sensitive: "0"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        from dqx.contract.models import WhitelistCheck
+
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, WhitelistCheck)
+        assert check.case_sensitive is False
+
+    def test_bool_invalid_value_raises(self, tmp_path: Path) -> None:
+        """nullable: maybe (unknown bool string) → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+                nullable: maybe
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'nullable' must be a boolean"):
+            Contract.from_yaml(path)
+
+    def test_struct_field_non_dict_entry_raises(self, tmp_path: Path) -> None:
+        """fields: [42] (non-dict entry in struct) → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type:
+                  kind: struct
+                  fields:
+                    - 42
+                description: "col"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="StructField entry must be a mapping"):
+            Contract.from_yaml(path)
+
+    def test_tags_non_list_non_string_raises(self, tmp_path: Path) -> None:
+        """tags: {key: val} (a dict, not a list) → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            tags:
+              key: val
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'tags' must be a list"):
+            Contract.from_yaml(path)
+
+    def test_parse_bool_integer_zero_parses_to_false(self, tmp_path: Path) -> None:
+        """nullable: 0 (integer zero) → parsed as False."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+                nullable: 0
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        assert contract.columns[0].nullable is False
+
+    def test_table_duplicates_columns_non_list_non_string_raises(self, tmp_path: Path) -> None:
+        """duplicates check with columns: {key: val} (a dict) → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: duplicates
+                name: dup
+                columns:
+                  key: val
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'columns' must be a list"):
+            Contract.from_yaml(path)
+
+    def test_whitelist_values_non_list_non_string_raises(self, tmp_path: Path) -> None:
+        """whitelist check with values: {key: val} (a dict) → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: status
+                type: string
+                description: "status"
+                checks:
+                  - type: whitelist
+                    name: wl
+                    values:
+                      key: val
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'values' must be a list"):
+            Contract.from_yaml(path)
+
+    def test_blacklist_values_non_list_non_string_raises(self, tmp_path: Path) -> None:
+        """blacklist check with values: {key: val} (a dict) → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: status
+                type: string
+                description: "status"
+                checks:
+                  - type: blacklist
+                    name: bl
+                    values:
+                      key: val
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'values' must be a list"):
+            Contract.from_yaml(path)
+
+    def test_pattern_flags_non_list_non_string_raises(self, tmp_path: Path) -> None:
+        """pattern check with flags: {key: val} (a dict) → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type: string
+                description: "col"
+                checks:
+                  - type: pattern
+                    name: pat
+                    pattern: "^[A-Z]"
+                    flags:
+                      key: val
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'flags' must be a list"):
+            Contract.from_yaml(path)
+
+    def test_partitioned_by_non_list_non_string_raises(self, tmp_path: Path) -> None:
+        """partitioned_by: {key: val} (a dict) → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            metadata:
+              partitioned_by:
+                key: val
+            columns:
+              - name: event_date
+                type: date
+                description: "event date"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'partitioned_by' must be a list"):
+            Contract.from_yaml(path)
