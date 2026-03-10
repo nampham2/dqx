@@ -565,6 +565,7 @@ def test_op_protocol() -> None:
     assert isinstance(ops.CountValues("col", 1), ops.Op)
     assert isinstance(ops.UniqueCount("col"), ops.Op)
     assert isinstance(ops.CustomSQL("COUNT(*)"), ops.Op)
+    assert isinstance(ops.MinLength("col", "string"), ops.Op)
 
 
 def test_sql_op_protocol() -> None:
@@ -582,6 +583,7 @@ def test_sql_op_protocol() -> None:
     assert isinstance(ops.CountValues("col", "test"), ops.SqlOp)
     assert isinstance(ops.UniqueCount("col"), ops.SqlOp)
     assert isinstance(ops.CustomSQL("COUNT(*)"), ops.SqlOp)
+    assert isinstance(ops.MinLength("col", "string"), ops.SqlOp)
 
 
 def test_sql_op_properties() -> None:
@@ -600,6 +602,7 @@ def test_sql_op_properties() -> None:
         ops.CountValues("col", "test"),
         ops.UniqueCount("col"),
         ops.CustomSQL("COUNT(*)"),
+        ops.MinLength("col", "string"),
     ]
 
     for op in sql_ops:
@@ -634,6 +637,7 @@ def test_op_value_assignment_and_clearing() -> None:
         ops.CountValues("col", 1),
         ops.UniqueCount("col"),
         ops.CustomSQL("SELECT COUNT(*)"),
+        ops.MinLength("col", "string"),
     ]
 
     for op in ops_to_test:
@@ -677,6 +681,87 @@ def test_op_match_args() -> None:
 
     # CustomSQL has sql_expression and parameters
     assert ops.CustomSQL.__match_args__ == ("sql_expression", "parameters")
+
+    # MinLength has column, column_type, and parameters
+    assert ops.MinLength.__match_args__ == ("column", "column_type", "parameters")
+
+
+def test_min_length() -> None:
+    """Test MinLength operation basic functionality."""
+    # Test string column type
+    op = ops.MinLength("name", "string")
+    assert op.name == "min_length_string(name)"
+    assert op.column == "name"
+    assert op.column_type == "string"
+    assert op.prefix is not None
+    assert op.sql_col == f"{op.prefix}_min_length_string(name)"
+
+    # Test value assignment
+    with pytest.raises(DQXError, match="MinLength op has not been collected yet!"):
+        op.value()
+
+    op.assign(3.0)
+    assert op.value() == pytest.approx(3.0)
+
+    # Test clear
+    op.clear()
+    with pytest.raises(DQXError):
+        op.value()
+
+    # Test list column type
+    op_list = ops.MinLength("tags", "list")
+    assert op_list.name == "min_length_list(tags)"
+    assert op_list.column_type == "list"
+
+    # Test map column type
+    op_map = ops.MinLength("attrs", "map")
+    assert op_map.name == "min_length_map(attrs)"
+    assert op_map.column_type == "map"
+
+    # Test equality - same column and column_type
+    op2 = ops.MinLength("name", "string")
+    op3 = ops.MinLength("name", "list")
+    op4 = ops.MinLength("other", "string")
+    assert op == op2
+    assert op != op3  # Different column_type
+    assert op != op4  # Different column
+    assert op != ops.NullCount("name")  # Different op type
+
+    # Test hash
+    assert hash(op) == hash(op2)
+    assert hash(op) != hash(op3)
+    assert hash(op) != hash(op4)
+
+    # Test string representation
+    assert str(op) == "min_length_string(name)"
+    assert repr(op) == "min_length_string(name)"
+
+
+def test_min_length_protocol_compliance() -> None:
+    """Test MinLength implements Op and SqlOp protocols."""
+    op = ops.MinLength("col", "string")
+    assert isinstance(op, ops.Op)
+    assert isinstance(op, ops.SqlOp)
+    assert hasattr(op, "name")
+    assert hasattr(op, "prefix")
+    assert hasattr(op, "sql_col")
+    assert hasattr(op, "value")
+    assert hasattr(op, "assign")
+    assert hasattr(op, "clear")
+    assert op.prefix in op.sql_col
+    assert op.name in op.sql_col
+
+
+def test_min_length_with_parameters() -> None:
+    """Test MinLength hash includes parameters."""
+    op1 = ops.MinLength("col", "string")
+    op2 = ops.MinLength("col", "string", parameters={"region": "US"})
+    op3 = ops.MinLength("col", "string", parameters={"region": "EU"})
+    op4 = ops.MinLength("col", "string", parameters={"region": "US"})
+
+    assert hash(op1) != hash(op2)  # Different parameters
+    assert hash(op2) != hash(op3)  # Different parameter values
+    assert hash(op2) == hash(op4)  # Same parameters
 
 
 def test_ops_hash_includes_parameters() -> None:

@@ -2,6 +2,8 @@ import inspect
 from typing import Any
 from unittest.mock import Mock, patch
 
+import pytest
+
 from dqx import ops, specs, states
 
 
@@ -1025,6 +1027,7 @@ class TestBuildRegistry:
             "CountValues",
             "UniqueCount",
             "CustomSQL",
+            "MinLength",
             "DayOverDay",
             "WeekOverWeek",
             "Stddev",
@@ -1080,6 +1083,7 @@ class TestRegistry:
             "CountValues",
             "UniqueCount",
             "CustomSQL",
+            "MinLength",
             "DayOverDay",
             "WeekOverWeek",
             "Stddev",
@@ -1100,7 +1104,7 @@ class TestRegistry:
     def test_registry_is_built_automatically(self) -> None:
         """Test that the registry is built automatically by decorators."""
         # All expected classes should be in the registry
-        assert len(specs.registry) == 16  # Total number of metric types
+        assert len(specs.registry) == 17  # Total number of metric types
 
         # Each class should have been registered with its metric_type
         for metric_type, spec_class in specs.registry.items():
@@ -1671,6 +1675,7 @@ class TestProtocolsRuntime:
             specs.CountValues("col", 1),
             specs.UniqueCount("col"),
             specs.CustomSQL("COUNT(*)"),
+            specs.MinLength("col", "string"),
         ]
 
         for spec in simple_specs:
@@ -1726,6 +1731,8 @@ class TestProtocolsRuntime:
                 instance = specs.NegativeCount("test_col")
             elif spec_class == specs.UniqueCount:
                 instance = specs.UniqueCount("test_col")
+            elif spec_class == specs.MinLength:
+                instance = specs.MinLength("test_col", "string")
             else:
                 # This should never happen but helps with type checking
                 continue
@@ -1773,6 +1780,7 @@ class TestMetricTypes:
             (specs.CountValues("col", 1), "CountValues"),
             (specs.UniqueCount("col"), "UniqueCount"),
             (specs.CustomSQL("COUNT(*)"), "CustomSQL"),
+            (specs.MinLength("col", "string"), "MinLength"),
         ]
 
         for instance, expected_type in spec_instances:
@@ -1794,3 +1802,88 @@ def test_average() -> None:
     nr_1 = specs.Average("impressions")
     assert nr == nr_1
     assert nr.name == "average(impressions)"
+
+
+class TestMinLength:
+    """Test MinLength metric spec."""
+
+    def test_metric_type(self) -> None:
+        spec = specs.MinLength("name", "string")
+        assert spec.metric_type == "MinLength"
+
+    def test_name_string(self) -> None:
+        spec = specs.MinLength("name", "string")
+        assert spec.name == "min_length_string(name)"
+
+    def test_name_list(self) -> None:
+        spec = specs.MinLength("tags", "list")
+        assert spec.name == "min_length_list(tags)"
+
+    def test_name_map(self) -> None:
+        spec = specs.MinLength("attrs", "map")
+        assert spec.name == "min_length_map(attrs)"
+
+    def test_parameters(self) -> None:
+        spec = specs.MinLength("name", "string")
+        assert spec.parameters == {"column": "name", "column_type": "string"}
+
+    def test_parameters_with_extra(self) -> None:
+        spec = specs.MinLength("name", "string", parameters={"region": "US"})
+        assert spec.parameters == {"column": "name", "column_type": "string", "region": "US"}
+
+    def test_analyzers(self) -> None:
+        spec = specs.MinLength("name", "string")
+        assert len(spec.analyzers) == 1
+        assert isinstance(spec.analyzers[0], ops.MinLength)
+        assert spec.analyzers[0].column == "name"
+        assert spec.analyzers[0].column_type == "string"
+
+    def test_state(self) -> None:
+        spec = specs.MinLength("name", "string")
+        spec._analyzers[0].assign(3.0)
+        state = spec.state()
+        assert isinstance(state, states.MinLength)
+        assert state.value == pytest.approx(3.0)
+
+    def test_deserialize(self) -> None:
+        original = states.MinLength(value=5.0)
+        serialized = original.serialize()
+        result = specs.MinLength.deserialize(serialized)
+        assert isinstance(result, states.MinLength)
+        assert result.value == pytest.approx(5.0)
+
+    def test_clone(self) -> None:
+        spec = specs.MinLength("name", "string", parameters={"region": "US"})
+        cloned = spec.clone()
+        assert cloned.name == spec.name
+        assert cloned.parameters == spec.parameters
+        assert cloned is not spec
+
+    def test_hash(self) -> None:
+        spec1 = specs.MinLength("name", "string")
+        spec2 = specs.MinLength("name", "string")
+        assert hash(spec1) == hash(spec2)
+
+    def test_equality(self) -> None:
+        spec1 = specs.MinLength("name", "string")
+        spec2 = specs.MinLength("name", "string")
+        spec3 = specs.MinLength("name", "list")
+        spec4 = specs.MinLength("other", "string")
+
+        assert spec1 == spec2
+        assert spec1 != spec3
+        assert spec1 != spec4
+        assert spec1 != "not_a_spec"
+
+    def test_str(self) -> None:
+        spec = specs.MinLength("name", "string")
+        assert str(spec) == "min_length_string(name)"
+
+    def test_is_metric_spec(self) -> None:
+        spec = specs.MinLength("name", "string")
+        assert isinstance(spec, specs.MetricSpec)
+        assert isinstance(spec, specs.SimpleMetricSpec)
+
+    def test_is_not_extended(self) -> None:
+        spec = specs.MinLength("name", "string")
+        assert spec.is_extended is False

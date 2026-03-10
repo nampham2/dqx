@@ -371,6 +371,9 @@ def test_all_ops_covered() -> None:
         ops.CountValues("col", ["a", "b", "c"]),
         ops.UniqueCount("col"),
         ops.CustomSQL("COUNT(*)"),
+        ops.MinLength("col", "string"),
+        ops.MinLength("col", "list"),
+        ops.MinLength("col", "map"),
     ]
 
     # All should translate without error
@@ -378,3 +381,39 @@ def test_all_ops_covered() -> None:
         sql = dialect.translate_sql_op(op)
         assert sql is not None
         assert op.sql_col in sql
+
+
+def test_min_length_translation() -> None:
+    """Test MinLength SQL translation for both dialects."""
+    # DuckDB dialect
+    duckdb = DuckDBDialect()
+
+    # string type: LENGTH
+    op_str = ops.MinLength("name", "string")
+    sql = duckdb.translate_sql_op(op_str)
+    assert sql == f"CAST(MIN(LENGTH(name)) AS DOUBLE) AS '{op_str.sql_col}'"
+
+    # list type: LEN
+    op_list = ops.MinLength("tags", "list")
+    sql = duckdb.translate_sql_op(op_list)
+    assert sql == f"CAST(MIN(LEN(tags)) AS DOUBLE) AS '{op_list.sql_col}'"
+
+    # map type: CARDINALITY
+    op_map = ops.MinLength("attrs", "map")
+    sql = duckdb.translate_sql_op(op_map)
+    assert sql == f"CAST(MIN(CARDINALITY(attrs)) AS DOUBLE) AS '{op_map.sql_col}'"
+
+    # BigQuery dialect
+    bq = BigQueryDialect()
+
+    # string type: LENGTH
+    sql_bq_str = bq.translate_sql_op(op_str)
+    assert sql_bq_str == f"CAST(MIN(LENGTH(name)) AS FLOAT64) AS `{op_str.sql_col}`"
+
+    # list type: ARRAY_LENGTH
+    sql_bq_list = bq.translate_sql_op(op_list)
+    assert sql_bq_list == f"CAST(MIN(ARRAY_LENGTH(tags)) AS FLOAT64) AS `{op_list.sql_col}`"
+
+    # map type: not supported in BigQuery
+    with pytest.raises(NotImplementedError, match="MinLength with column_type='map' is not supported for BigQuery"):
+        bq.translate_sql_op(op_map)

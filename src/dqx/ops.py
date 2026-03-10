@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Any, Generic, Protocol, TypeVar, runtime_checkable
+from typing import Any, Generic, Literal, Protocol, TypeVar, runtime_checkable
 
 from dqx.common import DQXError, Parameters
 from dqx.utils import freeze_for_hashing, random_prefix
@@ -1025,6 +1025,58 @@ class CountValues(OpValueMixin[float], SqlOp[float]):
         return self.__repr__()
 
 
+class MinLength(OpValueMixin[float], SqlOp[float]):
+    __match_args__ = ("column", "column_type", "parameters")
+
+    def __init__(
+        self, column: str, column_type: Literal["string", "list", "map"], parameters: Parameters | None = None
+    ) -> None:
+        """Initialize MinLength operation.
+
+        Args:
+            column: Column name to find minimum length
+            column_type: Type of column - "string", "list", or "map"
+            parameters: Optional parameters for CTE customization
+        """
+        OpValueMixin.__init__(self, parameters)
+        self.column = column
+        self.column_type = column_type
+        self._prefix = random_prefix()
+
+    @property
+    def name(self) -> str:
+        return f"min_length_{self.column_type}({self.column})"
+
+    @property
+    def prefix(self) -> str:
+        return self._prefix
+
+    @property
+    def sql_col(self) -> str:
+        return f"{self.prefix}_{self.name}"
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, MinLength):
+            return NotImplemented
+        return self.column == other.column and self.column_type == other.column_type
+
+    def __hash__(self) -> int:
+        return hash(
+            (
+                self.name,
+                self.column,
+                self.column_type,
+                tuple(sorted((k, freeze_for_hashing(v)) for k, v in self.parameters.items())),
+            )
+        )
+
+    def __repr__(self) -> str:
+        return self.name
+
+    def __str__(self) -> str:
+        return self.__repr__()
+
+
 __all__ = [
     "Op",
     "SqlOp",
@@ -1042,4 +1094,5 @@ __all__ = [
     "UniqueCount",
     "DuplicateCount",
     "CountValues",
+    "MinLength",
 ]

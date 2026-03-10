@@ -252,6 +252,38 @@ class Minimum(State):
         return Minimum(value=self._value)
 
 
+class MinLength(State):
+    def __init__(self, value: float) -> None:
+        self._value = float(value)
+
+    @classmethod
+    def identity(cls) -> MinLength:
+        return MinLength(value=float("inf"))
+
+    @property
+    def value(self) -> float:
+        return self._value
+
+    def serialize(self) -> bytes:
+        return msgpack.packb(self._value)
+
+    @classmethod
+    def deserialize(cls, data: bytes) -> MinLength:
+        return cls(value=msgpack.unpackb(data))
+
+    def merge(self, other: MinLength) -> MinLength:
+        value = min(self._value, other._value)
+        return MinLength(value=value)
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, MinLength):
+            return False
+        return self.serialize() == other.serialize()
+
+    def __copy__(self) -> MinLength:
+        return MinLength(value=self._value)
+
+
 class Maximum(State):
     def __init__(self, value: float) -> None:
         self._value = float(value)

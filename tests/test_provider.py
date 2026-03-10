@@ -455,6 +455,50 @@ class TestMetricProvider:
         assert registered.name == "unique_count(product_id)"
         assert isinstance(registered.metric_spec, specs.UniqueCount)
 
+    def test_min_length_string(self, provider: MetricProvider) -> None:
+        """Test min_length() method with string column type."""
+        result = provider.min_length("name", "string")
+
+        assert isinstance(result, sp.Symbol)
+        registered = provider.get_symbol(result)
+        assert registered.name == "min_length_string(name)"
+        assert isinstance(registered.metric_spec, specs.MinLength)
+        assert registered.metric_spec.parameters["column"] == "name"
+        assert registered.metric_spec.parameters["column_type"] == "string"
+
+    def test_min_length_list(self, provider: MetricProvider) -> None:
+        """Test min_length() method with list column type."""
+        result = provider.min_length("tags", "list")
+
+        assert isinstance(result, sp.Symbol)
+        registered = provider.get_symbol(result)
+        assert registered.name == "min_length_list(tags)"
+        assert isinstance(registered.metric_spec, specs.MinLength)
+
+    def test_min_length_map(self, provider: MetricProvider) -> None:
+        """Test min_length() method with map column type."""
+        result = provider.min_length("attrs", "map")
+
+        assert isinstance(result, sp.Symbol)
+        registered = provider.get_symbol(result)
+        assert registered.name == "min_length_map(attrs)"
+        assert isinstance(registered.metric_spec, specs.MinLength)
+
+    def test_min_length_with_lag_and_dataset(self, provider: MetricProvider) -> None:
+        """Test min_length() method with lag and dataset parameters."""
+        result = provider.min_length("col", "string", lag=3, dataset="orders")
+
+        registered = provider.get_symbol(result)
+        assert registered.lag == 3
+        assert registered.dataset == "orders"
+
+    def test_min_length_with_parameters(self, provider: MetricProvider) -> None:
+        """Test min_length() method with extra parameters."""
+        result = provider.min_length("col", "string", parameters={"region": "US"})
+
+        registered = provider.get_symbol(result)
+        assert registered.metric_spec.parameters.get("region") == "US"
+
     def test_metric_deduplication(self, provider: MetricProvider) -> None:
         """Test that identical metrics can be deduplicated."""
         # Create the same metric twice

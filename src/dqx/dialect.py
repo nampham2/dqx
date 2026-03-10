@@ -367,6 +367,15 @@ class DuckDBDialect:
                 # Use the SQL expression directly - no substitution
                 return f"CAST(({op.sql_expression}) AS DOUBLE) AS '{op.sql_col}'"
 
+            case ops.MinLength(column=col, column_type="string"):
+                return f"CAST(MIN(LENGTH({col})) AS DOUBLE) AS '{op.sql_col}'"
+
+            case ops.MinLength(column=col, column_type="list"):
+                return f"CAST(MIN(LEN({col})) AS DOUBLE) AS '{op.sql_col}'"
+
+            case ops.MinLength(column=col, column_type="map"):
+                return f"CAST(MIN(CARDINALITY({col})) AS DOUBLE) AS '{op.sql_col}'"
+
             case _:
                 raise ValueError(f"Unsupported SqlOp type: {type(op).__name__}")
 
@@ -495,6 +504,15 @@ class BigQueryDialect:
             case ops.CustomSQL():
                 # Use the SQL expression directly - no substitution
                 return f"CAST(({op.sql_expression}) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.MinLength(column=col, column_type="string"):
+                return f"CAST(MIN(LENGTH({col})) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.MinLength(column=col, column_type="list"):
+                return f"CAST(MIN(ARRAY_LENGTH({col})) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.MinLength(column=col, column_type="map"):
+                raise NotImplementedError("MinLength with column_type='map' is not supported for BigQuery")
 
             case _:
                 raise ValueError(f"Unsupported SqlOp type: {type(op).__name__}")

@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import timedelta
 from threading import Lock
-from typing import TYPE_CHECKING, Any, Callable, overload
+from typing import TYPE_CHECKING, Any, Callable, Literal, overload
 
 import sympy as sp
 from returns.maybe import Some
@@ -1054,6 +1054,28 @@ class MetricProvider(SymbolicMetricBase):
             Symbol representing the unique count
         """
         return self.metric(specs.UniqueCount(column, parameters=parameters), lag, dataset)
+
+    def min_length(
+        self,
+        column: str,
+        column_type: Literal["string", "list", "map"],
+        lag: int = 0,
+        dataset: str | None = None,
+        parameters: dict[str, Any] | None = None,
+    ) -> sp.Symbol:
+        """Create metric finding minimum length of values in column.
+
+        Args:
+            column: Column name to compute minimum length for
+            column_type: Type of column - "string", "list", or "map"
+            lag: Lag offset in days
+            dataset: Optional dataset name
+            parameters: Additional parameters to pass to the metric
+
+        Returns:
+            Symbol representing the minimum length metric
+        """
+        return self.metric(specs.MinLength(column, column_type, parameters=parameters), lag, dataset)
 
     def custom_sql(
         self, sql_expression: str, lag: int = 0, dataset: str | None = None, parameters: dict[str, Any] | None = None
