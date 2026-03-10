@@ -9,12 +9,16 @@ from __future__ import annotations
 
 import re
 import warnings
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, get_args
 
+import sympy as sp
 import yaml
 
+from dqx.api import Context, DecoratedCheck, MetricProvider
+from dqx.api import check as dqx_check
 from dqx.common import SeverityLevel, validate_tags
 
 # ---------------------------------------------------------------------------
@@ -382,6 +386,15 @@ class NumRowsCheck:
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
+    def to_dqx(self, mp: MetricProvider, ctx: Context) -> None:
+        """Emit assertions for this check into ``ctx`` using ``mp``.
+
+        Args:
+            mp: MetricProvider used to compute the row-count metric.
+            ctx: Context in which assertions are registered.
+        """
+        _apply_validators(mp.num_rows(), ctx, self.name, self.severity, self.tags, self.validators)
+
 
 @dataclass(frozen=True)
 class TableDuplicatesCheck:
@@ -424,6 +437,17 @@ class TableDuplicatesCheck:
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
+    def to_dqx(self, mp: MetricProvider, ctx: Context) -> None:
+        """Emit assertions for this check into ``ctx`` using ``mp``.
+
+        Args:
+            mp: MetricProvider used to compute the duplicate-count metric.
+            ctx: Context in which assertions are registered.
+        """
+        _apply_validators(
+            mp.duplicate_count(list(self.columns)), ctx, self.name, self.severity, self.tags, self.validators
+        )
+
 
 @dataclass(frozen=True)
 class FreshnessCheck:
@@ -464,6 +488,18 @@ class FreshnessCheck:
             )
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
+
+    def to_dqx(self, mp: MetricProvider, ctx: Context) -> None:  # noqa: ARG002
+        """Not yet supported — raises ``NotImplementedError``.
+
+        Args:
+            mp: Unused.
+            ctx: Unused.
+
+        Raises:
+            NotImplementedError: Always.
+        """
+        raise NotImplementedError("FreshnessCheck.to_dqx() is not yet supported")
 
 
 @dataclass(frozen=True)
@@ -515,6 +551,18 @@ class CompletenessCheck:
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
+    def to_dqx(self, mp: MetricProvider, ctx: Context) -> None:  # noqa: ARG002
+        """Not yet supported — raises ``NotImplementedError``.
+
+        Args:
+            mp: Unused.
+            ctx: Unused.
+
+        Raises:
+            NotImplementedError: Always.
+        """
+        raise NotImplementedError("CompletenessCheck.to_dqx() is not yet supported")
+
 
 TableCheck = NumRowsCheck | TableDuplicatesCheck | FreshnessCheck | CompletenessCheck
 
@@ -556,6 +604,19 @@ class MissingCheck:
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
+    def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:
+        """Emit assertions for this check into ``ctx`` using ``mp``.
+
+        Args:
+            column: Name of the column to check for missing values.
+            mp: MetricProvider used to compute the null-count metric.
+            ctx: Context in which assertions are registered.
+        """
+        metric = mp.null_count(column)
+        if self.return_type == "pct":
+            metric = metric / mp.num_rows()
+        _apply_validators(metric, ctx, self.name, self.severity, self.tags, self.validators)
+
 
 @dataclass(frozen=True)
 class ColumnDuplicatesCheck:
@@ -589,6 +650,19 @@ class ColumnDuplicatesCheck:
         _validate_single_validator("ColumnDuplicatesCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
+
+    def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:
+        """Emit assertions for this check into ``ctx`` using ``mp``.
+
+        Args:
+            column: Name of the column to check for duplicate values.
+            mp: MetricProvider used to compute the duplicate-count metric.
+            ctx: Context in which assertions are registered.
+        """
+        metric = mp.duplicate_count([column])
+        if self.return_type == "pct":
+            metric = metric / mp.num_rows()
+        _apply_validators(metric, ctx, self.name, self.severity, self.tags, self.validators)
 
 
 @dataclass(frozen=True)
@@ -631,6 +705,19 @@ class WhitelistCheck:
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
+    def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:
+        """Emit assertions for this check into ``ctx`` using ``mp``.
+
+        The metric counts rows whose value is in the whitelist (matching rows).
+
+        Args:
+            column: Name of the column to check.
+            mp: MetricProvider used to compute the count-values metric.
+            ctx: Context in which assertions are registered.
+        """
+        metric = mp.count_values(column, list(self.values))  # type: ignore[arg-type]
+        _apply_validators(metric, ctx, self.name, self.severity, self.tags, self.validators)
+
 
 @dataclass(frozen=True)
 class BlacklistCheck:
@@ -671,6 +758,19 @@ class BlacklistCheck:
         _validate_single_validator("BlacklistCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
+
+    def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:
+        """Emit assertions for this check into ``ctx`` using ``mp``.
+
+        The metric counts rows whose value is NOT in the blacklist (safe rows).
+
+        Args:
+            column: Name of the column to check.
+            mp: MetricProvider used to compute the safe-row-count metric.
+            ctx: Context in which assertions are registered.
+        """
+        metric = mp.num_rows() - mp.count_values(column, list(self.values))  # type: ignore[arg-type]
+        _apply_validators(metric, ctx, self.name, self.severity, self.tags, self.validators)
 
 
 @dataclass(frozen=True)
@@ -749,6 +849,19 @@ class PatternCheck:
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
+    def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:  # noqa: ARG002
+        """Not yet supported — raises ``NotImplementedError``.
+
+        Args:
+            column: Unused.
+            mp: Unused.
+            ctx: Unused.
+
+        Raises:
+            NotImplementedError: Always.
+        """
+        raise NotImplementedError("PatternCheck.to_dqx() is not yet supported")
+
 
 @dataclass(frozen=True)
 class MinLengthCheck:
@@ -782,6 +895,19 @@ class MinLengthCheck:
         _validate_single_validator("MinLengthCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
+
+    def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:  # noqa: ARG002
+        """Not yet supported — raises ``NotImplementedError``.
+
+        Args:
+            column: Unused.
+            mp: Unused.
+            ctx: Unused.
+
+        Raises:
+            NotImplementedError: Always.
+        """
+        raise NotImplementedError("MinLengthCheck.to_dqx() is not yet supported")
 
 
 @dataclass(frozen=True)
@@ -817,6 +943,19 @@ class MaxLengthCheck:
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
+    def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:  # noqa: ARG002
+        """Not yet supported — raises ``NotImplementedError``.
+
+        Args:
+            column: Unused.
+            mp: Unused.
+            ctx: Unused.
+
+        Raises:
+            NotImplementedError: Always.
+        """
+        raise NotImplementedError("MaxLengthCheck.to_dqx() is not yet supported")
+
 
 @dataclass(frozen=True)
 class AvgLengthCheck:
@@ -851,6 +990,19 @@ class AvgLengthCheck:
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
+    def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:  # noqa: ARG002
+        """Not yet supported — raises ``NotImplementedError``.
+
+        Args:
+            column: Unused.
+            mp: Unused.
+            ctx: Unused.
+
+        Raises:
+            NotImplementedError: Always.
+        """
+        raise NotImplementedError("AvgLengthCheck.to_dqx() is not yet supported")
+
 
 @dataclass(frozen=True)
 class CardinalityCheck:
@@ -880,6 +1032,16 @@ class CardinalityCheck:
         _validate_single_validator("CardinalityCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
+
+    def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:
+        """Emit assertions for this check into ``ctx`` using ``mp``.
+
+        Args:
+            column: Name of the column to check distinct-value count for.
+            mp: MetricProvider used to compute the unique-count metric.
+            ctx: Context in which assertions are registered.
+        """
+        _apply_validators(mp.unique_count(column), ctx, self.name, self.severity, self.tags, self.validators)
 
 
 @dataclass(frozen=True)
@@ -911,6 +1073,16 @@ class MinCheck:
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
+    def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:
+        """Emit assertions for this check into ``ctx`` using ``mp``.
+
+        Args:
+            column: Name of the column to compute the minimum for.
+            mp: MetricProvider used to compute the minimum metric.
+            ctx: Context in which assertions are registered.
+        """
+        _apply_validators(mp.minimum(column), ctx, self.name, self.severity, self.tags, self.validators)
+
 
 @dataclass(frozen=True)
 class MaxCheck:
@@ -940,6 +1112,16 @@ class MaxCheck:
         _validate_single_validator("MaxCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
+
+    def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:
+        """Emit assertions for this check into ``ctx`` using ``mp``.
+
+        Args:
+            column: Name of the column to compute the maximum for.
+            mp: MetricProvider used to compute the maximum metric.
+            ctx: Context in which assertions are registered.
+        """
+        _apply_validators(mp.maximum(column), ctx, self.name, self.severity, self.tags, self.validators)
 
 
 @dataclass(frozen=True)
@@ -971,6 +1153,16 @@ class MeanCheck:
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
+    def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:
+        """Emit assertions for this check into ``ctx`` using ``mp``.
+
+        Args:
+            column: Name of the column to compute the average for.
+            mp: MetricProvider used to compute the average metric.
+            ctx: Context in which assertions are registered.
+        """
+        _apply_validators(mp.average(column), ctx, self.name, self.severity, self.tags, self.validators)
+
 
 @dataclass(frozen=True)
 class SumCheck:
@@ -1000,6 +1192,16 @@ class SumCheck:
         _validate_single_validator("SumCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
+
+    def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:
+        """Emit assertions for this check into ``ctx`` using ``mp``.
+
+        Args:
+            column: Name of the column to sum.
+            mp: MetricProvider used to compute the sum metric.
+            ctx: Context in which assertions are registered.
+        """
+        _apply_validators(mp.sum(column), ctx, self.name, self.severity, self.tags, self.validators)
 
 
 @dataclass(frozen=True)
@@ -1031,6 +1233,20 @@ class CountCheck:
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
+    def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:
+        """Emit assertions for this check into ``ctx`` using ``mp``.
+
+        The metric is derived as ``num_rows - null_count`` — the count of
+        non-null values in the column.
+
+        Args:
+            column: Name of the column to count non-null values for.
+            mp: MetricProvider used to derive the non-null count metric.
+            ctx: Context in which assertions are registered.
+        """
+        metric = mp.num_rows() - mp.null_count(column)
+        _apply_validators(metric, ctx, self.name, self.severity, self.tags, self.validators)
+
 
 @dataclass(frozen=True)
 class VarianceCheck:
@@ -1061,6 +1277,16 @@ class VarianceCheck:
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
+    def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:
+        """Emit assertions for this check into ``ctx`` using ``mp``.
+
+        Args:
+            column: Name of the column to compute variance for.
+            mp: MetricProvider used to compute the variance metric.
+            ctx: Context in which assertions are registered.
+        """
+        _apply_validators(mp.variance(column), ctx, self.name, self.severity, self.tags, self.validators)
+
 
 @dataclass(frozen=True)
 class StddevCheck:
@@ -1090,6 +1316,19 @@ class StddevCheck:
         _validate_single_validator("StddevCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
+
+    def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:
+        """Emit assertions for this check into ``ctx`` using ``mp``.
+
+        Uses ``mp.custom_sql`` to compute ``STDDEV(<column>)`` since there is
+        no dedicated column-aggregate stddev method on ``MetricProvider``.
+
+        Args:
+            column: Name of the column to compute standard deviation for.
+            mp: MetricProvider used to compute the stddev metric.
+            ctx: Context in which assertions are registered.
+        """
+        _apply_validators(mp.custom_sql(f"STDDEV({column})"), ctx, self.name, self.severity, self.tags, self.validators)
 
 
 @dataclass(frozen=True)
@@ -1125,6 +1364,19 @@ class PercentileCheck:
         _validate_single_validator("PercentileCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
+
+    def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:  # noqa: ARG002
+        """Not yet supported — raises ``NotImplementedError``.
+
+        Args:
+            column: Unused.
+            mp: Unused.
+            ctx: Unused.
+
+        Raises:
+            NotImplementedError: Always.
+        """
+        raise NotImplementedError("PercentileCheck.to_dqx() is not yet supported")
 
 
 ColumnCheck = (
@@ -1892,6 +2144,96 @@ def _parse_column(raw: Any) -> ColumnSpec:
     )
 
 
+# ---------------------------------------------------------------------------
+# Check translation helpers
+# ---------------------------------------------------------------------------
+
+
+def _apply_validators(
+    metric: sp.Expr,
+    ctx: Context,
+    check_name: str,
+    severity: SeverityLevel,
+    tags: frozenset[str],
+    validators: tuple[Validator, ...],
+) -> None:
+    """Apply all validators for a check as assertions in the context.
+
+    Each validator becomes one named assertion within the same check node.
+    ``NotBetweenValidator`` produces two assertions (lower and upper bounds).
+    An empty validators tuple produces a single noop assertion.
+
+    Args:
+        metric: The already-computed symbolic metric expression to assert on.
+        ctx: Context in which assertions are registered.
+        check_name: Human-readable check name (used to generate assertion names).
+        severity: Severity level propagated to every assertion.
+        tags: Tag set propagated to every assertion.
+        validators: Validators declared on the check. Empty means noop.
+    """
+    if not validators:
+        ctx.assert_that(metric).config(name=check_name, severity=severity, tags=tags).noop()
+        return
+
+    for validator in validators:
+        if isinstance(validator, MinValidator):
+            assertion_name = f"{check_name} [min >= {validator.threshold}]"
+            ctx.assert_that(metric).config(name=assertion_name, severity=severity, tags=tags).is_geq(
+                validator.threshold, tol=validator.tolerance
+            )
+        elif isinstance(validator, MaxValidator):
+            assertion_name = f"{check_name} [max <= {validator.threshold}]"
+            ctx.assert_that(metric).config(name=assertion_name, severity=severity, tags=tags).is_leq(
+                validator.threshold, tol=validator.tolerance
+            )
+        elif isinstance(validator, BetweenValidator):
+            assertion_name = f"{check_name} [between {validator.low} and {validator.high}]"
+            ctx.assert_that(metric).config(name=assertion_name, severity=severity, tags=tags).is_between(
+                validator.low, validator.high, tol=validator.tolerance
+            )
+        elif isinstance(validator, NotBetweenValidator):
+            lower_name = f"{check_name} [not_between < {validator.low}]"
+            upper_name = f"{check_name} [not_between > {validator.high}]"
+            ctx.assert_that(metric).config(name=lower_name, severity=severity, tags=tags).is_lt(
+                validator.low, tol=validator.tolerance
+            )
+            ctx.assert_that(metric).config(name=upper_name, severity=severity, tags=tags).is_gt(
+                validator.high, tol=validator.tolerance
+            )
+        elif isinstance(validator, EqualsValidator):
+            assertion_name = f"{check_name} [equals {validator.value}]"
+            ctx.assert_that(metric).config(name=assertion_name, severity=severity, tags=tags).is_eq(
+                validator.value, tol=validator.tolerance
+            )
+
+
+def _build_contract_check_fn(contract: Contract) -> Callable[[MetricProvider, Context], None]:
+    """Build a single CheckProducer function covering all checks in a contract.
+
+    The returned function, when called with ``(mp, ctx)``, iterates every
+    table-level check and every column-level check on every column, calling
+    each check's ``to_dqx`` method in order.  All assertions are emitted into
+    the same ``@dqx_check`` node.
+
+    Args:
+        contract: The ``Contract`` whose checks are to be translated.
+
+    Returns:
+        A ``(MetricProvider, Context) -> None`` function ready to be wrapped
+        by ``@dqx_check``.
+    """
+
+    def _check(mp: MetricProvider, ctx: Context) -> None:
+        for table_check in contract.checks:
+            table_check.to_dqx(mp, ctx)
+        for col_spec in contract.columns:
+            for col_check in col_spec.checks:
+                col_check.to_dqx(col_spec.name, mp, ctx)
+
+    _check.__name__ = contract.name
+    return _check
+
+
 @dataclass(frozen=True)
 class Contract:
     """Top-level data contract definition.
@@ -2087,3 +2429,20 @@ class Contract:
             metadata=contract_metadata,
             checks=table_checks,
         )
+
+    def to_checks(self) -> list[DecoratedCheck]:
+        """Translate all contract checks into a single DecoratedCheck for VerificationSuite.
+
+        All table-level and column-level checks defined in the contract are
+        assembled into one check function and wrapped under a single
+        ``@dqx_check`` node named after the contract.  Each check's
+        ``to_dqx`` method is responsible for computing the appropriate metric
+        and emitting assertions.
+
+        Returns:
+            list[DecoratedCheck]: A list containing exactly one ready-to-use
+            check function that covers every check in the contract.
+        """
+        fn = _build_contract_check_fn(self)
+        decorated = dqx_check(name=self.name, datasets=[self.dataset])(fn)
+        return [decorated]
