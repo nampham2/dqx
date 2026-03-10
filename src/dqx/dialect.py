@@ -512,7 +512,7 @@ class BigQueryDialect:
                 return f"CAST(MIN(ARRAY_LENGTH({col})) AS FLOAT64) AS `{op.sql_col}`"
 
             case ops.MinLength(column=col, column_type="map"):
-                raise NotImplementedError("MinLength with column_type='map' is not supported for BigQuery")
+                raise DQXError("MinLength with column_type='map' is not supported for BigQuery")
 
             case _:
                 raise ValueError(f"Unsupported SqlOp type: {type(op).__name__}")

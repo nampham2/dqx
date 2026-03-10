@@ -1058,7 +1058,11 @@ class MinLength(OpValueMixin[float], SqlOp[float]):
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, MinLength):
             return NotImplemented
-        return self.column == other.column and self.column_type == other.column_type
+        return (
+            self.column == other.column
+            and self.column_type == other.column_type
+            and self.parameters == other.parameters
+        )
 
     def __hash__(self) -> int:
         return hash(

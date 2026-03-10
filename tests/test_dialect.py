@@ -415,5 +415,5 @@ def test_min_length_translation() -> None:
     assert sql_bq_list == f"CAST(MIN(ARRAY_LENGTH(tags)) AS FLOAT64) AS `{op_list.sql_col}`"
 
     # map type: not supported in BigQuery
-    with pytest.raises(NotImplementedError, match="MinLength with column_type='map' is not supported for BigQuery"):
+    with pytest.raises(DQXError, match="MinLength with column_type='map' is not supported for BigQuery"):
         bq.translate_sql_op(op_map)

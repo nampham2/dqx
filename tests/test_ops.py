@@ -764,6 +764,24 @@ def test_min_length_with_parameters() -> None:
     assert hash(op2) == hash(op4)  # Same parameters
 
 
+def test_min_length_eq_includes_parameters() -> None:
+    """Test MinLength.__eq__ considers parameters to satisfy hash/eq contract."""
+    op_base = ops.MinLength("col", "string")
+    op_with_params = ops.MinLength("col", "string", parameters={"region": "US"})
+    op_same_params = ops.MinLength("col", "string", parameters={"region": "US"})
+    op_diff_params = ops.MinLength("col", "string", parameters={"region": "EU"})
+
+    # Same column and column_type but different parameters must NOT be equal
+    assert op_base != op_with_params
+    assert op_with_params != op_diff_params
+
+    # Same column, column_type, and parameters must be equal
+    assert op_with_params == op_same_params
+
+    # Hash/eq contract: equal objects must have equal hashes
+    assert hash(op_with_params) == hash(op_same_params)
+
+
 def test_ops_hash_includes_parameters() -> None:
     """Test that hash function includes parameters for all operations."""
     # Test NumRows
