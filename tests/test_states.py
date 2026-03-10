@@ -320,3 +320,62 @@ def test_duplicate_count_state_equality() -> None:
     assert state1 != state3
     assert state1 != "not a state"
     assert state1 != 42
+
+
+class TestMinLength:
+    """Tests for MinLength state."""
+
+    def test_min_length_basic(self) -> None:
+        """Test basic MinLength state creation and value."""
+        m = states.MinLength(value=5.0)
+        assert m.value == pytest.approx(5.0)
+        assert isinstance(m, states.State)
+
+    def test_min_length_identity(self) -> None:
+        """Test MinLength identity is float('inf')."""
+        identity = states.MinLength.identity()
+        assert identity.value == float("inf")
+
+    def test_min_length_serialize_deserialize(self) -> None:
+        """Test MinLength serialization round-trip."""
+        m = states.MinLength(value=3.0)
+        binary = m.serialize()
+        deserialized = states.MinLength.deserialize(binary)
+        assert m == deserialized
+
+    def test_min_length_copy(self) -> None:
+        """Test MinLength copy creates equal but distinct instance."""
+        m = states.MinLength(value=7.0)
+        copied = copy(m)
+        assert copied == m
+        assert copied is not m
+
+    def test_min_length_merge_takes_minimum(self) -> None:
+        """Test MinLength merge keeps the smaller value."""
+        m1 = states.MinLength(value=10.0)
+        m2 = states.MinLength(value=5.0)
+
+        merged = m1.merge(m2)
+        assert merged.value == pytest.approx(5.0)
+
+        merged2 = m2.merge(m1)
+        assert merged2.value == pytest.approx(5.0)
+
+    def test_min_length_merge_with_identity(self) -> None:
+        """Test MinLength merge with identity returns original value."""
+        m = states.MinLength(value=3.0)
+        identity = states.MinLength.identity()
+
+        assert m.merge(identity) == m
+        assert identity.merge(m) == m
+
+    def test_min_length_equality(self) -> None:
+        """Test MinLength equality comparisons."""
+        m1 = states.MinLength(value=5.0)
+        m2 = states.MinLength(value=5.0)
+        m3 = states.MinLength(value=6.0)
+
+        assert m1 == m2
+        assert m1 != m3
+        assert m1 != "not a state"
+        assert m1 != 42
