@@ -23,7 +23,7 @@ The type system prioritizes validation flexibility over exact matching. Types ac
 | **Temporal Types** | | | |
 | `date` | `type: date` | date32, date64 | Any date representation |
 | `time` | `type: time` | time32(s/ms), time64(us/ns) | Any time representation |
-| `timestamp` | `type: timestamp` or `type: {kind: timestamp}` or `type: {kind: timestamp, tz: "..."}` | timestamp(any unit, any tz) | Simple form accepts any tz; object form defaults to UTC; explicit `tz` enforces exact match |
+| `timestamp` | `type: timestamp` or `type: {kind: timestamp}` or `type: {kind: timestamp, tz: "..."}` | timestamp(any unit, any tz) | Simple form and object form without `tz` are timezone-naive (`tz=None`); explicit `tz` enforces exact match |
 | **Decimal Type** | | | |
 | `decimal` | `type: decimal` | decimal128(any), decimal256(any) | Any precision/scale |
 | **Complex Types** | | | |
@@ -89,13 +89,13 @@ Store timestamps in UTC for consistency. The type system offers three levels of 
   type: timestamp
   description: "Event timestamp"
 
-# 2. Complex form with default UTC timezone
+# 2. Complex form with timezone-naive default
 - name: created_at
   type:
     kind: timestamp
-    # tz defaults to "UTC" (omitted)
+    # tz defaults to None (timezone-naive) when omitted
   nullable: false
-  description: "Creation timestamp in UTC"
+  description: "Creation timestamp (timezone-naive)"
 
 # 3. Complex form with explicit timezone
 - name: created_at_ny
@@ -112,7 +112,7 @@ Store timestamps in UTC for consistency. The type system offers three levels of 
   description: "Time of day when event occurred"
 ```
 
-Use simple form when timezone doesn't matter or varies; use complex form with UTC (default) for most cases; use explicit timezone when data must be in a specific timezone.
+Use simple form or object form without tz for timezone-naive timestamps; use explicit tz (e.g. "UTC") when the timezone must match exactly.
 
 ---
 
@@ -163,17 +163,14 @@ The validator confirms the column is a decimal type regardless of precision or s
         - name: timestamp
           type:
             kind: timestamp
-          nullable: false
           description: "Event timestamp"
 
         - name: event_type
           type: string
-          nullable: false
           description: "Event type"
 
         - name: value
           type: float
-          nullable: true
           description: "Event value"
   nullable: false
   description: "Event history"
@@ -189,17 +186,14 @@ The validator confirms the column is a decimal type regardless of precision or s
     fields:
       - name: latitude
         type: float
-        nullable: false
         description: "Latitude coordinate"
 
       - name: longitude
         type: float
-        nullable: false
         description: "Longitude coordinate"
 
       - name: label
         type: string
-        nullable: true
         description: "Location label"
   nullable: true
   description: "Geographic location"
@@ -211,12 +205,10 @@ The validator confirms the column is a decimal type regardless of precision or s
     fields:
       - name: street
         type: string
-        nullable: false
         description: "Street address"
 
       - name: city
         type: string
-        nullable: false
         description: "City name"
 
       - name: coordinates
@@ -225,20 +217,17 @@ The validator confirms the column is a decimal type regardless of precision or s
           fields:
             - name: lat
               type: float
-              nullable: false
               description: "Latitude"
 
             - name: lon
               type: float
-              nullable: false
               description: "Longitude"
-        nullable: true
         description: "GPS coordinates"
   nullable: false
   description: "Complete address"
 ```
 
-> **Note:** The `nullable` flag on nested struct and list element fields is for documentation purposes only. Schema validation enforces nullability at the top-level column only; nested field nullability is not validated.
+> **Note:** Nested struct and list element fields have no `nullable` flag — nullability is only enforced at the top-level column. Schema validation enforces nullability at the top-level column only; nested field nullability is not validated.
 
 ### Map Type
 
@@ -271,12 +260,10 @@ The validator confirms the column is a decimal type regardless of precision or s
       fields:
         - name: value
           type: float
-          nullable: false
           description: "Metric value"
 
         - name: unit
           type: string
-          nullable: false
           description: "Unit of measurement"
   nullable: false
   description: "Performance metrics"
@@ -349,7 +336,7 @@ Contract type `time` validates against:
 **Complex form** (`type: {kind: timestamp}` or `type: {kind: timestamp, tz: "UTC"}`):
 
 - Validates unit flexibility (accepts s, ms, us, ns)
-- Validates timezone matches (default: "UTC")
+- object form without tz is timezone-naive (tz=None); explicit tz validates timezone matches
 
 **Complex form with explicit timezone** (`type: {kind: timestamp, tz: "America/New_York"}`):
 

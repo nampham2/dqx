@@ -156,6 +156,16 @@ Exact match. The check passes if `|actual - expected| ≤ tolerance`.
   severity: P0
 ```
 
+### Noop (no validator)
+
+Omitting all validators produces a noop: the check runs and records the computed metric but never fails on the value. Use this for informational checks or when you want to observe a metric without enforcing a bound.
+
+```yaml
+- name: "Record average order amount (informational)"
+  type: mean
+  severity: P3
+```
+
 ---
 
 ## Table-Level Checks
@@ -976,7 +986,7 @@ The `avg_length` check computes the average length of non-null values in a strin
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| (none beyond validators) | — | — | — | — |
+| `return` | `string` | No | `count` | Return type: `count` (rows below/above threshold) or `pct` |
 
 > Validators: [`min`](#min), [`max`](#max), [`between`](#between), [`not_between`](#not_between), [`equals`](#equals) — see [Validators](#validators).
 
@@ -1010,6 +1020,22 @@ columns:
         type: avg_length
         between: [1, 10]
         severity: P3
+```
+
+**Example 3: Using Percentage Return**
+
+```yaml
+columns:
+  - name: description
+    type: string
+    nullable: true
+    description: "Product description"
+    checks:
+      - name: "Most descriptions have reasonable average length"
+        type: avg_length
+        return: pct
+        min: 0.90  # At least 90% are within acceptable range
+        severity: P2
 ```
 
 ---
@@ -1482,7 +1508,7 @@ The `percentile` check validates that a specific percentile value in a column fa
 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
-| `percentile` | `float` | Yes | None | Percentile to compute (0-100) |
+| `percentile` | `float` | Yes | None | Percentile to compute, in [0.0, 1.0] (e.g. 0.5 for median, 0.99 for 99th percentile) |
 | `min` | `number` | No | None | Minimum allowed percentile value |
 | `max` | `number` | No | None | Maximum allowed percentile value |
 | `between` | `[number, number]` | No | None | Inclusive range (shorthand for min + max) |
@@ -1504,7 +1530,7 @@ columns:
     checks:
       - name: "P95 response time is acceptable"
         type: percentile
-        percentile: 95.0
+        percentile: 0.95
         max: 1000.0  # P95 under 1 second
         severity: P1
 ```
@@ -1520,7 +1546,7 @@ columns:
     checks:
       - name: "Median order value is typical"
         type: percentile
-        percentile: 50.0
+        percentile: 0.5
         between: [30.0, 100.0]  # Median between $30-$100
         severity: P2
 ```
@@ -1536,7 +1562,7 @@ columns:
     checks:
       - name: "P99 processing time matches SLA"
         type: percentile
-        percentile: 99.0
+        percentile: 0.99
         equals: 300.0  # P99 exactly 300 seconds
         tolerance: 5.0  # Within 5 seconds
         severity: P0
