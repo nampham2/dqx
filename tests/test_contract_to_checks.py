@@ -1,7 +1,5 @@
 """Tests for Contract.to_checks() and check dataclass to_dqx() methods."""
 
-from __future__ import annotations
-
 import datetime
 
 import pyarrow as pa
@@ -881,3 +879,60 @@ class TestMultipleChecksInOneContract:
         results = _run_and_collect(contract, data)
         assert len(results) == 2
         assert all(r.check == "Test Contract" for r in results)
+
+
+# ---------------------------------------------------------------------------
+# TestApplyValidators
+# ---------------------------------------------------------------------------
+
+
+class TestApplyValidators:
+    """Tests for _apply_validators helper."""
+
+    def test_raises_type_error_for_unknown_validator(self) -> None:
+        """_apply_validators raises TypeError for an unrecognised validator type."""
+        import sympy as sp
+        from unittest.mock import MagicMock
+
+        from dqx.contract.models import _apply_validators  # noqa: PLC2701
+
+        metric = sp.Symbol("x")
+        ctx = MagicMock()
+
+        class _UnknownValidator:
+            tolerance = 0.0
+
+        with pytest.raises(TypeError, match="Unsupported validator type"):
+            _apply_validators(
+                metric,
+                ctx,
+                check_name="test check",
+                severity="P1",
+                tags=frozenset(),
+                validators=(_UnknownValidator(),),  # type: ignore[arg-type]
+            )
+
+
+# ---------------------------------------------------------------------------
+# TestTableDuplicatesEmptyTable
+# ---------------------------------------------------------------------------
+
+
+class TestTableDuplicatesEmptyTable:
+    """Edge-case tests for TableDuplicatesCheck on empty tables."""
+
+    def test_pct_on_empty_table_fails(self) -> None:
+        """TableDuplicatesCheck pct on 0-row table passes (0 dups / 0 rows = 0 <= 0.0)."""
+        contract = _minimal_contract(
+            checks=(
+                TableDuplicatesCheck(
+                    name="Dup pct empty",
+                    columns=("order_id",),
+                    return_type="pct",
+                    validators=(MaxValidator(threshold=0.0),),
+                ),
+            )
+        )
+        data = pa.table({"order_id": pa.array([], type=pa.int64())})
+        results = _run_and_collect(contract, data)
+        assert results[0].status == "PASSED"

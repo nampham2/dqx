@@ -446,8 +446,8 @@ class TableDuplicatesCheck:
         """
         metric = mp.duplicate_count(list(self.columns))
         if self.return_type == "pct":
-            # On empty tables num_rows() evaluates to 0; the resulting NULL metric
-            # propagates as an EvaluationFailure (assertion fails).
+            # On empty tables duplicate_count() and num_rows() both evaluate to 0;
+            # integer 0/0 in DuckDB yields 0, so the assertion passes with <= 0.0.
             metric = metric / mp.num_rows()
         _apply_validators(metric, ctx, self.name, self.severity, self.tags, self.validators)
 
@@ -2190,7 +2190,8 @@ def _apply_validators(
     """Apply all validators for a check as assertions in the context.
 
     Each validator becomes one named assertion within the same check node.
-    ``NotBetweenValidator`` produces two assertions (lower and upper bounds).
+    ``NotBetweenValidator`` produces a single ``is_not_between`` assertion
+    (passes when value < low OR value > high).
     An empty validators tuple produces a single noop assertion.
 
     Args:
@@ -2231,6 +2232,8 @@ def _apply_validators(
             ctx.assert_that(metric).config(name=assertion_name, severity=severity, tags=tags).is_eq(
                 validator.value, tol=validator.tolerance
             )
+        else:
+            raise TypeError(f"Unsupported validator type {type(validator).__name__!r} for check {check_name!r}")
 
 
 def _build_contract_check_fn(contract: Contract) -> Callable[[MetricProvider, Context], None]:
