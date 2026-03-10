@@ -100,7 +100,7 @@ class TimestampType:
 
     def __post_init__(self) -> None:
         """Validate that tz, if provided, is non-empty."""
-        if self.tz is not None and self.tz == "":
+        if self.tz == "":
             raise ContractValidationError("TimestampType tz must be a non-empty string when specified")
 
 
@@ -323,6 +323,20 @@ def _validate_return_type(value: str) -> None:
         raise ContractValidationError(f"return_type must be 'count' or 'pct', got '{value}'")
 
 
+def _validate_single_validator(cls_name: str, validators: tuple[object, ...]) -> None:
+    """Validate that at most one validator is provided.
+
+    Args:
+        cls_name: Name of the calling check class (for error messages).
+        validators: Tuple of validators to check.
+
+    Raises:
+        ContractValidationError: If more than one validator is provided.
+    """
+    if len(validators) > 1:
+        raise ContractValidationError(f"{cls_name} validators must have at most 1 entry, got {len(validators)}")
+
+
 _AGGREGATION_VALUES: frozenset[str] = frozenset({"max", "min"})
 _GRANULARITY_VALUES: frozenset[str] = frozenset({"hourly", "daily", "weekly", "monthly"})
 
@@ -361,10 +375,7 @@ class NumRowsCheck:
         """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("NumRowsCheck name must be non-empty")
-        if len(self.validators) > 1:
-            raise ContractValidationError(
-                f"NumRowsCheck validators must have at most 1 entry, got {len(self.validators)}"
-            )
+        _validate_single_validator("NumRowsCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -406,10 +417,7 @@ class TableDuplicatesCheck:
         for col in self.columns:
             if not col:
                 raise ContractValidationError("Each column name in TableDuplicatesCheck must be non-empty")
-        if len(self.validators) > 1:
-            raise ContractValidationError(
-                f"TableDuplicatesCheck validators must have at most 1 entry, got {len(self.validators)}"
-            )
+        _validate_single_validator("TableDuplicatesCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -541,10 +549,7 @@ class MissingCheck:
         _validate_return_type(self.return_type)
         if not self.name:
             raise ContractValidationError("MissingCheck name must be non-empty")
-        if len(self.validators) > 1:
-            raise ContractValidationError(
-                f"MissingCheck validators must have at most 1 entry, got {len(self.validators)}"
-            )
+        _validate_single_validator("MissingCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -578,10 +583,7 @@ class ColumnDuplicatesCheck:
         _validate_return_type(self.return_type)
         if not self.name:
             raise ContractValidationError("ColumnDuplicatesCheck name must be non-empty")
-        if len(self.validators) > 1:
-            raise ContractValidationError(
-                f"ColumnDuplicatesCheck validators must have at most 1 entry, got {len(self.validators)}"
-            )
+        _validate_single_validator("ColumnDuplicatesCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -622,10 +624,7 @@ class WhitelistCheck:
             raise ContractValidationError("WhitelistCheck name must be non-empty")
         if not self.values:
             raise ContractValidationError("WhitelistCheck values must be non-empty")
-        if len(self.validators) > 1:
-            raise ContractValidationError(
-                f"WhitelistCheck validators must have at most 1 entry, got {len(self.validators)}"
-            )
+        _validate_single_validator("WhitelistCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -666,10 +665,7 @@ class BlacklistCheck:
             raise ContractValidationError("BlacklistCheck name must be non-empty")
         if not self.values:
             raise ContractValidationError("BlacklistCheck values must be non-empty")
-        if len(self.validators) > 1:
-            raise ContractValidationError(
-                f"BlacklistCheck validators must have at most 1 entry, got {len(self.validators)}"
-            )
+        _validate_single_validator("BlacklistCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -746,16 +742,7 @@ class PatternCheck:
                 re.compile(self.pattern, flags_bitmask)
             except re.error as exc:
                 raise ContractValidationError(f"PatternCheck: invalid regex pattern '{self.pattern}': {exc}") from exc
-        else:
-            for flag in self.flags:  # pragma: no cover
-                if flag not in _VALID_FLAG_NAMES:
-                    raise ContractValidationError(
-                        f"PatternCheck: unknown flag '{flag}'; must be one of {sorted(_VALID_FLAG_NAMES)}"
-                    )
-        if len(self.validators) > 1:
-            raise ContractValidationError(
-                f"PatternCheck validators must have at most 1 entry, got {len(self.validators)}"
-            )
+        _validate_single_validator("PatternCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -789,10 +776,7 @@ class MinLengthCheck:
         _validate_return_type(self.return_type)
         if not self.name:
             raise ContractValidationError("MinLengthCheck name must be non-empty")
-        if len(self.validators) > 1:
-            raise ContractValidationError(
-                f"MinLengthCheck validators must have at most 1 entry, got {len(self.validators)}"
-            )
+        _validate_single_validator("MinLengthCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -826,10 +810,7 @@ class MaxLengthCheck:
         _validate_return_type(self.return_type)
         if not self.name:
             raise ContractValidationError("MaxLengthCheck name must be non-empty")
-        if len(self.validators) > 1:
-            raise ContractValidationError(
-                f"MaxLengthCheck validators must have at most 1 entry, got {len(self.validators)}"
-            )
+        _validate_single_validator("MaxLengthCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -863,10 +844,7 @@ class AvgLengthCheck:
         _validate_return_type(self.return_type)
         if not self.name:
             raise ContractValidationError("AvgLengthCheck name must be non-empty")
-        if len(self.validators) > 1:
-            raise ContractValidationError(
-                f"AvgLengthCheck validators must have at most 1 entry, got {len(self.validators)}"
-            )
+        _validate_single_validator("AvgLengthCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -896,10 +874,7 @@ class CardinalityCheck:
         """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("CardinalityCheck name must be non-empty")
-        if len(self.validators) > 1:
-            raise ContractValidationError(
-                f"CardinalityCheck validators must have at most 1 entry, got {len(self.validators)}"
-            )
+        _validate_single_validator("CardinalityCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -929,8 +904,7 @@ class MinCheck:
         """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("MinCheck name must be non-empty")
-        if len(self.validators) > 1:
-            raise ContractValidationError(f"MinCheck validators must have at most 1 entry, got {len(self.validators)}")
+        _validate_single_validator("MinCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -960,8 +934,7 @@ class MaxCheck:
         """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("MaxCheck name must be non-empty")
-        if len(self.validators) > 1:
-            raise ContractValidationError(f"MaxCheck validators must have at most 1 entry, got {len(self.validators)}")
+        _validate_single_validator("MaxCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -991,8 +964,7 @@ class MeanCheck:
         """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("MeanCheck name must be non-empty")
-        if len(self.validators) > 1:
-            raise ContractValidationError(f"MeanCheck validators must have at most 1 entry, got {len(self.validators)}")
+        _validate_single_validator("MeanCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -1022,8 +994,7 @@ class SumCheck:
         """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("SumCheck name must be non-empty")
-        if len(self.validators) > 1:
-            raise ContractValidationError(f"SumCheck validators must have at most 1 entry, got {len(self.validators)}")
+        _validate_single_validator("SumCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -1053,10 +1024,7 @@ class CountCheck:
         """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("CountCheck name must be non-empty")
-        if len(self.validators) > 1:
-            raise ContractValidationError(
-                f"CountCheck validators must have at most 1 entry, got {len(self.validators)}"
-            )
+        _validate_single_validator("CountCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -1086,10 +1054,7 @@ class VarianceCheck:
         """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("VarianceCheck name must be non-empty")
-        if len(self.validators) > 1:
-            raise ContractValidationError(
-                f"VarianceCheck validators must have at most 1 entry, got {len(self.validators)}"
-            )
+        _validate_single_validator("VarianceCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -1119,10 +1084,7 @@ class StddevCheck:
         """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("StddevCheck name must be non-empty")
-        if len(self.validators) > 1:
-            raise ContractValidationError(
-                f"StddevCheck validators must have at most 1 entry, got {len(self.validators)}"
-            )
+        _validate_single_validator("StddevCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -1133,7 +1095,8 @@ class PercentileCheck:
 
     Args:
         name: Check name (non-empty).
-        percentile: Percentile to compute, in [0.0, 100.0] inclusive.
+        percentile: Percentile to compute, in [0.0, 1.0] inclusive (e.g. 0.5 for
+            the median, 0.99 for the 99th percentile).
         validators: Tuple of at most one Validator. Empty tuple is a noop
             (check runs but never fails).
         severity: Severity level. Defaults to "P1".
@@ -1154,12 +1117,9 @@ class PercentileCheck:
         """Validate name, percentile range, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("PercentileCheck name must be non-empty")
-        if not (0.0 <= self.percentile <= 100.0):
-            raise ContractValidationError(f"PercentileCheck percentile must be in [0.0, 100.0], got {self.percentile}")
-        if len(self.validators) > 1:
-            raise ContractValidationError(
-                f"PercentileCheck validators must have at most 1 entry, got {len(self.validators)}"
-            )
+        if not (0.0 <= self.percentile <= 1.0):
+            raise ContractValidationError(f"PercentileCheck percentile must be in [0.0, 1.0], got {self.percentile}")
+        _validate_single_validator("PercentileCheck", self.validators)
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -1218,6 +1178,8 @@ class ColumnSpec:
             raise ContractValidationError("ColumnSpec name must be non-empty")
         if not self.description:
             raise ContractValidationError("ColumnSpec description must be non-empty")
+        # Normalize "timestamp" string to TimestampType() before the SIMPLE_TYPES check,
+        # because "timestamp" IS in SIMPLE_TYPES but we always want the rich type object.
         if self.type == "timestamp":
             object.__setattr__(self, "type", TimestampType())
         if isinstance(self.type, str) and self.type not in SIMPLE_TYPES:
@@ -1394,6 +1356,7 @@ class SLASpec:
         # Emit a warning when lag_hours > 168 on hourly or daily schedules only.
         # Weekly, monthly, or catch-all schedules are excluded.
         if self.lag_hours > 168 and _is_hourly_or_daily(self.schedule):
+            # stacklevel=2 points to the SLASpec(...) constructor call site.
             warnings.warn(
                 f"SLASpec lag_hours={self.lag_hours} exceeds 168 hours (7 days) "
                 f"on an hourly or daily schedule '{self.schedule}'. "

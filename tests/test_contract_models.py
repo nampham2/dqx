@@ -1388,13 +1388,13 @@ class TestPercentileCheck:
 
     def test_valid_percentile_check(self) -> None:
         """PercentileCheck with valid fields is constructed correctly."""
-        check = PercentileCheck(name="p50", percentile=50.0, validators=(MaxValidator(threshold=100.0),))
+        check = PercentileCheck(name="p50", percentile=0.5, validators=(MaxValidator(threshold=100.0),))
         assert check.name == "p50"
-        assert check.percentile == pytest.approx(50.0)
+        assert check.percentile == pytest.approx(0.5)
 
     def test_no_validators(self) -> None:
         """PercentileCheck with no validators (noop) is valid."""
-        check = PercentileCheck(name="p50", percentile=50.0)
+        check = PercentileCheck(name="p50", percentile=0.5)
         assert check.validators == ()
 
     def test_percentile_zero(self) -> None:
@@ -1403,14 +1403,14 @@ class TestPercentileCheck:
         assert check.percentile == pytest.approx(0.0)
 
     def test_percentile_100(self) -> None:
-        """PercentileCheck with percentile=100.0 is valid."""
-        check = PercentileCheck(name="p100", percentile=100.0)
-        assert check.percentile == pytest.approx(100.0)
+        """PercentileCheck with percentile=1.0 is valid."""
+        check = PercentileCheck(name="p100", percentile=1.0)
+        assert check.percentile == pytest.approx(1.0)
 
     def test_empty_name_raises(self) -> None:
         """Empty name raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="name"):
-            PercentileCheck(name="", percentile=50.0)
+            PercentileCheck(name="", percentile=0.5)
 
     def test_percentile_below_zero_raises(self) -> None:
         """percentile < 0.0 raises ContractValidationError."""
@@ -1418,22 +1418,22 @@ class TestPercentileCheck:
             PercentileCheck(name="p", percentile=-0.1)
 
     def test_percentile_above_100_raises(self) -> None:
-        """percentile > 100.0 raises ContractValidationError."""
+        """percentile > 1.0 raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="percentile"):
-            PercentileCheck(name="p", percentile=100.1)
+            PercentileCheck(name="p", percentile=1.001)
 
     def test_multiple_validators_raises(self) -> None:
         """More than 1 validator raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="validators"):
             PercentileCheck(
                 name="p50",
-                percentile=50.0,
+                percentile=0.5,
                 validators=(MinValidator(threshold=0.0), MaxValidator(threshold=100.0)),
             )
 
     def test_frozen(self) -> None:
         """PercentileCheck is immutable."""
-        check = PercentileCheck(name="p50", percentile=50.0)
+        check = PercentileCheck(name="p50", percentile=0.5)
         with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
