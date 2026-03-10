@@ -1,4 +1,4 @@
-"""Tests for contract dataclasses in dqx.contract.models."""
+"""Tests for contract dataclasses in dqx.contract."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import cast
 
 import pytest
 
-from dqx.contract.models import (
+from dqx.contract import (
     AvgLengthCheck,
     BetweenValidator,
     BlacklistCheck,
@@ -4472,7 +4472,7 @@ class TestContractFromYaml:
         )
         contract = Contract.from_yaml(path)
         assert len(contract.checks) == 1
-        from dqx.contract.models import CompletenessCheck
+        from dqx.contract import CompletenessCheck
 
         check = contract.checks[0]
         assert isinstance(check, CompletenessCheck)
@@ -4500,7 +4500,7 @@ class TestContractFromYaml:
             """,
         )
         contract = Contract.from_yaml(path)
-        from dqx.contract.models import WhitelistCheck
+        from dqx.contract import WhitelistCheck
 
         check = contract.columns[0].checks[0]
         assert isinstance(check, WhitelistCheck)
