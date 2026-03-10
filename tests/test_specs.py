@@ -6,6 +6,27 @@ import pytest
 
 from dqx import ops, specs, states
 
+EXPECTED_METRIC_TYPES: set[str] = {
+    "NumRows",
+    "First",
+    "Average",
+    "Minimum",
+    "Maximum",
+    "Sum",
+    "NegativeCount",
+    "NullCount",
+    "Variance",
+    "DuplicateCount",
+    "CountValues",
+    "UniqueCount",
+    "CustomSQL",
+    "MinLength",
+    "MaxLength",
+    "DayOverDay",
+    "WeekOverWeek",
+    "Stddev",
+}
+
 
 class TestMetricSpec:
     """Test the MetricSpec Protocol"""
@@ -1013,27 +1034,7 @@ class TestBuildRegistry:
 
     def test_registry_contains_all_expected_classes(self) -> None:
         """Test that registry contains all expected metric spec classes."""
-        expected_types = {
-            "NumRows",
-            "First",
-            "Average",
-            "Minimum",
-            "Maximum",
-            "Sum",
-            "NegativeCount",
-            "NullCount",
-            "Variance",
-            "DuplicateCount",
-            "CountValues",
-            "UniqueCount",
-            "CustomSQL",
-            "MinLength",
-            "MaxLength",
-            "DayOverDay",
-            "WeekOverWeek",
-            "Stddev",
-        }
-        assert set(specs.registry.keys()) == expected_types
+        assert set(specs.registry.keys()) == EXPECTED_METRIC_TYPES
 
     def test_registry_maps_correct_classes(self) -> None:
         """Test that registry maps metric types to correct classes."""
@@ -1070,27 +1071,7 @@ class TestRegistry:
     """Test the registry dictionary"""
 
     def test_registry_contains_all_metric_types(self) -> None:
-        expected_types = {
-            "NumRows",
-            "First",
-            "Average",
-            "Minimum",
-            "Maximum",
-            "Sum",
-            "NegativeCount",
-            "NullCount",
-            "Variance",
-            "DuplicateCount",
-            "CountValues",
-            "UniqueCount",
-            "CustomSQL",
-            "MinLength",
-            "MaxLength",
-            "DayOverDay",
-            "WeekOverWeek",
-            "Stddev",
-        }
-        assert set(specs.registry.keys()) == expected_types
+        assert set(specs.registry.keys()) == EXPECTED_METRIC_TYPES
 
     def test_registry_maps_to_correct_classes(self) -> None:
         assert specs.registry["NumRows"] == specs.NumRows
@@ -1106,7 +1087,7 @@ class TestRegistry:
     def test_registry_is_built_automatically(self) -> None:
         """Test that the registry is built automatically by decorators."""
         # All expected classes should be in the registry
-        assert len(specs.registry) == 18  # Total number of metric types
+        assert len(specs.registry) == len(EXPECTED_METRIC_TYPES)
 
         # Each class should have been registered with its metric_type
         for metric_type, spec_class in specs.registry.items():

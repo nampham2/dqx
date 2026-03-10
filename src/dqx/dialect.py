@@ -377,13 +377,13 @@ class DuckDBDialect:
                 return f"CAST(MIN(CARDINALITY({col})) AS DOUBLE) AS '{op.sql_col}'"
 
             case ops.MaxLength(column=col, column_type="string"):
-                return f"CAST(COALESCE(MAX(LENGTH({col})), '-inf') AS DOUBLE) AS '{op.sql_col}'"
+                return f"COALESCE(CAST(MAX(LENGTH({col})) AS DOUBLE), CAST('-inf' AS DOUBLE)) AS '{op.sql_col}'"
 
             case ops.MaxLength(column=col, column_type="list"):
-                return f"CAST(COALESCE(MAX(LEN({col})), '-inf') AS DOUBLE) AS '{op.sql_col}'"
+                return f"COALESCE(CAST(MAX(LEN({col})) AS DOUBLE), CAST('-inf' AS DOUBLE)) AS '{op.sql_col}'"
 
             case ops.MaxLength(column=col, column_type="map"):
-                return f"CAST(COALESCE(MAX(CARDINALITY({col})), '-inf') AS DOUBLE) AS '{op.sql_col}'"
+                return f"COALESCE(CAST(MAX(CARDINALITY({col})) AS DOUBLE), CAST('-inf' AS DOUBLE)) AS '{op.sql_col}'"
 
             case _:
                 raise ValueError(f"Unsupported SqlOp type: {type(op).__name__}")
