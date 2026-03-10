@@ -1043,7 +1043,7 @@
 </span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">    </span><span class="nt">timestamp_column</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_date</span><span class="w">  </span><span class="c1"># First column in metadata.partitioned_by</span>
 </span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">P0</span>
 </span></code></pre></div>
-<p><strong>Note:</strong> DQX infers <code>timestamp_column</code> from the first column in <code>metadata.partitioned_by</code> for partitioned tables. For non-partitioned tables, the freshness check must explicitly specify <code>timestamp_column</code>.</p>
+<p><strong>Note:</strong> DQX infers <code>timestamp_column</code> from the first column in <code>metadata.partitioned_by</code> for partitioned tables. For non-partitioned tables, set <code>metadata.timestamp_column</code> to the column that carries the freshness timestamp — DQX uses this value when <code>sla</code> is specified without a <code>partitioned_by</code>.</p>
 <p>Gap detection is NOT auto-generated. Add <code>completeness</code> checks in the <code>checks</code> section explicitly when needed.</p>
 <h2 id="complete-examples">Complete Examples<a class="headerlink" href="#complete-examples" title="Anchor link to this section for reference">&para;</a></h2>
 <h3 id="example-1-daily-partitioned-table-t-1-availability">Example 1: Daily Partitioned Table (T-1 Availability)<a class="headerlink" href="#example-1-daily-partitioned-table-t-1-availability" title="Anchor link to this section for reference">&para;</a></h3>
@@ -1273,7 +1273,7 @@
 </span></code></pre></div>
 <hr />
 <h3 id="example-4-non-partitioned-daily-refresh-6-am">Example 4: Non-Partitioned Daily Refresh (6 AM)<a class="headerlink" href="#example-4-non-partitioned-daily-refresh-6-am" title="Anchor link to this section for reference">&para;</a></h3>
-<p>A daily customer aggregate table with a full-table refresh. Because there is no <code>partitioned_by</code>, DQX uses the table-based SLA formula and the freshness check must name the timestamp column explicitly.</p>
+<p>A daily customer aggregate table with a full-table refresh. Because there is no <code>partitioned_by</code>, DQX uses the table-based SLA formula. For non-partitioned tables, <code>metadata.timestamp_column</code> must be set when <code>sla</code> is specified — DQX requires it to know which column carries the freshness timestamp.</p>
 <div class="language-yaml highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Customer</span><span class="nv"> </span><span class="s">Aggregates</span><span class="nv"> </span><span class="s">Contract&quot;</span>
 </span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;1.0.0&quot;</span>
 </span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Daily</span><span class="nv"> </span><span class="s">customer</span><span class="nv"> </span><span class="s">aggregate</span><span class="nv"> </span><span class="s">table&quot;</span>
@@ -1284,8 +1284,8 @@
 </span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">  </span><span class="nt">schedule</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;0</span><span class="nv"> </span><span class="s">6</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*</span><span class="nv"> </span><span class="s">*&quot;</span><span class="w">          </span><span class="c1"># Daily at 6 AM</span>
 </span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">  </span><span class="nt">lag_hours</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span><span class="w">                   </span><span class="c1"># Available promptly at 6 AM</span>
 </span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>
-</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="c1"># NO metadata.partitioned_by → Table-based SLA</span>
-</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="c1"># timestamp_column must be specified in the freshness check</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="nt">metadata</span><span class="p">:</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">  </span><span class="nt">timestamp_column</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">last_updated</span><span class="w">    </span><span class="c1"># Required for non-partitioned SLA tables</span>
 </span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>
 </span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="nt">columns</span><span class="p">:</span>
 </span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer_id</span>
@@ -1309,16 +1309,8 @@
 </span><span id="__span-9-33"><a id="__codelineno-9-33" name="__codelineno-9-33" href="#__codelineno-9-33"></a><span class="c1">#   - name: &quot;SLA: Freshness check&quot;</span>
 </span><span id="__span-9-34"><a id="__codelineno-9-34" name="__codelineno-9-34" href="#__codelineno-9-34"></a><span class="c1">#     type: freshness</span>
 </span><span id="__span-9-35"><a id="__codelineno-9-35" name="__codelineno-9-35" href="#__codelineno-9-35"></a><span class="c1">#     max_age_hours: 1              # 0 (lag) + 1 (buffer)</span>
-</span><span id="__span-9-36"><a id="__codelineno-9-36" name="__codelineno-9-36" href="#__codelineno-9-36"></a><span class="c1">#     timestamp_column: last_updated  # Must be specified — cannot be inferred for non-partitioned tables</span>
+</span><span id="__span-9-36"><a id="__codelineno-9-36" name="__codelineno-9-36" href="#__codelineno-9-36"></a><span class="c1">#     timestamp_column: last_updated  # Read from metadata.timestamp_column</span>
 </span><span id="__span-9-37"><a id="__codelineno-9-37" name="__codelineno-9-37" href="#__codelineno-9-37"></a><span class="c1">#     severity: P0</span>
-</span><span id="__span-9-38"><a id="__codelineno-9-38" name="__codelineno-9-38" href="#__codelineno-9-38"></a><span class="c1">#</span>
-</span><span id="__span-9-39"><a id="__codelineno-9-39" name="__codelineno-9-39" href="#__codelineno-9-39"></a><span class="c1"># NOTE: For non-partitioned tables, `timestamp_column` is NOT automatically inferred</span>
-</span><span id="__span-9-40"><a id="__codelineno-9-40" name="__codelineno-9-40" href="#__codelineno-9-40"></a><span class="c1"># because there is no `metadata.partitioned_by` list to read from. The generated</span>
-</span><span id="__span-9-41"><a id="__codelineno-9-41" name="__codelineno-9-41" href="#__codelineno-9-41"></a><span class="c1"># freshness check uses the column named in a `timestamp_column` field that must be</span>
-</span><span id="__span-9-42"><a id="__codelineno-9-42" name="__codelineno-9-42" href="#__codelineno-9-42"></a><span class="c1"># provided when calling the SLA generator (or in an explicit manual check). In this</span>
-</span><span id="__span-9-43"><a id="__codelineno-9-43" name="__codelineno-9-43" href="#__codelineno-9-43"></a><span class="c1"># example `last_updated` is explicitly supplied as the timestamp column at generation</span>
-</span><span id="__span-9-44"><a id="__codelineno-9-44" name="__codelineno-9-44" href="#__codelineno-9-44"></a><span class="c1"># time. If you prefer direct control, omit the `sla` block and write a manual</span>
-</span><span id="__span-9-45"><a id="__codelineno-9-45" name="__codelineno-9-45" href="#__codelineno-9-45"></a><span class="c1"># freshness check with `timestamp_column: last_updated` instead.</span>
 </span></code></pre></div>
 <h2 id="validation-rules">Validation Rules<a class="headerlink" href="#validation-rules" title="Anchor link to this section for reference">&para;</a></h2>
 <p>DQX enforces the following rules when it parses an <code>sla</code> block.</p>
@@ -1352,7 +1344,7 @@
 </tr>
 <tr>
 <td>Non-partitioned timestamp</td>
-<td>For non-partitioned tables, the freshness check must specify <code>timestamp_column</code> explicitly</td>
+<td>For non-partitioned tables, <code>metadata.timestamp_column</code> must be set when <code>sla</code> is specified</td>
 </tr>
 </tbody>
 </table>
