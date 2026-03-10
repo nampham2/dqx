@@ -1530,6 +1530,25 @@ def _parse_float_field(value: Any, field_name: str) -> float:
         raise ContractValidationError(f"'{field_name}' must be a numeric value, got: {value!r}") from exc
 
 
+def _parse_int_field(value: Any, field_name: str) -> int:
+    """Convert a YAML value to int, raising ContractValidationError on failure.
+
+    Args:
+        value: The raw YAML value to convert.
+        field_name: Name of the field for error messages.
+
+    Returns:
+        Integer representation of value.
+
+    Raises:
+        ContractValidationError: If the value cannot be converted to int.
+    """
+    try:
+        return int(value)
+    except (TypeError, ValueError) as exc:
+        raise ContractValidationError(f"'{field_name}' must be an integer value, got: {value!r}") from exc
+
+
 def _parse_validator(raw: dict[str, Any]) -> Validator | None:
     """Parse a validator from a check YAML dict.
 
@@ -1645,9 +1664,9 @@ def _parse_table_check(raw: dict[str, Any]) -> TableCheck:
             name=name,
             partition_column=partition_column,
             granularity=granularity,  # type: ignore[arg-type]
-            lookback_days=int(raw.get("lookback_days", 30)),
+            lookback_days=_parse_int_field(raw.get("lookback_days", 30), "lookback_days"),
             allow_future_gaps=_parse_bool(raw.get("allow_future_gaps"), "allow_future_gaps", default=True),
-            max_gap_count=int(raw.get("max_gap_count", 0)),
+            max_gap_count=_parse_int_field(raw.get("max_gap_count", 0), "max_gap_count"),
             severity=severity,
             tags=tags,
         )
@@ -1674,7 +1693,7 @@ def _parse_column_check(raw: dict[str, Any]) -> ColumnCheck:
     tags = _parse_tags(raw.get("tags"))
     validator = _parse_validator(raw)
     validators: tuple[Validator, ...] = (validator,) if validator is not None else ()
-    return_type: str = raw.get("return_type", "count")
+    return_type: str = raw.get("return", "count")
 
     if check_type == "missing":
         return MissingCheck(
@@ -1796,18 +1815,20 @@ def _parse_column_check(raw: dict[str, Any]) -> ColumnCheck:
     raise ContractValidationError(f"Unknown column check type: '{check_type}'")
 
 
-def _parse_column(raw: dict[str, Any]) -> ColumnSpec:
+def _parse_column(raw: Any) -> ColumnSpec:
     """Parse a column dict into a ColumnSpec.
 
     Args:
-        raw: The raw YAML dict for a column.
+        raw: The raw YAML entry for a column. Must be a mapping.
 
     Returns:
         ColumnSpec instance.
 
     Raises:
-        ContractValidationError: If required fields are missing.
+        ContractValidationError: If raw is not a mapping or required fields are missing.
     """
+    if not isinstance(raw, dict):
+        raise ContractValidationError(f"Column entry must be a mapping, got: {type(raw).__name__}")
     for key in ("name", "type", "description"):
         if key not in raw:
             raise ContractValidationError(f"Column missing required field: '{key}'")
@@ -1815,11 +1836,19 @@ def _parse_column(raw: dict[str, Any]) -> ColumnSpec:
     nullable = _parse_bool(raw.get("nullable"), "nullable", default=True)
 
     # Parse column metadata
-    raw_metadata = raw.get("metadata") or {}
+    raw_metadata = raw.get("metadata")
+    if raw_metadata is None:
+        raw_metadata = {}
+    elif not isinstance(raw_metadata, dict):
+        raise ContractValidationError("Column 'metadata' must be a mapping")
     col_metadata: tuple[tuple[str, str], ...] = tuple((str(k), str(v)) for k, v in raw_metadata.items())
 
     # Parse column checks
-    raw_checks = raw.get("checks") or []
+    raw_checks = raw.get("checks")
+    if raw_checks is None:
+        raw_checks = []
+    elif not isinstance(raw_checks, list):
+        raise ContractValidationError("Column 'checks' must be a list")
     col_checks: tuple[ColumnCheck, ...] = tuple(_parse_column_check(c) for c in raw_checks)  # type: ignore[misc]
 
     return ColumnSpec(
@@ -1973,7 +2002,11 @@ class Contract:
         tags = _parse_tags(data.get("tags"))
 
         # Parse metadata block
-        raw_metadata = data.get("metadata") or {}
+        raw_metadata = data.get("metadata")
+        if raw_metadata is None:
+            raw_metadata = {}
+        elif not isinstance(raw_metadata, dict):
+            raise ContractValidationError("Contract 'metadata' must be a mapping")
         partitioned_by: tuple[str, ...] = ()
         if "partitioned_by" in raw_metadata:
             pb_raw = raw_metadata["partitioned_by"]
@@ -1991,10 +2024,20 @@ class Contract:
         sla: SLASpec | None = None
         if "sla" in data and data["sla"] is not None:
             raw_sla = data["sla"]
-            sla = SLASpec(schedule=raw_sla["schedule"], lag_hours=float(raw_sla["lag_hours"]))
+            if not isinstance(raw_sla, dict):
+                raise ContractValidationError(f"Contract 'sla' must be a mapping, got: {type(raw_sla).__name__}")
+            if "schedule" not in raw_sla:
+                raise ContractValidationError("SLA block missing required field: 'schedule'")
+            if "lag_hours" not in raw_sla:
+                raise ContractValidationError("SLA block missing required field: 'lag_hours'")
+            sla = SLASpec(schedule=raw_sla["schedule"], lag_hours=_parse_float_field(raw_sla["lag_hours"], "lag_hours"))
 
         # Parse optional top-level checks
-        raw_checks = data.get("checks") or []
+        raw_checks = data.get("checks")
+        if raw_checks is None:
+            raw_checks = []
+        elif not isinstance(raw_checks, list):
+            raise ContractValidationError("Contract 'checks' must be a list")
         table_checks: tuple[TableCheck, ...] = tuple(_parse_table_check(c) for c in raw_checks)  # type: ignore[misc]
 
         # Parse columns

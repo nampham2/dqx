@@ -1948,20 +1948,25 @@ def _write_yaml(tmp_path: Path, content: str) -> Path:
 
 def _minimal_yaml(extra_columns: str = "", top_level: str = "") -> str:
     """Build a minimal valid YAML string, with optional extra columns and top-level fields."""
-    return f"""\
-        name: "Test Contract"
-        version: "1.0.0"
-        description: "A test contract"
-        owner: "test-team"
-        dataset: "test_table"
-        {top_level}
-        columns:
-          - name: id
-            type: int
-            nullable: false
-            description: "Primary key"
-        {extra_columns}
-    """
+    lines = [
+        'name: "Test Contract"',
+        'version: "1.0.0"',
+        'description: "A test contract"',
+        'owner: "test-team"',
+        'dataset: "test_table"',
+    ]
+    if top_level:
+        lines.append(textwrap.dedent(top_level).strip())
+    lines += [
+        "columns:",
+        "  - name: id",
+        "    type: int",
+        "    nullable: false",
+        '    description: "Primary key"',
+    ]
+    if extra_columns:
+        lines.append(textwrap.dedent(extra_columns).strip())
+    return "\n".join(lines) + "\n"
 
 
 class TestContractFromYaml:
@@ -2784,7 +2789,7 @@ class TestContractFromYaml:
                 checks:
                   - type: missing
                     name: missing_check
-                    return_type: count
+                    return: count
                     equals: 0
             """,
         )
@@ -2811,7 +2816,7 @@ class TestContractFromYaml:
                 checks:
                   - type: missing
                     name: missing_pct
-                    return_type: pct
+                    return: pct
                     max: 5
             """,
         )
@@ -2864,7 +2869,7 @@ class TestContractFromYaml:
                     values:
                       - active
                       - inactive
-                    return_type: count
+                    return: count
             """,
         )
         contract = Contract.from_yaml(path)
@@ -2945,7 +2950,7 @@ class TestContractFromYaml:
                   - type: pattern
                     name: code_pattern
                     pattern: "^[A-Z]{3}$"
-                    return_type: count
+                    return: count
             """,
         )
         contract = Contract.from_yaml(path)
@@ -4701,4 +4706,217 @@ class TestContractFromYaml:
             """,
         )
         with pytest.raises(ContractValidationError, match="'partitioned_by' must be a list"):
+            Contract.from_yaml(path)
+
+    # --- P1 leak path tests ---
+
+    def test_sla_missing_schedule_raises(self, tmp_path: Path) -> None:
+        """SLA block without 'schedule' raises ContractValidationError, not KeyError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            sla:
+              lag_hours: 2.0
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="SLA block missing required field: 'schedule'"):
+            Contract.from_yaml(path)
+
+    def test_sla_missing_lag_hours_raises(self, tmp_path: Path) -> None:
+        """SLA block without 'lag_hours' raises ContractValidationError, not KeyError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            sla:
+              schedule: "0 6 * * *"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="SLA block missing required field: 'lag_hours'"):
+            Contract.from_yaml(path)
+
+    def test_sla_scalar_raises(self, tmp_path: Path) -> None:
+        """SLA block as scalar string raises ContractValidationError, not TypeError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            sla: "daily"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'sla' must be a mapping"):
+            Contract.from_yaml(path)
+
+    def test_completeness_lookback_days_non_numeric_raises(self, tmp_path: Path) -> None:
+        """CompletenessCheck with non-numeric lookback_days raises ContractValidationError, not ValueError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: completeness
+                name: complete
+                partition_column: id
+                granularity: daily
+                lookback_days: "not-a-number"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'lookback_days' must be an integer value"):
+            Contract.from_yaml(path)
+
+    def test_completeness_max_gap_count_non_numeric_raises(self, tmp_path: Path) -> None:
+        """CompletenessCheck with non-numeric max_gap_count raises ContractValidationError, not ValueError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: completeness
+                name: complete
+                partition_column: id
+                granularity: daily
+                max_gap_count: "not-a-number"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'max_gap_count' must be an integer value"):
+            Contract.from_yaml(path)
+
+    def test_column_entry_non_dict_raises(self, tmp_path: Path) -> None:
+        """Column list entry as integer raises ContractValidationError, not TypeError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - 42
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="Column entry must be a mapping"):
+            Contract.from_yaml(path)
+
+    # --- P2-1 type validation tests ---
+
+    def test_contract_metadata_non_dict_raises(self, tmp_path: Path) -> None:
+        """Contract 'metadata: string' raises ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            metadata: "string"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="Contract 'metadata' must be a mapping"):
+            Contract.from_yaml(path)
+
+    def test_contract_checks_non_list_raises(self, tmp_path: Path) -> None:
+        """Contract 'checks: 0' raises ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            checks: 0
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="Contract 'checks' must be a list"):
+            Contract.from_yaml(path)
+
+    def test_column_metadata_non_dict_raises(self, tmp_path: Path) -> None:
+        """Column 'metadata: string' raises ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+                metadata: "string"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="Column 'metadata' must be a mapping"):
+            Contract.from_yaml(path)
+
+    def test_column_checks_non_list_raises(self, tmp_path: Path) -> None:
+        """Column 'checks: string' raises ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+                checks: "string"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="Column 'checks' must be a list"):
             Contract.from_yaml(path)

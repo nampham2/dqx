@@ -61,12 +61,12 @@ columns:
     checks:
       - type: missing
         name: user_id_missing
-        return_type: count
+        return: count
         equals: 0
 
       - type: duplicates
         name: user_id_dupes
-        return_type: count
+        return: count
         max: 0
 
   - name: username
@@ -87,7 +87,7 @@ columns:
         pattern: "^[a-zA-Z0-9_]+$"
         flags:
           - IGNORECASE
-        return_type: count
+        return: count
 
   - name: email
     type: string
@@ -97,7 +97,7 @@ columns:
       - type: pattern
         name: email_format
         format: email
-        return_type: count
+        return: count
 
       - type: whitelist
         name: email_domain_whitelist
