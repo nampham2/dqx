@@ -1,0 +1,10 @@
+name: "Minimal Contract"
+version: "1.0.0"
+description: "A minimal test contract"
+owner: "test-team"
+dataset: "test_table"
+columns:
+  - name: id
+    type: int
+    nullable: false
+    description: "Primary key"

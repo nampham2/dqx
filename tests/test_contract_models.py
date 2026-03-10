@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import dataclasses
+import textwrap
+from pathlib import Path
 from typing import cast
 
 import pytest
@@ -1928,3 +1930,2065 @@ class TestContract:
         check = CompletenessCheck(name="complete", partition_column="nonexistent", granularity="daily")
         with pytest.raises(ContractValidationError, match="CompletenessCheck references unknown column"):
             _make_contract(checks=(check,))
+
+
+# ---------------------------------------------------------------------------
+# TestContractFromYaml
+# ---------------------------------------------------------------------------
+
+_FIXTURES_DIR = Path(__file__).parent / "fixtures" / "contracts"
+
+
+def _write_yaml(tmp_path: Path, content: str) -> Path:
+    """Write dedented YAML content to a file in tmp_path."""
+    p = tmp_path / "contract.yaml"
+    p.write_text(textwrap.dedent(content))
+    return p
+
+
+def _minimal_yaml(extra_columns: str = "", top_level: str = "") -> str:
+    """Build a minimal valid YAML string, with optional extra columns and top-level fields."""
+    return f"""\
+        name: "Test Contract"
+        version: "1.0.0"
+        description: "A test contract"
+        owner: "test-team"
+        dataset: "test_table"
+        {top_level}
+        columns:
+          - name: id
+            type: int
+            nullable: false
+            description: "Primary key"
+        {extra_columns}
+    """
+
+
+class TestContractFromYaml:
+    """Tests for Contract.from_yaml classmethod."""
+
+    # -----------------------------------------------------------------------
+    # Happy-path tests
+    # -----------------------------------------------------------------------
+
+    def test_minimal_contract(self, tmp_path: Path) -> None:
+        """Minimal valid contract with required fields only."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Minimal Contract"
+            version: "1.0.0"
+            description: "A minimal test contract"
+            owner: "test-team"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                nullable: false
+                description: "Primary key"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        assert contract.name == "Minimal Contract"
+        assert contract.version == "1.0.0"
+        assert contract.description == "A minimal test contract"
+        assert contract.owner == "test-team"
+        assert contract.dataset == "test_table"
+        assert len(contract.columns) == 1
+        assert contract.columns[0].name == "id"
+        assert contract.columns[0].nullable is False
+        assert contract.tags == frozenset()
+        assert contract.sla is None
+        assert contract.partitioned_by == ()
+        assert contract.metadata == ()
+        assert contract.checks == ()
+
+    def test_all_simple_column_types(self, tmp_path: Path) -> None:
+        """All simple column types parse correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Types Contract"
+            version: "1.0"
+            description: "Test all types"
+            owner: "test"
+            dataset: "types_table"
+            columns:
+              - name: col_int
+                type: int
+                description: "int col"
+              - name: col_float
+                type: float
+                description: "float col"
+              - name: col_bool
+                type: bool
+                description: "bool col"
+              - name: col_string
+                type: string
+                description: "string col"
+              - name: col_bytes
+                type: bytes
+                description: "bytes col"
+              - name: col_date
+                type: date
+                description: "date col"
+              - name: col_time
+                type: time
+                description: "time col"
+              - name: col_decimal
+                type: decimal
+                description: "decimal col"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        col_map = {c.name: c for c in contract.columns}
+        assert col_map["col_int"].type == "int"
+        assert col_map["col_float"].type == "float"
+        assert col_map["col_bool"].type == "bool"
+        assert col_map["col_string"].type == "string"
+        assert col_map["col_bytes"].type == "bytes"
+        assert col_map["col_date"].type == "date"
+        assert col_map["col_time"].type == "time"
+        assert col_map["col_decimal"].type == "decimal"
+
+    def test_timestamp_string_form(self, tmp_path: Path) -> None:
+        """'type: timestamp' (string) normalizes to TimestampType()."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "TS Contract"
+            version: "1.0"
+            description: "timestamp test"
+            owner: "test"
+            dataset: "ts_table"
+            columns:
+              - name: ts_col
+                type: timestamp
+                description: "a timestamp"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        col = contract.columns[0]
+        assert isinstance(col.type, TimestampType)
+        assert col.type == TimestampType()
+        assert col.type.tz is None
+
+    def test_timestamp_object_no_tz(self, tmp_path: Path) -> None:
+        """'kind: timestamp' without tz → TimestampType(tz=None)."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "TS Contract"
+            version: "1.0"
+            description: "timestamp test"
+            owner: "test"
+            dataset: "ts_table"
+            columns:
+              - name: ts_col
+                type:
+                  kind: timestamp
+                description: "a timestamp"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        assert isinstance(contract.columns[0].type, TimestampType)
+        assert contract.columns[0].type.tz is None
+
+    def test_timestamp_object_with_tz_utc(self, tmp_path: Path) -> None:
+        """'kind: timestamp, tz: UTC' → TimestampType(tz='UTC')."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "TS Contract"
+            version: "1.0"
+            description: "timestamp test"
+            owner: "test"
+            dataset: "ts_table"
+            columns:
+              - name: ts_col
+                type:
+                  kind: timestamp
+                  tz: UTC
+                description: "a utc timestamp"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        assert isinstance(contract.columns[0].type, TimestampType)
+        assert contract.columns[0].type.tz == "UTC"
+
+    def test_timestamp_object_with_tz_america(self, tmp_path: Path) -> None:
+        """'kind: timestamp, tz: America/New_York' → TimestampType(tz='America/New_York')."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "TS Contract"
+            version: "1.0"
+            description: "timestamp test"
+            owner: "test"
+            dataset: "ts_table"
+            columns:
+              - name: ts_col
+                type:
+                  kind: timestamp
+                  tz: America/New_York
+                description: "a tz-aware timestamp"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        assert isinstance(contract.columns[0].type, TimestampType)
+        assert contract.columns[0].type.tz == "America/New_York"
+
+    def test_list_type_string_elements(self, tmp_path: Path) -> None:
+        """'kind: list, value_type: string' → ListType(value_type='string')."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "List Contract"
+            version: "1.0"
+            description: "list type test"
+            owner: "test"
+            dataset: "list_table"
+            columns:
+              - name: tags
+                type:
+                  kind: list
+                  value_type: string
+                description: "string list"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        col = contract.columns[0]
+        assert isinstance(col.type, ListType)
+        assert col.type.value_type == "string"
+
+    def test_list_type_int_elements(self, tmp_path: Path) -> None:
+        """'kind: list, value_type: int' → ListType(value_type='int')."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "List Contract"
+            version: "1.0"
+            description: "list type test"
+            owner: "test"
+            dataset: "list_table"
+            columns:
+              - name: ids
+                type:
+                  kind: list
+                  value_type: int
+                description: "int list"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        col = contract.columns[0]
+        assert isinstance(col.type, ListType)
+        assert col.type.value_type == "int"
+
+    def test_struct_type(self, tmp_path: Path) -> None:
+        """'kind: struct, fields: [...]' → StructType with StructFields."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Struct Contract"
+            version: "1.0"
+            description: "struct type test"
+            owner: "test"
+            dataset: "struct_table"
+            columns:
+              - name: address
+                type:
+                  kind: struct
+                  fields:
+                    - name: street
+                      type: string
+                      description: "Street name"
+                    - name: zip
+                      type: string
+                      description: "ZIP code"
+                description: "address struct"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        col = contract.columns[0]
+        assert isinstance(col.type, StructType)
+        assert len(col.type.fields) == 2
+        assert col.type.fields[0].name == "street"
+        assert col.type.fields[0].type == "string"
+        assert col.type.fields[0].description == "Street name"
+        assert col.type.fields[1].name == "zip"
+
+    def test_map_type(self, tmp_path: Path) -> None:
+        """'kind: map, key_type: string, value_type: int' → MapType."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Map Contract"
+            version: "1.0"
+            description: "map type test"
+            owner: "test"
+            dataset: "map_table"
+            columns:
+              - name: counts
+                type:
+                  kind: map
+                  key_type: string
+                  value_type: int
+                description: "map column"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        col = contract.columns[0]
+        assert isinstance(col.type, MapType)
+        assert col.type.key_type == "string"
+        assert col.type.value_type == "int"
+
+    def test_nested_list_of_structs(self, tmp_path: Path) -> None:
+        """Nested list<struct> type parses recursively."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Nested Contract"
+            version: "1.0"
+            description: "nested type test"
+            owner: "test"
+            dataset: "nested_table"
+            columns:
+              - name: items
+                type:
+                  kind: list
+                  value_type:
+                    kind: struct
+                    fields:
+                      - name: item_id
+                        type: int
+                        description: "Item id"
+                      - name: item_name
+                        type: string
+                        description: "Item name"
+                description: "list of structs"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        col = contract.columns[0]
+        assert isinstance(col.type, ListType)
+        assert isinstance(col.type.value_type, StructType)
+        assert len(col.type.value_type.fields) == 2
+
+    def test_nullable_false(self, tmp_path: Path) -> None:
+        """Column with 'nullable: false' → col.nullable is False."""
+        path = _write_yaml(tmp_path, _minimal_yaml())
+        contract = Contract.from_yaml(path)
+        assert contract.columns[0].nullable is False
+
+    def test_nullable_defaults_to_true(self, tmp_path: Path) -> None:
+        """Column without 'nullable' key → col.nullable is True."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test Contract"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type: string
+                description: "a column"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        assert contract.columns[0].nullable is True
+
+    def test_tags(self, tmp_path: Path) -> None:
+        """'tags: [a, b]' → contract.tags == frozenset({'a', 'b'})."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Tagged Contract"
+            version: "1.0"
+            description: "tags test"
+            owner: "test"
+            dataset: "test_table"
+            tags:
+              - a
+              - b
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        assert contract.tags == frozenset({"a", "b"})
+
+    def test_no_tags(self, tmp_path: Path) -> None:
+        """Contract without tags → contract.tags == frozenset()."""
+        path = _write_yaml(tmp_path, _minimal_yaml())
+        contract = Contract.from_yaml(path)
+        assert contract.tags == frozenset()
+
+    def test_column_metadata(self, tmp_path: Path) -> None:
+        """Column metadata dict → col.metadata as tuple of pairs."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Meta Contract"
+            version: "1.0"
+            description: "metadata test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type: string
+                description: "a column"
+                metadata:
+                  pii: "true"
+                  source: "crm"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        col = contract.columns[0]
+        assert ("pii", "true") in col.metadata
+        assert ("source", "crm") in col.metadata
+
+    def test_partitioned_by(self, tmp_path: Path) -> None:
+        """metadata.partitioned_by → contract.partitioned_by as tuple."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Partitioned Contract"
+            version: "1.0"
+            description: "partitioned test"
+            owner: "test"
+            dataset: "test_table"
+            metadata:
+              partitioned_by:
+                - event_date
+                - region
+              team: data
+            columns:
+              - name: event_date
+                type: date
+                description: "event date"
+              - name: region
+                type: string
+                description: "region"
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        assert contract.partitioned_by == ("event_date", "region")
+        assert ("team", "data") in contract.metadata
+
+    def test_sla_with_partitioned_by(self, tmp_path: Path) -> None:
+        """SLA + partitioned_by → SLASpec parsed correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "SLA Contract"
+            version: "1.0"
+            description: "sla test"
+            owner: "test"
+            dataset: "test_table"
+            sla:
+              schedule: "0 6 * * *"
+              lag_hours: 2.0
+            metadata:
+              partitioned_by:
+                - event_date
+            columns:
+              - name: event_date
+                type: date
+                description: "event date"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        assert contract.sla is not None
+        assert contract.sla.schedule == "0 6 * * *"
+        assert contract.sla.lag_hours == pytest.approx(2.0)
+        assert contract.partitioned_by == ("event_date",)
+
+    def test_sla_non_partitioned_with_timestamp_column(self, tmp_path: Path) -> None:
+        """Non-partitioned SLA + metadata.timestamp_column → valid contract."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "SLA Non-Partitioned Contract"
+            version: "1.0"
+            description: "sla non-partitioned test"
+            owner: "test"
+            dataset: "test_table"
+            sla:
+              schedule: "0 6 * * *"
+              lag_hours: 1.0
+            metadata:
+              timestamp_column: updated_at
+            columns:
+              - name: id
+                type: int
+                description: "id"
+              - name: updated_at
+                type: timestamp
+                description: "update timestamp"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        assert contract.sla is not None
+        assert contract.sla.schedule == "0 6 * * *"
+
+    # --- Table check happy-path tests ---
+
+    def test_table_num_rows_min_validator(self, tmp_path: Path) -> None:
+        """Table num_rows check with min validator parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: num_rows
+                name: row_count
+                min: 1000
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        assert len(contract.checks) == 1
+        check = contract.checks[0]
+        assert isinstance(check, NumRowsCheck)
+        assert check.name == "row_count"
+        assert len(check.validators) == 1
+        assert isinstance(check.validators[0], MinValidator)
+        assert check.validators[0].threshold == pytest.approx(1000.0)
+
+    def test_table_num_rows_max_validator(self, tmp_path: Path) -> None:
+        """Table num_rows check with max validator parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: num_rows
+                name: row_max
+                max: 5000
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.checks[0]
+        assert isinstance(check, NumRowsCheck)
+        assert isinstance(check.validators[0], MaxValidator)
+        assert check.validators[0].threshold == pytest.approx(5000.0)
+
+    def test_table_num_rows_between_validator(self, tmp_path: Path) -> None:
+        """Table num_rows check with between validator parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: num_rows
+                name: row_between
+                between: [100, 5000]
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.checks[0]
+        assert isinstance(check, NumRowsCheck)
+        assert isinstance(check.validators[0], BetweenValidator)
+        assert check.validators[0].low == pytest.approx(100.0)
+        assert check.validators[0].high == pytest.approx(5000.0)
+
+    def test_table_num_rows_equals_validator(self, tmp_path: Path) -> None:
+        """Table num_rows check with equals validator parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: num_rows
+                name: row_equals
+                equals: 1000
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.checks[0]
+        assert isinstance(check, NumRowsCheck)
+        assert isinstance(check.validators[0], EqualsValidator)
+        assert check.validators[0].value == pytest.approx(1000.0)
+
+    def test_table_num_rows_not_between_validator(self, tmp_path: Path) -> None:
+        """Table num_rows check with not_between validator parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: num_rows
+                name: row_not_between
+                not_between: [0, 100]
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.checks[0]
+        assert isinstance(check, NumRowsCheck)
+        assert isinstance(check.validators[0], NotBetweenValidator)
+        assert check.validators[0].low == pytest.approx(0.0)
+        assert check.validators[0].high == pytest.approx(100.0)
+
+    def test_table_num_rows_noop_no_validator(self, tmp_path: Path) -> None:
+        """Table num_rows check with no validator → empty validators tuple."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: num_rows
+                name: row_noop
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.checks[0]
+        assert isinstance(check, NumRowsCheck)
+        assert check.validators == ()
+
+    def test_table_num_rows_with_tolerance(self, tmp_path: Path) -> None:
+        """Table num_rows check with custom tolerance."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: num_rows
+                name: row_tol
+                min: 1000
+                tolerance: 0.01
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.checks[0]
+        assert isinstance(check, NumRowsCheck)
+        assert isinstance(check.validators[0], MinValidator)
+        assert check.validators[0].tolerance == pytest.approx(0.01)
+
+    def test_table_duplicates_check(self, tmp_path: Path) -> None:
+        """Table duplicates check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: duplicates
+                name: dedup
+                columns:
+                  - id
+                  - name
+                max: 0
+                return: count
+                severity: P0
+                tags:
+                  - critical
+            columns:
+              - name: id
+                type: int
+                description: "id"
+              - name: name
+                type: string
+                description: "name"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.checks[0]
+        assert isinstance(check, TableDuplicatesCheck)
+        assert check.name == "dedup"
+        assert check.columns == ("id", "name")
+        assert isinstance(check.validators[0], MaxValidator)
+        assert check.return_type == "count"
+        assert check.severity == "P0"
+        assert "critical" in check.tags
+
+    def test_table_freshness_check(self, tmp_path: Path) -> None:
+        """Table freshness check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: freshness
+                name: fresh
+                max_age_hours: 24
+                timestamp_column: updated_at
+                aggregation: max
+            columns:
+              - name: id
+                type: int
+                description: "id"
+              - name: updated_at
+                type: timestamp
+                description: "update ts"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.checks[0]
+        assert isinstance(check, FreshnessCheck)
+        assert check.max_age_hours == pytest.approx(24.0)
+        assert check.timestamp_column == "updated_at"
+        assert check.aggregation == "max"
+
+    def test_table_completeness_check(self, tmp_path: Path) -> None:
+        """Table completeness check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: completeness
+                name: complete
+                partition_column: event_date
+                granularity: daily
+                lookback_days: 60
+                allow_future_gaps: false
+                max_gap_count: 2
+            columns:
+              - name: id
+                type: int
+                description: "id"
+              - name: event_date
+                type: date
+                description: "event date"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.checks[0]
+        assert isinstance(check, CompletenessCheck)
+        assert check.partition_column == "event_date"
+        assert check.granularity == "daily"
+        assert check.lookback_days == 60
+        assert check.allow_future_gaps is False
+        assert check.max_gap_count == 2
+
+    def test_table_completeness_check_defaults(self, tmp_path: Path) -> None:
+        """Table completeness check uses correct defaults when optional fields absent."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: completeness
+                name: complete
+                partition_column: event_date
+                granularity: daily
+            columns:
+              - name: id
+                type: int
+                description: "id"
+              - name: event_date
+                type: date
+                description: "event date"
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.checks[0]
+        assert isinstance(check, CompletenessCheck)
+        assert check.lookback_days == 30
+        assert check.allow_future_gaps is True
+        assert check.max_gap_count == 0
+
+    # --- Column check happy-path tests ---
+
+    def test_column_missing_check_count(self, tmp_path: Path) -> None:
+        """Column missing check with count return_type parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type: string
+                description: "col"
+                checks:
+                  - type: missing
+                    name: missing_check
+                    return_type: count
+                    equals: 0
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, MissingCheck)
+        assert check.return_type == "count"
+        assert isinstance(check.validators[0], EqualsValidator)
+
+    def test_column_missing_check_pct(self, tmp_path: Path) -> None:
+        """Column missing check with pct return_type parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type: string
+                description: "col"
+                checks:
+                  - type: missing
+                    name: missing_pct
+                    return_type: pct
+                    max: 5
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, MissingCheck)
+        assert check.return_type == "pct"
+
+    def test_column_duplicates_check(self, tmp_path: Path) -> None:
+        """Column duplicates check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type: string
+                description: "col"
+                checks:
+                  - type: duplicates
+                    name: col_dedup
+                    equals: 0
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, ColumnDuplicatesCheck)
+
+    def test_column_whitelist_check(self, tmp_path: Path) -> None:
+        """Column whitelist check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: status
+                type: string
+                description: "status"
+                checks:
+                  - type: whitelist
+                    name: status_whitelist
+                    values:
+                      - active
+                      - inactive
+                    return_type: count
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, WhitelistCheck)
+        assert check.values == ("active", "inactive")
+        assert check.case_sensitive is True
+
+    def test_column_whitelist_check_case_insensitive(self, tmp_path: Path) -> None:
+        """Column whitelist check with case_sensitive: false."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: status
+                type: string
+                description: "status"
+                checks:
+                  - type: whitelist
+                    name: status_whitelist_ci
+                    values:
+                      - ACTIVE
+                    case_sensitive: false
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, WhitelistCheck)
+        assert check.case_sensitive is False
+
+    def test_column_blacklist_check(self, tmp_path: Path) -> None:
+        """Column blacklist check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type: string
+                description: "col"
+                checks:
+                  - type: blacklist
+                    name: col_blacklist
+                    values:
+                      - banned
+                      - deleted
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, BlacklistCheck)
+        assert check.values == ("banned", "deleted")
+
+    def test_column_pattern_check_regex(self, tmp_path: Path) -> None:
+        """Column pattern check with regex pattern parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            r"""
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: code
+                type: string
+                description: "code"
+                checks:
+                  - type: pattern
+                    name: code_pattern
+                    pattern: "^[A-Z]{3}$"
+                    return_type: count
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, PatternCheck)
+        assert check.pattern == "^[A-Z]{3}$"
+        assert check.format is None
+
+    def test_column_pattern_check_format(self, tmp_path: Path) -> None:
+        """Column pattern check with format shortcut parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: email
+                type: string
+                description: "email"
+                checks:
+                  - type: pattern
+                    name: email_pattern
+                    format: email
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, PatternCheck)
+        assert check.format == "email"
+        assert check.pattern is None
+
+    def test_column_pattern_check_flags(self, tmp_path: Path) -> None:
+        """Column pattern check with flags parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            r"""
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: code
+                type: string
+                description: "code"
+                checks:
+                  - type: pattern
+                    name: code_pattern_flags
+                    pattern: "^[a-z]+$"
+                    flags:
+                      - IGNORECASE
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, PatternCheck)
+        assert "IGNORECASE" in check.flags
+
+    def test_column_min_length_check(self, tmp_path: Path) -> None:
+        """Column min_length check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: name
+                type: string
+                description: "name"
+                checks:
+                  - type: min_length
+                    name: name_min_len
+                    min: 3
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, MinLengthCheck)
+        assert isinstance(check.validators[0], MinValidator)
+        assert check.validators[0].threshold == pytest.approx(3.0)
+
+    def test_column_max_length_check(self, tmp_path: Path) -> None:
+        """Column max_length check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: name
+                type: string
+                description: "name"
+                checks:
+                  - type: max_length
+                    name: name_max_len
+                    max: 255
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, MaxLengthCheck)
+        assert isinstance(check.validators[0], MaxValidator)
+
+    def test_column_avg_length_check(self, tmp_path: Path) -> None:
+        """Column avg_length check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: name
+                type: string
+                description: "name"
+                checks:
+                  - type: avg_length
+                    name: name_avg_len
+                    between: [3, 50]
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, AvgLengthCheck)
+        assert isinstance(check.validators[0], BetweenValidator)
+
+    def test_column_cardinality_check(self, tmp_path: Path) -> None:
+        """Column cardinality check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: status
+                type: string
+                description: "status"
+                checks:
+                  - type: cardinality
+                    name: status_cardinality
+                    max: 10
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, CardinalityCheck)
+
+    def test_column_min_check(self, tmp_path: Path) -> None:
+        """Column min check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: age
+                type: int
+                description: "age"
+                checks:
+                  - type: min
+                    name: age_min
+                    min: 0
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, MinCheck)
+
+    def test_column_max_check(self, tmp_path: Path) -> None:
+        """Column max check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: age
+                type: int
+                description: "age"
+                checks:
+                  - type: max
+                    name: age_max
+                    max: 150
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, MaxCheck)
+
+    def test_column_mean_check(self, tmp_path: Path) -> None:
+        """Column mean check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: score
+                type: float
+                description: "score"
+                checks:
+                  - type: mean
+                    name: score_mean
+                    between: [0, 100]
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, MeanCheck)
+
+    def test_column_sum_check(self, tmp_path: Path) -> None:
+        """Column sum check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: amount
+                type: float
+                description: "amount"
+                checks:
+                  - type: sum
+                    name: amount_sum
+                    min: 0
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, SumCheck)
+
+    def test_column_count_check(self, tmp_path: Path) -> None:
+        """Column count check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type: int
+                description: "col"
+                checks:
+                  - type: count
+                    name: col_count
+                    min: 1
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, CountCheck)
+
+    def test_column_variance_check(self, tmp_path: Path) -> None:
+        """Column variance check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: score
+                type: float
+                description: "score"
+                checks:
+                  - type: variance
+                    name: score_variance
+                    max: 1000
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, VarianceCheck)
+
+    def test_column_stddev_check(self, tmp_path: Path) -> None:
+        """Column stddev check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: score
+                type: float
+                description: "score"
+                checks:
+                  - type: stddev
+                    name: score_stddev
+                    max: 100
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, StddevCheck)
+
+    def test_column_percentile_check(self, tmp_path: Path) -> None:
+        """Column percentile check parses correctly."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Check Contract"
+            version: "1.0"
+            description: "check test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: score
+                type: float
+                description: "score"
+                checks:
+                  - type: percentile
+                    name: score_p95
+                    percentile: 0.95
+                    max: 100
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        check = contract.columns[0].checks[0]
+        assert isinstance(check, PercentileCheck)
+        assert check.percentile == pytest.approx(0.95)
+
+    def test_full_kitchen_sink_contract(self) -> None:
+        """Full fixture file with all check types, complex types, SLA."""
+        path = _FIXTURES_DIR / "full_contract.yaml"
+        contract = Contract.from_yaml(path)
+        assert contract.name == "Full Kitchen-Sink Contract"
+        assert contract.version == "2.1.0"
+        assert "production" in contract.tags
+        assert "critical" in contract.tags
+        assert contract.sla is not None
+        assert contract.sla.schedule == "0 6 * * *"
+        assert contract.partitioned_by == ("event_date", "region")
+        assert len(contract.checks) == 4
+        assert len(contract.columns) > 10
+        # Verify complex types exist
+        col_map = {c.name: c for c in contract.columns}
+        assert isinstance(col_map["tags_list"].type, ListType)
+        assert isinstance(col_map["address"].type, StructType)
+        assert isinstance(col_map["attributes"].type, MapType)
+        assert isinstance(col_map["events_by_date"].type, MapType)
+
+    # -----------------------------------------------------------------------
+    # Error / edge-case tests
+    # -----------------------------------------------------------------------
+
+    def test_file_not_found_raises(self, tmp_path: Path) -> None:
+        """Non-existent path → ContractValidationError."""
+        path = tmp_path / "nonexistent.yaml"
+        with pytest.raises(ContractValidationError, match="Contract file not found"):
+            Contract.from_yaml(path)
+
+    def test_invalid_yaml_syntax_raises(self, tmp_path: Path) -> None:
+        """Malformed YAML → ContractValidationError."""
+        path = tmp_path / "bad.yaml"
+        path.write_text("name: [\nunot closed")
+        with pytest.raises(ContractValidationError, match="Invalid YAML"):
+            Contract.from_yaml(path)
+
+    def test_empty_yaml_raises(self, tmp_path: Path) -> None:
+        """Empty YAML file → ContractValidationError."""
+        path = tmp_path / "empty.yaml"
+        path.write_text("")
+        with pytest.raises(ContractValidationError, match="empty"):
+            Contract.from_yaml(path)
+
+    def test_root_not_dict_raises(self, tmp_path: Path) -> None:
+        """YAML root is a list → ContractValidationError."""
+        path = tmp_path / "list.yaml"
+        path.write_text("- a\n- b\n")
+        with pytest.raises(ContractValidationError, match="mapping"):
+            Contract.from_yaml(path)
+
+    def test_missing_field_name_raises(self, tmp_path: Path) -> None:
+        """Missing 'name' field → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="missing required field.*name"):
+            Contract.from_yaml(path)
+
+    def test_missing_field_version_raises(self, tmp_path: Path) -> None:
+        """Missing 'version' field → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="missing required field.*version"):
+            Contract.from_yaml(path)
+
+    def test_missing_field_description_raises(self, tmp_path: Path) -> None:
+        """Missing 'description' field → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="missing required field.*description"):
+            Contract.from_yaml(path)
+
+    def test_missing_field_owner_raises(self, tmp_path: Path) -> None:
+        """Missing 'owner' field → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="missing required field.*owner"):
+            Contract.from_yaml(path)
+
+    def test_missing_field_dataset_raises(self, tmp_path: Path) -> None:
+        """Missing 'dataset' field → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="missing required field.*dataset"):
+            Contract.from_yaml(path)
+
+    def test_missing_field_columns_raises(self, tmp_path: Path) -> None:
+        """Missing 'columns' field → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="missing required field.*columns"):
+            Contract.from_yaml(path)
+
+    def test_columns_not_a_list_raises(self, tmp_path: Path) -> None:
+        """columns: 'bad' (string) → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns: bad
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="columns.*list"):
+            Contract.from_yaml(path)
+
+    def test_column_missing_name_raises(self, tmp_path: Path) -> None:
+        """Column without 'name' → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="Column missing required field.*name"):
+            Contract.from_yaml(path)
+
+    def test_column_missing_type_raises(self, tmp_path: Path) -> None:
+        """Column without 'type' → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="Column missing required field.*type"):
+            Contract.from_yaml(path)
+
+    def test_column_missing_description_raises(self, tmp_path: Path) -> None:
+        """Column without 'description' → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="Column missing required field.*description"):
+            Contract.from_yaml(path)
+
+    def test_unknown_simple_type_raises(self, tmp_path: Path) -> None:
+        """type: bigint → ContractValidationError (from ColumnSpec)."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: bigint
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError):
+            Contract.from_yaml(path)
+
+    def test_unknown_complex_type_kind_raises(self, tmp_path: Path) -> None:
+        """kind: array → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type:
+                  kind: array
+                  value_type: string
+                description: "col"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="Unknown type kind"):
+            Contract.from_yaml(path)
+
+    def test_list_type_missing_value_type_raises(self, tmp_path: Path) -> None:
+        """kind: list without value_type → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type:
+                  kind: list
+                description: "col"
+            """,
+        )
+        with pytest.raises(ContractValidationError):
+            Contract.from_yaml(path)
+
+    def test_struct_type_missing_fields_raises(self, tmp_path: Path) -> None:
+        """kind: struct without fields → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type:
+                  kind: struct
+                description: "col"
+            """,
+        )
+        with pytest.raises(ContractValidationError):
+            Contract.from_yaml(path)
+
+    def test_struct_field_missing_description_raises(self, tmp_path: Path) -> None:
+        """Struct field without description → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type:
+                  kind: struct
+                  fields:
+                    - name: field1
+                      type: string
+                description: "col"
+            """,
+        )
+        with pytest.raises(ContractValidationError):
+            Contract.from_yaml(path)
+
+    def test_unknown_table_check_type_raises(self, tmp_path: Path) -> None:
+        """type: custom_check in table checks → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: custom_check
+                name: my_check
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="Unknown table check type"):
+            Contract.from_yaml(path)
+
+    def test_unknown_column_check_type_raises(self, tmp_path: Path) -> None:
+        """type: custom_check in column checks → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type: string
+                description: "col"
+                checks:
+                  - type: custom_check
+                    name: my_check
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="Unknown column check type"):
+            Contract.from_yaml(path)
+
+    def test_duplicate_column_names_raises(self, tmp_path: Path) -> None:
+        """Two columns with same name → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+              - name: id
+                type: string
+                description: "also id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="duplicate"):
+            Contract.from_yaml(path)
+
+    def test_partitioned_by_unknown_column_raises(self, tmp_path: Path) -> None:
+        """partitioned_by referencing missing column → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            metadata:
+              partitioned_by:
+                - nonexistent_col
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="partitioned_by"):
+            Contract.from_yaml(path)
+
+    def test_multiple_validators_in_check_raises(self, tmp_path: Path) -> None:
+        """min and max both present in one check → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: num_rows
+                name: row_check
+                min: 1000
+                max: 5000
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="multiple validators"):
+            Contract.from_yaml(path)
+
+    def test_invalid_cron_in_sla_raises(self, tmp_path: Path) -> None:
+        """SLA with bad cron → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            sla:
+              schedule: "not a cron"
+              lag_hours: 1.0
+            metadata:
+              partitioned_by:
+                - id
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="cron"):
+            Contract.from_yaml(path)
+
+    def test_table_freshness_missing_max_age_hours_raises(self, tmp_path: Path) -> None:
+        """Table freshness check missing max_age_hours → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: freshness
+                name: fresh
+                timestamp_column: ts
+            columns:
+              - name: id
+                type: int
+                description: "id"
+              - name: ts
+                type: timestamp
+                description: "ts"
+            """,
+        )
+        with pytest.raises((ContractValidationError, KeyError)):
+            Contract.from_yaml(path)
+
+    def test_table_freshness_missing_timestamp_column_raises(self, tmp_path: Path) -> None:
+        """Table freshness check missing timestamp_column → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: freshness
+                name: fresh
+                max_age_hours: 24
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises((ContractValidationError, KeyError)):
+            Contract.from_yaml(path)
+
+    def test_table_completeness_missing_partition_column_raises(self, tmp_path: Path) -> None:
+        """Table completeness check missing partition_column → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: completeness
+                name: complete
+                granularity: daily
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises((ContractValidationError, KeyError)):
+            Contract.from_yaml(path)
+
+    def test_table_completeness_missing_granularity_raises(self, tmp_path: Path) -> None:
+        """Table completeness check missing granularity → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            checks:
+              - type: completeness
+                name: complete
+                partition_column: event_date
+            columns:
+              - name: id
+                type: int
+                description: "id"
+              - name: event_date
+                type: date
+                description: "event date"
+            """,
+        )
+        with pytest.raises((ContractValidationError, KeyError)):
+            Contract.from_yaml(path)
+
+    def test_column_whitelist_missing_values_raises(self, tmp_path: Path) -> None:
+        """Column whitelist check without values → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: status
+                type: string
+                description: "status"
+                checks:
+                  - type: whitelist
+                    name: status_whitelist
+            """,
+        )
+        with pytest.raises((ContractValidationError, KeyError)):
+            Contract.from_yaml(path)
+
+    def test_column_blacklist_missing_values_raises(self, tmp_path: Path) -> None:
+        """Column blacklist check without values → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type: string
+                description: "col"
+                checks:
+                  - type: blacklist
+                    name: col_blacklist
+            """,
+        )
+        with pytest.raises((ContractValidationError, KeyError)):
+            Contract.from_yaml(path)
+
+    def test_column_percentile_missing_percentile_raises(self, tmp_path: Path) -> None:
+        """Column percentile check without percentile → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: score
+                type: float
+                description: "score"
+                checks:
+                  - type: percentile
+                    name: score_p
+                    max: 100
+            """,
+        )
+        with pytest.raises((ContractValidationError, KeyError)):
+            Contract.from_yaml(path)
+
+    def test_map_type_missing_key_type_raises(self, tmp_path: Path) -> None:
+        """kind: map without key_type → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type:
+                  kind: map
+                  value_type: string
+                description: "col"
+            """,
+        )
+        with pytest.raises(ContractValidationError):
+            Contract.from_yaml(path)
+
+    def test_map_type_missing_value_type_raises(self, tmp_path: Path) -> None:
+        """kind: map without value_type → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type:
+                  kind: map
+                  key_type: string
+                description: "col"
+            """,
+        )
+        with pytest.raises(ContractValidationError):
+            Contract.from_yaml(path)
+
+    def test_non_string_non_dict_type_raises(self, tmp_path: Path) -> None:
+        """Non-string non-dict type node → ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: col
+                type: 42
+                description: "col"
+            """,
+        )
+        with pytest.raises(ContractValidationError):
+            Contract.from_yaml(path)
