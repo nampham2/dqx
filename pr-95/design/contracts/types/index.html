@@ -1072,7 +1072,7 @@
 <td><code>timestamp</code></td>
 <td><code>type: timestamp</code> or <code>type: {kind: timestamp}</code> or <code>type: {kind: timestamp, tz: "..."}</code></td>
 <td>timestamp(any unit, any tz)</td>
-<td>Simple form accepts any tz; object form defaults to UTC; explicit <code>tz</code> enforces exact match</td>
+<td>Simple form and object form without <code>tz</code> are timezone-naive (<code>tz=None</code>); explicit <code>tz</code> enforces exact match</td>
 </tr>
 <tr>
 <td><strong>Decimal Type</strong></td>
@@ -1160,13 +1160,13 @@
 </span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a><span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">timestamp</span>
 </span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Event</span><span class="nv"> </span><span class="s">timestamp&quot;</span>
 </span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>
-</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c1"># 2. Complex form with default UTC timezone</span>
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a><span class="c1"># 2. Complex form with timezone-naive default</span>
 </span><span id="__span-1-14"><a id="__codelineno-1-14" name="__codelineno-1-14" href="#__codelineno-1-14"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">created_at</span>
 </span><span id="__span-1-15"><a id="__codelineno-1-15" name="__codelineno-1-15" href="#__codelineno-1-15"></a><span class="w">  </span><span class="nt">type</span><span class="p">:</span>
 </span><span id="__span-1-16"><a id="__codelineno-1-16" name="__codelineno-1-16" href="#__codelineno-1-16"></a><span class="w">    </span><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">timestamp</span>
-</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">    </span><span class="c1"># tz defaults to &quot;UTC&quot; (omitted)</span>
+</span><span id="__span-1-17"><a id="__codelineno-1-17" name="__codelineno-1-17" href="#__codelineno-1-17"></a><span class="w">    </span><span class="c1"># tz defaults to None (timezone-naive) when omitted</span>
 </span><span id="__span-1-18"><a id="__codelineno-1-18" name="__codelineno-1-18" href="#__codelineno-1-18"></a><span class="w">  </span><span class="nt">nullable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
-</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Creation</span><span class="nv"> </span><span class="s">timestamp</span><span class="nv"> </span><span class="s">in</span><span class="nv"> </span><span class="s">UTC&quot;</span>
+</span><span id="__span-1-19"><a id="__codelineno-1-19" name="__codelineno-1-19" href="#__codelineno-1-19"></a><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Creation</span><span class="nv"> </span><span class="s">timestamp</span><span class="nv"> </span><span class="s">(timezone-naive)&quot;</span>
 </span><span id="__span-1-20"><a id="__codelineno-1-20" name="__codelineno-1-20" href="#__codelineno-1-20"></a>
 </span><span id="__span-1-21"><a id="__codelineno-1-21" name="__codelineno-1-21" href="#__codelineno-1-21"></a><span class="c1"># 3. Complex form with explicit timezone</span>
 </span><span id="__span-1-22"><a id="__codelineno-1-22" name="__codelineno-1-22" href="#__codelineno-1-22"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">created_at_ny</span>
@@ -1182,7 +1182,7 @@
 </span><span id="__span-1-32"><a id="__codelineno-1-32" name="__codelineno-1-32" href="#__codelineno-1-32"></a><span class="w">  </span><span class="nt">nullable</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
 </span><span id="__span-1-33"><a id="__codelineno-1-33" name="__codelineno-1-33" href="#__codelineno-1-33"></a><span class="w">  </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Time</span><span class="nv"> </span><span class="s">of</span><span class="nv"> </span><span class="s">day</span><span class="nv"> </span><span class="s">when</span><span class="nv"> </span><span class="s">event</span><span class="nv"> </span><span class="s">occurred&quot;</span>
 </span></code></pre></div>
-<p>Use simple form when timezone doesn't matter or varies; use complex form with UTC (default) for most cases; use explicit timezone when data must be in a specific timezone.</p>
+<p>Use simple form or object form without tz for timezone-naive timestamps; use explicit tz (e.g. "UTC") when the timezone must match exactly.</p>
 <hr />
 <h2 id="decimal-type">Decimal Type<a class="headerlink" href="#decimal-type" title="Anchor link to this section for reference">&para;</a></h2>
 <div class="language-yaml highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Decimal - accepts any precision/scale</span>
@@ -1375,7 +1375,7 @@
 <p><strong>Complex form</strong> (<code>type: {kind: timestamp}</code> or <code>type: {kind: timestamp, tz: "UTC"}</code>):</p>
 <ul>
 <li>Validates unit flexibility (accepts s, ms, us, ns)</li>
-<li>Validates timezone matches (default: "UTC")</li>
+<li>object form without tz is timezone-naive (tz=None); explicit tz validates timezone matches</li>
 </ul>
 <p><strong>Complex form with explicit timezone</strong> (<code>type: {kind: timestamp, tz: "America/New_York"}</code>):</p>
 <ul>
