@@ -1396,10 +1396,17 @@ def _parse_severity(raw: Any) -> SeverityLevel:
 
     Returns:
         SeverityLevel string.
+
+    Raises:
+        ContractValidationError: If the severity value is not a valid SeverityLevel.
     """
     if raw is None:
         return "P1"
-    return str(raw)  # type: ignore[return-value]
+    severity = str(raw)
+    valid_severities = set(get_args(SeverityLevel))
+    if severity not in valid_severities:
+        raise ContractValidationError(f"Unknown severity '{severity}'; must be one of {sorted(valid_severities)}")
+    return severity  # type: ignore[return-value]
 
 
 def _parse_type(raw: Any) -> ContractType:
@@ -1415,7 +1422,13 @@ def _parse_type(raw: Any) -> ContractType:
         ContractValidationError: If the type is unknown or invalid.
     """
     if isinstance(raw, str):
-        return raw  # type: ignore[return-value]
+        if raw == "timestamp":
+            return TimestampType()
+        if raw in SIMPLE_TYPES:
+            return raw  # type: ignore[return-value]
+        raise ContractValidationError(
+            f"Unknown type '{raw}'; must be one of {sorted(SIMPLE_TYPES)} or a complex type mapping"
+        )
     if isinstance(raw, dict):
         kind = raw.get("kind")
         if kind == "timestamp":
@@ -1505,9 +1518,11 @@ def _parse_table_check(raw: dict[str, Any]) -> TableCheck:
         TableCheck instance.
 
     Raises:
-        ContractValidationError: If the check type is unknown.
+        ContractValidationError: If the check type is unknown or required fields are missing.
     """
-    check_type = raw["type"]
+    check_type = raw.get("type")
+    if not check_type:
+        raise ContractValidationError("Table check missing required field: 'type'")
     name = raw.get("name", "")
     severity = _parse_severity(raw.get("severity"))
     tags = _parse_tags(raw.get("tags"))
@@ -1517,28 +1532,43 @@ def _parse_table_check(raw: dict[str, Any]) -> TableCheck:
     if check_type == "num_rows":
         return NumRowsCheck(name=name, validators=validators, severity=severity, tags=tags)
     if check_type == "duplicates":
+        columns_raw = raw.get("columns")
+        if columns_raw is None:
+            raise ContractValidationError("TableDuplicatesCheck missing required field: 'columns'")
         return TableDuplicatesCheck(
             name=name,
-            columns=tuple(raw["columns"]),
+            columns=tuple(columns_raw),
             validators=validators,
             return_type=raw.get("return", "count"),  # type: ignore[arg-type]
             severity=severity,
             tags=tags,
         )
     if check_type == "freshness":
+        max_age_hours_raw = raw.get("max_age_hours")
+        if max_age_hours_raw is None:
+            raise ContractValidationError("FreshnessCheck missing required field: 'max_age_hours'")
+        timestamp_column = raw.get("timestamp_column")
+        if timestamp_column is None:
+            raise ContractValidationError("FreshnessCheck missing required field: 'timestamp_column'")
         return FreshnessCheck(
             name=name,
-            max_age_hours=float(raw["max_age_hours"]),
-            timestamp_column=raw["timestamp_column"],
+            max_age_hours=float(max_age_hours_raw),
+            timestamp_column=timestamp_column,
             aggregation=raw.get("aggregation", "max"),  # type: ignore[arg-type]
             severity=severity,
             tags=tags,
         )
     if check_type == "completeness":
+        partition_column = raw.get("partition_column")
+        if partition_column is None:
+            raise ContractValidationError("CompletenessCheck missing required field: 'partition_column'")
+        granularity = raw.get("granularity")
+        if granularity is None:
+            raise ContractValidationError("CompletenessCheck missing required field: 'granularity'")
         return CompletenessCheck(
             name=name,
-            partition_column=raw["partition_column"],
-            granularity=raw["granularity"],  # type: ignore[arg-type]
+            partition_column=partition_column,
+            granularity=granularity,  # type: ignore[arg-type]
             lookback_days=int(raw.get("lookback_days", 30)),
             allow_future_gaps=bool(raw.get("allow_future_gaps", True)),
             max_gap_count=int(raw.get("max_gap_count", 0)),
@@ -1558,9 +1588,11 @@ def _parse_column_check(raw: dict[str, Any]) -> ColumnCheck:
         ColumnCheck instance.
 
     Raises:
-        ContractValidationError: If the check type is unknown.
+        ContractValidationError: If the check type is unknown or required fields are missing.
     """
-    check_type = raw["type"]
+    check_type = raw.get("type")
+    if not check_type:
+        raise ContractValidationError("Column check missing required field: 'type'")
     name = raw.get("name", "")
     severity = _parse_severity(raw.get("severity"))
     tags = _parse_tags(raw.get("tags"))
@@ -1585,9 +1617,12 @@ def _parse_column_check(raw: dict[str, Any]) -> ColumnCheck:
             tags=tags,
         )
     if check_type == "whitelist":
+        values_raw = raw.get("values")
+        if values_raw is None:
+            raise ContractValidationError("WhitelistCheck missing required field: 'values'")
         return WhitelistCheck(
             name=name,
-            values=tuple(raw["values"]),
+            values=tuple(values_raw),
             validators=validators,
             return_type=return_type,  # type: ignore[arg-type]
             case_sensitive=bool(raw.get("case_sensitive", True)),
@@ -1595,9 +1630,12 @@ def _parse_column_check(raw: dict[str, Any]) -> ColumnCheck:
             tags=tags,
         )
     if check_type == "blacklist":
+        values_raw = raw.get("values")
+        if values_raw is None:
+            raise ContractValidationError("BlacklistCheck missing required field: 'values'")
         return BlacklistCheck(
             name=name,
-            values=tuple(raw["values"]),
+            values=tuple(values_raw),
             validators=validators,
             return_type=return_type,  # type: ignore[arg-type]
             case_sensitive=bool(raw.get("case_sensitive", True)),
@@ -1656,9 +1694,12 @@ def _parse_column_check(raw: dict[str, Any]) -> ColumnCheck:
     if check_type == "stddev":
         return StddevCheck(name=name, validators=validators, severity=severity, tags=tags)
     if check_type == "percentile":
+        percentile_raw = raw.get("percentile")
+        if percentile_raw is None:
+            raise ContractValidationError("PercentileCheck missing required field: 'percentile'")
         return PercentileCheck(
             name=name,
-            percentile=float(raw["percentile"]),
+            percentile=float(percentile_raw),
             validators=validators,
             severity=severity,
             tags=tags,
