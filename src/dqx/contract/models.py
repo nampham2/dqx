@@ -1325,15 +1325,16 @@ class StddevCheck:
     def to_dqx(self, column: str, mp: MetricProvider, ctx: Context) -> None:
         """Emit assertions for this check into ``ctx`` using ``mp``.
 
-        Uses ``mp.custom_sql`` to compute ``STDDEV(<column>)`` since there is
-        no dedicated column-aggregate stddev method on ``MetricProvider``.
+        Computes the standard deviation as ``sp.sqrt(mp.variance(column))``,
+        composing the built-in variance metric with a symbolic square-root
+        rather than falling back to raw SQL.
 
         Args:
             column: Name of the column to compute standard deviation for.
-            mp: MetricProvider used to compute the stddev metric.
+            mp: MetricProvider used to compute the variance metric.
             ctx: Context in which assertions are registered.
         """
-        _apply_validators(mp.custom_sql(f"STDDEV({column})"), ctx, self.name, self.severity, self.tags, self.validators)
+        _apply_validators(sp.sqrt(mp.variance(column)), ctx, self.name, self.severity, self.tags, self.validators)
 
 
 @dataclass(frozen=True)

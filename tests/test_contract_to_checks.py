@@ -790,7 +790,7 @@ class TestNumericColumnChecksToDqx:
         assert results[0].status == "PASSED"
 
     def test_stddev_check_passes(self) -> None:
-        """StddevCheck: column stddev (via custom SQL) satisfies validator."""
+        """StddevCheck: column stddev (via sqrt(variance)) satisfies validator."""
         contract = self._contract_with_column_check(
             StddevCheck(name="Stddev", validators=(MinValidator(threshold=0.0),))
         )
