@@ -4920,3 +4920,314 @@ class TestContractFromYaml:
         )
         with pytest.raises(ContractValidationError, match="Column 'checks' must be a list"):
             Contract.from_yaml(path)
+
+    # -----------------------------------------------------------------------
+    # Comment 8: _parse_int_field rejects bools and non-integral floats
+    # -----------------------------------------------------------------------
+
+    def test_lookback_days_bool_true_raises(self, tmp_path: Path) -> None:
+        """lookback_days: true should raise ContractValidationError (bool rejected)."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: ts
+                type: timestamp
+                description: "ts col"
+            checks:
+              - type: completeness
+                partition_column: ts
+                granularity: daily
+                lookback_days: true
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'lookback_days' must be an integer value"):
+            Contract.from_yaml(path)
+
+    def test_lookback_days_bool_false_raises(self, tmp_path: Path) -> None:
+        """lookback_days: false should raise ContractValidationError (bool rejected)."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: ts
+                type: timestamp
+                description: "ts col"
+            checks:
+              - type: completeness
+                partition_column: ts
+                granularity: daily
+                lookback_days: false
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'lookback_days' must be an integer value"):
+            Contract.from_yaml(path)
+
+    def test_lookback_days_non_integral_float_raises(self, tmp_path: Path) -> None:
+        """lookback_days: 1.9 should raise ContractValidationError (non-integral float rejected)."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: ts
+                type: timestamp
+                description: "ts col"
+            checks:
+              - type: completeness
+                partition_column: ts
+                granularity: daily
+                lookback_days: 1.9
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="non-integral float not allowed"):
+            Contract.from_yaml(path)
+
+    def test_lookback_days_integral_float_accepted(self, tmp_path: Path) -> None:
+        """lookback_days: 2.0 should be accepted and treated as integer 2."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: ts
+                type: timestamp
+                description: "ts col"
+            checks:
+              - type: completeness
+                name: "ts completeness"
+                partition_column: ts
+                granularity: daily
+                lookback_days: 2.0
+            """,
+        )
+        contract = Contract.from_yaml(path)
+        assert isinstance(contract.checks[0], CompletenessCheck)
+        assert contract.checks[0].lookback_days == 2
+
+    def test_max_gap_count_bool_raises(self, tmp_path: Path) -> None:
+        """max_gap_count: true should raise ContractValidationError (bool rejected)."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: ts
+                type: timestamp
+                description: "ts col"
+            checks:
+              - type: completeness
+                partition_column: ts
+                granularity: daily
+                max_gap_count: true
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'max_gap_count' must be an integer value"):
+            Contract.from_yaml(path)
+
+    # -----------------------------------------------------------------------
+    # Comment 7: Required string scalars validated before constructing objects
+    # -----------------------------------------------------------------------
+
+    def test_contract_name_non_string_raises(self, tmp_path: Path) -> None:
+        """name: 42 (non-string) should raise ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: 42
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'name' must be a string"):
+            Contract.from_yaml(path)
+
+    def test_contract_version_non_string_raises(self, tmp_path: Path) -> None:
+        """version: 1 (non-string) should raise ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: 1
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'version' must be a string"):
+            Contract.from_yaml(path)
+
+    def test_contract_description_non_string_raises(self, tmp_path: Path) -> None:
+        """description: 42 (non-string) should raise ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: 42
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'description' must be a string"):
+            Contract.from_yaml(path)
+
+    def test_contract_owner_non_string_raises(self, tmp_path: Path) -> None:
+        """owner: 99 (non-string) should raise ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: 99
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'owner' must be a string"):
+            Contract.from_yaml(path)
+
+    def test_contract_dataset_non_string_raises(self, tmp_path: Path) -> None:
+        """dataset: 123 (non-string) should raise ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: 123
+            columns:
+              - name: id
+                type: int
+                description: "id"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'dataset' must be a string"):
+            Contract.from_yaml(path)
+
+    def test_column_name_non_string_raises(self, tmp_path: Path) -> None:
+        """Column name: 42 (non-string) should raise ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: 42
+                type: int
+                description: "id col"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'Column.name' must be a string"):
+            Contract.from_yaml(path)
+
+    def test_column_description_non_string_raises(self, tmp_path: Path) -> None:
+        """Column description: 42 (non-string) should raise ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: id
+                type: int
+                description: 42
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'Column.description' must be a string"):
+            Contract.from_yaml(path)
+
+    def test_struct_field_name_non_string_raises(self, tmp_path: Path) -> None:
+        """StructField name: 42 (non-string) should raise ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: payload
+                type:
+                  kind: struct
+                  fields:
+                    - name: 42
+                      type: int
+                      description: "a field"
+                description: "payload col"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'StructField.name' must be a string"):
+            Contract.from_yaml(path)
+
+    def test_struct_field_description_non_string_raises(self, tmp_path: Path) -> None:
+        """StructField description: 99 (non-string) should raise ContractValidationError."""
+        path = _write_yaml(
+            tmp_path,
+            """\
+            name: "Test"
+            version: "1.0"
+            description: "test"
+            owner: "test"
+            dataset: "test_table"
+            columns:
+              - name: payload
+                type:
+                  kind: struct
+                  fields:
+                    - name: field_a
+                      type: int
+                      description: 99
+                description: "payload col"
+            """,
+        )
+        with pytest.raises(ContractValidationError, match="'StructField.description' must be a string"):
+            Contract.from_yaml(path)

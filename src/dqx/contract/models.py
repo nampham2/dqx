@@ -1424,6 +1424,24 @@ def _parse_bool(value: Any, field_name: str, default: bool) -> bool:
     raise ContractValidationError(f"'{field_name}' must be a boolean (true/false), got: {value!r}")
 
 
+def _require_str(value: Any, field_name: str) -> str:
+    """Validate that a YAML value is a plain string scalar.
+
+    Args:
+        value: The raw YAML value to validate.
+        field_name: Name of the field for error messages.
+
+    Returns:
+        The value cast to ``str``.
+
+    Raises:
+        ContractValidationError: If the value is not a ``str`` instance.
+    """
+    if not isinstance(value, str):
+        raise ContractValidationError(f"'{field_name}' must be a string, got: {type(value).__name__} ({value!r})")
+    return value
+
+
 def _parse_severity(raw: Any) -> SeverityLevel:
     """Parse a YAML severity value, defaulting to 'P1'.
 
@@ -1505,9 +1523,9 @@ def _parse_struct_field(raw: Any) -> StructField:
         if key not in raw:
             raise ContractValidationError(f"StructField missing required field: '{key}'")
     return StructField(
-        name=raw["name"],
+        name=_require_str(raw["name"], "StructField.name"),
         type=_parse_type(raw["type"]),
-        description=raw["description"],
+        description=_require_str(raw["description"], "StructField.description"),
     )
 
 
@@ -1533,6 +1551,10 @@ def _parse_float_field(value: Any, field_name: str) -> float:
 def _parse_int_field(value: Any, field_name: str) -> int:
     """Convert a YAML value to int, raising ContractValidationError on failure.
 
+    Rejects bool values (e.g. ``true``/``false``) and non-integral floats
+    (e.g. ``1.9``).  Integral floats such as ``2.0`` are accepted and
+    converted to ``2``.
+
     Args:
         value: The raw YAML value to convert.
         field_name: Name of the field for error messages.
@@ -1541,8 +1563,17 @@ def _parse_int_field(value: Any, field_name: str) -> int:
         Integer representation of value.
 
     Raises:
-        ContractValidationError: If the value cannot be converted to int.
+        ContractValidationError: If the value is a bool, a non-integral float,
+            or cannot be converted to int.
     """
+    if isinstance(value, bool):
+        raise ContractValidationError(f"'{field_name}' must be an integer value, got: {value!r}")
+    if isinstance(value, float):
+        if not value.is_integer():
+            raise ContractValidationError(
+                f"'{field_name}' must be an integer value (non-integral float not allowed), got: {value!r}"
+            )
+        return int(value)
     try:
         return int(value)
     except (TypeError, ValueError) as exc:
@@ -1852,9 +1883,9 @@ def _parse_column(raw: Any) -> ColumnSpec:
     col_checks: tuple[ColumnCheck, ...] = tuple(_parse_column_check(c) for c in raw_checks)  # type: ignore[misc]
 
     return ColumnSpec(
-        name=raw["name"],
+        name=_require_str(raw["name"], "Column.name"),
         type=_parse_type(raw["type"]),
-        description=raw["description"],
+        description=_require_str(raw["description"], "Column.description"),
         nullable=nullable,
         metadata=col_metadata,
         checks=col_checks,
@@ -2044,11 +2075,11 @@ class Contract:
         columns: tuple[ColumnSpec, ...] = tuple(_parse_column(c) for c in data["columns"])
 
         return cls(
-            name=data["name"],
-            version=data["version"],
-            description=data["description"],
-            owner=data["owner"],
-            dataset=data["dataset"],
+            name=_require_str(data["name"], "name"),
+            version=_require_str(data["version"], "version"),
+            description=_require_str(data["description"], "description"),
+            owner=_require_str(data["owner"], "owner"),
+            dataset=_require_str(data["dataset"], "dataset"),
             columns=columns,
             tags=tags,
             sla=sla,
