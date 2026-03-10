@@ -1,0 +1,255 @@
+name: "Full Kitchen-Sink Contract"
+version: "2.1.0"
+description: "A comprehensive test contract with all check types and complex types"
+owner: "data-platform"
+dataset: "full_test_table"
+tags:
+  - production
+  - critical
+
+metadata:
+  partitioned_by:
+    - event_date
+    - region
+  team: data-platform
+  env: production
+
+sla:
+  schedule: "0 6 * * *"
+  lag_hours: 2.0
+
+checks:
+  - type: num_rows
+    name: row_count_check
+    min: 1000
+    severity: P0
+    tags:
+      - critical
+
+  - type: duplicates
+    name: dedup_check
+    columns:
+      - user_id
+      - event_date
+    max: 0
+    severity: P1
+
+  - type: freshness
+    name: freshness_check
+    max_age_hours: 48
+    timestamp_column: created_at
+    aggregation: max
+    severity: P1
+
+  - type: completeness
+    name: completeness_check
+    partition_column: event_date
+    granularity: daily
+    lookback_days: 30
+    allow_future_gaps: true
+    max_gap_count: 0
+    severity: P2
+
+columns:
+  - name: user_id
+    type: int
+    nullable: false
+    description: "Unique user identifier"
+    metadata:
+      pii: "false"
+      source: "auth_service"
+    checks:
+      - type: missing
+        name: user_id_missing
+        return: count
+        equals: 0
+
+      - type: duplicates
+        name: user_id_dupes
+        return: count
+        max: 0
+
+  - name: username
+    type: string
+    nullable: false
+    description: "Username"
+    checks:
+      - type: min_length
+        name: username_min_len
+        min: 3
+
+      - type: max_length
+        name: username_max_len
+        max: 50
+
+      - type: pattern
+        name: username_pattern
+        pattern: "^[a-zA-Z0-9_]+$"
+        flags:
+          - IGNORECASE
+        return: count
+
+  - name: email
+    type: string
+    nullable: true
+    description: "Email address"
+    checks:
+      - type: pattern
+        name: email_format
+        format: email
+        return: count
+
+      - type: whitelist
+        name: email_domain_whitelist
+        values:
+          - "example.com"
+          - "test.org"
+        case_sensitive: false
+
+      - type: blacklist
+        name: email_blacklist
+        values:
+          - "spam@example.com"
+        case_sensitive: true
+
+  - name: age
+    type: int
+    nullable: true
+    description: "User age"
+    checks:
+      - type: min
+        name: age_min
+        min: 0
+
+      - type: max
+        name: age_max
+        max: 150
+
+      - type: mean
+        name: age_mean
+        between: [18, 70]
+
+  - name: score
+    type: float
+    nullable: true
+    description: "User score"
+    checks:
+      - type: sum
+        name: score_sum
+        min: 0
+
+      - type: count
+        name: score_count
+        min: 1
+
+      - type: variance
+        name: score_variance
+        max: 1000
+
+      - type: stddev
+        name: score_stddev
+        max: 31.62
+
+      - type: percentile
+        name: score_p95
+        percentile: 0.95
+        max: 100
+
+      - type: cardinality
+        name: score_cardinality
+        between: [1, 1000]
+
+      - type: avg_length
+        name: score_avg_len
+        between: [1, 20]
+
+  - name: is_active
+    type: bool
+    nullable: false
+    description: "Whether user is active"
+
+  - name: created_at
+    type:
+      kind: timestamp
+      tz: UTC
+    nullable: false
+    description: "Creation timestamp"
+
+  - name: birth_date
+    type: date
+    nullable: true
+    description: "Birth date"
+
+  - name: login_time
+    type: time
+    nullable: true
+    description: "Login time"
+
+  - name: balance
+    type: decimal
+    nullable: true
+    description: "Account balance"
+
+  - name: profile_picture
+    type: bytes
+    nullable: true
+    description: "Profile picture binary data"
+
+  - name: event_date
+    type: date
+    nullable: false
+    description: "Event date partition column"
+
+  - name: region
+    type: string
+    nullable: false
+    description: "Region partition column"
+
+  - name: tags_list
+    type:
+      kind: list
+      value_type: string
+    nullable: true
+    description: "List of string tags"
+
+  - name: address
+    type:
+      kind: struct
+      fields:
+        - name: street
+          type: string
+          description: "Street address"
+        - name: city
+          type: string
+          description: "City name"
+        - name: zip_code
+          type: string
+          description: "ZIP code"
+    nullable: true
+    description: "Structured address"
+
+  - name: attributes
+    type:
+      kind: map
+      key_type: string
+      value_type: string
+    nullable: true
+    description: "Key-value attributes"
+
+  - name: events_by_date
+    type:
+      kind: map
+      key_type: string
+      value_type:
+        kind: list
+        value_type:
+          kind: struct
+          fields:
+            - name: event_type
+              type: string
+              description: "Type of event"
+            - name: count
+              type: int
+              description: "Number of occurrences"
+    nullable: true
+    description: "Nested map of events by date"
