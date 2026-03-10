@@ -1028,6 +1028,7 @@ class TestBuildRegistry:
             "UniqueCount",
             "CustomSQL",
             "MinLength",
+            "MaxLength",
             "DayOverDay",
             "WeekOverWeek",
             "Stddev",
@@ -1084,6 +1085,7 @@ class TestRegistry:
             "UniqueCount",
             "CustomSQL",
             "MinLength",
+            "MaxLength",
             "DayOverDay",
             "WeekOverWeek",
             "Stddev",
@@ -1104,7 +1106,7 @@ class TestRegistry:
     def test_registry_is_built_automatically(self) -> None:
         """Test that the registry is built automatically by decorators."""
         # All expected classes should be in the registry
-        assert len(specs.registry) == 17  # Total number of metric types
+        assert len(specs.registry) == 18  # Total number of metric types
 
         # Each class should have been registered with its metric_type
         for metric_type, spec_class in specs.registry.items():
@@ -1886,4 +1888,89 @@ class TestMinLength:
 
     def test_is_not_extended(self) -> None:
         spec = specs.MinLength("name", "string")
+        assert spec.is_extended is False
+
+
+class TestMaxLength:
+    """Test MaxLength metric spec."""
+
+    def test_metric_type(self) -> None:
+        spec = specs.MaxLength("name", "string")
+        assert spec.metric_type == "MaxLength"
+
+    def test_name_string(self) -> None:
+        spec = specs.MaxLength("name", "string")
+        assert spec.name == "max_length_string(name)"
+
+    def test_name_list(self) -> None:
+        spec = specs.MaxLength("tags", "list")
+        assert spec.name == "max_length_list(tags)"
+
+    def test_name_map(self) -> None:
+        spec = specs.MaxLength("attrs", "map")
+        assert spec.name == "max_length_map(attrs)"
+
+    def test_parameters(self) -> None:
+        spec = specs.MaxLength("name", "string")
+        assert spec.parameters == {"column": "name", "column_type": "string"}
+
+    def test_parameters_with_extra(self) -> None:
+        spec = specs.MaxLength("name", "string", parameters={"region": "US"})
+        assert spec.parameters == {"column": "name", "column_type": "string", "region": "US"}
+
+    def test_analyzers(self) -> None:
+        spec = specs.MaxLength("name", "string")
+        assert len(spec.analyzers) == 1
+        assert isinstance(spec.analyzers[0], ops.MaxLength)
+        assert spec.analyzers[0].column == "name"
+        assert spec.analyzers[0].column_type == "string"
+
+    def test_state(self) -> None:
+        spec = specs.MaxLength("name", "string")
+        spec._analyzers[0].assign(3.0)
+        state = spec.state()
+        assert isinstance(state, states.MaxLength)
+        assert state.value == pytest.approx(3.0)
+
+    def test_deserialize(self) -> None:
+        original = states.MaxLength(value=5.0)
+        serialized = original.serialize()
+        result = specs.MaxLength.deserialize(serialized)
+        assert isinstance(result, states.MaxLength)
+        assert result.value == pytest.approx(5.0)
+
+    def test_clone(self) -> None:
+        spec = specs.MaxLength("name", "string", parameters={"region": "US"})
+        cloned = spec.clone()
+        assert cloned.name == spec.name
+        assert cloned.parameters == spec.parameters
+        assert cloned is not spec
+
+    def test_hash(self) -> None:
+        spec1 = specs.MaxLength("name", "string")
+        spec2 = specs.MaxLength("name", "string")
+        assert hash(spec1) == hash(spec2)
+
+    def test_equality(self) -> None:
+        spec1 = specs.MaxLength("name", "string")
+        spec2 = specs.MaxLength("name", "string")
+        spec3 = specs.MaxLength("name", "list")
+        spec4 = specs.MaxLength("other", "string")
+
+        assert spec1 == spec2
+        assert spec1 != spec3
+        assert spec1 != spec4
+        assert spec1 != "not_a_spec"
+
+    def test_str(self) -> None:
+        spec = specs.MaxLength("name", "string")
+        assert str(spec) == "max_length_string(name)"
+
+    def test_is_metric_spec(self) -> None:
+        spec = specs.MaxLength("name", "string")
+        assert isinstance(spec, specs.MetricSpec)
+        assert isinstance(spec, specs.SimpleMetricSpec)
+
+    def test_is_not_extended(self) -> None:
+        spec = specs.MaxLength("name", "string")
         assert spec.is_extended is False

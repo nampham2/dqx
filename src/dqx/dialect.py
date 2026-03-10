@@ -376,6 +376,15 @@ class DuckDBDialect:
             case ops.MinLength(column=col, column_type="map"):
                 return f"CAST(MIN(CARDINALITY({col})) AS DOUBLE) AS '{op.sql_col}'"
 
+            case ops.MaxLength(column=col, column_type="string"):
+                return f"CAST(MAX(LENGTH({col})) AS DOUBLE) AS '{op.sql_col}'"
+
+            case ops.MaxLength(column=col, column_type="list"):
+                return f"CAST(MAX(LEN({col})) AS DOUBLE) AS '{op.sql_col}'"
+
+            case ops.MaxLength(column=col, column_type="map"):
+                return f"CAST(MAX(CARDINALITY({col})) AS DOUBLE) AS '{op.sql_col}'"
+
             case _:
                 raise ValueError(f"Unsupported SqlOp type: {type(op).__name__}")
 
@@ -513,6 +522,15 @@ class BigQueryDialect:
 
             case ops.MinLength(column=col, column_type="map"):
                 raise DQXError("MinLength with column_type='map' is not supported for BigQuery")
+
+            case ops.MaxLength(column=col, column_type="string"):
+                return f"CAST(MAX(LENGTH({col})) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.MaxLength(column=col, column_type="list"):
+                return f"CAST(MAX(ARRAY_LENGTH({col})) AS FLOAT64) AS `{op.sql_col}`"
+
+            case ops.MaxLength(column=col, column_type="map"):
+                raise DQXError("MaxLength with column_type='map' is not supported for BigQuery")
 
             case _:
                 raise ValueError(f"Unsupported SqlOp type: {type(op).__name__}")

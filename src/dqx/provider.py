@@ -1077,6 +1077,28 @@ class MetricProvider(SymbolicMetricBase):
         """
         return self.metric(specs.MinLength(column, column_type, parameters=parameters), lag, dataset)
 
+    def max_length(
+        self,
+        column: str,
+        column_type: Literal["string", "list", "map"],
+        lag: int = 0,
+        dataset: str | None = None,
+        parameters: dict[str, Any] | None = None,
+    ) -> sp.Symbol:
+        """Create metric finding maximum length of values in column.
+
+        Args:
+            column: Column name to compute maximum length for
+            column_type: Type of column - "string", "list", or "map"
+            lag: Lag offset in days
+            dataset: Optional dataset name
+            parameters: Additional parameters to pass to the metric
+
+        Returns:
+            Symbol representing the maximum length metric
+        """
+        return self.metric(specs.MaxLength(column, column_type, parameters=parameters), lag, dataset)
+
     def custom_sql(
         self, sql_expression: str, lag: int = 0, dataset: str | None = None, parameters: dict[str, Any] | None = None
     ) -> sp.Symbol:

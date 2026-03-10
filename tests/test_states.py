@@ -379,3 +379,62 @@ class TestMinLength:
         assert m1 != m3
         assert m1 != "not a state"
         assert m1 != 42
+
+
+class TestMaxLength:
+    """Tests for MaxLength state."""
+
+    def test_max_length_basic(self) -> None:
+        """Test basic MaxLength state creation and value."""
+        m = states.MaxLength(value=5.0)
+        assert m.value == pytest.approx(5.0)
+        assert isinstance(m, states.State)
+
+    def test_max_length_identity(self) -> None:
+        """Test MaxLength identity is float('-inf')."""
+        identity = states.MaxLength.identity()
+        assert identity.value == float("-inf")
+
+    def test_max_length_serialize_deserialize(self) -> None:
+        """Test MaxLength serialization round-trip."""
+        m = states.MaxLength(value=3.0)
+        binary = m.serialize()
+        deserialized = states.MaxLength.deserialize(binary)
+        assert m == deserialized
+
+    def test_max_length_copy(self) -> None:
+        """Test MaxLength copy creates equal but distinct instance."""
+        m = states.MaxLength(value=7.0)
+        copied = copy(m)
+        assert copied == m
+        assert copied is not m
+
+    def test_max_length_merge_takes_maximum(self) -> None:
+        """Test MaxLength merge keeps the larger value."""
+        m1 = states.MaxLength(value=10.0)
+        m2 = states.MaxLength(value=5.0)
+
+        merged = m1.merge(m2)
+        assert merged.value == pytest.approx(10.0)
+
+        merged2 = m2.merge(m1)
+        assert merged2.value == pytest.approx(10.0)
+
+    def test_max_length_merge_with_identity(self) -> None:
+        """Test MaxLength merge with identity returns original value."""
+        m = states.MaxLength(value=3.0)
+        identity = states.MaxLength.identity()
+
+        assert m.merge(identity) == m
+        assert identity.merge(m) == m
+
+    def test_max_length_equality(self) -> None:
+        """Test MaxLength equality comparisons."""
+        m1 = states.MaxLength(value=5.0)
+        m2 = states.MaxLength(value=5.0)
+        m3 = states.MaxLength(value=6.0)
+
+        assert m1 == m2
+        assert m1 != m3
+        assert m1 != "not a state"
+        assert m1 != 42

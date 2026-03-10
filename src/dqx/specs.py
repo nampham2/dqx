@@ -21,6 +21,7 @@ MetricType = Literal[
     "UniqueCount",
     "CustomSQL",
     "MinLength",
+    "MaxLength",
     "DayOverDay",
     "WeekOverWeek",
     "Stddev",
@@ -839,6 +840,57 @@ class MinLength(SimpleMetricSpec):
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, MinLength):
+            return False
+        return self.name == other.name and self.parameters == other.parameters
+
+    def __str__(self) -> str:
+        return self.name
+
+
+@auto_register
+class MaxLength(SimpleMetricSpec):
+    metric_type: MetricType = "MaxLength"
+    is_extended: Literal[False] = False
+
+    def __init__(
+        self,
+        column: str,
+        column_type: Literal["string", "list", "map"],
+        parameters: Parameters | None = None,
+    ) -> None:
+        self._column = column
+        self._column_type = column_type
+        self._parameters = parameters or {}
+        self._analyzers = (ops.MaxLength(self._column, self._column_type, parameters=self._parameters),)
+
+    @property
+    def name(self) -> str:
+        return f"max_length_{self._column_type}({self._column})"
+
+    @property
+    def parameters(self) -> Parameters:
+        return {"column": self._column, "column_type": self._column_type, **self._parameters}
+
+    @property
+    def analyzers(self) -> Sequence[ops.Op]:
+        return self._analyzers
+
+    def state(self) -> states.MaxLength:
+        return states.MaxLength(value=self._analyzers[0].value())
+
+    @classmethod
+    def deserialize(cls, state: bytes) -> states.State:
+        return states.MaxLength.deserialize(state)
+
+    def clone(self) -> Self:
+        """Create a new instance with the same parameters but new analyzer prefixes."""
+        return self.__class__(self._column, self._column_type, parameters=self._parameters.copy())
+
+    def __hash__(self) -> int:
+        return hash((self.name, tuple(sorted(self.parameters.items()))))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, MaxLength):
             return False
         return self.name == other.name and self.parameters == other.parameters
 

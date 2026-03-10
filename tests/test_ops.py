@@ -566,6 +566,7 @@ def test_op_protocol() -> None:
     assert isinstance(ops.UniqueCount("col"), ops.Op)
     assert isinstance(ops.CustomSQL("COUNT(*)"), ops.Op)
     assert isinstance(ops.MinLength("col", "string"), ops.Op)
+    assert isinstance(ops.MaxLength("col", "string"), ops.Op)
 
 
 def test_sql_op_protocol() -> None:
@@ -584,6 +585,7 @@ def test_sql_op_protocol() -> None:
     assert isinstance(ops.UniqueCount("col"), ops.SqlOp)
     assert isinstance(ops.CustomSQL("COUNT(*)"), ops.SqlOp)
     assert isinstance(ops.MinLength("col", "string"), ops.SqlOp)
+    assert isinstance(ops.MaxLength("col", "string"), ops.SqlOp)
 
 
 def test_sql_op_properties() -> None:
@@ -603,6 +605,7 @@ def test_sql_op_properties() -> None:
         ops.UniqueCount("col"),
         ops.CustomSQL("COUNT(*)"),
         ops.MinLength("col", "string"),
+        ops.MaxLength("col", "string"),
     ]
 
     for op in sql_ops:
@@ -638,6 +641,7 @@ def test_op_value_assignment_and_clearing() -> None:
         ops.UniqueCount("col"),
         ops.CustomSQL("SELECT COUNT(*)"),
         ops.MinLength("col", "string"),
+        ops.MaxLength("col", "string"),
     ]
 
     for op in ops_to_test:
@@ -684,6 +688,9 @@ def test_op_match_args() -> None:
 
     # MinLength has column, column_type, and parameters
     assert ops.MinLength.__match_args__ == ("column", "column_type", "parameters")
+
+    # MaxLength has column, column_type, and parameters
+    assert ops.MaxLength.__match_args__ == ("column", "column_type", "parameters")
 
 
 def test_min_length() -> None:
@@ -770,6 +777,102 @@ def test_min_length_eq_includes_parameters() -> None:
     op_with_params = ops.MinLength("col", "string", parameters={"region": "US"})
     op_same_params = ops.MinLength("col", "string", parameters={"region": "US"})
     op_diff_params = ops.MinLength("col", "string", parameters={"region": "EU"})
+
+    # Same column and column_type but different parameters must NOT be equal
+    assert op_base != op_with_params
+    assert op_with_params != op_diff_params
+
+    # Same column, column_type, and parameters must be equal
+    assert op_with_params == op_same_params
+
+    # Hash/eq contract: equal objects must have equal hashes
+    assert hash(op_with_params) == hash(op_same_params)
+
+
+def test_max_length() -> None:
+    """Test MaxLength operation basic functionality."""
+    # Test string column type
+    op = ops.MaxLength("name", "string")
+    assert op.name == "max_length_string(name)"
+    assert op.column == "name"
+    assert op.column_type == "string"
+    assert op.prefix is not None
+    assert op.sql_col == f"{op.prefix}_max_length_string(name)"
+
+    # Test value assignment
+    with pytest.raises(DQXError, match="MaxLength op has not been collected yet!"):
+        op.value()
+
+    op.assign(3.0)
+    assert op.value() == pytest.approx(3.0)
+
+    # Test clear
+    op.clear()
+    with pytest.raises(DQXError):
+        op.value()
+
+    # Test list column type
+    op_list = ops.MaxLength("tags", "list")
+    assert op_list.name == "max_length_list(tags)"
+    assert op_list.column_type == "list"
+
+    # Test map column type
+    op_map = ops.MaxLength("attrs", "map")
+    assert op_map.name == "max_length_map(attrs)"
+    assert op_map.column_type == "map"
+
+    # Test equality - same column and column_type
+    op2 = ops.MaxLength("name", "string")
+    op3 = ops.MaxLength("name", "list")
+    op4 = ops.MaxLength("other", "string")
+    assert op == op2
+    assert op != op3  # Different column_type
+    assert op != op4  # Different column
+    assert op != ops.NullCount("name")  # Different op type
+
+    # Test hash
+    assert hash(op) == hash(op2)
+    assert hash(op) != hash(op3)
+    assert hash(op) != hash(op4)
+
+    # Test string representation
+    assert str(op) == "max_length_string(name)"
+    assert repr(op) == "max_length_string(name)"
+
+
+def test_max_length_protocol_compliance() -> None:
+    """Test MaxLength implements Op and SqlOp protocols."""
+    op = ops.MaxLength("col", "string")
+    assert isinstance(op, ops.Op)
+    assert isinstance(op, ops.SqlOp)
+    assert hasattr(op, "name")
+    assert hasattr(op, "prefix")
+    assert hasattr(op, "sql_col")
+    assert hasattr(op, "value")
+    assert hasattr(op, "assign")
+    assert hasattr(op, "clear")
+    assert op.prefix in op.sql_col
+    assert op.name in op.sql_col
+
+
+def test_max_length_with_parameters() -> None:
+    """Test MaxLength hash includes parameters."""
+    op1 = ops.MaxLength("col", "string")
+    op2 = ops.MaxLength("col", "string", parameters={"region": "US"})
+    op3 = ops.MaxLength("col", "string", parameters={"region": "EU"})
+    op4 = ops.MaxLength("col", "string", parameters={"region": "US"})
+
+    assert hash(op1) != hash(op2)  # Different parameters
+    assert hash(op2) != hash(op3)  # Different parameter values
+    assert hash(op2) == hash(op4)  # Same parameters
+
+
+def test_max_length_eq_includes_parameters() -> None:
+    """Test MaxLength.__eq__ considers parameters to satisfy hash/eq contract."""
+    op_base = ops.MaxLength("col", "string")
+    op_with_params = ops.MaxLength("col", "string", parameters={"region": "US"})
+    op_same_params = ops.MaxLength("col", "string", parameters={"region": "US"})
+    op_diff_params = ops.MaxLength("col", "string", parameters={"region": "EU"})
 
     # Same column and column_type but different parameters must NOT be equal
     assert op_base != op_with_params
