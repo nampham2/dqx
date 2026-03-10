@@ -1328,12 +1328,12 @@ class TestSLASpec:
 
     def test_garbage_field_raises(self) -> None:
         """Garbage cron fields like 'foo bar baz qux quux' raise ContractValidationError."""
-        with pytest.raises(ContractValidationError, match="cron|minute"):
+        with pytest.raises(ContractValidationError, match=r"cron|minute"):
             SLASpec(schedule="foo bar baz qux quux", lag_hours=1.0)
 
     def test_all_out_of_range_raises(self) -> None:
         """All out-of-range fields like '99 99 99 99 99' raise ContractValidationError."""
-        with pytest.raises(ContractValidationError, match="minute|hour|day"):
+        with pytest.raises(ContractValidationError, match=r"minute|hour|day"):
             SLASpec(schedule="99 99 99 99 99", lag_hours=1.0)
 
     def test_symbolic_month_names_valid(self) -> None:
