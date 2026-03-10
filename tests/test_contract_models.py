@@ -9,6 +9,7 @@ import pytest
 
 from dqx.contract.models import (
     AvgLengthCheck,
+    BetweenValidator,
     BlacklistCheck,
     CardinalityCheck,
     ColumnDuplicatesCheck,
@@ -18,15 +19,19 @@ from dqx.contract.models import (
     ContractValidationError,
     ContractType,
     CountCheck,
+    EqualsValidator,
     FreshnessCheck,
     ListType,
     MapType,
     MaxCheck,
     MaxLengthCheck,
+    MaxValidator,
     MeanCheck,
     MinCheck,
     MinLengthCheck,
+    MinValidator,
     MissingCheck,
+    NotBetweenValidator,
     NumRowsCheck,
     PatternCheck,
     PercentileCheck,
@@ -38,7 +43,7 @@ from dqx.contract.models import (
     SumCheck,
     TableDuplicatesCheck,
     TimestampType,
-    ValidatorSpec,
+    Validator,
     VarianceCheck,
     WhitelistCheck,
 )
@@ -74,156 +79,216 @@ class TestContractErrors:
 
 
 # ---------------------------------------------------------------------------
-# TestValidatorSpec
+# TestMinValidator
 # ---------------------------------------------------------------------------
 
 
-class TestValidatorSpec:
-    """Tests for ValidatorSpec dataclass."""
+class TestMinValidator:
+    """Tests for MinValidator dataclass."""
 
-    def test_all_none_is_valid(self) -> None:
-        """All-None ValidatorSpec is a valid noop validator — the check runs and records the metric but never fails."""
-        v = ValidatorSpec()
-        assert v.min is None
-        assert v.max is None
-        assert v.between is None
-        assert v.not_between is None
-        assert v.equals is None
+    def test_valid(self) -> None:
+        """MinValidator stores threshold and uses default tolerance 1e-9."""
+        v = MinValidator(threshold=10.0)
+        assert v.threshold == pytest.approx(10.0)
         assert v.tolerance == pytest.approx(1e-9)
 
-    def test_min_only(self) -> None:
-        """ValidatorSpec with min only is valid."""
-        v = ValidatorSpec(min=0.0)
-        assert v.min == pytest.approx(0.0)
-
-    def test_max_only(self) -> None:
-        """ValidatorSpec with max only is valid."""
-        v = ValidatorSpec(max=100.0)
-        assert v.max == pytest.approx(100.0)
-
-    def test_min_and_max(self) -> None:
-        """ValidatorSpec with both min and max is valid."""
-        v = ValidatorSpec(min=0.0, max=100.0)
-        assert v.min == pytest.approx(0.0)
-        assert v.max == pytest.approx(100.0)
-
-    def test_min_greater_than_max_raises(self) -> None:
-        """ValidatorSpec with min > max raises ContractValidationError."""
-        with pytest.raises(ContractValidationError, match="min .* > max"):
-            ValidatorSpec(min=100.0, max=1.0)
-
-    def test_between_only(self) -> None:
-        """ValidatorSpec with between only is valid."""
-        v = ValidatorSpec(between=(0.0, 100.0))
-        assert v.between == (pytest.approx(0.0), pytest.approx(100.0))
-
-    def test_not_between_only(self) -> None:
-        """ValidatorSpec with not_between only is valid."""
-        v = ValidatorSpec(not_between=(10.0, 20.0))
-        assert v.not_between == (pytest.approx(10.0), pytest.approx(20.0))
-
-    def test_equals_only(self) -> None:
-        """ValidatorSpec with equals only is valid."""
-        v = ValidatorSpec(equals=42.0)
-        assert v.equals == pytest.approx(42.0)
-
     def test_custom_tolerance(self) -> None:
-        """ValidatorSpec accepts custom tolerance."""
-        v = ValidatorSpec(tolerance=0.01)
+        """MinValidator stores custom tolerance."""
+        v = MinValidator(threshold=5.0, tolerance=0.01)
         assert v.tolerance == pytest.approx(0.01)
 
-    def test_zero_tolerance_is_valid(self) -> None:
-        """ValidatorSpec with tolerance=0 is valid."""
-        v = ValidatorSpec(tolerance=0.0)
+    def test_zero_tolerance(self) -> None:
+        """MinValidator with tolerance=0.0 is valid."""
+        v = MinValidator(threshold=0.0, tolerance=0.0)
         assert v.tolerance == pytest.approx(0.0)
-
-    def test_between_with_min_raises(self) -> None:
-        """between + min combo raises ContractValidationError."""
-        with pytest.raises(ContractValidationError, match="between"):
-            ValidatorSpec(between=(0.0, 10.0), min=0.0)
-
-    def test_between_with_max_raises(self) -> None:
-        """between + max combo raises ContractValidationError."""
-        with pytest.raises(ContractValidationError, match="between"):
-            ValidatorSpec(between=(0.0, 10.0), max=10.0)
-
-    def test_between_with_min_and_max_raises(self) -> None:
-        """between + min + max combo raises ContractValidationError."""
-        with pytest.raises(ContractValidationError, match="between"):
-            ValidatorSpec(between=(0.0, 10.0), min=0.0, max=10.0)
-
-    def test_not_between_with_min_raises(self) -> None:
-        """not_between + min combo raises ContractValidationError."""
-        with pytest.raises(ContractValidationError, match="not_between"):
-            ValidatorSpec(not_between=(0.0, 10.0), min=0.0)
-
-    def test_not_between_with_max_raises(self) -> None:
-        """not_between + max combo raises ContractValidationError."""
-        with pytest.raises(ContractValidationError, match="not_between"):
-            ValidatorSpec(not_between=(0.0, 10.0), max=10.0)
-
-    def test_not_between_with_between_raises(self) -> None:
-        """not_between + between combo raises ContractValidationError."""
-        with pytest.raises(ContractValidationError, match="not_between"):
-            ValidatorSpec(between=(0.0, 10.0), not_between=(20.0, 30.0))
-
-    def test_not_between_with_min_max_and_between_raises(self) -> None:
-        """Any conflicting combination raises ContractValidationError."""
-        # between fires first (conflicts with min/max), then not_between would conflict too.
-        # Either way a ContractValidationError is raised.
-        with pytest.raises(ContractValidationError):
-            ValidatorSpec(min=0.0, max=10.0, between=(0.0, 10.0), not_between=(20.0, 30.0))
-
-    def test_between_inverted_range_raises(self) -> None:
-        """between with low > high raises ContractValidationError."""
-        with pytest.raises(ContractValidationError, match="between"):
-            ValidatorSpec(between=(10.0, 0.0))
-
-    def test_between_equal_bounds_is_valid(self) -> None:
-        """between with equal bounds (lo == hi) is valid."""
-        v = ValidatorSpec(between=(5.0, 5.0))
-        assert v.between == (pytest.approx(5.0), pytest.approx(5.0))
-
-    def test_not_between_inverted_range_raises(self) -> None:
-        """not_between with low > high raises ContractValidationError."""
-        with pytest.raises(ContractValidationError, match="not_between"):
-            ValidatorSpec(not_between=(10.0, 0.0))
-
-    def test_not_between_equal_bounds_is_valid(self) -> None:
-        """not_between with equal bounds (lo == hi) is valid."""
-        v = ValidatorSpec(not_between=(5.0, 5.0))
-        assert v.not_between == (pytest.approx(5.0), pytest.approx(5.0))
 
     def test_negative_tolerance_raises(self) -> None:
         """Negative tolerance raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="tolerance"):
-            ValidatorSpec(tolerance=-1e-9)
-
-    def test_equals_with_min_raises(self) -> None:
-        """equals + min combo raises ContractValidationError."""
-        with pytest.raises(ContractValidationError, match="equals"):
-            ValidatorSpec(equals=5.0, min=1.0)
-
-    def test_equals_with_max_raises(self) -> None:
-        """equals + max combo raises ContractValidationError."""
-        with pytest.raises(ContractValidationError, match="equals"):
-            ValidatorSpec(equals=5.0, max=10.0)
-
-    def test_equals_with_between_raises(self) -> None:
-        """equals + between combo raises ContractValidationError."""
-        with pytest.raises(ContractValidationError, match="equals"):
-            ValidatorSpec(equals=5.0, between=(1.0, 10.0))
-
-    def test_equals_with_not_between_raises(self) -> None:
-        """equals + not_between combo raises ContractValidationError."""
-        with pytest.raises(ContractValidationError, match="equals"):
-            ValidatorSpec(equals=5.0, not_between=(1.0, 10.0))
+            MinValidator(threshold=1.0, tolerance=-1e-9)
 
     def test_frozen(self) -> None:
-        """ValidatorSpec is immutable (frozen dataclass)."""
-        v = ValidatorSpec(min=0.0)
+        """MinValidator is immutable."""
+        v = MinValidator(threshold=1.0)
         with pytest.raises(dataclasses.FrozenInstanceError):
-            v.min = 1.0  # type: ignore[misc]
+            v.threshold = 2.0  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# TestMaxValidator
+# ---------------------------------------------------------------------------
+
+
+class TestMaxValidator:
+    """Tests for MaxValidator dataclass."""
+
+    def test_valid(self) -> None:
+        """MaxValidator stores threshold and uses default tolerance 1e-9."""
+        v = MaxValidator(threshold=100.0)
+        assert v.threshold == pytest.approx(100.0)
+        assert v.tolerance == pytest.approx(1e-9)
+
+    def test_custom_tolerance(self) -> None:
+        """MaxValidator stores custom tolerance."""
+        v = MaxValidator(threshold=50.0, tolerance=0.01)
+        assert v.tolerance == pytest.approx(0.01)
+
+    def test_zero_tolerance(self) -> None:
+        """MaxValidator with tolerance=0.0 is valid."""
+        v = MaxValidator(threshold=0.0, tolerance=0.0)
+        assert v.tolerance == pytest.approx(0.0)
+
+    def test_negative_tolerance_raises(self) -> None:
+        """Negative tolerance raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="tolerance"):
+            MaxValidator(threshold=1.0, tolerance=-1e-9)
+
+    def test_frozen(self) -> None:
+        """MaxValidator is immutable."""
+        v = MaxValidator(threshold=1.0)
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            v.threshold = 2.0  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# TestBetweenValidator
+# ---------------------------------------------------------------------------
+
+
+class TestBetweenValidator:
+    """Tests for BetweenValidator dataclass."""
+
+    def test_valid(self) -> None:
+        """BetweenValidator stores low and high."""
+        v = BetweenValidator(low=0.0, high=100.0)
+        assert v.low == pytest.approx(0.0)
+        assert v.high == pytest.approx(100.0)
+        assert v.tolerance == pytest.approx(1e-9)
+
+    def test_equal_bounds_valid(self) -> None:
+        """BetweenValidator with low == high is valid."""
+        v = BetweenValidator(low=5.0, high=5.0)
+        assert v.low == pytest.approx(5.0)
+        assert v.high == pytest.approx(5.0)
+
+    def test_low_greater_than_high_raises(self) -> None:
+        """BetweenValidator with low > high raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="low.*>.*high"):
+            BetweenValidator(low=10.0, high=1.0)
+
+    def test_negative_tolerance_raises(self) -> None:
+        """Negative tolerance raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="tolerance"):
+            BetweenValidator(low=0.0, high=10.0, tolerance=-1e-9)
+
+    def test_frozen(self) -> None:
+        """BetweenValidator is immutable."""
+        v = BetweenValidator(low=0.0, high=10.0)
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            v.low = 1.0  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# TestNotBetweenValidator
+# ---------------------------------------------------------------------------
+
+
+class TestNotBetweenValidator:
+    """Tests for NotBetweenValidator dataclass."""
+
+    def test_valid(self) -> None:
+        """NotBetweenValidator stores low and high."""
+        v = NotBetweenValidator(low=0.0, high=100.0)
+        assert v.low == pytest.approx(0.0)
+        assert v.high == pytest.approx(100.0)
+        assert v.tolerance == pytest.approx(1e-9)
+
+    def test_equal_bounds_valid(self) -> None:
+        """NotBetweenValidator with low == high is valid."""
+        v = NotBetweenValidator(low=5.0, high=5.0)
+        assert v.low == pytest.approx(5.0)
+        assert v.high == pytest.approx(5.0)
+
+    def test_low_greater_than_high_raises(self) -> None:
+        """NotBetweenValidator with low > high raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="low.*>.*high"):
+            NotBetweenValidator(low=10.0, high=1.0)
+
+    def test_negative_tolerance_raises(self) -> None:
+        """Negative tolerance raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="tolerance"):
+            NotBetweenValidator(low=0.0, high=10.0, tolerance=-1e-9)
+
+    def test_frozen(self) -> None:
+        """NotBetweenValidator is immutable."""
+        v = NotBetweenValidator(low=0.0, high=10.0)
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            v.low = 1.0  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# TestEqualsValidator
+# ---------------------------------------------------------------------------
+
+
+class TestEqualsValidator:
+    """Tests for EqualsValidator dataclass."""
+
+    def test_valid(self) -> None:
+        """EqualsValidator stores value and default tolerance 1e-9."""
+        v = EqualsValidator(value=42.0)
+        assert v.value == pytest.approx(42.0)
+        assert v.tolerance == pytest.approx(1e-9)
+
+    def test_custom_tolerance(self) -> None:
+        """EqualsValidator stores custom tolerance."""
+        v = EqualsValidator(value=0.0, tolerance=0.01)
+        assert v.tolerance == pytest.approx(0.01)
+
+    def test_negative_tolerance_raises(self) -> None:
+        """Negative tolerance raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="tolerance"):
+            EqualsValidator(value=1.0, tolerance=-1e-9)
+
+    def test_frozen(self) -> None:
+        """EqualsValidator is immutable."""
+        v = EqualsValidator(value=1.0)
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            v.value = 2.0  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# TestValidatorTypeAlias
+# ---------------------------------------------------------------------------
+
+
+class TestValidatorTypeAlias:
+    """Tests that the Validator union type alias covers all five classes."""
+
+    def test_min_validator_is_validator(self) -> None:
+        """MinValidator is an instance of Validator union."""
+        v: Validator = MinValidator(threshold=1.0)
+        assert isinstance(v, MinValidator)
+
+    def test_max_validator_is_validator(self) -> None:
+        """MaxValidator is an instance of Validator union."""
+        v: Validator = MaxValidator(threshold=100.0)
+        assert isinstance(v, MaxValidator)
+
+    def test_between_validator_is_validator(self) -> None:
+        """BetweenValidator is an instance of Validator union."""
+        v: Validator = BetweenValidator(low=0.0, high=10.0)
+        assert isinstance(v, BetweenValidator)
+
+    def test_not_between_validator_is_validator(self) -> None:
+        """NotBetweenValidator is an instance of Validator union."""
+        v: Validator = NotBetweenValidator(low=0.0, high=10.0)
+        assert isinstance(v, NotBetweenValidator)
+
+    def test_equals_validator_is_validator(self) -> None:
+        """EqualsValidator is an instance of Validator union."""
+        v: Validator = EqualsValidator(value=42.0)
+        assert isinstance(v, EqualsValidator)
 
 
 # ---------------------------------------------------------------------------
@@ -397,47 +462,56 @@ class TestMapType:
 class TestNumRowsCheck:
     """Tests for NumRowsCheck dataclass."""
 
-    def test_valid_num_rows_check(self) -> None:
-        """NumRowsCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(min=1.0)
-        check = NumRowsCheck(name="row_count", validator=v)
+    def test_valid_num_rows_check_no_validators(self) -> None:
+        """NumRowsCheck with no validators (noop) is constructed correctly."""
+        check = NumRowsCheck(name="row_count")
         assert check.name == "row_count"
-        assert check.validator == v
+        assert check.validators == ()
         assert check.severity == "P1"
         assert check.tags == frozenset()
 
+    def test_valid_num_rows_check_with_validator(self) -> None:
+        """NumRowsCheck with a single MinValidator is constructed correctly."""
+        v = MinValidator(threshold=1.0)
+        check = NumRowsCheck(name="row_count", validators=(v,))
+        assert check.validators == (v,)
+
     def test_custom_severity_and_tags(self) -> None:
         """NumRowsCheck accepts custom severity and tags."""
-        v = ValidatorSpec(min=1.0)
-        check = NumRowsCheck(name="row_count", validator=v, severity="P0", tags=frozenset({"critical"}))
+        check = NumRowsCheck(
+            name="row_count",
+            validators=(MinValidator(threshold=1.0),),
+            severity="P0",
+            tags=frozenset({"critical"}),
+        )
         assert check.severity == "P0"
         assert check.tags == frozenset({"critical"})
 
     def test_tags_as_set(self) -> None:
         """NumRowsCheck accepts a plain set for tags."""
-        v = ValidatorSpec(min=1.0)
-        # Pass a plain set — the __post_init__ should convert it via validate_tags
         tags_set: frozenset[str] = {"critical", "prod"}  # type: ignore[assignment]
-        check = NumRowsCheck(name="row_count", validator=v, tags=tags_set)
+        check = NumRowsCheck(name="row_count", tags=tags_set)
         assert isinstance(check.tags, frozenset)
         assert check.tags == frozenset({"critical", "prod"})
 
     def test_empty_name_raises(self) -> None:
         """Empty name raises ContractValidationError."""
-        v = ValidatorSpec(min=1.0)
         with pytest.raises(ContractValidationError, match="name"):
-            NumRowsCheck(name="", validator=v)
+            NumRowsCheck(name="")
 
     def test_invalid_tag_raises_contract_validation_error(self) -> None:
         """Invalid tag value raises ContractValidationError (not ValueError)."""
-        v = ValidatorSpec(min=1.0)
         with pytest.raises(ContractValidationError):
-            NumRowsCheck(name="check", validator=v, tags=frozenset({"invalid tag!"}))
+            NumRowsCheck(name="check", tags=frozenset({"invalid tag!"}))
+
+    def test_multiple_validators_raises(self) -> None:
+        """More than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            NumRowsCheck(name="check", validators=(MinValidator(threshold=1.0), MaxValidator(threshold=100.0)))
 
     def test_frozen(self) -> None:
         """NumRowsCheck is immutable."""
-        v = ValidatorSpec(min=1.0)
-        check = NumRowsCheck(name="row_count", validator=v)
+        check = NumRowsCheck(name="row_count")
         with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
@@ -452,41 +526,50 @@ class TestTableDuplicatesCheck:
 
     def test_valid_table_duplicates_check(self) -> None:
         """TableDuplicatesCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(equals=0.0)
-        check = TableDuplicatesCheck(name="dedup_check", columns=("id", "date"), validator=v)
+        v = EqualsValidator(value=0.0)
+        check = TableDuplicatesCheck(name="dedup_check", columns=("id", "date"), validators=(v,))
         assert check.name == "dedup_check"
         assert check.columns == ("id", "date")
-        assert check.validator == v
+        assert check.validators == (v,)
         assert check.return_type == "count"
+
+    def test_no_validators(self) -> None:
+        """TableDuplicatesCheck with no validators (noop) is valid."""
+        check = TableDuplicatesCheck(name="dedup_check", columns=("id",))
+        assert check.validators == ()
 
     def test_pct_return_type(self) -> None:
         """TableDuplicatesCheck accepts return_type='pct'."""
-        v = ValidatorSpec(equals=0.0)
-        check = TableDuplicatesCheck(name="dedup_check", columns=("id",), validator=v, return_type="pct")
+        check = TableDuplicatesCheck(name="dedup_check", columns=("id",), return_type="pct")
         assert check.return_type == "pct"
 
     def test_empty_name_raises(self) -> None:
         """Empty name raises ContractValidationError."""
-        v = ValidatorSpec(equals=0.0)
         with pytest.raises(ContractValidationError, match="name"):
-            TableDuplicatesCheck(name="", columns=("id",), validator=v)
+            TableDuplicatesCheck(name="", columns=("id",))
 
     def test_empty_columns_raises(self) -> None:
         """Empty columns tuple raises ContractValidationError."""
-        v = ValidatorSpec(equals=0.0)
         with pytest.raises(ContractValidationError, match="columns"):
-            TableDuplicatesCheck(name="dedup_check", columns=(), validator=v)
+            TableDuplicatesCheck(name="dedup_check", columns=())
 
     def test_empty_column_name_raises(self) -> None:
         """Column with empty string name raises ContractValidationError."""
-        v = ValidatorSpec(equals=0.0)
         with pytest.raises(ContractValidationError, match="column"):
-            TableDuplicatesCheck(name="dedup_check", columns=("id", ""), validator=v)
+            TableDuplicatesCheck(name="dedup_check", columns=("id", ""))
+
+    def test_multiple_validators_raises(self) -> None:
+        """More than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            TableDuplicatesCheck(
+                name="dedup_check",
+                columns=("id",),
+                validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0)),
+            )
 
     def test_frozen(self) -> None:
         """TableDuplicatesCheck is immutable."""
-        v = ValidatorSpec(equals=0.0)
-        check = TableDuplicatesCheck(name="dedup_check", columns=("id",), validator=v)
+        check = TableDuplicatesCheck(name="dedup_check", columns=("id",))
         with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
@@ -639,27 +722,33 @@ class TestMissingCheck:
 
     def test_valid_missing_check(self) -> None:
         """MissingCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(equals=0.0)
-        check = MissingCheck(name="missing", validator=v)
+        check = MissingCheck(name="missing", validators=(EqualsValidator(value=0.0),))
         assert check.name == "missing"
         assert check.return_type == "count"
 
+    def test_no_validators(self) -> None:
+        """MissingCheck with no validators (noop) is valid."""
+        check = MissingCheck(name="missing")
+        assert check.validators == ()
+
     def test_pct_return_type(self) -> None:
         """MissingCheck accepts return_type='pct'."""
-        v = ValidatorSpec(equals=0.0)
-        check = MissingCheck(name="missing", validator=v, return_type="pct")
+        check = MissingCheck(name="missing", return_type="pct")
         assert check.return_type == "pct"
 
     def test_empty_name_raises(self) -> None:
         """Empty name raises ContractValidationError."""
-        v = ValidatorSpec(equals=0.0)
         with pytest.raises(ContractValidationError, match="name"):
-            MissingCheck(name="", validator=v)
+            MissingCheck(name="")
+
+    def test_multiple_validators_raises(self) -> None:
+        """More than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            MissingCheck(name="missing", validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0)))
 
     def test_frozen(self) -> None:
         """MissingCheck is immutable."""
-        v = ValidatorSpec(equals=0.0)
-        check = MissingCheck(name="missing", validator=v)
+        check = MissingCheck(name="missing")
         with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
@@ -674,21 +763,30 @@ class TestColumnDuplicatesCheck:
 
     def test_valid_column_duplicates_check(self) -> None:
         """ColumnDuplicatesCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(equals=0.0)
-        check = ColumnDuplicatesCheck(name="col_dedup", validator=v)
+        check = ColumnDuplicatesCheck(name="col_dedup", validators=(EqualsValidator(value=0.0),))
         assert check.name == "col_dedup"
         assert check.return_type == "count"
 
+    def test_no_validators(self) -> None:
+        """ColumnDuplicatesCheck with no validators (noop) is valid."""
+        check = ColumnDuplicatesCheck(name="col_dedup")
+        assert check.validators == ()
+
     def test_empty_name_raises(self) -> None:
         """Empty name raises ContractValidationError."""
-        v = ValidatorSpec(equals=0.0)
         with pytest.raises(ContractValidationError, match="name"):
-            ColumnDuplicatesCheck(name="", validator=v)
+            ColumnDuplicatesCheck(name="")
+
+    def test_multiple_validators_raises(self) -> None:
+        """More than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            ColumnDuplicatesCheck(
+                name="col_dedup", validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0))
+            )
 
     def test_frozen(self) -> None:
         """ColumnDuplicatesCheck is immutable."""
-        v = ValidatorSpec(equals=0.0)
-        check = ColumnDuplicatesCheck(name="col_dedup", validator=v)
+        check = ColumnDuplicatesCheck(name="col_dedup")
         with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
@@ -703,46 +801,55 @@ class TestWhitelistCheck:
 
     def test_valid_whitelist_check(self) -> None:
         """WhitelistCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(equals=0.0)
-        check = WhitelistCheck(name="whitelist", values=("active", "inactive"), validator=v)
+        check = WhitelistCheck(
+            name="whitelist", values=("active", "inactive"), validators=(EqualsValidator(value=0.0),)
+        )
         assert check.name == "whitelist"
         assert check.values == ("active", "inactive")
         assert check.case_sensitive is True
 
+    def test_no_validators(self) -> None:
+        """WhitelistCheck with no validators (noop) is valid."""
+        check = WhitelistCheck(name="whitelist", values=("active",))
+        assert check.validators == ()
+
     def test_numeric_values(self) -> None:
         """WhitelistCheck accepts numeric values."""
-        v = ValidatorSpec(equals=0.0)
-        check = WhitelistCheck(name="whitelist", values=(1, 2, 3), validator=v)
+        check = WhitelistCheck(name="whitelist", values=(1, 2, 3))
         assert check.values == (1, 2, 3)
 
     def test_mixed_values(self) -> None:
         """WhitelistCheck accepts mixed type values."""
-        v = ValidatorSpec(equals=0.0)
-        check = WhitelistCheck(name="whitelist", values=("a", 1, 2.5), validator=v)
+        check = WhitelistCheck(name="whitelist", values=("a", 1, 2.5))
         assert check.values == ("a", 1, 2.5)
 
     def test_case_insensitive(self) -> None:
         """WhitelistCheck accepts case_sensitive=False."""
-        v = ValidatorSpec(equals=0.0)
-        check = WhitelistCheck(name="whitelist", values=("Active",), validator=v, case_sensitive=False)
+        check = WhitelistCheck(name="whitelist", values=("Active",), case_sensitive=False)
         assert check.case_sensitive is False
 
     def test_empty_name_raises(self) -> None:
         """Empty name raises ContractValidationError."""
-        v = ValidatorSpec(equals=0.0)
         with pytest.raises(ContractValidationError, match="name"):
-            WhitelistCheck(name="", values=("a",), validator=v)
+            WhitelistCheck(name="", values=("a",))
 
     def test_empty_values_raises(self) -> None:
         """Empty values tuple raises ContractValidationError."""
-        v = ValidatorSpec(equals=0.0)
         with pytest.raises(ContractValidationError, match="values"):
-            WhitelistCheck(name="whitelist", values=(), validator=v)
+            WhitelistCheck(name="whitelist", values=())
+
+    def test_multiple_validators_raises(self) -> None:
+        """More than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            WhitelistCheck(
+                name="whitelist",
+                values=("a",),
+                validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0)),
+            )
 
     def test_frozen(self) -> None:
         """WhitelistCheck is immutable."""
-        v = ValidatorSpec(equals=0.0)
-        check = WhitelistCheck(name="whitelist", values=("a",), validator=v)
+        check = WhitelistCheck(name="whitelist", values=("a",))
         with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
@@ -757,28 +864,38 @@ class TestBlacklistCheck:
 
     def test_valid_blacklist_check(self) -> None:
         """BlacklistCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(equals=0.0)
-        check = BlacklistCheck(name="blacklist", values=("deleted", "banned"), validator=v)
+        check = BlacklistCheck(name="blacklist", values=("deleted", "banned"), validators=(EqualsValidator(value=0.0),))
         assert check.name == "blacklist"
         assert check.values == ("deleted", "banned")
         assert check.case_sensitive is True
 
+    def test_no_validators(self) -> None:
+        """BlacklistCheck with no validators (noop) is valid."""
+        check = BlacklistCheck(name="blacklist", values=("deleted",))
+        assert check.validators == ()
+
     def test_empty_name_raises(self) -> None:
         """Empty name raises ContractValidationError."""
-        v = ValidatorSpec(equals=0.0)
         with pytest.raises(ContractValidationError, match="name"):
-            BlacklistCheck(name="", values=("a",), validator=v)
+            BlacklistCheck(name="", values=("a",))
 
     def test_empty_values_raises(self) -> None:
         """Empty values tuple raises ContractValidationError."""
-        v = ValidatorSpec(equals=0.0)
         with pytest.raises(ContractValidationError, match="values"):
-            BlacklistCheck(name="blacklist", values=(), validator=v)
+            BlacklistCheck(name="blacklist", values=())
+
+    def test_multiple_validators_raises(self) -> None:
+        """More than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            BlacklistCheck(
+                name="blacklist",
+                values=("a",),
+                validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0)),
+            )
 
     def test_frozen(self) -> None:
         """BlacklistCheck is immutable."""
-        v = ValidatorSpec(equals=0.0)
-        check = BlacklistCheck(name="blacklist", values=("a",), validator=v)
+        check = BlacklistCheck(name="blacklist", values=("a",))
         with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
@@ -793,92 +910,92 @@ class TestPatternCheck:
 
     def test_valid_pattern_check_with_pattern(self) -> None:
         """PatternCheck with explicit pattern is valid."""
-        v = ValidatorSpec(equals=0.0)
-        check = PatternCheck(name="pattern_check", validator=v, pattern=r"\d+")
+        check = PatternCheck(name="pattern_check", validators=(EqualsValidator(value=0.0),), pattern=r"\d+")
         assert check.pattern == r"\d+"
         assert check.format is None
 
     def test_valid_pattern_check_with_format(self) -> None:
         """PatternCheck with format shortcut is valid."""
-        v = ValidatorSpec(equals=0.0)
-        check = PatternCheck(name="email_check", validator=v, format="email")
+        check = PatternCheck(name="email_check", validators=(EqualsValidator(value=0.0),), format="email")
         assert check.format == "email"
         assert check.pattern is None
 
+    def test_no_validators(self) -> None:
+        """PatternCheck with no validators (noop) is valid."""
+        check = PatternCheck(name="pattern_check", pattern=r"\d+")
+        assert check.validators == ()
+
     def test_all_format_shortcuts(self) -> None:
         """PatternCheck accepts all valid format shortcuts."""
-        v = ValidatorSpec(equals=0.0)
         for fmt in ("email", "phone", "uuid", "url", "ipv4", "ipv6", "date", "datetime"):
-            check = PatternCheck(name="check", validator=v, format=fmt)  # type: ignore[arg-type]
+            check = PatternCheck(name="check", format=fmt)  # type: ignore[arg-type]
             assert check.format == fmt
 
     def test_flags_with_pattern(self) -> None:
         """PatternCheck with flags and pattern is valid."""
-        v = ValidatorSpec(equals=0.0)
-        check = PatternCheck(name="pattern_check", validator=v, pattern=r"\d+", flags=("IGNORECASE",))
+        check = PatternCheck(name="pattern_check", pattern=r"\d+", flags=("IGNORECASE",))
         assert check.flags == ("IGNORECASE",)
 
     def test_neither_pattern_nor_format_raises(self) -> None:
         """Neither pattern nor format raises ContractValidationError."""
-        v = ValidatorSpec(equals=0.0)
         with pytest.raises(ContractValidationError, match="pattern"):
-            PatternCheck(name="pattern_check", validator=v)
+            PatternCheck(name="pattern_check")
 
     def test_both_pattern_and_format_raises(self) -> None:
         """Both pattern and format raises ContractValidationError."""
-        v = ValidatorSpec(equals=0.0)
         with pytest.raises(ContractValidationError, match="pattern"):
-            PatternCheck(name="pattern_check", validator=v, pattern=r"\d+", format="email")
+            PatternCheck(name="pattern_check", pattern=r"\d+", format="email")
 
     def test_flags_with_format_raises(self) -> None:
         """Flags with format shortcut raises ContractValidationError."""
-        v = ValidatorSpec(equals=0.0)
         with pytest.raises(ContractValidationError, match="flags"):
-            PatternCheck(name="email_check", validator=v, format="email", flags=("IGNORECASE",))
+            PatternCheck(name="email_check", format="email", flags=("IGNORECASE",))
 
     def test_empty_pattern_raises(self) -> None:
         """Empty pattern string raises ContractValidationError."""
-        v = ValidatorSpec(equals=0.0)
         with pytest.raises(ContractValidationError, match="pattern"):
-            PatternCheck(name="pattern_check", validator=v, pattern="")
+            PatternCheck(name="pattern_check", pattern="")
 
     def test_empty_name_raises(self) -> None:
         """Empty name raises ContractValidationError."""
-        v = ValidatorSpec(equals=0.0)
         with pytest.raises(ContractValidationError, match="name"):
-            PatternCheck(name="", validator=v, pattern=r"\d+")
+            PatternCheck(name="", pattern=r"\d+")
 
     def test_frozen(self) -> None:
         """PatternCheck is immutable."""
-        v = ValidatorSpec(equals=0.0)
-        check = PatternCheck(name="pattern_check", validator=v, pattern=r"\d+")
+        check = PatternCheck(name="pattern_check", pattern=r"\d+")
         with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
     def test_invalid_regex_pattern_raises(self) -> None:
         """Invalid regex pattern raises ContractValidationError."""
-        v = ValidatorSpec(equals=0.0)
         with pytest.raises(ContractValidationError, match="invalid regex"):
-            PatternCheck(name="check", validator=v, pattern="[")
+            PatternCheck(name="check", pattern="[")
 
     def test_invalid_flag_name_raises(self) -> None:
         """Unknown flag name raises ContractValidationError."""
-        v = ValidatorSpec(equals=0.0)
         with pytest.raises(ContractValidationError, match="unknown flag"):
-            PatternCheck(name="check", validator=v, pattern=r"\d+", flags=("BADFLG",))
+            PatternCheck(name="check", pattern=r"\d+", flags=("BADFLG",))
 
     def test_invalid_format_shortcut_raises(self) -> None:
         """Unknown format shortcut raises ContractValidationError."""
-        v = ValidatorSpec(equals=0.0)
         with pytest.raises(ContractValidationError, match="unknown format"):
-            PatternCheck(name="check", validator=v, format="ssn")  # type: ignore[arg-type]
+            PatternCheck(name="check", format="ssn")  # type: ignore[arg-type]
 
     def test_all_valid_flag_names(self) -> None:
         """All recognized flag names are accepted."""
-        v = ValidatorSpec(equals=0.0)
         for flag in ("IGNORECASE", "MULTILINE", "DOTALL", "VERBOSE", "ASCII", "UNICODE", "LOCALE"):
-            check = PatternCheck(name="check", validator=v, pattern=r"\w+", flags=(flag,))
+            check = PatternCheck(name="check", pattern=r"\w+", flags=(flag,))
             assert flag in check.flags
+
+    def test_multiple_validators_raises(self) -> None:
+        """More than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            PatternCheck(
+                name="check",
+                pattern=r"\d+",
+                validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0)),
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -891,20 +1008,27 @@ class TestMinLengthCheck:
 
     def test_valid_min_length_check(self) -> None:
         """MinLengthCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(min=1.0)
-        check = MinLengthCheck(name="min_len", validator=v)
+        check = MinLengthCheck(name="min_len", validators=(MinValidator(threshold=1.0),))
         assert check.name == "min_len"
+
+    def test_no_validators(self) -> None:
+        """MinLengthCheck with no validators (noop) is valid."""
+        check = MinLengthCheck(name="min_len")
+        assert check.validators == ()
 
     def test_empty_name_raises(self) -> None:
         """Empty name raises ContractValidationError."""
-        v = ValidatorSpec(min=1.0)
         with pytest.raises(ContractValidationError, match="name"):
-            MinLengthCheck(name="", validator=v)
+            MinLengthCheck(name="")
+
+    def test_multiple_validators_raises(self) -> None:
+        """More than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            MinLengthCheck(name="min_len", validators=(MinValidator(threshold=1.0), MaxValidator(threshold=10.0)))
 
     def test_frozen(self) -> None:
         """MinLengthCheck is immutable."""
-        v = ValidatorSpec(min=1.0)
-        check = MinLengthCheck(name="min_len", validator=v)
+        check = MinLengthCheck(name="min_len")
         with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
@@ -919,20 +1043,27 @@ class TestMaxLengthCheck:
 
     def test_valid_max_length_check(self) -> None:
         """MaxLengthCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(max=255.0)
-        check = MaxLengthCheck(name="max_len", validator=v)
+        check = MaxLengthCheck(name="max_len", validators=(MaxValidator(threshold=255.0),))
         assert check.name == "max_len"
+
+    def test_no_validators(self) -> None:
+        """MaxLengthCheck with no validators (noop) is valid."""
+        check = MaxLengthCheck(name="max_len")
+        assert check.validators == ()
 
     def test_empty_name_raises(self) -> None:
         """Empty name raises ContractValidationError."""
-        v = ValidatorSpec(max=255.0)
         with pytest.raises(ContractValidationError, match="name"):
-            MaxLengthCheck(name="", validator=v)
+            MaxLengthCheck(name="")
+
+    def test_multiple_validators_raises(self) -> None:
+        """More than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            MaxLengthCheck(name="max_len", validators=(MinValidator(threshold=1.0), MaxValidator(threshold=10.0)))
 
     def test_frozen(self) -> None:
         """MaxLengthCheck is immutable."""
-        v = ValidatorSpec(max=255.0)
-        check = MaxLengthCheck(name="max_len", validator=v)
+        check = MaxLengthCheck(name="max_len")
         with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
@@ -947,32 +1078,37 @@ class TestAvgLengthCheck:
 
     def test_valid_avg_length_check(self) -> None:
         """AvgLengthCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(between=(5.0, 50.0))
-        check = AvgLengthCheck(name="avg_len", validator=v)
+        check = AvgLengthCheck(name="avg_len", validators=(BetweenValidator(low=5.0, high=50.0),))
         assert check.name == "avg_len"
+
+    def test_no_validators(self) -> None:
+        """AvgLengthCheck with no validators (noop) is valid."""
+        check = AvgLengthCheck(name="avg_len")
+        assert check.validators == ()
 
     def test_default_return_type(self) -> None:
         """AvgLengthCheck default return_type is 'count'."""
-        v = ValidatorSpec(between=(5.0, 50.0))
-        check = AvgLengthCheck(name="avg_len", validator=v)
+        check = AvgLengthCheck(name="avg_len")
         assert check.return_type == "count"
 
     def test_pct_return_type(self) -> None:
         """AvgLengthCheck accepts return_type='pct'."""
-        v = ValidatorSpec(between=(5.0, 50.0))
-        check = AvgLengthCheck(name="avg_len", validator=v, return_type="pct")
+        check = AvgLengthCheck(name="avg_len", return_type="pct")
         assert check.return_type == "pct"
 
     def test_empty_name_raises(self) -> None:
         """Empty name raises ContractValidationError."""
-        v = ValidatorSpec(between=(5.0, 50.0))
         with pytest.raises(ContractValidationError, match="name"):
-            AvgLengthCheck(name="", validator=v)
+            AvgLengthCheck(name="")
+
+    def test_multiple_validators_raises(self) -> None:
+        """More than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            AvgLengthCheck(name="avg_len", validators=(MinValidator(threshold=1.0), MaxValidator(threshold=10.0)))
 
     def test_frozen(self) -> None:
         """AvgLengthCheck is immutable."""
-        v = ValidatorSpec(between=(5.0, 50.0))
-        check = AvgLengthCheck(name="avg_len", validator=v)
+        check = AvgLengthCheck(name="avg_len")
         with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
@@ -987,20 +1123,27 @@ class TestCardinalityCheck:
 
     def test_valid_cardinality_check(self) -> None:
         """CardinalityCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(max=1000.0)
-        check = CardinalityCheck(name="cardinality", validator=v)
+        check = CardinalityCheck(name="cardinality", validators=(MaxValidator(threshold=1000.0),))
         assert check.name == "cardinality"
+
+    def test_no_validators(self) -> None:
+        """CardinalityCheck with no validators (noop) is valid."""
+        check = CardinalityCheck(name="cardinality")
+        assert check.validators == ()
 
     def test_empty_name_raises(self) -> None:
         """Empty name raises ContractValidationError."""
-        v = ValidatorSpec(max=1000.0)
         with pytest.raises(ContractValidationError, match="name"):
-            CardinalityCheck(name="", validator=v)
+            CardinalityCheck(name="")
+
+    def test_multiple_validators_raises(self) -> None:
+        """More than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            CardinalityCheck(name="cardinality", validators=(MinValidator(threshold=1.0), MaxValidator(threshold=10.0)))
 
     def test_frozen(self) -> None:
         """CardinalityCheck is immutable."""
-        v = ValidatorSpec(max=1000.0)
-        check = CardinalityCheck(name="cardinality", validator=v)
+        check = CardinalityCheck(name="cardinality")
         with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
@@ -1015,92 +1158,154 @@ class TestStatisticalChecks:
 
     def test_valid_min_check(self) -> None:
         """MinCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(min=0.0)
-        check = MinCheck(name="min_check", validator=v)
+        check = MinCheck(name="min_check", validators=(MinValidator(threshold=0.0),))
         assert check.name == "min_check"
+
+    def test_min_check_no_validators(self) -> None:
+        """MinCheck with no validators (noop) is valid."""
+        check = MinCheck(name="min_check")
+        assert check.validators == ()
 
     def test_min_check_empty_name_raises(self) -> None:
         """MinCheck empty name raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="name"):
-            MinCheck(name="", validator=ValidatorSpec())
+            MinCheck(name="")
+
+    def test_min_check_multiple_validators_raises(self) -> None:
+        """MinCheck with more than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            MinCheck(name="x", validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0)))
 
     def test_valid_max_check(self) -> None:
         """MaxCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(max=100.0)
-        check = MaxCheck(name="max_check", validator=v)
+        check = MaxCheck(name="max_check", validators=(MaxValidator(threshold=100.0),))
         assert check.name == "max_check"
+
+    def test_max_check_no_validators(self) -> None:
+        """MaxCheck with no validators (noop) is valid."""
+        check = MaxCheck(name="max_check")
+        assert check.validators == ()
 
     def test_max_check_empty_name_raises(self) -> None:
         """MaxCheck empty name raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="name"):
-            MaxCheck(name="", validator=ValidatorSpec())
+            MaxCheck(name="")
+
+    def test_max_check_multiple_validators_raises(self) -> None:
+        """MaxCheck with more than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            MaxCheck(name="x", validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0)))
 
     def test_valid_mean_check(self) -> None:
         """MeanCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(between=(10.0, 90.0))
-        check = MeanCheck(name="mean_check", validator=v)
+        check = MeanCheck(name="mean_check", validators=(BetweenValidator(low=10.0, high=90.0),))
         assert check.name == "mean_check"
+
+    def test_mean_check_no_validators(self) -> None:
+        """MeanCheck with no validators (noop) is valid."""
+        check = MeanCheck(name="mean_check")
+        assert check.validators == ()
 
     def test_mean_check_empty_name_raises(self) -> None:
         """MeanCheck empty name raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="name"):
-            MeanCheck(name="", validator=ValidatorSpec())
+            MeanCheck(name="")
+
+    def test_mean_check_multiple_validators_raises(self) -> None:
+        """MeanCheck with more than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            MeanCheck(name="x", validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0)))
 
     def test_valid_sum_check(self) -> None:
         """SumCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(min=0.0)
-        check = SumCheck(name="sum_check", validator=v)
+        check = SumCheck(name="sum_check", validators=(MinValidator(threshold=0.0),))
         assert check.name == "sum_check"
+
+    def test_sum_check_no_validators(self) -> None:
+        """SumCheck with no validators (noop) is valid."""
+        check = SumCheck(name="sum_check")
+        assert check.validators == ()
 
     def test_sum_check_empty_name_raises(self) -> None:
         """SumCheck empty name raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="name"):
-            SumCheck(name="", validator=ValidatorSpec())
+            SumCheck(name="")
+
+    def test_sum_check_multiple_validators_raises(self) -> None:
+        """SumCheck with more than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            SumCheck(name="x", validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0)))
 
     def test_valid_count_check(self) -> None:
         """CountCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(min=1.0)
-        check = CountCheck(name="count_check", validator=v)
+        check = CountCheck(name="count_check", validators=(MinValidator(threshold=1.0),))
         assert check.name == "count_check"
+
+    def test_count_check_no_validators(self) -> None:
+        """CountCheck with no validators (noop) is valid."""
+        check = CountCheck(name="count_check")
+        assert check.validators == ()
 
     def test_count_check_empty_name_raises(self) -> None:
         """CountCheck empty name raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="name"):
-            CountCheck(name="", validator=ValidatorSpec())
+            CountCheck(name="")
+
+    def test_count_check_multiple_validators_raises(self) -> None:
+        """CountCheck with more than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            CountCheck(name="x", validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0)))
 
     def test_valid_variance_check(self) -> None:
         """VarianceCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(max=100.0)
-        check = VarianceCheck(name="variance_check", validator=v)
+        check = VarianceCheck(name="variance_check", validators=(MaxValidator(threshold=100.0),))
         assert check.name == "variance_check"
+
+    def test_variance_check_no_validators(self) -> None:
+        """VarianceCheck with no validators (noop) is valid."""
+        check = VarianceCheck(name="variance_check")
+        assert check.validators == ()
 
     def test_variance_check_empty_name_raises(self) -> None:
         """VarianceCheck empty name raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="name"):
-            VarianceCheck(name="", validator=ValidatorSpec())
+            VarianceCheck(name="")
+
+    def test_variance_check_multiple_validators_raises(self) -> None:
+        """VarianceCheck with more than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            VarianceCheck(name="x", validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0)))
 
     def test_valid_stddev_check(self) -> None:
         """StddevCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(max=10.0)
-        check = StddevCheck(name="stddev_check", validator=v)
+        check = StddevCheck(name="stddev_check", validators=(MaxValidator(threshold=10.0),))
         assert check.name == "stddev_check"
+
+    def test_stddev_check_no_validators(self) -> None:
+        """StddevCheck with no validators (noop) is valid."""
+        check = StddevCheck(name="stddev_check")
+        assert check.validators == ()
 
     def test_stddev_check_empty_name_raises(self) -> None:
         """StddevCheck empty name raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="name"):
-            StddevCheck(name="", validator=ValidatorSpec())
+            StddevCheck(name="")
+
+    def test_stddev_check_multiple_validators_raises(self) -> None:
+        """StddevCheck with more than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            StddevCheck(name="x", validators=(MinValidator(threshold=0.0), MaxValidator(threshold=10.0)))
 
     def test_statistical_checks_frozen(self) -> None:
         """Statistical checks are all immutable."""
-        v = ValidatorSpec()
         checks: list[MinCheck | MaxCheck | MeanCheck | SumCheck | CountCheck | VarianceCheck | StddevCheck] = [
-            MinCheck(name="x", validator=v),
-            MaxCheck(name="x", validator=v),
-            MeanCheck(name="x", validator=v),
-            SumCheck(name="x", validator=v),
-            CountCheck(name="x", validator=v),
-            VarianceCheck(name="x", validator=v),
-            StddevCheck(name="x", validator=v),
+            MinCheck(name="x"),
+            MaxCheck(name="x"),
+            MeanCheck(name="x"),
+            SumCheck(name="x"),
+            CountCheck(name="x"),
+            VarianceCheck(name="x"),
+            StddevCheck(name="x"),
         ]
         for check in checks:
             with pytest.raises(dataclasses.FrozenInstanceError):
@@ -1117,42 +1322,52 @@ class TestPercentileCheck:
 
     def test_valid_percentile_check(self) -> None:
         """PercentileCheck with valid fields is constructed correctly."""
-        v = ValidatorSpec(max=100.0)
-        check = PercentileCheck(name="p50", percentile=50.0, validator=v)
+        check = PercentileCheck(name="p50", percentile=50.0, validators=(MaxValidator(threshold=100.0),))
         assert check.name == "p50"
         assert check.percentile == pytest.approx(50.0)
 
+    def test_no_validators(self) -> None:
+        """PercentileCheck with no validators (noop) is valid."""
+        check = PercentileCheck(name="p50", percentile=50.0)
+        assert check.validators == ()
+
     def test_percentile_zero(self) -> None:
         """PercentileCheck with percentile=0.0 is valid."""
-        v = ValidatorSpec()
-        check = PercentileCheck(name="p0", percentile=0.0, validator=v)
+        check = PercentileCheck(name="p0", percentile=0.0)
         assert check.percentile == pytest.approx(0.0)
 
     def test_percentile_100(self) -> None:
         """PercentileCheck with percentile=100.0 is valid."""
-        v = ValidatorSpec()
-        check = PercentileCheck(name="p100", percentile=100.0, validator=v)
+        check = PercentileCheck(name="p100", percentile=100.0)
         assert check.percentile == pytest.approx(100.0)
 
     def test_empty_name_raises(self) -> None:
         """Empty name raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="name"):
-            PercentileCheck(name="", percentile=50.0, validator=ValidatorSpec())
+            PercentileCheck(name="", percentile=50.0)
 
     def test_percentile_below_zero_raises(self) -> None:
         """percentile < 0.0 raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="percentile"):
-            PercentileCheck(name="p", percentile=-0.1, validator=ValidatorSpec())
+            PercentileCheck(name="p", percentile=-0.1)
 
     def test_percentile_above_100_raises(self) -> None:
         """percentile > 100.0 raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="percentile"):
-            PercentileCheck(name="p", percentile=100.1, validator=ValidatorSpec())
+            PercentileCheck(name="p", percentile=100.1)
+
+    def test_multiple_validators_raises(self) -> None:
+        """More than 1 validator raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="validators"):
+            PercentileCheck(
+                name="p50",
+                percentile=50.0,
+                validators=(MinValidator(threshold=0.0), MaxValidator(threshold=100.0)),
+            )
 
     def test_frozen(self) -> None:
         """PercentileCheck is immutable."""
-        v = ValidatorSpec()
-        check = PercentileCheck(name="p50", percentile=50.0, validator=v)
+        check = PercentileCheck(name="p50", percentile=50.0)
         with pytest.raises(dataclasses.FrozenInstanceError):
             check.name = "other"  # type: ignore[misc]
 
@@ -1187,8 +1402,7 @@ class TestColumnSpec:
 
     def test_with_checks(self) -> None:
         """ColumnSpec with checks is valid."""
-        v = ValidatorSpec(equals=0.0)
-        check = MissingCheck(name="missing", validator=v)
+        check = MissingCheck(name="missing", validators=(EqualsValidator(value=0.0),))
         col = ColumnSpec(name="col", type="string", description="desc", checks=(check,))
         assert len(col.checks) == 1
 
@@ -1466,7 +1680,7 @@ class TestContract:
 
     def test_with_table_checks(self) -> None:
         """Contract with table-level checks is valid."""
-        check = NumRowsCheck(name="row_count", validator=ValidatorSpec(min=1.0))
+        check = NumRowsCheck(name="row_count", validators=(MinValidator(threshold=1.0),))
         contract = _make_contract(checks=(check,))
         assert len(contract.checks) == 1
 

@@ -1,7 +1,7 @@
 """Contract dataclasses for DQX data quality contracts.
 
 This module defines the full type system and check specifications used to
-declare data contracts: schema types, validator specs, table-level checks,
+declare data contracts: schema types, validators, table-level checks,
 column-level checks, column specs, SLA specs, and the top-level Contract.
 """
 
@@ -168,72 +168,129 @@ class MapType:
 ContractType = SimpleContractType | TimestampType | ListType | StructType | MapType
 
 # ---------------------------------------------------------------------------
-# ValidatorSpec
+# Validators
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
-class ValidatorSpec:
-    """Specification for a numeric range/value validator.
-
-    All fields are optional; an all-None instance is a valid **noop** — the
-    check runs and records the computed metric but never fails on the value
-    comparison.  Useful for informational or schema-only checks where you want
-    to observe a metric without enforcing a bound.
+class MinValidator:
+    """Validator that passes when the metric is >= (threshold - tolerance).
 
     Args:
-        min: Lower bound (inclusive).
-        max: Upper bound (inclusive).
-        between: Closed interval ``(lo, hi)`` — mutually exclusive with
-            ``min``/``max``.
-        not_between: Exclusion interval ``(lo, hi)`` — mutually exclusive
-            with ``min``, ``max``, and ``between``.
-        equals: Exact equality target — mutually exclusive with ``min``,
-            ``max``, ``between``, and ``not_between``.
+        threshold: Lower bound (inclusive).
         tolerance: Floating-point comparison tolerance (must be >= 0).
+            Defaults to 1e-9.
 
     Raises:
-        ContractValidationError: For any invalid combination or value.
+        ContractValidationError: If tolerance < 0.
     """
 
-    min: float | None = None
-    max: float | None = None
-    between: tuple[float, float] | None = None
-    not_between: tuple[float, float] | None = None
-    equals: float | None = None
+    threshold: float
     tolerance: float = 1e-9
 
     def __post_init__(self) -> None:
-        """Validate field combinations and individual constraints."""
-        # between conflicts
-        if self.between is not None and (self.min is not None or self.max is not None):
-            raise ContractValidationError("ValidatorSpec: 'between' cannot be combined with 'min' or 'max'")
-        # not_between conflicts
-        if self.not_between is not None and (self.min is not None or self.max is not None or self.between is not None):
-            raise ContractValidationError(
-                "ValidatorSpec: 'not_between' cannot be combined with 'min', 'max', or 'between'"
-            )
-        # equals mutual exclusivity
-        if self.equals is not None and any(v is not None for v in (self.min, self.max, self.between, self.not_between)):
-            raise ContractValidationError(
-                "ValidatorSpec: 'equals' cannot be combined with 'min', 'max', 'between', or 'not_between'"
-            )
-        # between range check
-        if self.between is not None and self.between[0] > self.between[1]:
-            raise ContractValidationError(
-                f"ValidatorSpec: between lower bound {self.between[0]} > upper bound {self.between[1]}"
-            )
-        # not_between range check
-        if self.not_between is not None and self.not_between[0] > self.not_between[1]:
-            raise ContractValidationError(
-                f"ValidatorSpec: not_between lower bound {self.not_between[0]} > upper bound {self.not_between[1]}"
-            )
-        # min/max ordering check
-        if self.min is not None and self.max is not None and self.min > self.max:
-            raise ContractValidationError(f"ValidatorSpec: min {self.min} > max {self.max}")
-        # tolerance must be non-negative
+        """Validate tolerance is non-negative."""
         if self.tolerance < 0:
-            raise ContractValidationError(f"ValidatorSpec: tolerance must be >= 0, got {self.tolerance}")
+            raise ContractValidationError(f"MinValidator: tolerance must be >= 0, got {self.tolerance}")
+
+
+@dataclass(frozen=True)
+class MaxValidator:
+    """Validator that passes when the metric is <= (threshold + tolerance).
+
+    Args:
+        threshold: Upper bound (inclusive).
+        tolerance: Floating-point comparison tolerance (must be >= 0).
+            Defaults to 1e-9.
+
+    Raises:
+        ContractValidationError: If tolerance < 0.
+    """
+
+    threshold: float
+    tolerance: float = 1e-9
+
+    def __post_init__(self) -> None:
+        """Validate tolerance is non-negative."""
+        if self.tolerance < 0:
+            raise ContractValidationError(f"MaxValidator: tolerance must be >= 0, got {self.tolerance}")
+
+
+@dataclass(frozen=True)
+class BetweenValidator:
+    """Validator that passes when the metric is within [low, high] (inclusive).
+
+    Args:
+        low: Lower bound (inclusive).
+        high: Upper bound (inclusive).
+        tolerance: Floating-point comparison tolerance (must be >= 0).
+            Defaults to 1e-9.
+
+    Raises:
+        ContractValidationError: If low > high or tolerance < 0.
+    """
+
+    low: float
+    high: float
+    tolerance: float = 1e-9
+
+    def __post_init__(self) -> None:
+        """Validate low <= high and tolerance is non-negative."""
+        if self.low > self.high:
+            raise ContractValidationError(f"BetweenValidator: low {self.low} > high {self.high}")
+        if self.tolerance < 0:
+            raise ContractValidationError(f"BetweenValidator: tolerance must be >= 0, got {self.tolerance}")
+
+
+@dataclass(frozen=True)
+class NotBetweenValidator:
+    """Validator that passes when the metric is outside (low, high) exclusively.
+
+    Args:
+        low: Lower bound of the excluded range.
+        high: Upper bound of the excluded range.
+        tolerance: Floating-point comparison tolerance (must be >= 0).
+            Defaults to 1e-9.
+
+    Raises:
+        ContractValidationError: If low > high or tolerance < 0.
+    """
+
+    low: float
+    high: float
+    tolerance: float = 1e-9
+
+    def __post_init__(self) -> None:
+        """Validate low <= high and tolerance is non-negative."""
+        if self.low > self.high:
+            raise ContractValidationError(f"NotBetweenValidator: low {self.low} > high {self.high}")
+        if self.tolerance < 0:
+            raise ContractValidationError(f"NotBetweenValidator: tolerance must be >= 0, got {self.tolerance}")
+
+
+@dataclass(frozen=True)
+class EqualsValidator:
+    """Validator that passes when the metric equals value (within tolerance).
+
+    Args:
+        value: Expected exact value.
+        tolerance: Floating-point comparison tolerance (must be >= 0).
+            Defaults to 1e-9.
+
+    Raises:
+        ContractValidationError: If tolerance < 0.
+    """
+
+    value: float
+    tolerance: float = 1e-9
+
+    def __post_init__(self) -> None:
+        """Validate tolerance is non-negative."""
+        if self.tolerance < 0:
+            raise ContractValidationError(f"EqualsValidator: tolerance must be >= 0, got {self.tolerance}")
+
+
+Validator = MinValidator | MaxValidator | BetweenValidator | NotBetweenValidator | EqualsValidator
 
 
 # ---------------------------------------------------------------------------
@@ -259,27 +316,33 @@ _VALID_FLAG_NAMES: frozenset[str] = frozenset(
 
 @dataclass(frozen=True)
 class NumRowsCheck:
-    """Check that the number of table rows satisfies a ValidatorSpec.
+    """Check that the number of table rows satisfies a validator.
 
     Args:
         name: Check name (non-empty).
-        validator: Numeric validator for row count.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         severity: Severity level. Defaults to "P1".
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty.
+        ContractValidationError: If name is empty or validators has more than
+            1 entry.
     """
 
     name: str
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name and normalize tags."""
+        """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("NumRowsCheck name must be non-empty")
+        if len(self.validators) > 1:
+            raise ContractValidationError(
+                f"NumRowsCheck validators must have at most 1 entry, got {len(self.validators)}"
+            )
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -292,26 +355,27 @@ class TableDuplicatesCheck:
         name: Check name (non-empty).
         columns: Tuple of column names to check for duplicates (non-empty;
             each name must be non-empty).
-        validator: Numeric validator for duplicate count/percentage.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         return_type: Whether to return a count or percentage. Defaults to
             "count".
         severity: Severity level. Defaults to "P1".
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty, columns is empty, or any
-            column name is empty.
+        ContractValidationError: If name is empty, columns is empty, any
+            column name is empty, or validators has more than 1 entry.
     """
 
     name: str
     columns: tuple[str, ...]
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     return_type: ReturnType = "count"
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name, columns, and normalize tags."""
+        """Validate name, columns, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("TableDuplicatesCheck name must be non-empty")
         if not self.columns:
@@ -319,6 +383,10 @@ class TableDuplicatesCheck:
         for col in self.columns:
             if not col:
                 raise ContractValidationError("Each column name in TableDuplicatesCheck must be non-empty")
+        if len(self.validators) > 1:
+            raise ContractValidationError(
+                f"TableDuplicatesCheck validators must have at most 1 entry, got {len(self.validators)}"
+            )
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -427,26 +495,32 @@ class MissingCheck:
 
     Args:
         name: Check name (non-empty).
-        validator: Numeric validator for missing count/percentage.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         return_type: Whether to return a count or percentage. Defaults to
             "count".
         severity: Severity level. Defaults to "P1".
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty.
+        ContractValidationError: If name is empty or validators has more than
+            1 entry.
     """
 
     name: str
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     return_type: ReturnType = "count"
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name and normalize tags."""
+        """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("MissingCheck name must be non-empty")
+        if len(self.validators) > 1:
+            raise ContractValidationError(
+                f"MissingCheck validators must have at most 1 entry, got {len(self.validators)}"
+            )
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -457,26 +531,32 @@ class ColumnDuplicatesCheck:
 
     Args:
         name: Check name (non-empty).
-        validator: Numeric validator for duplicate count/percentage.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         return_type: Whether to return a count or percentage. Defaults to
             "count".
         severity: Severity level. Defaults to "P1".
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty.
+        ContractValidationError: If name is empty or validators has more than
+            1 entry.
     """
 
     name: str
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     return_type: ReturnType = "count"
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name and normalize tags."""
+        """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("ColumnDuplicatesCheck name must be non-empty")
+        if len(self.validators) > 1:
+            raise ContractValidationError(
+                f"ColumnDuplicatesCheck validators must have at most 1 entry, got {len(self.validators)}"
+            )
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -488,7 +568,8 @@ class WhitelistCheck:
     Args:
         name: Check name (non-empty).
         values: Allowed values (non-empty tuple).
-        validator: Numeric validator for out-of-whitelist count/percentage.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         return_type: Whether to return a count or percentage. Defaults to
             "count".
         case_sensitive: Whether string comparisons are case-sensitive.
@@ -497,23 +578,28 @@ class WhitelistCheck:
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty or values is empty.
+        ContractValidationError: If name is empty, values is empty, or
+            validators has more than 1 entry.
     """
 
     name: str
     values: tuple[str | int | float, ...]
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     return_type: ReturnType = "count"
     case_sensitive: bool = True
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name and values."""
+        """Validate name, values, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("WhitelistCheck name must be non-empty")
         if not self.values:
             raise ContractValidationError("WhitelistCheck values must be non-empty")
+        if len(self.validators) > 1:
+            raise ContractValidationError(
+                f"WhitelistCheck validators must have at most 1 entry, got {len(self.validators)}"
+            )
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -525,7 +611,8 @@ class BlacklistCheck:
     Args:
         name: Check name (non-empty).
         values: Forbidden values (non-empty tuple).
-        validator: Numeric validator for blacklisted count/percentage.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         return_type: Whether to return a count or percentage. Defaults to
             "count".
         case_sensitive: Whether string comparisons are case-sensitive.
@@ -534,23 +621,28 @@ class BlacklistCheck:
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty or values is empty.
+        ContractValidationError: If name is empty, values is empty, or
+            validators has more than 1 entry.
     """
 
     name: str
     values: tuple[str | int | float, ...]
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     return_type: ReturnType = "count"
     case_sensitive: bool = True
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name and values."""
+        """Validate name, values, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("BlacklistCheck name must be non-empty")
         if not self.values:
             raise ContractValidationError("BlacklistCheck values must be non-empty")
+        if len(self.validators) > 1:
+            raise ContractValidationError(
+                f"BlacklistCheck validators must have at most 1 entry, got {len(self.validators)}"
+            )
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -564,7 +656,8 @@ class PatternCheck:
 
     Args:
         name: Check name (non-empty).
-        validator: Numeric validator for pattern-violation count/percentage.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         pattern: Regular expression pattern string (non-empty when provided).
         format: Predefined format shortcut (e.g. "email", "uuid").
         flags: Regex flags (only valid with ``pattern``).
@@ -577,11 +670,12 @@ class PatternCheck:
         ContractValidationError: If name is empty, neither/both of
             pattern/format are set, flags are used with format, pattern
             is an empty string, format is unknown, pattern is invalid
-            regex, or flags contain unknown names.
+            regex, flags contain unknown names, or validators has more
+            than 1 entry.
     """
 
     name: str
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     pattern: str | None = None
     format: FormatShortcut | None = None
     flags: tuple[str, ...] = ()
@@ -590,7 +684,7 @@ class PatternCheck:
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name, pattern/format exclusivity, regex syntax, and flags."""
+        """Validate name, pattern/format exclusivity, regex syntax, flags, and validators length."""
         if not self.name:
             raise ContractValidationError("PatternCheck name must be non-empty")
         has_pattern = self.pattern is not None
@@ -617,6 +711,10 @@ class PatternCheck:
                 raise ContractValidationError(
                     f"PatternCheck: unknown flag '{flag}'; must be one of {sorted(_VALID_FLAG_NAMES)}"
                 )
+        if len(self.validators) > 1:
+            raise ContractValidationError(
+                f"PatternCheck validators must have at most 1 entry, got {len(self.validators)}"
+            )
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -627,26 +725,32 @@ class MinLengthCheck:
 
     Args:
         name: Check name (non-empty).
-        validator: Numeric validator for minimum length.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         return_type: Whether to return a count or percentage. Defaults to
             "count".
         severity: Severity level. Defaults to "P1".
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty.
+        ContractValidationError: If name is empty or validators has more than
+            1 entry.
     """
 
     name: str
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     return_type: ReturnType = "count"
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name and normalize tags."""
+        """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("MinLengthCheck name must be non-empty")
+        if len(self.validators) > 1:
+            raise ContractValidationError(
+                f"MinLengthCheck validators must have at most 1 entry, got {len(self.validators)}"
+            )
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -657,56 +761,68 @@ class MaxLengthCheck:
 
     Args:
         name: Check name (non-empty).
-        validator: Numeric validator for maximum length.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         return_type: Whether to return a count or percentage. Defaults to
             "count".
         severity: Severity level. Defaults to "P1".
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty.
+        ContractValidationError: If name is empty or validators has more than
+            1 entry.
     """
 
     name: str
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     return_type: ReturnType = "count"
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name and normalize tags."""
+        """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("MaxLengthCheck name must be non-empty")
+        if len(self.validators) > 1:
+            raise ContractValidationError(
+                f"MaxLengthCheck validators must have at most 1 entry, got {len(self.validators)}"
+            )
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
 
 @dataclass(frozen=True)
 class AvgLengthCheck:
-    """Check that the average string length satisfies a ValidatorSpec.
+    """Check that the average string length satisfies a validator.
 
     Args:
         name: Check name (non-empty).
-        validator: Numeric validator for average string length.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         return_type: Whether to return a count or percentage. Defaults to
             "count".
         severity: Severity level. Defaults to "P1".
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty.
+        ContractValidationError: If name is empty or validators has more than
+            1 entry.
     """
 
     name: str
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     return_type: ReturnType = "count"
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name and normalize tags."""
+        """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("AvgLengthCheck name must be non-empty")
+        if len(self.validators) > 1:
+            raise ContractValidationError(
+                f"AvgLengthCheck validators must have at most 1 entry, got {len(self.validators)}"
+            )
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -717,23 +833,29 @@ class CardinalityCheck:
 
     Args:
         name: Check name (non-empty).
-        validator: Numeric validator for cardinality.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         severity: Severity level. Defaults to "P1".
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty.
+        ContractValidationError: If name is empty or validators has more than
+            1 entry.
     """
 
     name: str
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name and normalize tags."""
+        """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("CardinalityCheck name must be non-empty")
+        if len(self.validators) > 1:
+            raise ContractValidationError(
+                f"CardinalityCheck validators must have at most 1 entry, got {len(self.validators)}"
+            )
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -744,23 +866,27 @@ class MinCheck:
 
     Args:
         name: Check name (non-empty).
-        validator: Numeric validator for minimum value.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         severity: Severity level. Defaults to "P1".
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty.
+        ContractValidationError: If name is empty or validators has more than
+            1 entry.
     """
 
     name: str
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name and normalize tags."""
+        """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("MinCheck name must be non-empty")
+        if len(self.validators) > 1:
+            raise ContractValidationError(f"MinCheck validators must have at most 1 entry, got {len(self.validators)}")
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -771,23 +897,27 @@ class MaxCheck:
 
     Args:
         name: Check name (non-empty).
-        validator: Numeric validator for maximum value.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         severity: Severity level. Defaults to "P1".
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty.
+        ContractValidationError: If name is empty or validators has more than
+            1 entry.
     """
 
     name: str
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name and normalize tags."""
+        """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("MaxCheck name must be non-empty")
+        if len(self.validators) > 1:
+            raise ContractValidationError(f"MaxCheck validators must have at most 1 entry, got {len(self.validators)}")
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -798,23 +928,27 @@ class MeanCheck:
 
     Args:
         name: Check name (non-empty).
-        validator: Numeric validator for mean value.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         severity: Severity level. Defaults to "P1".
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty.
+        ContractValidationError: If name is empty or validators has more than
+            1 entry.
     """
 
     name: str
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name and normalize tags."""
+        """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("MeanCheck name must be non-empty")
+        if len(self.validators) > 1:
+            raise ContractValidationError(f"MeanCheck validators must have at most 1 entry, got {len(self.validators)}")
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -825,23 +959,27 @@ class SumCheck:
 
     Args:
         name: Check name (non-empty).
-        validator: Numeric validator for sum value.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         severity: Severity level. Defaults to "P1".
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty.
+        ContractValidationError: If name is empty or validators has more than
+            1 entry.
     """
 
     name: str
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name and normalize tags."""
+        """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("SumCheck name must be non-empty")
+        if len(self.validators) > 1:
+            raise ContractValidationError(f"SumCheck validators must have at most 1 entry, got {len(self.validators)}")
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -852,23 +990,29 @@ class CountCheck:
 
     Args:
         name: Check name (non-empty).
-        validator: Numeric validator for count value.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         severity: Severity level. Defaults to "P1".
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty.
+        ContractValidationError: If name is empty or validators has more than
+            1 entry.
     """
 
     name: str
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name and normalize tags."""
+        """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("CountCheck name must be non-empty")
+        if len(self.validators) > 1:
+            raise ContractValidationError(
+                f"CountCheck validators must have at most 1 entry, got {len(self.validators)}"
+            )
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -879,23 +1023,29 @@ class VarianceCheck:
 
     Args:
         name: Check name (non-empty).
-        validator: Numeric validator for variance.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         severity: Severity level. Defaults to "P1".
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty.
+        ContractValidationError: If name is empty or validators has more than
+            1 entry.
     """
 
     name: str
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name and normalize tags."""
+        """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("VarianceCheck name must be non-empty")
+        if len(self.validators) > 1:
+            raise ContractValidationError(
+                f"VarianceCheck validators must have at most 1 entry, got {len(self.validators)}"
+            )
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -906,23 +1056,29 @@ class StddevCheck:
 
     Args:
         name: Check name (non-empty).
-        validator: Numeric validator for standard deviation.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         severity: Severity level. Defaults to "P1".
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty.
+        ContractValidationError: If name is empty or validators has more than
+            1 entry.
     """
 
     name: str
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name and normalize tags."""
+        """Validate name, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("StddevCheck name must be non-empty")
+        if len(self.validators) > 1:
+            raise ContractValidationError(
+                f"StddevCheck validators must have at most 1 entry, got {len(self.validators)}"
+            )
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
@@ -934,27 +1090,32 @@ class PercentileCheck:
     Args:
         name: Check name (non-empty).
         percentile: Percentile to compute, in [0.0, 100.0] inclusive.
-        validator: Numeric validator for the percentile value.
+        validators: Tuple of at most one Validator. Empty tuple is a noop
+            (check runs but never fails).
         severity: Severity level. Defaults to "P1".
         tags: Optional set of tags for categorization.
 
     Raises:
-        ContractValidationError: If name is empty or percentile is out of
-            range.
+        ContractValidationError: If name is empty, percentile is out of
+            range, or validators has more than 1 entry.
     """
 
     name: str
     percentile: float
-    validator: ValidatorSpec
+    validators: tuple[Validator, ...] = ()
     severity: SeverityLevel = "P1"
     tags: frozenset[str] = field(default_factory=frozenset)
 
     def __post_init__(self) -> None:
-        """Validate name and percentile range."""
+        """Validate name, percentile range, validators length, and normalize tags."""
         if not self.name:
             raise ContractValidationError("PercentileCheck name must be non-empty")
         if not (0.0 <= self.percentile <= 100.0):
             raise ContractValidationError(f"PercentileCheck percentile must be in [0.0, 100.0], got {self.percentile}")
+        if len(self.validators) > 1:
+            raise ContractValidationError(
+                f"PercentileCheck validators must have at most 1 entry, got {len(self.validators)}"
+            )
         validated = _normalize_tags(self.tags)
         object.__setattr__(self, "tags", validated)
 
