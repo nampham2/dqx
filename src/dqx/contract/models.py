@@ -8,10 +8,32 @@ column-level checks, column specs, SLA specs, and the top-level Contract.
 from __future__ import annotations
 
 import re
+import warnings
 from dataclasses import dataclass, field
 from typing import Literal
 
 from dqx.common import SeverityLevel, validate_tags
+
+# ---------------------------------------------------------------------------
+# Error classes
+# ---------------------------------------------------------------------------
+
+
+class ContractValidationError(Exception):
+    """Raised when a contract field fails validation."""
+
+
+class SchemaValidationError(Exception):
+    """Reserved for future use when schema validation is performed.
+
+    This error will be raised during ``contract.to_checks()`` when the
+    contract schema cannot be validated against the underlying data source
+    (e.g., a column declared in the contract does not exist in the table).
+    It is kept separate from :class:`ContractValidationError` to allow
+    callers to distinguish between structural contract errors and
+    schema-compatibility errors.
+    """
+
 
 # ---------------------------------------------------------------------------
 # Internal helpers
@@ -34,19 +56,6 @@ def _normalize_tags(tags: frozenset[str] | set[str] | None) -> frozenset[str]:
         return validate_tags(tags)
     except ValueError as exc:
         raise ContractValidationError(str(exc)) from exc
-
-
-# ---------------------------------------------------------------------------
-# Error classes
-# ---------------------------------------------------------------------------
-
-
-class ContractValidationError(Exception):
-    """Raised when a contract field fails validation."""
-
-
-class SchemaValidationError(Exception):
-    """Raised when a schema field fails validation."""
 
 
 # ---------------------------------------------------------------------------
@@ -210,6 +219,9 @@ class ValidatorSpec:
             raise ContractValidationError(
                 f"ValidatorSpec: not_between lower bound {self.not_between[0]} > upper bound {self.not_between[1]}"
             )
+        # min/max ordering check
+        if self.min is not None and self.max is not None and self.min > self.max:
+            raise ContractValidationError(f"ValidatorSpec: min {self.min} > max {self.max}")
         # tolerance must be non-negative
         if self.tolerance < 0:
             raise ContractValidationError(f"ValidatorSpec: tolerance must be >= 0, got {self.tolerance}")
@@ -220,6 +232,16 @@ class ValidatorSpec:
 # ---------------------------------------------------------------------------
 
 ReturnType = Literal["count", "pct"]
+
+_AGGREGATION_VALUES: frozenset[str] = frozenset({"max", "min"})
+_GRANULARITY_VALUES: frozenset[str] = frozenset({"hourly", "daily", "weekly", "monthly"})
+
+FormatShortcut = Literal["email", "phone", "uuid", "url", "ipv4", "ipv6", "date", "datetime"]
+_FORMAT_SHORTCUTS: frozenset[str] = frozenset({"email", "phone", "uuid", "url", "ipv4", "ipv6", "date", "datetime"})
+
+_VALID_FLAG_NAMES: frozenset[str] = frozenset(
+    {"IGNORECASE", "MULTILINE", "DOTALL", "VERBOSE", "ASCII", "UNICODE", "LOCALE"}
+)
 
 # ---------------------------------------------------------------------------
 # Table-level check dataclasses
@@ -388,16 +410,6 @@ TableCheck = NumRowsCheck | TableDuplicatesCheck | FreshnessCheck | Completeness
 # ---------------------------------------------------------------------------
 # Column-level check dataclasses
 # ---------------------------------------------------------------------------
-
-_AGGREGATION_VALUES: frozenset[str] = frozenset({"max", "min"})
-_GRANULARITY_VALUES: frozenset[str] = frozenset({"hourly", "daily", "weekly", "monthly"})
-
-FormatShortcut = Literal["email", "phone", "uuid", "url", "ipv4", "ipv6", "date", "datetime"]
-_FORMAT_SHORTCUTS: frozenset[str] = frozenset({"email", "phone", "uuid", "url", "ipv4", "ipv6", "date", "datetime"})
-
-_VALID_FLAG_NAMES: frozenset[str] = frozenset(
-    {"IGNORECASE", "MULTILINE", "DOTALL", "VERBOSE", "ASCII", "UNICODE", "LOCALE"}
-)
 
 
 @dataclass(frozen=True)
@@ -987,11 +999,16 @@ class ColumnSpec:
     checks: tuple[ColumnCheck, ...] = ()  # type: ignore[type-arg]
 
     def __post_init__(self) -> None:
-        """Validate name and description."""
+        """Validate name, description, and simple type string."""
         if not self.name:
             raise ContractValidationError("ColumnSpec name must be non-empty")
         if not self.description:
             raise ContractValidationError("ColumnSpec description must be non-empty")
+        if isinstance(self.type, str) and self.type not in SIMPLE_TYPES:
+            raise ContractValidationError(
+                f"ColumnSpec type '{self.type}' is not a valid simple type; "
+                f"must be one of {sorted(SIMPLE_TYPES)} or a complex type"
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -1051,12 +1068,12 @@ def _cron_field_in_range(token: str, lo: int, hi: int, names: frozenset[str] | N
         if int(step_str) < 1:
             return False
     range_ends = range_part.split("-")
+    # Detect inverted range (e.g. "31-1")
+    if len(range_ends) == 2:
+        lo_val, hi_val = int(range_ends[0]), int(range_ends[1])
+        if lo_val > hi_val:
+            return False
     for part in range_ends:
-        if not part.isdigit():
-            # Might be a name — unreachable via _CRON_FIELD_RE but kept as a defensive guard
-            if names and part.upper() in names:  # pragma: no cover
-                continue  # pragma: no cover
-            return False  # pragma: no cover
         val = int(part)
         if not lo <= val <= hi:
             return False
@@ -1131,9 +1148,17 @@ class SLASpec:
         """Validate lag_hours and cron schedule."""
         if self.lag_hours < 0:
             raise ContractValidationError(f"SLASpec lag_hours must be >= 0, got {self.lag_hours}")
-        # TODO: emit a warning when lag_hours > 168 on hourly/daily schedules
-        # (per spec sla.md validation rules — currently not enforced)
         _validate_cron(self.schedule)
+        # Emit a warning when lag_hours > 168 on hourly/daily schedules.
+        # A schedule is considered hourly or daily when it is not the catch-all
+        # "* * * * *" (i.e., it has at least one fixed/specific field).
+        if self.lag_hours > 168 and self.schedule != "* * * * *":
+            warnings.warn(
+                f"SLASpec lag_hours={self.lag_hours} exceeds 168 hours (7 days) "
+                f"on a non-catch-all schedule '{self.schedule}'. "
+                "This may indicate a misconfigured SLA.",
+                stacklevel=2,
+            )
 
 
 # ---------------------------------------------------------------------------

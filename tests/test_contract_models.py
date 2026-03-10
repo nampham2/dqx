@@ -107,6 +107,11 @@ class TestValidatorSpec:
         assert v.min == pytest.approx(0.0)
         assert v.max == pytest.approx(100.0)
 
+    def test_min_greater_than_max_raises(self) -> None:
+        """ValidatorSpec with min > max raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="min .* > max"):
+            ValidatorSpec(min=100.0, max=1.0)
+
     def test_between_only(self) -> None:
         """ValidatorSpec with between only is valid."""
         v = ValidatorSpec(between=(0.0, 100.0))
@@ -1197,6 +1202,11 @@ class TestColumnSpec:
         with pytest.raises(ContractValidationError, match="description"):
             ColumnSpec(name="col1", type="int", description="")
 
+    def test_invalid_simple_type_raises(self) -> None:
+        """Invalid simple type string raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="not a valid simple type"):
+            ColumnSpec(name="x", type="strng", description="d")  # type: ignore[arg-type]
+
     def test_with_timestamp_type(self) -> None:
         """ColumnSpec with TimestampType is valid."""
         col = ColumnSpec(name="ts", type=TimestampType(tz="UTC"), description="A timestamp")
@@ -1345,6 +1355,34 @@ class TestSLASpec:
         """Step value of 0 in a cron field raises ContractValidationError."""
         with pytest.raises(ContractValidationError, match="minute"):
             SLASpec(schedule="0/0 * * * *", lag_hours=1.0)
+
+    def test_inverted_cron_range_raises(self) -> None:
+        """Inverted range (lo > hi) in a cron field raises ContractValidationError."""
+        with pytest.raises(ContractValidationError, match="day-of-month"):
+            SLASpec(schedule="0 0 31-1 * *", lag_hours=1.0)
+
+    def test_lag_hours_above_168_on_specific_schedule_warns(self) -> None:
+        """lag_hours > 168 on a non-catch-all schedule emits a UserWarning."""
+        with pytest.warns(UserWarning, match="lag_hours=200"):
+            SLASpec(schedule="0 6 * * *", lag_hours=200.0)
+
+    def test_lag_hours_above_168_on_catch_all_no_warning(self) -> None:
+        """lag_hours > 168 on catch-all schedule '* * * * *' does NOT warn."""
+        import warnings as _warnings
+
+        with _warnings.catch_warnings():
+            _warnings.simplefilter("error")  # any warning would become an error
+            sla = SLASpec(schedule="* * * * *", lag_hours=200.0)
+        assert sla.lag_hours == pytest.approx(200.0)
+
+    def test_lag_hours_exactly_168_no_warning(self) -> None:
+        """lag_hours == 168 does NOT warn (threshold is strictly > 168)."""
+        import warnings as _warnings
+
+        with _warnings.catch_warnings():
+            _warnings.simplefilter("error")
+            sla = SLASpec(schedule="0 6 * * *", lag_hours=168.0)
+        assert sla.lag_hours == pytest.approx(168.0)
 
     def test_symbolic_month_name_with_day_valid(self) -> None:
         """Specific day+month using symbolic names is accepted."""
