@@ -40,7 +40,6 @@ from dqx.contract.models import (
     WhitelistCheck,
 )
 from dqx.datasource import DuckRelationDataSource
-from dqx.display import print_assertion_results
 from dqx.orm.repositories import InMemoryMetricDB
 
 # ---------------------------------------------------------------------------
@@ -74,7 +73,6 @@ def _run_and_collect(
     key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
     suite.run([datasource], key)
     result = suite.collect_results()
-    print_assertion_results(result)
     return result
 
 
@@ -666,6 +664,18 @@ class TestWhitelistAndBlacklistToDqx:
         data = pa.table({"status": ["active", "banned", "inactive"]})
         results = _run_and_collect(contract, data)
         assert results[0].status == "PASSED"
+
+    def test_whitelist_case_insensitive_raises_not_implemented(self) -> None:
+        """WhitelistCheck with case_sensitive=False raises NotImplementedError."""
+        check = WhitelistCheck(name="Whitelist", values=("active",), case_sensitive=False)
+        with pytest.raises(NotImplementedError, match="case_sensitive=False"):
+            check.to_dqx("col", None, None)  # type: ignore[arg-type]
+
+    def test_blacklist_case_insensitive_raises_not_implemented(self) -> None:
+        """BlacklistCheck with case_sensitive=False raises NotImplementedError."""
+        check = BlacklistCheck(name="Blacklist", values=("banned",), case_sensitive=False)
+        with pytest.raises(NotImplementedError, match="case_sensitive=False"):
+            check.to_dqx("col", None, None)  # type: ignore[arg-type]
 
 
 # ---------------------------------------------------------------------------

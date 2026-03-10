@@ -446,6 +446,8 @@ class TableDuplicatesCheck:
         """
         metric = mp.duplicate_count(list(self.columns))
         if self.return_type == "pct":
+            # On empty tables num_rows() evaluates to 0; the resulting NULL metric
+            # propagates as an EvaluationFailure (assertion fails).
             metric = metric / mp.num_rows()
         _apply_validators(metric, ctx, self.name, self.severity, self.tags, self.validators)
 
@@ -615,6 +617,8 @@ class MissingCheck:
         """
         metric = mp.null_count(column)
         if self.return_type == "pct":
+            # On empty tables num_rows() evaluates to 0; the resulting NULL metric
+            # propagates as an EvaluationFailure (assertion fails).
             metric = metric / mp.num_rows()
         _apply_validators(metric, ctx, self.name, self.severity, self.tags, self.validators)
 
@@ -662,6 +666,8 @@ class ColumnDuplicatesCheck:
         """
         metric = mp.duplicate_count([column])
         if self.return_type == "pct":
+            # On empty tables num_rows() evaluates to 0; the resulting NULL metric
+            # propagates as an EvaluationFailure (assertion fails).
             metric = metric / mp.num_rows()
         _apply_validators(metric, ctx, self.name, self.severity, self.tags, self.validators)
 
@@ -715,9 +721,18 @@ class WhitelistCheck:
             column: Name of the column to check.
             mp: MetricProvider used to compute the count-values metric.
             ctx: Context in which assertions are registered.
+
+        Raises:
+            NotImplementedError: If ``case_sensitive=False`` is requested,
+                as ``mp.count_values()`` does not support case-insensitive
+                comparisons.
         """
+        if not self.case_sensitive:
+            raise NotImplementedError("WhitelistCheck.to_dqx() does not support case_sensitive=False")
         metric = mp.count_values(column, list(self.values))  # type: ignore[arg-type]
         if self.return_type == "pct":
+            # Note: on empty tables num_rows() = 0; the resulting NULL metric
+            # causes the assertion to fail with an EvaluationFailure.
             metric = metric / mp.num_rows()
         _apply_validators(metric, ctx, self.name, self.severity, self.tags, self.validators)
 
@@ -771,9 +786,18 @@ class BlacklistCheck:
             column: Name of the column to check.
             mp: MetricProvider used to compute the safe-row-count metric.
             ctx: Context in which assertions are registered.
+
+        Raises:
+            NotImplementedError: If ``case_sensitive=False`` is requested,
+                as ``mp.count_values()`` does not support case-insensitive
+                comparisons.
         """
+        if not self.case_sensitive:
+            raise NotImplementedError("BlacklistCheck.to_dqx() does not support case_sensitive=False")
         metric = mp.num_rows() - mp.count_values(column, list(self.values))  # type: ignore[arg-type]
         if self.return_type == "pct":
+            # Note: on empty tables num_rows() = 0; the resulting NULL metric
+            # causes the assertion to fail with an EvaluationFailure.
             metric = metric / mp.num_rows()
         _apply_validators(metric, ctx, self.name, self.severity, self.tags, self.validators)
 
