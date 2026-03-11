@@ -34,6 +34,8 @@ from dqx.common import SeverityLevel
 
 if TYPE_CHECKING:
     from dqx.api import AssertionReady
+    from dqx.provider import MetricProvider
+    from dqx.api import Context
 
 
 # ---------------------------------------------------------------------------
@@ -541,3 +543,88 @@ def _parse_sla_properties(
             sla_metadata[prop_name] = entry_without_property
 
     return sla_latency, sla_metadata
+
+
+# ---------------------------------------------------------------------------
+# Library metric rule execution
+# ---------------------------------------------------------------------------
+
+
+def _execute_library_rule(
+    rule: dict[str, Any],
+    property_name: str | None,
+    mp: MetricProvider,
+    ctx: Context,
+) -> None:
+    """Execute one ODCS library metric rule as a DQX assertion.
+
+    Dispatches on ``rule["metric"]`` to the appropriate :class:`MetricProvider`
+    call.  The resulting metric expression is passed through
+    :func:`_apply_odcs_operators` to produce the assertion.
+
+    Args:
+        rule: Raw ODCS quality rule dict with ``metric`` field present.
+        property_name: Column name when the rule is property-level;
+            ``None`` for table-level rules.
+        mp: Active :class:`~dqx.provider.MetricProvider`.
+        ctx: Active :class:`~dqx.api.Context`.
+
+    Raises:
+        ContractValidationError: If ``mustBeBetween`` or ``mustNotBeBetween``
+            is malformed (propagated from :func:`_apply_odcs_operators`).
+    """
+    metric_name: str = str(rule.get("metric", ""))
+    rule_name: str = str(rule.get("name", metric_name))
+    severity = _severity_from_odcs(rule.get("severity"))
+    unit: str = str(rule.get("unit", ""))
+    arguments: dict[str, Any] = rule.get("arguments") or {}
+
+    if metric_name == "rowCount":
+        metric_expr = mp.num_rows()
+
+    elif metric_name in ("nullValues", "missingValues"):
+        if metric_name == "missingValues" and arguments.get("missingValues") is not None:
+            warnings.warn(
+                f"Quality rule '{rule_name}': metric 'missingValues' with missingValues "
+                "argument is not executable in DQX; skipping",
+                ContractWarning,
+                stacklevel=4,
+            )
+            return
+        col = str(property_name)
+        metric_expr = mp.null_count(col)
+        if unit == "percent":
+            metric_expr = metric_expr / mp.num_rows()
+
+    elif metric_name == "invalidValues":
+        if arguments.get("pattern") is not None:
+            warnings.warn(
+                f"Quality rule '{rule_name}': metric 'invalidValues' with pattern "
+                "argument is not executable in DQX; skipping",
+                ContractWarning,
+                stacklevel=4,
+            )
+            return
+        col = str(property_name)
+        valid_values: list[Any] = rule.get("validValues") or []
+        metric_expr = mp.num_rows() - mp.count_values(col, valid_values)
+        if unit == "percent":
+            metric_expr = metric_expr / mp.num_rows()
+
+    elif metric_name == "duplicateValues":
+        if property_name is not None:
+            # Property-level: single column
+            metric_expr = mp.duplicate_count([str(property_name)])
+        else:
+            # Table-level: composite key from arguments.properties
+            props: list[str] = [str(p) for p in (arguments.get("properties") or [])]
+            metric_expr = mp.duplicate_count(props)
+        if unit == "percent":
+            metric_expr = metric_expr / mp.num_rows()
+
+    else:
+        # Unknown metric — skip silently (no assertion produced)
+        return
+
+    ready = ctx.assert_that(metric_expr).config(name=rule_name, severity=severity)
+    _apply_odcs_operators(ready, rule)

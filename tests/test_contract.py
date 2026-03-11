@@ -33,6 +33,7 @@ from dqx.contract import (
     ContractWarning,
     SlaLatency,
     _apply_odcs_operators,
+    _execute_library_rule,
     _severity_from_odcs,
 )
 from dqx.datasource import DuckRelationDataSource
@@ -1200,3 +1201,236 @@ class TestApplyOdcsOperators:
     def test_must_not_be_between_scalar_raises(self) -> None:
         with pytest.raises(ContractValidationError, match="mustNotBeBetween"):
             self._run({"mustNotBeBetween": 3})
+
+
+# ---------------------------------------------------------------------------
+# Helpers shared by library-rule and custom-rule tests
+# ---------------------------------------------------------------------------
+
+
+def _run_library_rule(
+    rule: dict,
+    data: pa.Table,
+    dataset: str = "t",
+    property_name: str | None = None,
+) -> list[AssertionResult]:
+    """Execute a single library rule via _execute_library_rule inside a suite."""
+    from dqx.api import Context, check as dqx_check
+    from dqx.provider import MetricProvider
+
+    def check_fn(mp: MetricProvider, ctx: Context) -> None:
+        _execute_library_rule(rule, property_name, mp, ctx)
+
+    decorated = dqx_check(name="test-check", datasets=[dataset])(check_fn)
+    datasource = DuckRelationDataSource.from_arrow(data, dataset)
+    db = InMemoryMetricDB()
+    suite = VerificationSuite(checks=[decorated], db=db, name="test-suite")
+    key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
+    suite.run([datasource], key)
+    return suite.collect_results()
+
+
+# ---------------------------------------------------------------------------
+# _execute_library_rule
+# ---------------------------------------------------------------------------
+
+
+class TestLibraryRuleExecution:
+    """Integration tests for _execute_library_rule()."""
+
+    # ------------------------------------------------------------------
+    # rowCount
+    # ------------------------------------------------------------------
+
+    def test_row_count_passes_when_geq(self) -> None:
+        data = pa.table({"v": [1, 2, 3]})
+        rule = {"name": "rc", "metric": "rowCount", "mustBeGreaterOrEqualTo": 3}
+        results = _run_library_rule(rule, data)
+        assert len(results) == 1
+        assert results[0].status == "PASSED"
+
+    def test_row_count_fails_when_below(self) -> None:
+        data = pa.table({"v": [1, 2, 3]})
+        rule = {"name": "rc", "metric": "rowCount", "mustBeGreaterOrEqualTo": 10}
+        results = _run_library_rule(rule, data)
+        assert results[0].status == "FAILED"
+
+    def test_row_count_assertion_name_uses_rule_name(self) -> None:
+        data = pa.table({"v": [1]})
+        rule = {"name": "my_row_count_check", "metric": "rowCount", "mustBeGreaterOrEqualTo": 1}
+        results = _run_library_rule(rule, data)
+        assert results[0].assertion == "my_row_count_check"
+
+    def test_row_count_severity_error_maps_to_p0(self) -> None:
+        data = pa.table({"v": [1]})
+        rule = {"name": "rc", "metric": "rowCount", "mustBeGreaterOrEqualTo": 1, "severity": "error"}
+        results = _run_library_rule(rule, data)
+        assert results[0].severity == "P0"
+
+    def test_row_count_noop_when_no_operator(self) -> None:
+        data = pa.table({"v": [1, 2]})
+        rule = {"name": "rc", "metric": "rowCount"}
+        results = _run_library_rule(rule, data)
+        assert results[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # nullValues
+    # ------------------------------------------------------------------
+
+    def test_null_values_passes_when_zero_nulls(self) -> None:
+        data = pa.table({"amount": pa.array([1.0, 2.0, 3.0])})
+        rule = {"name": "no_nulls", "metric": "nullValues", "mustBe": 0}
+        results = _run_library_rule(rule, data, property_name="amount")
+        assert results[0].status == "PASSED"
+
+    def test_null_values_fails_when_nulls_present(self) -> None:
+        data = pa.table({"amount": pa.array([1.0, None, 3.0])})
+        rule = {"name": "no_nulls", "metric": "nullValues", "mustBe": 0}
+        results = _run_library_rule(rule, data, property_name="amount")
+        assert results[0].status == "FAILED"
+
+    def test_null_values_percent_mode(self) -> None:
+        # 1 out of 4 nulls = 0.25; mustBeLessOrEqualTo 0.5 → passes
+        data = pa.table({"amount": pa.array([1.0, None, 3.0, 4.0])})
+        rule = {"name": "low_nulls", "metric": "nullValues", "unit": "percent", "mustBeLessOrEqualTo": 0.5}
+        results = _run_library_rule(rule, data, property_name="amount")
+        assert results[0].status == "PASSED"
+
+    def test_null_values_percent_mode_fails(self) -> None:
+        # 2 out of 4 nulls = 0.5; mustBeLessOrEqualTo 0.1 → fails
+        data = pa.table({"amount": pa.array([1.0, None, None, 4.0])})
+        rule = {"name": "low_nulls", "metric": "nullValues", "unit": "percent", "mustBeLessOrEqualTo": 0.1}
+        results = _run_library_rule(rule, data, property_name="amount")
+        assert results[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # missingValues
+    # ------------------------------------------------------------------
+
+    def test_missing_values_behaves_like_null_values(self) -> None:
+        data = pa.table({"col": pa.array([1, None, 3])})
+        rule = {"name": "no_missing", "metric": "missingValues", "mustBe": 0}
+        results = _run_library_rule(rule, data, property_name="col")
+        assert results[0].status == "FAILED"
+
+    def test_missing_values_with_sentinel_list_warns_and_skips(self) -> None:
+        data = pa.table({"col": pa.array(["a", "b"])})
+        rule = {
+            "name": "sentinel",
+            "metric": "missingValues",
+            "mustBe": 0,
+            "arguments": {"missingValues": ["N/A", ""]},
+        }
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            results = _run_library_rule(rule, data, property_name="col")
+        assert len(results) == 0
+        assert any("missingValues" in str(w.message) for w in caught)
+
+    # ------------------------------------------------------------------
+    # invalidValues
+    # ------------------------------------------------------------------
+
+    def test_invalid_values_passes_when_all_valid(self) -> None:
+        data = pa.table({"status": pa.array(["active", "inactive"])})
+        rule = {
+            "name": "valid_status",
+            "metric": "invalidValues",
+            "mustBe": 0,
+            "validValues": ["active", "inactive", "pending"],
+        }
+        results = _run_library_rule(rule, data, property_name="status")
+        assert results[0].status == "PASSED"
+
+    def test_invalid_values_fails_when_invalid_present(self) -> None:
+        data = pa.table({"status": pa.array(["active", "UNKNOWN"])})
+        rule = {
+            "name": "valid_status",
+            "metric": "invalidValues",
+            "mustBe": 0,
+            "validValues": ["active", "inactive"],
+        }
+        results = _run_library_rule(rule, data, property_name="status")
+        assert results[0].status == "FAILED"
+
+    def test_invalid_values_with_pattern_warns_and_skips(self) -> None:
+        data = pa.table({"iban": pa.array(["GB29NWBK60161331926819"])})
+        rule = {
+            "name": "iban_pattern",
+            "metric": "invalidValues",
+            "mustBe": 0,
+            "arguments": {"pattern": "^[A-Z]{2}[0-9]{2}"},
+        }
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            results = _run_library_rule(rule, data, property_name="iban")
+        assert len(results) == 0
+        assert any("invalidValues" in str(w.message) for w in caught)
+
+    # ------------------------------------------------------------------
+    # duplicateValues — property level
+    # ------------------------------------------------------------------
+
+    def test_duplicate_values_property_passes_when_unique(self) -> None:
+        data = pa.table({"id": pa.array([1, 2, 3])})
+        rule = {"name": "unique_id", "metric": "duplicateValues", "mustBe": 0}
+        results = _run_library_rule(rule, data, property_name="id")
+        assert results[0].status == "PASSED"
+
+    def test_duplicate_values_property_fails_when_dupes(self) -> None:
+        data = pa.table({"id": pa.array([1, 1, 2])})
+        rule = {"name": "unique_id", "metric": "duplicateValues", "mustBe": 0}
+        results = _run_library_rule(rule, data, property_name="id")
+        assert results[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # duplicateValues — table level (arguments.properties)
+    # ------------------------------------------------------------------
+
+    def test_duplicate_values_table_level_passes(self) -> None:
+        data = pa.table({"a": pa.array([1, 2, 3]), "b": pa.array([4, 5, 6])})
+        rule = {
+            "name": "composite_unique",
+            "metric": "duplicateValues",
+            "mustBe": 0,
+            "arguments": {"properties": ["a", "b"]},
+        }
+        results = _run_library_rule(rule, data, property_name=None)
+        assert results[0].status == "PASSED"
+
+    def test_duplicate_values_table_level_fails(self) -> None:
+        data = pa.table({"a": pa.array([1, 1, 3]), "b": pa.array([4, 4, 6])})
+        rule = {
+            "name": "composite_unique",
+            "metric": "duplicateValues",
+            "mustBe": 0,
+            "arguments": {"properties": ["a", "b"]},
+        }
+        results = _run_library_rule(rule, data, property_name=None)
+        assert results[0].status == "FAILED"
+
+    def test_invalid_values_percent_mode_passes(self) -> None:
+        # 0 invalid out of 3 = 0.0 percent; mustBe 0 → passes
+        data = pa.table({"status": pa.array(["active", "inactive", "active"])})
+        rule = {
+            "name": "valid_status_pct",
+            "metric": "invalidValues",
+            "mustBe": 0,
+            "unit": "percent",
+            "validValues": ["active", "inactive"],
+        }
+        results = _run_library_rule(rule, data, property_name="status")
+        assert results[0].status == "PASSED"
+
+    def test_duplicate_values_percent_mode_passes(self) -> None:
+        # 0 duplicates out of 3 = 0.0; mustBe 0 → passes
+        data = pa.table({"id": pa.array([1, 2, 3])})
+        rule = {"name": "unique_id_pct", "metric": "duplicateValues", "mustBe": 0, "unit": "percent"}
+        results = _run_library_rule(rule, data, property_name="id")
+        assert results[0].status == "PASSED"
+
+    def test_unknown_metric_produces_no_assertion(self) -> None:
+        data = pa.table({"v": [1, 2]})
+        rule = {"name": "unknown_metric_rule", "metric": "someUnknownMetric", "mustBe": 0}
+        results = _run_library_rule(rule, data)
+        assert len(results) == 0
