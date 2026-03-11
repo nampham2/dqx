@@ -953,10 +953,12 @@ The block below shows a `slaProperties` section with a `latency` entry and three
 
 ```yaml
 slaProperties:
-  # Parsed and executed (raises NotImplementedError until MetricProvider.freshness() lands):
+  # Parsed successfully; execution is not supported yet because freshness still
+  # raises NotImplementedError in contract.to_checks() — MetricProvider.freshness()
+  # is not yet implemented:
   # → max_age_hours = 24.0 (24 × 1 hour)
   # → timestamp_column = order_date (resolved from element: "orders_tbl.order_date")
-  # → generates: "SLA: Freshness check", severity P0
+  # → intended generated check: "SLA: Freshness check", severity P0
   - property: latency
     value: 24
     unit: h
