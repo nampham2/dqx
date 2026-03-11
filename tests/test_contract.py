@@ -33,8 +33,10 @@ from dqx.contract import (
     ContractWarning,
     SlaLatency,
     _apply_odcs_operators,
+    _dispatch_rule,
     _execute_custom_dqx_rule,
     _execute_library_rule,
+    _require_column,
     _severity_from_odcs,
 )
 import dqx
@@ -1040,6 +1042,37 @@ def _run_check_fn(check_fn: object, data: pa.Table, dataset: str = "t") -> list[
     return suite.collect_results()
 
 
+def _run_library_rule(
+    rule: dict,
+    data: pa.Table,
+    dataset: str = "t",
+    property_name: str | None = None,
+) -> list[AssertionResult]:
+    """Execute a single library rule via _execute_library_rule inside a suite."""
+    from dqx.api import Context
+    from dqx.provider import MetricProvider
+
+    def check_fn(mp: MetricProvider, ctx: Context) -> None:
+        _execute_library_rule(rule, property_name, mp, ctx)
+
+    return _run_check_fn(check_fn, data, dataset)
+
+
+def _run_custom_rule(
+    rule: dict,
+    data: pa.Table,
+    dataset: str = "t",
+) -> list[AssertionResult]:
+    """Execute a single custom DQX rule via _execute_custom_dqx_rule."""
+    from dqx.api import Context
+    from dqx.provider import MetricProvider
+
+    def check_fn(mp: MetricProvider, ctx: Context) -> None:
+        _execute_custom_dqx_rule(rule, mp, ctx)
+
+    return _run_check_fn(check_fn, data, dataset)
+
+
 # ---------------------------------------------------------------------------
 # _severity_from_odcs
 # ---------------------------------------------------------------------------
@@ -1206,30 +1239,87 @@ class TestApplyOdcsOperators:
 
 
 # ---------------------------------------------------------------------------
-# Helpers shared by library-rule and custom-rule tests
+# _require_column
 # ---------------------------------------------------------------------------
 
 
-def _run_library_rule(
-    rule: dict,
-    data: pa.Table,
-    dataset: str = "t",
-    property_name: str | None = None,
-) -> list[AssertionResult]:
-    """Execute a single library rule via _execute_library_rule inside a suite."""
-    from dqx.api import Context, check as dqx_check
-    from dqx.provider import MetricProvider
+class TestRequireColumn:
+    """Unit tests for _require_column()."""
 
-    def check_fn(mp: MetricProvider, ctx: Context) -> None:
-        _execute_library_rule(rule, property_name, mp, ctx)
+    def test_returns_column_when_present(self) -> None:
+        assert _require_column("my_col", "rule", "missing") == "my_col"
 
-    decorated = dqx_check(name="test-check", datasets=[dataset])(check_fn)
-    datasource = DuckRelationDataSource.from_arrow(data, dataset)
-    db = InMemoryMetricDB()
-    suite = VerificationSuite(checks=[decorated], db=db, name="test-suite")
-    key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
-    suite.run([datasource], key)
-    return suite.collect_results()
+    def test_raises_when_column_is_none(self) -> None:
+        with pytest.raises(ContractValidationError, match="column"):
+            _require_column(None, "my_rule", "missing")
+
+    def test_error_message_includes_rule_name(self) -> None:
+        with pytest.raises(ContractValidationError, match="my_rule"):
+            _require_column(None, "my_rule", "missing")
+
+    def test_error_message_includes_check_type(self) -> None:
+        with pytest.raises(ContractValidationError, match="missing"):
+            _require_column(None, "r", "missing")
+
+
+# ---------------------------------------------------------------------------
+# _dispatch_rule
+# ---------------------------------------------------------------------------
+
+
+class TestDispatchRule:
+    """Unit tests for _dispatch_rule() routing logic."""
+
+    _DATA = pa.table({"v": [1, 2, 3]})
+
+    def _run_dispatch(self, rule: dict, property_name: str | None = None) -> list[AssertionResult]:
+        from dqx.api import Context
+        from dqx.provider import MetricProvider
+
+        def check_fn(mp: MetricProvider, ctx: Context) -> None:
+            _dispatch_rule(rule, property_name, mp, ctx)
+
+        return _run_check_fn(check_fn, self._DATA)
+
+    def test_text_rule_produces_no_assertion(self) -> None:
+        """type:text rules must be silently skipped (no pragma bypass)."""
+        rule = {"type": "text", "name": "doc_note", "description": "Just docs"}
+        results = self._run_dispatch(rule)
+        assert len(results) == 0
+
+    def test_sql_rule_warns_and_skips(self) -> None:
+        rule = {"type": "sql", "name": "fraud_check", "query": "SELECT 1"}
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            results = self._run_dispatch(rule)
+        assert len(results) == 0
+        assert any("sql" in str(w.message).lower() for w in caught)
+
+    def test_custom_non_dqx_engine_warns_and_skips(self) -> None:
+        rule = {"type": "custom", "name": "soda_rule", "engine": "soda", "implementation": "x"}
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            results = self._run_dispatch(rule)
+        assert len(results) == 0
+        assert any("soda" in str(w.message) for w in caught)
+
+    def test_library_rule_dispatched_to_library_executor(self) -> None:
+        rule = {"name": "rc", "metric": "rowCount", "mustBeGreaterOrEqualTo": 1}
+        results = self._run_dispatch(rule)
+        assert len(results) == 1
+        assert results[0].status == "PASSED"
+
+    def test_custom_dqx_rule_dispatched_to_custom_executor(self) -> None:
+        rule = {
+            "type": "custom",
+            "engine": "dqx",
+            "name": "vol",
+            "implementation": "check: num_rows\n",
+            "mustBeGreaterOrEqualTo": 1,
+        }
+        results = self._run_dispatch(rule)
+        assert len(results) == 1
+        assert results[0].status == "PASSED"
 
 
 # ---------------------------------------------------------------------------
@@ -1437,31 +1527,32 @@ class TestLibraryRuleExecution:
         results = _run_library_rule(rule, data)
         assert len(results) == 0
 
+    # ------------------------------------------------------------------
+    # Error: column-required metrics applied at table level
+    # ------------------------------------------------------------------
+
+    def test_null_values_at_table_level_raises(self) -> None:
+        data = pa.table({"v": [1, 2]})
+        rule = {"name": "bad_rule", "metric": "nullValues", "mustBe": 0}
+        with pytest.raises(ContractValidationError, match="column"):
+            _run_library_rule(rule, data, property_name=None)
+
+    def test_missing_values_at_table_level_raises(self) -> None:
+        data = pa.table({"v": [1, 2]})
+        rule = {"name": "bad_rule", "metric": "missingValues", "mustBe": 0}
+        with pytest.raises(ContractValidationError, match="column"):
+            _run_library_rule(rule, data, property_name=None)
+
+    def test_invalid_values_at_table_level_raises(self) -> None:
+        data = pa.table({"v": [1, 2]})
+        rule = {"name": "bad_rule", "metric": "invalidValues", "mustBe": 0, "validValues": [1]}
+        with pytest.raises(ContractValidationError, match="column"):
+            _run_library_rule(rule, data, property_name=None)
+
 
 # ---------------------------------------------------------------------------
 # _execute_custom_dqx_rule
 # ---------------------------------------------------------------------------
-
-
-def _run_custom_rule(
-    rule: dict,
-    data: pa.Table,
-    dataset: str = "t",
-) -> list[AssertionResult]:
-    """Execute a single custom DQX rule via _execute_custom_dqx_rule."""
-    from dqx.api import Context, check as dqx_check
-    from dqx.provider import MetricProvider
-
-    def check_fn(mp: MetricProvider, ctx: Context) -> None:
-        _execute_custom_dqx_rule(rule, mp, ctx)
-
-    decorated = dqx_check(name="test-check", datasets=[dataset])(check_fn)
-    datasource = DuckRelationDataSource.from_arrow(data, dataset)
-    db = InMemoryMetricDB()
-    suite = VerificationSuite(checks=[decorated], db=db, name="test-suite")
-    key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
-    suite.run([datasource], key)
-    return suite.collect_results()
 
 
 def _make_custom_rule(check_impl: str, operator_key: str, operator_val: object, name: str = "r") -> dict:
@@ -1695,12 +1786,50 @@ class TestCustomDqxRuleExecution:
         results = _run_custom_rule(rule, data)
         assert results[0].assertion == "my_volume_check"
 
+    # ------------------------------------------------------------------
+    # Missing column field raises ContractValidationError
+    # ------------------------------------------------------------------
+
+    def test_missing_check_without_column_raises(self) -> None:
+        data = pa.table({"v": [1]})
+        rule = _make_custom_rule("check: missing\n", "mustBe", 0)
+        with pytest.raises(ContractValidationError, match="column"):
+            _run_custom_rule(rule, data)
+
+    def test_cardinality_without_column_raises(self) -> None:
+        data = pa.table({"v": [1]})
+        rule = _make_custom_rule("check: cardinality\n", "mustBeLessOrEqualTo", 5)
+        with pytest.raises(ContractValidationError, match="column"):
+            _run_custom_rule(rule, data)
+
+    # ------------------------------------------------------------------
+    # Invalid column_type for min_length / max_length
+    # ------------------------------------------------------------------
+
+    def test_min_length_invalid_column_type_raises(self) -> None:
+        data = pa.table({"name": pa.array(["abc"])})
+        rule = _make_custom_rule(
+            "check: min_length\ncolumn: name\ncolumn_type: bytes\n",
+            "mustBeGreaterOrEqualTo",
+            1,
+        )
+        with pytest.raises(ContractValidationError, match="column_type"):
+            _run_custom_rule(rule, data)
+
+    def test_max_length_invalid_column_type_raises(self) -> None:
+        data = pa.table({"name": pa.array(["abc"])})
+        rule = _make_custom_rule(
+            "check: max_length\ncolumn: name\ncolumn_type: integer\n",
+            "mustBeLessOrEqualTo",
+            10,
+        )
+        with pytest.raises(ContractValidationError, match="column_type"):
+            _run_custom_rule(rule, data)
+
 
 # ---------------------------------------------------------------------------
 # Contract.to_checks() — public method
 # ---------------------------------------------------------------------------
-
-_FIXTURES_DIR = Path(__file__).parent / "fixtures" / "contracts"
 
 
 def _odcs_contract(tmp_path: Path, content: str) -> list[Contract]:

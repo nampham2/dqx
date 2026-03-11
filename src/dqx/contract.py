@@ -24,7 +24,7 @@ import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Mapping
+from typing import TYPE_CHECKING, Any, Literal, Mapping
 
 import sympy as sp
 import yaml
@@ -60,9 +60,6 @@ class SchemaValidationError(Exception):
     datasource — for example, when a column declared as ``logicalType:
     integer`` contains ``pa.string()`` values, or when a column with
     ``required: true`` contains null values.
-
-    Note:
-        This class is a placeholder for Phase 2 (``to_checks()`` implementation).
     """
 
 
@@ -107,6 +104,23 @@ _HOURS_UNITS: frozenset[str] = frozenset({"h", "hr", "hour", "hours"})
 _DAYS_UNITS: frozenset[str] = frozenset({"d", "day", "days"})
 _YEARS_UNITS: frozenset[str] = frozenset({"y", "yr", "year", "years"})
 _LATENCY_SYNONYMS: frozenset[str] = frozenset({"latency", "ly"})
+
+# ODCS operator field names — used by both library and custom rule execution.
+_ODCS_OPERATOR_FIELDS: frozenset[str] = frozenset(
+    {
+        "mustBe",
+        "mustNotBe",
+        "mustBeGreaterThan",
+        "mustBeGreaterOrEqualTo",
+        "mustBeLessThan",
+        "mustBeLessOrEqualTo",
+        "mustBeBetween",
+        "mustNotBeBetween",
+    }
+)
+
+# Accepted column_type values for min_length / max_length.
+_LENGTH_COLUMN_TYPES: frozenset[str] = frozenset({"string", "list", "map"})
 
 
 def _unit_to_hours(value: float, unit: str) -> float:
@@ -193,6 +207,27 @@ def _apply_odcs_operators(ready: AssertionReady, rule: dict[str, Any]) -> None:
         ready.is_not_between(float(bounds[0]), float(bounds[1]))
     else:
         ready.noop()
+
+
+def _require_column(column: str | None, rule_name: str, check_type: str) -> str:
+    """Return *column* or raise :class:`ContractValidationError` when it is ``None``.
+
+    Args:
+        column: Column name from the rule, or ``None`` when absent.
+        rule_name: Human-readable rule name (used in the error message).
+        check_type: Check type string (used in the error message).
+
+    Returns:
+        The validated column name.
+
+    Raises:
+        ContractValidationError: If *column* is ``None``.
+    """
+    if column is None:
+        raise ContractValidationError(
+            f"Quality rule '{rule_name}': check '{check_type}' requires a 'column' field but none was provided"
+        )
+    return column
 
 
 # ---------------------------------------------------------------------------
@@ -389,7 +424,10 @@ class Contract:
                 ``MetricProvider`` method that is not yet implemented
                 (e.g., ``check: avg_length``, ``check: percentile``).
             ContractValidationError: When ``mustBeBetween`` / ``mustNotBeBetween``
-                is not a two-element list, or an unknown DQX check type is used.
+                is not a two-element list, an unknown DQX check type is used, a
+                column-level metric is applied at the table level without a column
+                name, or an invalid ``column_type`` is provided for
+                ``min_length`` / ``max_length``.
         """
         if self.sla_latency is not None:
             raise NotImplementedError(
@@ -642,7 +680,12 @@ def _execute_library_rule(
                 stacklevel=4,
             )
             return
-        col = str(property_name)
+        if property_name is None:
+            raise ContractValidationError(
+                f"Quality rule '{rule_name}': metric '{metric_name}' requires a property-level column; "
+                "found at table level with no column name"
+            )
+        col = property_name
         metric_expr = mp.null_count(col)
         if unit == "percent":
             metric_expr = metric_expr / mp.num_rows()
@@ -656,7 +699,12 @@ def _execute_library_rule(
                 stacklevel=4,
             )
             return
-        col = str(property_name)
+        if property_name is None:
+            raise ContractValidationError(
+                f"Quality rule '{rule_name}': metric 'invalidValues' requires a property-level column; "
+                "found at table level with no column name"
+            )
+        col = property_name
         valid_values: list[Any] = rule.get("validValues") or []
         metric_expr = mp.num_rows() - mp.count_values(col, valid_values)
         if unit == "percent":
@@ -705,7 +753,9 @@ def _execute_custom_dqx_rule(
     Raises:
         NotImplementedError: For ``check: avg_length``, ``check: percentile``,
             and ``check: pattern`` which lack a backing MetricProvider method.
-        ContractValidationError: For unknown ``check:`` values.
+        ContractValidationError: For unknown ``check:`` values, missing
+            ``column:`` field for column-level checks, or invalid
+            ``column_type:`` value for ``min_length`` / ``max_length``.
     """
     impl: dict[str, Any] = yaml.safe_load(str(rule.get("implementation", ""))) or {}
     check_type: str = str(impl.get("check", ""))
@@ -718,63 +768,75 @@ def _execute_custom_dqx_rule(
         metric_expr = mp.num_rows()
 
     elif check_type == "missing":
-        col = str(column)
+        col = _require_column(column, rule_name, check_type)
         metric_expr = mp.null_count(col)
         if return_pct:
             metric_expr = metric_expr / mp.num_rows()
 
     elif check_type == "duplicates":
-        col = str(column)
+        col = _require_column(column, rule_name, check_type)
         metric_expr = mp.duplicate_count([col])
         if return_pct:
             metric_expr = metric_expr / mp.num_rows()
 
     elif check_type == "whitelist":
-        col = str(column)
+        col = _require_column(column, rule_name, check_type)
         values: list[Any] = impl.get("values") or []
         metric_expr = mp.count_values(col, values)
         if return_pct:
             metric_expr = metric_expr / mp.num_rows()
 
     elif check_type == "blacklist":
-        col = str(column)
+        col = _require_column(column, rule_name, check_type)
         values = impl.get("values") or []
         metric_expr = mp.num_rows() - mp.count_values(col, values)
         if return_pct:
             metric_expr = metric_expr / mp.num_rows()
 
     elif check_type == "cardinality":
-        metric_expr = mp.unique_count(str(column))
+        metric_expr = mp.unique_count(_require_column(column, rule_name, check_type))
 
     elif check_type == "min":
-        metric_expr = mp.minimum(str(column))
+        metric_expr = mp.minimum(_require_column(column, rule_name, check_type))
 
     elif check_type == "max":
-        metric_expr = mp.maximum(str(column))
+        metric_expr = mp.maximum(_require_column(column, rule_name, check_type))
 
     elif check_type == "mean":
-        metric_expr = mp.average(str(column))
+        metric_expr = mp.average(_require_column(column, rule_name, check_type))
 
     elif check_type == "sum":
-        metric_expr = mp.sum(str(column))
+        metric_expr = mp.sum(_require_column(column, rule_name, check_type))
 
     elif check_type == "count":
-        col = str(column)
+        col = _require_column(column, rule_name, check_type)
         metric_expr = mp.num_rows() - mp.null_count(col)
 
     elif check_type == "variance":
-        metric_expr = mp.variance(str(column))
+        metric_expr = mp.variance(_require_column(column, rule_name, check_type))
 
     elif check_type == "stddev":
-        metric_expr = sp.sqrt(mp.variance(str(column)))
+        metric_expr = sp.sqrt(mp.variance(_require_column(column, rule_name, check_type)))
 
     elif check_type == "min_length":
-        col_type: str = str(impl.get("column_type", "string"))
-        metric_expr = mp.min_length(str(column), col_type)  # type: ignore[arg-type]
+        col_type_raw: str = str(impl.get("column_type", "string"))
+        if col_type_raw not in _LENGTH_COLUMN_TYPES:
+            raise ContractValidationError(
+                f"Quality rule '{rule_name}': check 'min_length' column_type must be one of "
+                f"{sorted(_LENGTH_COLUMN_TYPES)!r}, got '{col_type_raw}'"
+            )
+        col_type: Literal["string", "list", "map"] = col_type_raw  # type: ignore[assignment]
+        metric_expr = mp.min_length(_require_column(column, rule_name, check_type), col_type)
 
     elif check_type == "max_length":
-        col_type = str(impl.get("column_type", "string"))
-        metric_expr = mp.max_length(str(column), col_type)  # type: ignore[arg-type]
+        col_type_raw = str(impl.get("column_type", "string"))
+        if col_type_raw not in _LENGTH_COLUMN_TYPES:
+            raise ContractValidationError(
+                f"Quality rule '{rule_name}': check 'max_length' column_type must be one of "
+                f"{sorted(_LENGTH_COLUMN_TYPES)!r}, got '{col_type_raw}'"
+            )
+        col_type = col_type_raw  # type: ignore[assignment]
+        metric_expr = mp.max_length(_require_column(column, rule_name, check_type), col_type)
 
     elif check_type == "avg_length":
         raise NotImplementedError("check: avg_length requires MetricProvider.avg_length() which is not yet implemented")
@@ -792,17 +854,7 @@ def _execute_custom_dqx_rule(
     # Operators may appear at the rule level (non-ODCS-standard but accepted)
     # or inside the implementation: block (ODCS-valid placement for custom rules).
     # Rule-level operators take precedence; fall back to implementation-level.
-    _operator_fields = (
-        "mustBe",
-        "mustNotBe",
-        "mustBeGreaterThan",
-        "mustBeGreaterOrEqualTo",
-        "mustBeLessThan",
-        "mustBeLessOrEqualTo",
-        "mustBeBetween",
-        "mustNotBeBetween",
-    )
-    operator_source = rule if any(k in rule for k in _operator_fields) else impl
+    operator_source = rule if any(k in rule for k in _ODCS_OPERATOR_FIELDS) else impl
     _apply_odcs_operators(ready, operator_source)
 
 
@@ -830,7 +882,7 @@ def _dispatch_rule(
     rule_name: str = str(rule.get("name", ""))
 
     if rule_type == "text":
-        return  # pragma: no cover — text rules are filtered by _parse_schema_object/_parse_property
+        return
 
     if rule_type == "sql":
         warnings.warn(
