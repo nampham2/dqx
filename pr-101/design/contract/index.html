@@ -1,0 +1,2008 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Transform data validation into mathematical expressions. Find issues before they find you.">
+      
+      
+        <meta name="author" content="Nam Pham">
+      
+      
+        <link rel="canonical" href="https://dqx.readthedocs.io/design/contract/">
+      
+      
+        <link rel="prev" href="../..">
+      
+      
+        <link rel="next" href="../misc/profiles/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/favicon.png">
+      <meta name="generator" content="zensical-0.0.24">
+    
+    
+      
+        <title>ODCS Contract Technical Specification - DQX - Data Quality X</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.28978c9b.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.dfe2e883.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,a=__md_scope)=>JSON.parse(t.getItem(a.pathname+"."+e)),__md_set=(e,t,a=localStorage,_=__md_scope)=>{try{a.setItem(_.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="orange" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#odcs-contract-technical-specification" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="DQX - Data Quality X" class="md-header__button md-logo" aria-label="DQX - Data Quality X" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DQX - Data Quality X
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              ODCS Contract Technical Specification
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="orange" data-md-color-accent="blue"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="orange" data-md-color-accent="blue"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/nampham2/dqx" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    dqx
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="././" class="md-tabs__link">
+          
+  
+  Design
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--lifted md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="DQX - Data Quality X" class="md-nav__button md-logo" aria-label="DQX - Data Quality X" data-md-component="logo">
+      
+  <img src="../../assets/logo.png" alt="logo">
+
+    </a>
+    DQX - Data Quality X
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/nampham2/dqx" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    dqx
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Design
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Design
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+      
+      
+    
+    
+      
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_1" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="././" class="md-nav__link md-nav__link--active">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contract
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_1_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contract
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+      
+      
+    
+    
+      
+        
+        
+      
+    
+    <li class="md-nav__item md-nav__item--pruned md-nav__item--nested">
+      
+        
+  
+  
+  
+    
+  
+  
+  
+    <a href="../misc/profiles/" class="md-nav__link">
+      
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Miscellaneous
+  
+
+    
+  </span>
+  
+  
+
+      
+        <span class="md-nav__icon md-icon"></span>
+      
+    </a>
+  
+
+  
+
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+                
+
+
+
+  
+
+
+  <nav class="md-path" aria-label="Navigation" >
+    <ol class="md-path__list">
+      
+        
+  
+  
+    <li class="md-path__item">
+      <a href="../.." class="md-path__link">
+        
+  <span class="md-ellipsis">
+    Home
+  </span>
+
+      </a>
+    </li>
+  
+
+      
+      
+        
+  
+  
+    
+    
+      
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="././" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Design
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+    
+  
+
+      
+        
+  
+  
+    
+    
+      <li class="md-path__item">
+        <a href="././" class="md-path__link">
+          
+  <span class="md-ellipsis">
+    Contract
+  </span>
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ol>
+  </nav>
+
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+    <a href="https://github.com/nampham2/dqx/edit/main/docs/design/contract/index.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-file-pen" viewBox="0 0 24 24"><path d="M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34"/><path d="M14 2v5a1 1 0 0 0 1 1h5M10.378 12.622a1 1 0 0 1 3 3.003L8.36 20.637a2 2 0 0 1-.854.506l-2.867.837a.5.5 0 0 1-.62-.62l.836-2.869a2 2 0 0 1 .506-.853z"/></svg>
+    </a>
+  
+  
+    
+      
+    
+    <a href="https://github.com/nampham2/dqx/raw/main/docs/design/contract/index.md" title="View source of this page" class="md-content__button md-icon">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-file-code-2" viewBox="0 0 24 24"><path d="M4 12.15V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.706.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2h-3.35"/><path d="M14 2v5a1 1 0 0 0 1 1h5M5 16l-3 3 3 3M9 22l3-3-3-3"/></svg>
+    </a>
+  
+
+
+<h1 id="odcs-contract-technical-specification">ODCS Contract Technical Specification<a class="headerlink" href="#odcs-contract-technical-specification" title="Anchor link to this section for reference">&para;</a></h1>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Author</strong></td>
+<td>DQX</td>
+</tr>
+<tr>
+<td><strong>Created</strong></td>
+<td>2026-03-11</td>
+</tr>
+<tr>
+<td><strong>Version</strong></td>
+<td>1.0</td>
+</tr>
+<tr>
+<td><strong>Status</strong></td>
+<td>Draft</td>
+</tr>
+<tr>
+<td><strong>Tags</strong></td>
+<td>data-contracts, odcs, data-quality</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Anchor link to this section for reference">&para;</a></h2>
+<p>A DQX contract is an <a href="https://github.com/bitol-io/open-data-contract-standard">ODCS</a> (Open Data Contract Standard) YAML document that DQX parses and translates into executable <code>DecoratedCheck</code> functions. Each contract is an ODCS-compliant file validated against the ODCS JSON Schema v3.1.0 before any DQX processing occurs. Structural errors — missing required fields, wrong types, invalid enums — are caught at parse time and reported as <code>ContractValidationError</code> before any check executes.</p>
+<p>DQX adopts ODCS as its contract format for three reasons. First, ODCS is an open standard maintained by a vendor-neutral working group, which means contracts written for DQX are interoperable with other ODCS-aware tools and platforms without conversion. Second, the ODCS JSON Schema provides machine-readable validation — DQX vendors the schema (<code>odcs-json-schema-v3.1.0.json</code>) in <code>src/dqx/_schemas/</code> and validates every incoming contract before processing. Third, ODCS avoids DQX from designing and maintaining a proprietary contract format, reducing the surface area users must learn.</p>
+<p>DQX participates in ODCS as a <code>type: custom, engine: dqx</code> quality rule engine. Standard ODCS library metrics (<code>nullValues</code>, <code>missingValues</code>, <code>invalidValues</code>, <code>duplicateValues</code>, <code>rowCount</code>) are also supported and mapped directly to <code>MetricProvider</code> calls. Quality rules targeting other engines — <code>type: sql</code>, <code>type: custom</code> with an engine other than <code>dqx</code> — emit a <code>ContractWarning</code> and are skipped.</p>
+<p><code>Contract</code> is imported from <code>dqx.contract</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dqx.contract</span><span class="w"> </span><span class="kn">import</span> <span class="n">Contract</span>
+</span></code></pre></div>
+<p>One <code>Contract</code> instance is created per <code>schema[]</code> object in the ODCS document. A single ODCS file with two schema objects produces <code>Contract.from_odcs(path)</code> returning a <code>list[Contract]</code> of length two. Each <code>Contract</code> exposes a <code>to_checks()</code> method returning a <code>list[DecoratedCheck]</code> that can be composed freely with hand-coded checks inside a <code>VerificationSuite</code>.</p>
+<hr />
+<h2 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Anchor link to this section for reference">&para;</a></h2>
+<h3 id="processing-pipeline">Processing Pipeline<a class="headerlink" href="#processing-pipeline" title="Anchor link to this section for reference">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>ODCS YAML
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>    ↓ Contract.from_odcs(path)  ← validated against ODCS JSON Schema v3.1.0
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>list[Contract]                  ← one Contract per schema[] object
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>    ↓ contract.to_checks()
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>list[DecoratedCheck]
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>    ↓ VerificationSuite(checks=contract.to_checks() + [...], db=db, name=...)
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>VerificationSuite
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>    ↓ suite.run([datasource], result_key)
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>    ↓ suite.collect_results()
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>list[AssertionResult]
+</span></code></pre></div>
+<h3 id="key-design-principles">Key Design Principles<a class="headerlink" href="#key-design-principles" title="Anchor link to this section for reference">&para;</a></h3>
+<p><strong>ODCS JSON Schema validation first.</strong> <code>Contract.from_odcs()</code> validates the raw YAML document against <code>odcs-json-schema-v3.1.0.json</code> (vendored in <code>src/dqx/_schemas/</code>) before any DQX-specific processing. This means structural errors — absent required fields, wrong value types, enum violations — surface as <code>ContractValidationError</code> with a message derived from the JSON Schema validator, before DQX touches the quality rules or schema properties. Only documents that pass JSON Schema validation proceed to DQX parsing.</p>
+<p><strong>One <code>Contract</code> per schema object.</strong> ODCS contracts may declare multiple tables in a single file via the <code>schema[]</code> list. DQX maps each schema object to an independent <code>Contract</code> instance. <code>Contract.from_odcs(path)</code> always returns a <code>list[Contract]</code>, even when the ODCS file contains only one schema object.</p>
+<p><strong>One <code>DecoratedCheck</code> per <code>Contract</code>.</strong> All quality rules attached to a schema object — table-level and property-level — are consolidated into a single <code>DecoratedCheck</code> node named <code>"Contract: {name or dataset}"</code>, where <code>name</code> is the top-level ODCS contract <code>name</code> field and <code>dataset</code> is the schema object's <code>physicalName</code> (preferred) or <code>name</code>. Each individual rule becomes an assertion child of that check node. This keeps the graph structure flat and predictable.</p>
+<p><strong>Composable.</strong> <code>contract.to_checks()</code> returns a plain <code>list[DecoratedCheck]</code>. Users concatenate this list with any hand-coded checks before passing the combined list to <code>VerificationSuite</code>. Contract-generated checks and custom checks run together in the same suite and produce <code>AssertionResult</code> objects through the same <code>suite.collect_results()</code> call.</p>
+<hr />
+<h2 id="contract-structure">Contract Structure<a class="headerlink" href="#contract-structure" title="Anchor link to this section for reference">&para;</a></h2>
+<h3 id="annotated-odcs-contract">Annotated ODCS Contract<a class="headerlink" href="#annotated-odcs-contract" title="Anchor link to this section for reference">&para;</a></h3>
+<p>The YAML below shows every field DQX consumes, with inline comments explaining DQX's treatment of each field.</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v3.1.0</span><span class="w">           </span><span class="c1"># required by ODCS JSON Schema</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DataContract</span><span class="w">            </span><span class="c1"># required: must be &quot;DataContract&quot;</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">a1b2c3d4-e5f6-7890-abcd-ef1234567890</span><span class="w">  </span><span class="c1"># required by ODCS JSON Schema</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">orders_contract</span><span class="w">         </span><span class="c1"># used: check node name → &quot;Contract: orders_contract&quot;</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1.0.0</span><span class="w">                </span><span class="c1"># required by ODCS JSON Schema</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="nt">status</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">active</span><span class="w">                </span><span class="c1"># required by ODCS JSON Schema</span>
+</span><span id="__span-2-7"><a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="nt">domain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">commerce</span><span class="w">              </span><span class="c1"># stored: not executed</span>
+</span><span id="__span-2-8"><a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="nt">dataProduct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order-mgmt</span><span class="w">       </span><span class="c1"># stored: not executed</span>
+</span><span id="__span-2-9"><a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">revenue</span><span class="p p-Indicator">]</span><span class="w">               </span><span class="c1"># stored: not executed</span>
+</span><span id="__span-2-10"><a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
+</span><span id="__span-2-11"><a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="nt">description</span><span class="p">:</span><span class="w">                  </span><span class="c1"># stored: not executed</span>
+</span><span id="__span-2-12"><a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="w">  </span><span class="nt">purpose</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Daily</span><span class="nv"> </span><span class="s">order</span><span class="nv"> </span><span class="s">records</span><span class="nv"> </span><span class="s">for</span><span class="nv"> </span><span class="s">revenue</span><span class="nv"> </span><span class="s">reporting&quot;</span>
+</span><span id="__span-2-13"><a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">  </span><span class="nt">limitations</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;T-1</span><span class="nv"> </span><span class="s">data</span><span class="nv"> </span><span class="s">only&quot;</span>
+</span><span id="__span-2-14"><a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a>
+</span><span id="__span-2-15"><a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a><span class="nt">schema</span><span class="p">:</span><span class="w">                       </span><span class="c1"># used: each object → one Contract</span>
+</span><span id="__span-2-16"><a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">orders</span><span class="w">              </span><span class="c1"># used: contract.dataset (logical name)</span>
+</span><span id="__span-2-17"><a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="w">    </span><span class="nt">physicalName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">orders_tbl</span><span class="w">  </span><span class="c1"># used: contract.dataset (preferred over name if present)</span>
+</span><span id="__span-2-18"><a id="__codelineno-2-18" name="__codelineno-2-18" href="#__codelineno-2-18"></a><span class="w">    </span><span class="nt">quality</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">...</span><span class="p p-Indicator">]</span><span class="w">            </span><span class="c1"># used: table-level quality rules</span>
+</span><span id="__span-2-19"><a id="__codelineno-2-19" name="__codelineno-2-19" href="#__codelineno-2-19"></a><span class="w">    </span><span class="nt">properties</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">...</span><span class="p p-Indicator">]</span><span class="w">         </span><span class="c1"># used: column definitions + column-level quality rules</span>
+</span><span id="__span-2-20"><a id="__codelineno-2-20" name="__codelineno-2-20" href="#__codelineno-2-20"></a>
+</span><span id="__span-2-21"><a id="__codelineno-2-21" name="__codelineno-2-21" href="#__codelineno-2-21"></a><span class="nt">slaProperties</span><span class="p">:</span><span class="w">                </span><span class="c1"># used: latency property only</span>
+</span><span id="__span-2-22"><a id="__codelineno-2-22" name="__codelineno-2-22" href="#__codelineno-2-22"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">property</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">latency</span><span class="w">         </span><span class="c1"># used: → freshness check (raises NotImplementedError in to_checks())</span>
+</span><span id="__span-2-23"><a id="__codelineno-2-23" name="__codelineno-2-23" href="#__codelineno-2-23"></a><span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">24</span>
+</span><span id="__span-2-24"><a id="__codelineno-2-24" name="__codelineno-2-24" href="#__codelineno-2-24"></a><span class="w">    </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">h</span>
+</span><span id="__span-2-25"><a id="__codelineno-2-25" name="__codelineno-2-25" href="#__codelineno-2-25"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">property</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">retention</span><span class="w">       </span><span class="c1"># stored: not executed</span>
+</span><span id="__span-2-26"><a id="__codelineno-2-26" name="__codelineno-2-26" href="#__codelineno-2-26"></a><span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+</span><span id="__span-2-27"><a id="__codelineno-2-27" name="__codelineno-2-27" href="#__codelineno-2-27"></a><span class="w">    </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">y</span>
+</span><span id="__span-2-28"><a id="__codelineno-2-28" name="__codelineno-2-28" href="#__codelineno-2-28"></a>
+</span><span id="__span-2-29"><a id="__codelineno-2-29" name="__codelineno-2-29" href="#__codelineno-2-29"></a><span class="c1"># Ignored entirely by DQX:</span>
+</span><span id="__span-2-30"><a id="__codelineno-2-30" name="__codelineno-2-30" href="#__codelineno-2-30"></a><span class="c1"># servers, team, roles, support, price,</span>
+</span><span id="__span-2-31"><a id="__codelineno-2-31" name="__codelineno-2-31" href="#__codelineno-2-31"></a><span class="c1"># authoritativeDefinitions, contractCreatedTs</span>
+</span></code></pre></div>
+<h3 id="required-odcs-fields">Required ODCS Fields<a class="headerlink" href="#required-odcs-fields" title="Anchor link to this section for reference">&para;</a></h3>
+<p>The ODCS JSON Schema mandates five top-level fields. DQX raises <code>ContractValidationError</code> when any of them is absent or violates its schema constraint.</p>
+<table>
+<thead>
+<tr>
+<th>ODCS Field</th>
+<th>Type</th>
+<th>Constraint</th>
+<th><code>ContractValidationError</code> message when absent</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>version</code></td>
+<td><code>string</code></td>
+<td>Non-empty string</td>
+<td><code>ContractValidationError: 'version' is a required property</code></td>
+</tr>
+<tr>
+<td><code>apiVersion</code></td>
+<td><code>string</code></td>
+<td>Must match <code>v3.1.0</code></td>
+<td><code>ContractValidationError: 'apiVersion' is a required property</code></td>
+</tr>
+<tr>
+<td><code>kind</code></td>
+<td><code>string</code></td>
+<td>Must equal <code>"DataContract"</code></td>
+<td><code>ContractValidationError: 'kind' is a required property</code></td>
+</tr>
+<tr>
+<td><code>id</code></td>
+<td><code>string</code></td>
+<td>UUID or non-empty string</td>
+<td><code>ContractValidationError: 'id' is a required property</code></td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td><code>string</code></td>
+<td>Enum: <code>active</code>, <code>deprecated</code>, <code>draft</code>, etc.</td>
+<td><code>ContractValidationError: 'status' is a required property</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="error-surface">Error Surface<a class="headerlink" href="#error-surface" title="Anchor link to this section for reference">&para;</a></h2>
+<p>DQX exposes three distinct error types across the contract lifecycle. Understanding which error type is raised — and when — helps teams write correct contracts and handle failures gracefully.</p>
+<h3 id="contractvalidationerror"><code>ContractValidationError</code><a class="headerlink" href="#contractvalidationerror" title="Anchor link to this section for reference">&para;</a></h3>
+<p>Raised during <code>Contract.from_odcs()</code>. This error means the contract document itself is invalid and cannot be processed. Execution does not begin.</p>
+<p><strong>Trigger conditions:</strong></p>
+<ul>
+<li>The ODCS JSON Schema validator rejects the document (any required field missing, wrong value type, enum violation for <code>kind</code>, <code>status</code>, or <code>apiVersion</code>).</li>
+<li>An unknown <code>logicalType</code> value is encountered on a property (e.g., <code>logicalType: uuid</code> is not in the ODCS-defined enumeration).</li>
+<li>A quality rule contains a malformed operator value (e.g., <code>mustBeBetween</code> is provided a scalar instead of a two-element list <code>[a, b]</code>).</li>
+<li>A required ODCS field (<code>version</code>, <code>apiVersion</code>, <code>kind</code>, <code>id</code>, <code>status</code>) is absent.</li>
+</ul>
+<p><strong>Example messages:</strong></p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>ContractValidationError: &#39;kind&#39; is a required property
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>ContractValidationError: &#39;status&#39; is a required property
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>ContractValidationError: Property &#39;order_id&#39;: unknown logicalType &#39;uuid&#39;
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>ContractValidationError: Quality rule &#39;amount_range&#39;: mustBeBetween must be a list of [lower, upper], got: 100
+</span></code></pre></div>
+<h3 id="schemavalidationerror"><code>SchemaValidationError</code><a class="headerlink" href="#schemavalidationerror" title="Anchor link to this section for reference">&para;</a></h3>
+<p>Raised during <code>to_checks()</code> at runtime, when the check function executes against a live datasource. This error means the actual data schema does not conform to what the contract declares.</p>
+<p><strong>Trigger conditions:</strong></p>
+<ul>
+<li>A column's actual PyArrow type does not match the declared <code>logicalType</code>. For example, a column declared as <code>logicalType: integer</code> is backed by <code>pa.string()</code> in the datasource.</li>
+<li>A column declared with <code>required: true</code> contains one or more null values.</li>
+</ul>
+<p><strong>Example messages:</strong></p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a>SchemaValidationError: Property &#39;order_id&#39; type mismatch:
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>  expected logicalType &#39;integer&#39; (int8–int64, uint8–uint64), got pa.string()
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a>SchemaValidationError: Property &#39;order_id&#39; is required (required: true)
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>  but contains null values
+</span></code></pre></div>
+<h3 id="contractwarning"><code>ContractWarning</code><a class="headerlink" href="#contractwarning" title="Anchor link to this section for reference">&para;</a></h3>
+<p>Emitted during <code>Contract.from_odcs()</code> as a non-fatal Python warning (via <code>warnings.warn</code>). Processing continues after each warning; the offending rule is skipped.</p>
+<p><strong>Trigger conditions and example messages:</strong></p>
+<ul>
+<li>A quality rule has <code>type: sql</code> — DQX cannot execute raw SQL rules inline.</li>
+</ul>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>ContractWarning: Quality rule &#39;iban_check&#39;: type &#39;sql&#39; is not executable in DQX; skipping
+</span></code></pre></div>
+<ul>
+<li>A quality rule has <code>type: custom</code> with an engine other than <code>dqx</code>.</li>
+</ul>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>ContractWarning: Quality rule &#39;soda_check&#39;: type &#39;custom&#39; with engine &#39;soda&#39; is not executable in DQX; skipping
+</span></code></pre></div>
+<ul>
+<li>A <code>metric: invalidValues</code> quality rule specifies <code>arguments.pattern</code> (regex-based invalid value detection is not yet implemented).</li>
+</ul>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a>ContractWarning: Quality rule &#39;iban_check&#39;: metric &#39;invalidValues&#39; with pattern argument is not executable in DQX; skipping
+</span></code></pre></div>
+<ul>
+<li>A <code>metric: missingValues</code> quality rule specifies <code>arguments.missingValues</code> (custom sentinel value lists are not supported; use <code>type: custom, engine: dqx</code> with <code>check: blacklist</code> instead).</li>
+</ul>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a>ContractWarning: Quality rule &#39;sentinel_check&#39;: metric &#39;missingValues&#39; with missingValues argument is not executable in DQX; skipping
+</span></code></pre></div>
+<ul>
+<li>An <code>slaProperties</code> latency entry cannot resolve a timestamp column (no <code>element:</code> field and no <code>partitioned: true</code> property with <code>partitionKeyPosition: 1</code>).</li>
+</ul>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a>ContractWarning: SLA latency rule: no timestamp column could be resolved; freshness check skipped
+</span></code></pre></div>
+<hr />
+<h2 id="usage">Usage<a class="headerlink" href="#usage" title="Anchor link to this section for reference">&para;</a></h2>
+<h3 id="single-table-contract">Single-Table Contract<a class="headerlink" href="#single-table-contract" title="Anchor link to this section for reference">&para;</a></h3>
+<p>The most common case: an ODCS file with one schema object, producing one <code>Contract</code>.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dqx.contract</span><span class="w"> </span><span class="kn">import</span> <span class="n">Contract</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dqx.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">VerificationSuite</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="c1"># Parse the ODCS file — validated against JSON Schema, returns list[Contract]</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="n">contracts</span> <span class="o">=</span> <span class="n">Contract</span><span class="o">.</span><span class="n">from_odcs</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="s2">&quot;orders.odcs.yaml&quot;</span><span class="p">))</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="c1"># Build the suite, composing contract checks with a hand-coded check</span>
+</span><span id="__span-10-10"><a id="__codelineno-10-10" name="__codelineno-10-10" href="#__codelineno-10-10"></a><span class="n">suite</span> <span class="o">=</span> <span class="n">VerificationSuite</span><span class="p">(</span>
+</span><span id="__span-10-11"><a id="__codelineno-10-11" name="__codelineno-10-11" href="#__codelineno-10-11"></a>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;orders-suite&quot;</span><span class="p">,</span>
+</span><span id="__span-10-12"><a id="__codelineno-10-12" name="__codelineno-10-12" href="#__codelineno-10-12"></a>    <span class="n">checks</span><span class="o">=</span><span class="n">contracts</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">to_checks</span><span class="p">()</span> <span class="o">+</span> <span class="p">[</span><span class="n">my_custom_check</span><span class="p">],</span>
+</span><span id="__span-10-13"><a id="__codelineno-10-13" name="__codelineno-10-13" href="#__codelineno-10-13"></a>    <span class="n">db</span><span class="o">=</span><span class="n">db</span><span class="p">,</span>
+</span><span id="__span-10-14"><a id="__codelineno-10-14" name="__codelineno-10-14" href="#__codelineno-10-14"></a><span class="p">)</span>
+</span><span id="__span-10-15"><a id="__codelineno-10-15" name="__codelineno-10-15" href="#__codelineno-10-15"></a>
+</span><span id="__span-10-16"><a id="__codelineno-10-16" name="__codelineno-10-16" href="#__codelineno-10-16"></a><span class="c1"># Execute and collect results</span>
+</span><span id="__span-10-17"><a id="__codelineno-10-17" name="__codelineno-10-17" href="#__codelineno-10-17"></a><span class="n">suite</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="n">datasource</span><span class="p">],</span> <span class="n">result_key</span><span class="p">)</span>
+</span><span id="__span-10-18"><a id="__codelineno-10-18" name="__codelineno-10-18" href="#__codelineno-10-18"></a><span class="n">results</span> <span class="o">=</span> <span class="n">suite</span><span class="o">.</span><span class="n">collect_results</span><span class="p">()</span>
+</span></code></pre></div>
+<h3 id="multi-table-contract">Multi-Table Contract<a class="headerlink" href="#multi-table-contract" title="Anchor link to this section for reference">&para;</a></h3>
+<p>An ODCS file with multiple schema objects — one <code>Contract</code> per schema, one suite per contract.</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dqx.contract</span><span class="w"> </span><span class="kn">import</span> <span class="n">Contract</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dqx.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">VerificationSuite</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>
+</span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="n">contracts</span> <span class="o">=</span> <span class="n">Contract</span><span class="o">.</span><span class="n">from_odcs</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="s2">&quot;commerce.odcs.yaml&quot;</span><span class="p">))</span>
+</span><span id="__span-11-7"><a id="__codelineno-11-7" name="__codelineno-11-7" href="#__codelineno-11-7"></a>
+</span><span id="__span-11-8"><a id="__codelineno-11-8" name="__codelineno-11-8" href="#__codelineno-11-8"></a><span class="k">for</span> <span class="n">contract</span> <span class="ow">in</span> <span class="n">contracts</span><span class="p">:</span>
+</span><span id="__span-11-9"><a id="__codelineno-11-9" name="__codelineno-11-9" href="#__codelineno-11-9"></a>    <span class="n">suite</span> <span class="o">=</span> <span class="n">VerificationSuite</span><span class="p">(</span>
+</span><span id="__span-11-10"><a id="__codelineno-11-10" name="__codelineno-11-10" href="#__codelineno-11-10"></a>        <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">contract</span><span class="o">.</span><span class="n">dataset</span><span class="si">}</span><span class="s2">-suite&quot;</span><span class="p">,</span>
+</span><span id="__span-11-11"><a id="__codelineno-11-11" name="__codelineno-11-11" href="#__codelineno-11-11"></a>        <span class="n">checks</span><span class="o">=</span><span class="n">contract</span><span class="o">.</span><span class="n">to_checks</span><span class="p">(),</span>
+</span><span id="__span-11-12"><a id="__codelineno-11-12" name="__codelineno-11-12" href="#__codelineno-11-12"></a>        <span class="n">db</span><span class="o">=</span><span class="n">db</span><span class="p">,</span>
+</span><span id="__span-11-13"><a id="__codelineno-11-13" name="__codelineno-11-13" href="#__codelineno-11-13"></a>    <span class="p">)</span>
+</span><span id="__span-11-14"><a id="__codelineno-11-14" name="__codelineno-11-14" href="#__codelineno-11-14"></a>    <span class="n">suite</span><span class="o">.</span><span class="n">run</span><span class="p">([</span><span class="n">datasource</span><span class="p">],</span> <span class="n">result_key</span><span class="p">)</span>
+</span></code></pre></div>
+<hr />
+<h2 id="quality-rules">Quality Rules<a class="headerlink" href="#quality-rules" title="Anchor link to this section for reference">&para;</a></h2>
+<h3 id="61-rule-types-overview">6.1 Rule Types Overview<a class="headerlink" href="#61-rule-types-overview" title="Anchor link to this section for reference">&para;</a></h3>
+<p>ODCS quality rules carry a <code>type</code> field that DQX uses to decide whether to execute the rule, skip it, or store it for documentation purposes.</p>
+<table>
+<thead>
+<tr>
+<th>ODCS <code>type</code></th>
+<th>DQX treatment</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>library</code> (or implicit when <code>metric:</code> present)</td>
+<td>Executed — mapped to <code>MetricProvider</code> calls</td>
+</tr>
+<tr>
+<td><code>text</code></td>
+<td>Documentation only — stored in <code>Contract.text_rules</code>, no assertion generated</td>
+</tr>
+<tr>
+<td><code>sql</code></td>
+<td>Skipped — <code>ContractWarning</code> emitted</td>
+</tr>
+<tr>
+<td><code>custom</code> with <code>engine: dqx</code></td>
+<td>Executed — <code>implementation:</code> block parsed as DQX check</td>
+</tr>
+<tr>
+<td><code>custom</code> with any other engine</td>
+<td>Skipped — <code>ContractWarning</code> emitted</td>
+</tr>
+</tbody>
+</table>
+<h3 id="62-library-metrics">6.2 Library Metrics<a class="headerlink" href="#62-library-metrics" title="Anchor link to this section for reference">&para;</a></h3>
+<p>ODCS library metrics (<code>metric:</code> field present, <code>type: library</code> or omitted) map to <code>MetricProvider</code> method calls. The table below describes each mapping and notes arguments that cannot be satisfied by the current <code>MetricProvider</code> API.</p>
+<table>
+<thead>
+<tr>
+<th>ODCS <code>metric</code></th>
+<th>Scope</th>
+<th><code>MetricProvider</code> call</th>
+<th><code>unit: percent</code> behaviour</th>
+<th>Unsupported argument</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nullValues</code></td>
+<td><code>property</code></td>
+<td><code>mp.null_count(col)</code></td>
+<td><code>÷ mp.num_rows()</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>missingValues</code></td>
+<td><code>property</code></td>
+<td><code>mp.null_count(col)</code></td>
+<td><code>÷ mp.num_rows()</code></td>
+<td><code>arguments.missingValues</code> sentinel list → <code>ContractWarning</code></td>
+</tr>
+<tr>
+<td><code>invalidValues</code></td>
+<td><code>property</code></td>
+<td><code>mp.num_rows() - mp.count_values(col, validValues)</code></td>
+<td><code>÷ mp.num_rows()</code></td>
+<td><code>arguments.pattern</code> → <code>ContractWarning</code></td>
+</tr>
+<tr>
+<td><code>duplicateValues</code></td>
+<td><code>property</code></td>
+<td><code>mp.duplicate_count([col])</code></td>
+<td><code>÷ mp.num_rows()</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>rowCount</code></td>
+<td><code>schema</code></td>
+<td><code>mp.num_rows()</code></td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>duplicateValues</code> (with <code>arguments.properties</code>)</td>
+<td><code>schema</code></td>
+<td><code>mp.duplicate_count(properties)</code></td>
+<td><code>÷ mp.num_rows()</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h4 id="nullvalues-example"><code>nullValues</code> Example<a class="headerlink" href="#nullvalues-example" title="Anchor link to this section for reference">&para;</a></h4>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_id_no_nulls</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">library</span>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="w">    </span><span class="nt">metric</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nullValues</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">    </span><span class="nt">mustBe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">error</span>
+</span></code></pre></div>
+<h4 id="missingvalues-example"><code>missingValues</code> Example<a class="headerlink" href="#missingvalues-example" title="Anchor link to this section for reference">&para;</a></h4>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">customer_id_no_missing</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">library</span>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="w">    </span><span class="nt">metric</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">missingValues</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">    </span><span class="nt">mustBe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">error</span>
+</span></code></pre></div>
+<h4 id="invalidvalues-example"><code>invalidValues</code> Example<a class="headerlink" href="#invalidvalues-example" title="Anchor link to this section for reference">&para;</a></h4>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">status_valid_values</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">library</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">    </span><span class="nt">metric</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">invalidValues</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">    </span><span class="nt">mustBe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">error</span>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">    </span><span class="nt">validValues</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">pending</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">processing</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">shipped</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">delivered</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">cancelled</span><span class="p p-Indicator">]</span>
+</span></code></pre></div>
+<h4 id="duplicatevalues-property-level-example"><code>duplicateValues</code> (property-level) Example<a class="headerlink" href="#duplicatevalues-property-level-example" title="Anchor link to this section for reference">&para;</a></h4>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_id_unique</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">library</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a><span class="w">    </span><span class="nt">metric</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">duplicateValues</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a><span class="w">    </span><span class="nt">mustBe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-15-6"><a id="__codelineno-15-6" name="__codelineno-15-6" href="#__codelineno-15-6"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">error</span>
+</span></code></pre></div>
+<h4 id="rowcount-example"><code>rowCount</code> Example<a class="headerlink" href="#rowcount-example" title="Anchor link to this section for reference">&para;</a></h4>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">daily_row_count</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">library</span>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a><span class="w">    </span><span class="nt">metric</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rowCount</span>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="w">    </span><span class="nt">mustBeGreaterOrEqualTo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span></code></pre></div>
+<h4 id="duplicatevalues-schema-level-with-argumentsproperties-example"><code>duplicateValues</code> (schema-level with <code>arguments.properties</code>) Example<a class="headerlink" href="#duplicatevalues-schema-level-with-argumentsproperties-example" title="Anchor link to this section for reference">&para;</a></h4>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_composite_unique</span>
+</span><span id="__span-17-3"><a id="__codelineno-17-3" name="__codelineno-17-3" href="#__codelineno-17-3"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">library</span>
+</span><span id="__span-17-4"><a id="__codelineno-17-4" name="__codelineno-17-4" href="#__codelineno-17-4"></a><span class="w">    </span><span class="nt">metric</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">duplicateValues</span>
+</span><span id="__span-17-5"><a id="__codelineno-17-5" name="__codelineno-17-5" href="#__codelineno-17-5"></a><span class="w">    </span><span class="nt">mustBe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-17-6"><a id="__codelineno-17-6" name="__codelineno-17-6" href="#__codelineno-17-6"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">error</span>
+</span><span id="__span-17-7"><a id="__codelineno-17-7" name="__codelineno-17-7" href="#__codelineno-17-7"></a><span class="w">    </span><span class="nt">arguments</span><span class="p">:</span>
+</span><span id="__span-17-8"><a id="__codelineno-17-8" name="__codelineno-17-8" href="#__codelineno-17-8"></a><span class="w">      </span><span class="nt">properties</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">order_id</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">order_date</span><span class="p p-Indicator">]</span>
+</span></code></pre></div>
+<h3 id="63-operators">6.3 Operators<a class="headerlink" href="#63-operators" title="Anchor link to this section for reference">&para;</a></h3>
+<p>ODCS quality rules express their acceptance condition through operator fields. DQX maps each ODCS operator to the corresponding <code>AssertionReady</code> method.</p>
+<table>
+<thead>
+<tr>
+<th>ODCS operator</th>
+<th><code>AssertionReady</code> method</th>
+<th>Semantics</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mustBe: v</code></td>
+<td><code>.is_eq(v)</code></td>
+<td>value == v (within tolerance 1e-9)</td>
+</tr>
+<tr>
+<td><code>mustNotBe: v</code></td>
+<td><code>.is_neq(v)</code></td>
+<td>value ≠ v</td>
+</tr>
+<tr>
+<td><code>mustBeGreaterThan: v</code></td>
+<td><code>.is_gt(v)</code></td>
+<td>value &gt; v</td>
+</tr>
+<tr>
+<td><code>mustBeGreaterOrEqualTo: v</code></td>
+<td><code>.is_geq(v)</code></td>
+<td>value ≥ v</td>
+</tr>
+<tr>
+<td><code>mustBeLessThan: v</code></td>
+<td><code>.is_lt(v)</code></td>
+<td>value &lt; v</td>
+</tr>
+<tr>
+<td><code>mustBeLessOrEqualTo: v</code></td>
+<td><code>.is_leq(v)</code></td>
+<td>value ≤ v</td>
+</tr>
+<tr>
+<td><code>mustBeBetween: [a, b]</code></td>
+<td><code>.is_between(a, b)</code></td>
+<td>a ≤ value ≤ b</td>
+</tr>
+<tr>
+<td><code>mustNotBeBetween: [a, b]</code></td>
+<td><code>.is_not_between(a, b)</code></td>
+<td>value &lt; a or value &gt; b</td>
+</tr>
+<tr>
+<td><em>(none)</em></td>
+<td><code>.noop()</code></td>
+<td>metric recorded, never fails</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Note on tolerance:</strong> <code>mustBe</code>, <code>mustBeBetween</code>, and <code>mustNotBeBetween</code> use <code>tolerance=1e-9</code> by default. This prevents spurious failures due to floating-point representation differences. For exact integer comparisons the tolerance is effectively zero.</p>
+<h3 id="64-severity-mapping">6.4 Severity Mapping<a class="headerlink" href="#64-severity-mapping" title="Anchor link to this section for reference">&para;</a></h3>
+<p>ODCS quality rules carry an optional <code>severity</code> field using string labels. DQX maps these labels to its internal <code>SeverityLevel</code> type.</p>
+<table>
+<thead>
+<tr>
+<th>ODCS <code>severity</code></th>
+<th>DQX <code>SeverityLevel</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>"error"</code></td>
+<td><code>"P0"</code></td>
+</tr>
+<tr>
+<td><code>"warning"</code></td>
+<td><code>"P1"</code></td>
+</tr>
+<tr>
+<td>omitted</td>
+<td><code>"P1"</code></td>
+</tr>
+</tbody>
+</table>
+<p>When <code>severity</code> is absent from a quality rule, DQX defaults to <code>"P1"</code> (important but non-blocking).</p>
+<h3 id="65-dqx-custom-quality-rules-type-custom-engine-dqx">6.5 DQX Custom Quality Rules (<code>type: custom, engine: dqx</code>)<a class="headerlink" href="#65-dqx-custom-quality-rules-type-custom-engine-dqx" title="Anchor link to this section for reference">&para;</a></h3>
+<p>ODCS library metrics cover six aggregate metrics. DQX custom quality rules expose the full DQX check vocabulary — all <code>MetricProvider</code> methods — through ODCS's extensible <code>type: custom</code> mechanism. When a rule carries <code>type: custom</code> and <code>engine: dqx</code>, DQX parses the <code>implementation:</code> field as a YAML string. The <code>check:</code> key inside that YAML string is the discriminator: it selects which <code>MetricProvider</code> method to call. ODCS operators (<code>mustBe</code>, <code>mustBeBetween</code>, etc.) from the parent rule provide the threshold.</p>
+<h4 id="column-level-check-vocabulary">Column-Level Check Vocabulary<a class="headerlink" href="#column-level-check-vocabulary" title="Anchor link to this section for reference">&para;</a></h4>
+<p>Column-level checks require a <code>column:</code> field inside the <code>implementation:</code> YAML string.</p>
+<table>
+<thead>
+<tr>
+<th><code>check:</code></th>
+<th>Description</th>
+<th>Extra required params</th>
+<th>Extra optional params</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>missing</code></td>
+<td>null count in column</td>
+<td>—</td>
+<td><code>return: count\|pct</code></td>
+</tr>
+<tr>
+<td><code>duplicates</code></td>
+<td>duplicate value count in column</td>
+<td>—</td>
+<td><code>return: count\|pct</code></td>
+</tr>
+<tr>
+<td><code>whitelist</code></td>
+<td>count of values NOT in allowed set</td>
+<td><code>values: [...]</code></td>
+<td><code>return: count\|pct</code></td>
+</tr>
+<tr>
+<td><code>blacklist</code></td>
+<td>count of values IN forbidden set</td>
+<td><code>values: [...]</code></td>
+<td><code>return: count\|pct</code></td>
+</tr>
+<tr>
+<td><code>cardinality</code></td>
+<td>distinct value count</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>min</code></td>
+<td>column minimum value</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>max</code></td>
+<td>column maximum value</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>mean</code></td>
+<td>arithmetic mean of column values</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>sum</code></td>
+<td>sum of column values</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>count</code></td>
+<td>non-null value count</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>variance</code></td>
+<td>statistical variance of column values</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>stddev</code></td>
+<td>standard deviation of column values</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>percentile</code></td>
+<td>value at specified percentile</td>
+<td><code>percentile: 0.0–1.0</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>min_length</code></td>
+<td>minimum string/list/map length</td>
+<td><code>column_type: string\|list\|map</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>max_length</code></td>
+<td>maximum string/list/map length</td>
+<td><code>column_type: string\|list\|map</code></td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>avg_length</code></td>
+<td>average string/list/map length</td>
+<td><code>column_type: string\|list\|map</code></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h4 id="table-level-check-vocabulary">Table-Level Check Vocabulary<a class="headerlink" href="#table-level-check-vocabulary" title="Anchor link to this section for reference">&para;</a></h4>
+<p>Table-level checks omit the <code>column:</code> field inside <code>implementation:</code>.</p>
+<table>
+<thead>
+<tr>
+<th><code>check:</code></th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>num_rows</code></td>
+<td>total row count of table</td>
+</tr>
+</tbody>
+</table>
+<h4 id="example-1-check-missing-null-rate-as-percentage">Example 1: <code>check: missing</code> (null rate as percentage)<a class="headerlink" href="#example-1-check-missing-null-rate-as-percentage" title="Anchor link to this section for reference">&para;</a></h4>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">total_amount_not_null</span>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom</span>
+</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dqx</span>
+</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">error</span>
+</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="w">    </span><span class="nt">mustBe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-18-7"><a id="__codelineno-18-7" name="__codelineno-18-7" href="#__codelineno-18-7"></a><span class="w">    </span><span class="nt">implementation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+</span><span id="__span-18-8"><a id="__codelineno-18-8" name="__codelineno-18-8" href="#__codelineno-18-8"></a><span class="w">      </span><span class="no">check: missing</span>
+</span><span id="__span-18-9"><a id="__codelineno-18-9" name="__codelineno-18-9" href="#__codelineno-18-9"></a><span class="w">      </span><span class="no">column: total_amount</span>
+</span><span id="__span-18-10"><a id="__codelineno-18-10" name="__codelineno-18-10" href="#__codelineno-18-10"></a><span class="w">      </span><span class="no">return: pct</span>
+</span></code></pre></div>
+<h4 id="example-2-check-whitelist-valid-values-check">Example 2: <code>check: whitelist</code> (valid values check)<a class="headerlink" href="#example-2-check-whitelist-valid-values-check" title="Anchor link to this section for reference">&para;</a></h4>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">status_valid</span>
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom</span>
+</span><span id="__span-19-4"><a id="__codelineno-19-4" name="__codelineno-19-4" href="#__codelineno-19-4"></a><span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dqx</span>
+</span><span id="__span-19-5"><a id="__codelineno-19-5" name="__codelineno-19-5" href="#__codelineno-19-5"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">error</span>
+</span><span id="__span-19-6"><a id="__codelineno-19-6" name="__codelineno-19-6" href="#__codelineno-19-6"></a><span class="w">    </span><span class="nt">mustBe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-19-7"><a id="__codelineno-19-7" name="__codelineno-19-7" href="#__codelineno-19-7"></a><span class="w">    </span><span class="nt">implementation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+</span><span id="__span-19-8"><a id="__codelineno-19-8" name="__codelineno-19-8" href="#__codelineno-19-8"></a><span class="w">      </span><span class="no">check: whitelist</span>
+</span><span id="__span-19-9"><a id="__codelineno-19-9" name="__codelineno-19-9" href="#__codelineno-19-9"></a><span class="w">      </span><span class="no">column: status</span>
+</span><span id="__span-19-10"><a id="__codelineno-19-10" name="__codelineno-19-10" href="#__codelineno-19-10"></a><span class="w">      </span><span class="no">values:</span>
+</span><span id="__span-19-11"><a id="__codelineno-19-11" name="__codelineno-19-11" href="#__codelineno-19-11"></a><span class="w">        </span><span class="no">- pending</span>
+</span><span id="__span-19-12"><a id="__codelineno-19-12" name="__codelineno-19-12" href="#__codelineno-19-12"></a><span class="w">        </span><span class="no">- processing</span>
+</span><span id="__span-19-13"><a id="__codelineno-19-13" name="__codelineno-19-13" href="#__codelineno-19-13"></a><span class="w">        </span><span class="no">- shipped</span>
+</span><span id="__span-19-14"><a id="__codelineno-19-14" name="__codelineno-19-14" href="#__codelineno-19-14"></a><span class="w">        </span><span class="no">- delivered</span>
+</span><span id="__span-19-15"><a id="__codelineno-19-15" name="__codelineno-19-15" href="#__codelineno-19-15"></a><span class="w">        </span><span class="no">- cancelled</span>
+</span></code></pre></div>
+<h4 id="example-3-check-percentile-p95-response-time">Example 3: <code>check: percentile</code> (p95 response time)<a class="headerlink" href="#example-3-check-percentile-p95-response-time" title="Anchor link to this section for reference">&para;</a></h4>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">p95_latency_acceptable</span>
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom</span>
+</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dqx</span>
+</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="w">    </span><span class="nt">mustBeLessOrEqualTo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">500</span>
+</span><span id="__span-20-7"><a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="w">    </span><span class="nt">implementation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+</span><span id="__span-20-8"><a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a><span class="w">      </span><span class="no">check: percentile</span>
+</span><span id="__span-20-9"><a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="w">      </span><span class="no">column: response_time_ms</span>
+</span><span id="__span-20-10"><a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="w">      </span><span class="no">percentile: 0.95</span>
+</span></code></pre></div>
+<h4 id="example-4-check-avg_length-average-string-length">Example 4: <code>check: avg_length</code> (average string length)<a class="headerlink" href="#example-4-check-avg_length-average-string-length" title="Anchor link to this section for reference">&para;</a></h4>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">product_name_length_reasonable</span>
+</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom</span>
+</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dqx</span>
+</span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="w">    </span><span class="nt">mustBeBetween</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">5</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">100</span><span class="p p-Indicator">]</span>
+</span><span id="__span-21-7"><a id="__codelineno-21-7" name="__codelineno-21-7" href="#__codelineno-21-7"></a><span class="w">    </span><span class="nt">implementation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+</span><span id="__span-21-8"><a id="__codelineno-21-8" name="__codelineno-21-8" href="#__codelineno-21-8"></a><span class="w">      </span><span class="no">check: avg_length</span>
+</span><span id="__span-21-9"><a id="__codelineno-21-9" name="__codelineno-21-9" href="#__codelineno-21-9"></a><span class="w">      </span><span class="no">column: product_name</span>
+</span><span id="__span-21-10"><a id="__codelineno-21-10" name="__codelineno-21-10" href="#__codelineno-21-10"></a><span class="w">      </span><span class="no">column_type: string</span>
+</span></code></pre></div>
+<h4 id="example-5-check-num_rows-table-level-no-column">Example 5: <code>check: num_rows</code> (table-level, no <code>column:</code>)<a class="headerlink" href="#example-5-check-num_rows-table-level-no-column" title="Anchor link to this section for reference">&para;</a></h4>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">daily_volume_check</span>
+</span><span id="__span-22-3"><a id="__codelineno-22-3" name="__codelineno-22-3" href="#__codelineno-22-3"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom</span>
+</span><span id="__span-22-4"><a id="__codelineno-22-4" name="__codelineno-22-4" href="#__codelineno-22-4"></a><span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dqx</span>
+</span><span id="__span-22-5"><a id="__codelineno-22-5" name="__codelineno-22-5" href="#__codelineno-22-5"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span><span id="__span-22-6"><a id="__codelineno-22-6" name="__codelineno-22-6" href="#__codelineno-22-6"></a><span class="w">    </span><span class="nt">mustBeGreaterOrEqualTo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+</span><span id="__span-22-7"><a id="__codelineno-22-7" name="__codelineno-22-7" href="#__codelineno-22-7"></a><span class="w">    </span><span class="nt">implementation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+</span><span id="__span-22-8"><a id="__codelineno-22-8" name="__codelineno-22-8" href="#__codelineno-22-8"></a><span class="w">      </span><span class="no">check: num_rows</span>
+</span></code></pre></div>
+<h3 id="66-skipped-rules">6.6 Skipped Rules<a class="headerlink" href="#66-skipped-rules" title="Anchor link to this section for reference">&para;</a></h3>
+<p>Some ODCS quality rule patterns cannot be executed by DQX. For each pattern, DQX emits a <code>ContractWarning</code> and skips the rule. The table below shows the YAML pattern, the warning message, and the recommended alternative.</p>
+<h4 id="type-sql"><code>type: sql</code><a class="headerlink" href="#type-sql" title="Anchor link to this section for reference">&para;</a></h4>
+<p>DQX does not execute inline SQL quality rules.</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a><span class="c1"># Triggers ContractWarning — skipped</span>
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">iban_check</span>
+</span><span id="__span-23-4"><a id="__codelineno-23-4" name="__codelineno-23-4" href="#__codelineno-23-4"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sql</span>
+</span><span id="__span-23-5"><a id="__codelineno-23-5" name="__codelineno-23-5" href="#__codelineno-23-5"></a><span class="w">    </span><span class="nt">query</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;SELECT</span><span class="nv"> </span><span class="s">COUNT(*)</span><span class="nv"> </span><span class="s">FROM</span><span class="nv"> </span><span class="s">orders</span><span class="nv"> </span><span class="s">WHERE</span><span class="nv"> </span><span class="s">iban</span><span class="nv"> </span><span class="s">NOT</span><span class="nv"> </span><span class="s">REGEXP</span><span class="nv"> </span><span class="s">&#39;^[A-Z]{2}[0-9]{2}&#39;&quot;</span>
+</span><span id="__span-23-6"><a id="__codelineno-23-6" name="__codelineno-23-6" href="#__codelineno-23-6"></a><span class="w">    </span><span class="nt">mustBe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-23-7"><a id="__codelineno-23-7" name="__codelineno-23-7" href="#__codelineno-23-7"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">error</span>
+</span></code></pre></div>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a>ContractWarning: Quality rule &#39;iban_check&#39;: type &#39;sql&#39; is not executable in DQX; skipping
+</span></code></pre></div>
+<p><strong>Use instead:</strong> <code>type: custom, engine: dqx</code> with an appropriate <code>check:</code> such as <code>check: blacklist</code> or <code>check: whitelist</code> for set-based validation. For regex matching, a <code>check: pattern</code> implementation is deferred (see below).</p>
+<h4 id="type-custom-with-a-non-dqx-engine"><code>type: custom</code> with a non-DQX engine<a class="headerlink" href="#type-custom-with-a-non-dqx-engine" title="Anchor link to this section for reference">&para;</a></h4>
+<p>DQX cannot execute rules intended for other engines such as Soda, Great Expectations, or Monte Carlo.</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1"># Triggers ContractWarning — skipped</span>
+</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">soda_check</span>
+</span><span id="__span-25-4"><a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom</span>
+</span><span id="__span-25-5"><a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a><span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">soda</span>
+</span><span id="__span-25-6"><a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span><span id="__span-25-7"><a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="w">    </span><span class="nt">implementation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+</span><span id="__span-25-8"><a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="w">      </span><span class="no">missing_count(order_id) = 0</span>
+</span></code></pre></div>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>ContractWarning: Quality rule &#39;soda_check&#39;: type &#39;custom&#39; with engine &#39;soda&#39; is not executable in DQX; skipping
+</span></code></pre></div>
+<p><strong>Use instead:</strong> Configure the Soda engine separately and keep DQX rules as <code>engine: dqx</code>.</p>
+<h4 id="metric-invalidvalues-with-argumentspattern"><code>metric: invalidValues</code> with <code>arguments.pattern</code><a class="headerlink" href="#metric-invalidvalues-with-argumentspattern" title="Anchor link to this section for reference">&para;</a></h4>
+<p>Regex-based invalid value detection is not yet implemented in <code>MetricProvider</code>.</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="c1"># Triggers ContractWarning — skipped</span>
+</span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">iban_format_check</span>
+</span><span id="__span-27-4"><a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">library</span>
+</span><span id="__span-27-5"><a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="w">    </span><span class="nt">metric</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">invalidValues</span>
+</span><span id="__span-27-6"><a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="w">    </span><span class="nt">mustBe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-27-7"><a id="__codelineno-27-7" name="__codelineno-27-7" href="#__codelineno-27-7"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span><span id="__span-27-8"><a id="__codelineno-27-8" name="__codelineno-27-8" href="#__codelineno-27-8"></a><span class="w">    </span><span class="nt">arguments</span><span class="p">:</span>
+</span><span id="__span-27-9"><a id="__codelineno-27-9" name="__codelineno-27-9" href="#__codelineno-27-9"></a><span class="w">      </span><span class="nt">pattern</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;^[A-Z]{2}[0-9]{2}[A-Z0-9]{4}[0-9]{7}([A-Z0-9]?){0,16}$&quot;</span>
+</span></code></pre></div>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>ContractWarning: Quality rule &#39;iban_format_check&#39;: metric &#39;invalidValues&#39; with pattern argument is not executable in DQX; skipping
+</span></code></pre></div>
+<p><strong>Use instead:</strong> <code>type: custom, engine: dqx</code> with <code>check: pattern</code> — note that <code>check: pattern</code> raises <code>NotImplementedError</code> and is itself deferred pending a <code>MetricProvider.pattern_match()</code> implementation.</p>
+<h4 id="metric-missingvalues-with-argumentsmissingvalues-sentinel-list"><code>metric: missingValues</code> with <code>arguments.missingValues</code> sentinel list<a class="headerlink" href="#metric-missingvalues-with-argumentsmissingvalues-sentinel-list" title="Anchor link to this section for reference">&para;</a></h4>
+<p>Custom sentinel-based missing value detection (treating specific non-null values as missing) is not supported in <code>MetricProvider.null_count()</code>.</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="c1"># Triggers ContractWarning — skipped</span>
+</span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sentinel_missing_check</span>
+</span><span id="__span-29-4"><a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">library</span>
+</span><span id="__span-29-5"><a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="w">    </span><span class="nt">metric</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">missingValues</span>
+</span><span id="__span-29-6"><a id="__codelineno-29-6" name="__codelineno-29-6" href="#__codelineno-29-6"></a><span class="w">    </span><span class="nt">mustBe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-29-7"><a id="__codelineno-29-7" name="__codelineno-29-7" href="#__codelineno-29-7"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span><span id="__span-29-8"><a id="__codelineno-29-8" name="__codelineno-29-8" href="#__codelineno-29-8"></a><span class="w">    </span><span class="nt">arguments</span><span class="p">:</span>
+</span><span id="__span-29-9"><a id="__codelineno-29-9" name="__codelineno-29-9" href="#__codelineno-29-9"></a><span class="w">      </span><span class="nt">missingValues</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="s">&quot;N/A&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;n/a&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;NULL&quot;</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="s">&quot;&quot;</span><span class="p p-Indicator">]</span>
+</span></code></pre></div>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-30-1"><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a>ContractWarning: Quality rule &#39;sentinel_missing_check&#39;: metric &#39;missingValues&#39; with missingValues argument is not executable in DQX; skipping
+</span></code></pre></div>
+<p><strong>Use instead:</strong> <code>type: custom, engine: dqx</code> with <code>check: blacklist</code> and the sentinel values listed under <code>values:</code>.</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-31-1"><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="c1"># Recommended replacement</span>
+</span><span id="__span-31-2"><a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-31-3"><a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sentinel_missing_check</span>
+</span><span id="__span-31-4"><a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a><span class="w">    </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom</span>
+</span><span id="__span-31-5"><a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="w">    </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dqx</span>
+</span><span id="__span-31-6"><a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a><span class="w">    </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span><span id="__span-31-7"><a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a><span class="w">    </span><span class="nt">mustBe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-31-8"><a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="w">    </span><span class="nt">implementation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+</span><span id="__span-31-9"><a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="w">      </span><span class="no">check: blacklist</span>
+</span><span id="__span-31-10"><a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a><span class="w">      </span><span class="no">column: status</span>
+</span><span id="__span-31-11"><a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a><span class="w">      </span><span class="no">values:</span>
+</span><span id="__span-31-12"><a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a><span class="w">        </span><span class="no">- &quot;N/A&quot;</span>
+</span><span id="__span-31-13"><a id="__codelineno-31-13" name="__codelineno-31-13" href="#__codelineno-31-13"></a><span class="w">        </span><span class="no">- &quot;n/a&quot;</span>
+</span><span id="__span-31-14"><a id="__codelineno-31-14" name="__codelineno-31-14" href="#__codelineno-31-14"></a><span class="w">        </span><span class="no">- &quot;NULL&quot;</span>
+</span><span id="__span-31-15"><a id="__codelineno-31-15" name="__codelineno-31-15" href="#__codelineno-31-15"></a><span class="w">        </span><span class="no">- &quot;&quot;</span>
+</span></code></pre></div>
+<h3 id="67-complete-contract-example">6.7 Complete Contract Example<a class="headerlink" href="#67-complete-contract-example" title="Anchor link to this section for reference">&para;</a></h3>
+<p>The contract below is a full, runnable ODCS YAML showing all four rule types — library, text, sql (skipped), and custom DQX — in a single <code>orders</code> table contract. Each rule carries an inline comment showing DQX treatment.</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-32-1"><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">v3.1.0</span>
+</span><span id="__span-32-2"><a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">DataContract</span>
+</span><span id="__span-32-3"><a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">f7a3b2c1-d4e5-6789-abcd-0123456789ef</span>
+</span><span id="__span-32-4"><a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">orders_contract</span>
+</span><span id="__span-32-5"><a id="__codelineno-32-5" name="__codelineno-32-5" href="#__codelineno-32-5"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2.0.0</span>
+</span><span id="__span-32-6"><a id="__codelineno-32-6" name="__codelineno-32-6" href="#__codelineno-32-6"></a><span class="nt">status</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">active</span>
+</span><span id="__span-32-7"><a id="__codelineno-32-7" name="__codelineno-32-7" href="#__codelineno-32-7"></a><span class="nt">domain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">commerce</span>
+</span><span id="__span-32-8"><a id="__codelineno-32-8" name="__codelineno-32-8" href="#__codelineno-32-8"></a><span class="nt">dataProduct</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order-management</span>
+</span><span id="__span-32-9"><a id="__codelineno-32-9" name="__codelineno-32-9" href="#__codelineno-32-9"></a>
+</span><span id="__span-32-10"><a id="__codelineno-32-10" name="__codelineno-32-10" href="#__codelineno-32-10"></a><span class="nt">description</span><span class="p">:</span>
+</span><span id="__span-32-11"><a id="__codelineno-32-11" name="__codelineno-32-11" href="#__codelineno-32-11"></a><span class="w">  </span><span class="nt">purpose</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Daily</span><span class="nv"> </span><span class="s">order</span><span class="nv"> </span><span class="s">records</span><span class="nv"> </span><span class="s">for</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">commerce</span><span class="nv"> </span><span class="s">domain&quot;</span>
+</span><span id="__span-32-12"><a id="__codelineno-32-12" name="__codelineno-32-12" href="#__codelineno-32-12"></a><span class="w">  </span><span class="nt">limitations</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;T-1</span><span class="nv"> </span><span class="s">data;</span><span class="nv"> </span><span class="s">does</span><span class="nv"> </span><span class="s">not</span><span class="nv"> </span><span class="s">include</span><span class="nv"> </span><span class="s">cancelled</span><span class="nv"> </span><span class="s">test</span><span class="nv"> </span><span class="s">orders&quot;</span>
+</span><span id="__span-32-13"><a id="__codelineno-32-13" name="__codelineno-32-13" href="#__codelineno-32-13"></a>
+</span><span id="__span-32-14"><a id="__codelineno-32-14" name="__codelineno-32-14" href="#__codelineno-32-14"></a><span class="nt">slaProperties</span><span class="p">:</span>
+</span><span id="__span-32-15"><a id="__codelineno-32-15" name="__codelineno-32-15" href="#__codelineno-32-15"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">property</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">latency</span><span class="w">             </span><span class="c1"># used: DQX resolves freshness check (NotImplementedError in to_checks())</span>
+</span><span id="__span-32-16"><a id="__codelineno-32-16" name="__codelineno-32-16" href="#__codelineno-32-16"></a><span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">24</span>
+</span><span id="__span-32-17"><a id="__codelineno-32-17" name="__codelineno-32-17" href="#__codelineno-32-17"></a><span class="w">    </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">h</span>
+</span><span id="__span-32-18"><a id="__codelineno-32-18" name="__codelineno-32-18" href="#__codelineno-32-18"></a><span class="w">    </span><span class="nt">element</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">orders_tbl.order_date</span>
+</span><span id="__span-32-19"><a id="__codelineno-32-19" name="__codelineno-32-19" href="#__codelineno-32-19"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">property</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">retention</span><span class="w">           </span><span class="c1"># stored: Contract.sla_metadata; not executed</span>
+</span><span id="__span-32-20"><a id="__codelineno-32-20" name="__codelineno-32-20" href="#__codelineno-32-20"></a><span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+</span><span id="__span-32-21"><a id="__codelineno-32-21" name="__codelineno-32-21" href="#__codelineno-32-21"></a><span class="w">    </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">y</span>
+</span><span id="__span-32-22"><a id="__codelineno-32-22" name="__codelineno-32-22" href="#__codelineno-32-22"></a>
+</span><span id="__span-32-23"><a id="__codelineno-32-23" name="__codelineno-32-23" href="#__codelineno-32-23"></a><span class="nt">schema</span><span class="p">:</span>
+</span><span id="__span-32-24"><a id="__codelineno-32-24" name="__codelineno-32-24" href="#__codelineno-32-24"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">orders</span>
+</span><span id="__span-32-25"><a id="__codelineno-32-25" name="__codelineno-32-25" href="#__codelineno-32-25"></a><span class="w">    </span><span class="nt">physicalName</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">orders_tbl</span><span class="w">      </span><span class="c1"># preferred over name for contract.dataset</span>
+</span><span id="__span-32-26"><a id="__codelineno-32-26" name="__codelineno-32-26" href="#__codelineno-32-26"></a>
+</span><span id="__span-32-27"><a id="__codelineno-32-27" name="__codelineno-32-27" href="#__codelineno-32-27"></a><span class="w">    </span><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-32-28"><a id="__codelineno-32-28" name="__codelineno-32-28" href="#__codelineno-32-28"></a><span class="w">      </span><span class="c1"># library rule — executed: mp.num_rows() mustBeGreaterOrEqualTo 100</span>
+</span><span id="__span-32-29"><a id="__codelineno-32-29" name="__codelineno-32-29" href="#__codelineno-32-29"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">daily_row_count</span>
+</span><span id="__span-32-30"><a id="__codelineno-32-30" name="__codelineno-32-30" href="#__codelineno-32-30"></a><span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">library</span>
+</span><span id="__span-32-31"><a id="__codelineno-32-31" name="__codelineno-32-31" href="#__codelineno-32-31"></a><span class="w">        </span><span class="nt">metric</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">rowCount</span>
+</span><span id="__span-32-32"><a id="__codelineno-32-32" name="__codelineno-32-32" href="#__codelineno-32-32"></a><span class="w">        </span><span class="nt">mustBeGreaterOrEqualTo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+</span><span id="__span-32-33"><a id="__codelineno-32-33" name="__codelineno-32-33" href="#__codelineno-32-33"></a><span class="w">        </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span><span id="__span-32-34"><a id="__codelineno-32-34" name="__codelineno-32-34" href="#__codelineno-32-34"></a>
+</span><span id="__span-32-35"><a id="__codelineno-32-35" name="__codelineno-32-35" href="#__codelineno-32-35"></a><span class="w">      </span><span class="c1"># library rule — executed: mp.duplicate_count([order_id, order_date]) mustBe 0</span>
+</span><span id="__span-32-36"><a id="__codelineno-32-36" name="__codelineno-32-36" href="#__codelineno-32-36"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">composite_key_unique</span>
+</span><span id="__span-32-37"><a id="__codelineno-32-37" name="__codelineno-32-37" href="#__codelineno-32-37"></a><span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">library</span>
+</span><span id="__span-32-38"><a id="__codelineno-32-38" name="__codelineno-32-38" href="#__codelineno-32-38"></a><span class="w">        </span><span class="nt">metric</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">duplicateValues</span>
+</span><span id="__span-32-39"><a id="__codelineno-32-39" name="__codelineno-32-39" href="#__codelineno-32-39"></a><span class="w">        </span><span class="nt">mustBe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-32-40"><a id="__codelineno-32-40" name="__codelineno-32-40" href="#__codelineno-32-40"></a><span class="w">        </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">error</span>
+</span><span id="__span-32-41"><a id="__codelineno-32-41" name="__codelineno-32-41" href="#__codelineno-32-41"></a><span class="w">        </span><span class="nt">arguments</span><span class="p">:</span>
+</span><span id="__span-32-42"><a id="__codelineno-32-42" name="__codelineno-32-42" href="#__codelineno-32-42"></a><span class="w">          </span><span class="nt">properties</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">order_id</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">order_date</span><span class="p p-Indicator">]</span>
+</span><span id="__span-32-43"><a id="__codelineno-32-43" name="__codelineno-32-43" href="#__codelineno-32-43"></a>
+</span><span id="__span-32-44"><a id="__codelineno-32-44" name="__codelineno-32-44" href="#__codelineno-32-44"></a><span class="w">      </span><span class="c1"># custom dqx rule — executed: mp.num_rows() mustBeGreaterOrEqualTo 100 (table-level)</span>
+</span><span id="__span-32-45"><a id="__codelineno-32-45" name="__codelineno-32-45" href="#__codelineno-32-45"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">volume_floor</span>
+</span><span id="__span-32-46"><a id="__codelineno-32-46" name="__codelineno-32-46" href="#__codelineno-32-46"></a><span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom</span>
+</span><span id="__span-32-47"><a id="__codelineno-32-47" name="__codelineno-32-47" href="#__codelineno-32-47"></a><span class="w">        </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dqx</span>
+</span><span id="__span-32-48"><a id="__codelineno-32-48" name="__codelineno-32-48" href="#__codelineno-32-48"></a><span class="w">        </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span><span id="__span-32-49"><a id="__codelineno-32-49" name="__codelineno-32-49" href="#__codelineno-32-49"></a><span class="w">        </span><span class="nt">mustBeGreaterOrEqualTo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100</span>
+</span><span id="__span-32-50"><a id="__codelineno-32-50" name="__codelineno-32-50" href="#__codelineno-32-50"></a><span class="w">        </span><span class="nt">implementation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+</span><span id="__span-32-51"><a id="__codelineno-32-51" name="__codelineno-32-51" href="#__codelineno-32-51"></a><span class="w">          </span><span class="no">check: num_rows</span>
+</span><span id="__span-32-52"><a id="__codelineno-32-52" name="__codelineno-32-52" href="#__codelineno-32-52"></a>
+</span><span id="__span-32-53"><a id="__codelineno-32-53" name="__codelineno-32-53" href="#__codelineno-32-53"></a><span class="w">      </span><span class="c1"># sql rule — skipped, ContractWarning emitted</span>
+</span><span id="__span-32-54"><a id="__codelineno-32-54" name="__codelineno-32-54" href="#__codelineno-32-54"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">fraud_sql_check</span>
+</span><span id="__span-32-55"><a id="__codelineno-32-55" name="__codelineno-32-55" href="#__codelineno-32-55"></a><span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">sql</span>
+</span><span id="__span-32-56"><a id="__codelineno-32-56" name="__codelineno-32-56" href="#__codelineno-32-56"></a><span class="w">        </span><span class="nt">query</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;SELECT</span><span class="nv"> </span><span class="s">COUNT(*)</span><span class="nv"> </span><span class="s">FROM</span><span class="nv"> </span><span class="s">orders_tbl</span><span class="nv"> </span><span class="s">WHERE</span><span class="nv"> </span><span class="s">total_amount</span><span class="nv"> </span><span class="s">&gt;</span><span class="nv"> </span><span class="s">99999&quot;</span>
+</span><span id="__span-32-57"><a id="__codelineno-32-57" name="__codelineno-32-57" href="#__codelineno-32-57"></a><span class="w">        </span><span class="nt">mustBe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-32-58"><a id="__codelineno-32-58" name="__codelineno-32-58" href="#__codelineno-32-58"></a><span class="w">        </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span><span id="__span-32-59"><a id="__codelineno-32-59" name="__codelineno-32-59" href="#__codelineno-32-59"></a>
+</span><span id="__span-32-60"><a id="__codelineno-32-60" name="__codelineno-32-60" href="#__codelineno-32-60"></a><span class="w">    </span><span class="nt">properties</span><span class="p">:</span>
+</span><span id="__span-32-61"><a id="__codelineno-32-61" name="__codelineno-32-61" href="#__codelineno-32-61"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_id</span>
+</span><span id="__span-32-62"><a id="__codelineno-32-62" name="__codelineno-32-62" href="#__codelineno-32-62"></a><span class="w">        </span><span class="nt">logicalType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">integer</span>
+</span><span id="__span-32-63"><a id="__codelineno-32-63" name="__codelineno-32-63" href="#__codelineno-32-63"></a><span class="w">        </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">            </span><span class="c1"># SchemaValidationError if nulls present at runtime</span>
+</span><span id="__span-32-64"><a id="__codelineno-32-64" name="__codelineno-32-64" href="#__codelineno-32-64"></a>
+</span><span id="__span-32-65"><a id="__codelineno-32-65" name="__codelineno-32-65" href="#__codelineno-32-65"></a><span class="w">        </span><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-32-66"><a id="__codelineno-32-66" name="__codelineno-32-66" href="#__codelineno-32-66"></a><span class="w">          </span><span class="c1"># library rule — executed: mp.null_count(order_id) mustBe 0</span>
+</span><span id="__span-32-67"><a id="__codelineno-32-67" name="__codelineno-32-67" href="#__codelineno-32-67"></a><span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_id_no_nulls</span>
+</span><span id="__span-32-68"><a id="__codelineno-32-68" name="__codelineno-32-68" href="#__codelineno-32-68"></a><span class="w">            </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">library</span>
+</span><span id="__span-32-69"><a id="__codelineno-32-69" name="__codelineno-32-69" href="#__codelineno-32-69"></a><span class="w">            </span><span class="nt">metric</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">nullValues</span>
+</span><span id="__span-32-70"><a id="__codelineno-32-70" name="__codelineno-32-70" href="#__codelineno-32-70"></a><span class="w">            </span><span class="nt">mustBe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-32-71"><a id="__codelineno-32-71" name="__codelineno-32-71" href="#__codelineno-32-71"></a><span class="w">            </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">error</span>
+</span><span id="__span-32-72"><a id="__codelineno-32-72" name="__codelineno-32-72" href="#__codelineno-32-72"></a>
+</span><span id="__span-32-73"><a id="__codelineno-32-73" name="__codelineno-32-73" href="#__codelineno-32-73"></a><span class="w">          </span><span class="c1"># text rule — stored as documentation; no assertion generated</span>
+</span><span id="__span-32-74"><a id="__codelineno-32-74" name="__codelineno-32-74" href="#__codelineno-32-74"></a><span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_id_description</span>
+</span><span id="__span-32-75"><a id="__codelineno-32-75" name="__codelineno-32-75" href="#__codelineno-32-75"></a><span class="w">            </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">text</span>
+</span><span id="__span-32-76"><a id="__codelineno-32-76" name="__codelineno-32-76" href="#__codelineno-32-76"></a><span class="w">            </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;order_id</span><span class="nv"> </span><span class="s">is</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">primary</span><span class="nv"> </span><span class="s">key;</span><span class="nv"> </span><span class="s">generated</span><span class="nv"> </span><span class="s">by</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">order-service</span><span class="nv"> </span><span class="s">UUID4</span><span class="nv"> </span><span class="s">generator&quot;</span>
+</span><span id="__span-32-77"><a id="__codelineno-32-77" name="__codelineno-32-77" href="#__codelineno-32-77"></a>
+</span><span id="__span-32-78"><a id="__codelineno-32-78" name="__codelineno-32-78" href="#__codelineno-32-78"></a><span class="w">          </span><span class="c1"># custom dqx rule — executed: mp.min(order_id) mustBeGreaterOrEqualTo 1</span>
+</span><span id="__span-32-79"><a id="__codelineno-32-79" name="__codelineno-32-79" href="#__codelineno-32-79"></a><span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_id_positive</span>
+</span><span id="__span-32-80"><a id="__codelineno-32-80" name="__codelineno-32-80" href="#__codelineno-32-80"></a><span class="w">            </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom</span>
+</span><span id="__span-32-81"><a id="__codelineno-32-81" name="__codelineno-32-81" href="#__codelineno-32-81"></a><span class="w">            </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dqx</span>
+</span><span id="__span-32-82"><a id="__codelineno-32-82" name="__codelineno-32-82" href="#__codelineno-32-82"></a><span class="w">            </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">error</span>
+</span><span id="__span-32-83"><a id="__codelineno-32-83" name="__codelineno-32-83" href="#__codelineno-32-83"></a><span class="w">            </span><span class="nt">mustBeGreaterOrEqualTo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+</span><span id="__span-32-84"><a id="__codelineno-32-84" name="__codelineno-32-84" href="#__codelineno-32-84"></a><span class="w">            </span><span class="nt">implementation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+</span><span id="__span-32-85"><a id="__codelineno-32-85" name="__codelineno-32-85" href="#__codelineno-32-85"></a><span class="w">              </span><span class="no">check: min</span>
+</span><span id="__span-32-86"><a id="__codelineno-32-86" name="__codelineno-32-86" href="#__codelineno-32-86"></a><span class="w">              </span><span class="no">column: order_id</span>
+</span><span id="__span-32-87"><a id="__codelineno-32-87" name="__codelineno-32-87" href="#__codelineno-32-87"></a>
+</span><span id="__span-32-88"><a id="__codelineno-32-88" name="__codelineno-32-88" href="#__codelineno-32-88"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">status</span>
+</span><span id="__span-32-89"><a id="__codelineno-32-89" name="__codelineno-32-89" href="#__codelineno-32-89"></a><span class="w">        </span><span class="nt">logicalType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span>
+</span><span id="__span-32-90"><a id="__codelineno-32-90" name="__codelineno-32-90" href="#__codelineno-32-90"></a><span class="w">        </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span><span id="__span-32-91"><a id="__codelineno-32-91" name="__codelineno-32-91" href="#__codelineno-32-91"></a>
+</span><span id="__span-32-92"><a id="__codelineno-32-92" name="__codelineno-32-92" href="#__codelineno-32-92"></a><span class="w">        </span><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-32-93"><a id="__codelineno-32-93" name="__codelineno-32-93" href="#__codelineno-32-93"></a><span class="w">          </span><span class="c1"># library rule — executed: mp.num_rows() - mp.count_values(status, validValues) mustBe 0</span>
+</span><span id="__span-32-94"><a id="__codelineno-32-94" name="__codelineno-32-94" href="#__codelineno-32-94"></a><span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">status_valid_values</span>
+</span><span id="__span-32-95"><a id="__codelineno-32-95" name="__codelineno-32-95" href="#__codelineno-32-95"></a><span class="w">            </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">library</span>
+</span><span id="__span-32-96"><a id="__codelineno-32-96" name="__codelineno-32-96" href="#__codelineno-32-96"></a><span class="w">            </span><span class="nt">metric</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">invalidValues</span>
+</span><span id="__span-32-97"><a id="__codelineno-32-97" name="__codelineno-32-97" href="#__codelineno-32-97"></a><span class="w">            </span><span class="nt">mustBe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-32-98"><a id="__codelineno-32-98" name="__codelineno-32-98" href="#__codelineno-32-98"></a><span class="w">            </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">error</span>
+</span><span id="__span-32-99"><a id="__codelineno-32-99" name="__codelineno-32-99" href="#__codelineno-32-99"></a><span class="w">            </span><span class="nt">validValues</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">pending</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">processing</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">shipped</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">delivered</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">cancelled</span><span class="p p-Indicator">]</span>
+</span><span id="__span-32-100"><a id="__codelineno-32-100" name="__codelineno-32-100" href="#__codelineno-32-100"></a>
+</span><span id="__span-32-101"><a id="__codelineno-32-101" name="__codelineno-32-101" href="#__codelineno-32-101"></a><span class="w">          </span><span class="c1"># custom dqx rule — executed: mp.cardinality(status) mustBeLessOrEqualTo 10</span>
+</span><span id="__span-32-102"><a id="__codelineno-32-102" name="__codelineno-32-102" href="#__codelineno-32-102"></a><span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">status_low_cardinality</span>
+</span><span id="__span-32-103"><a id="__codelineno-32-103" name="__codelineno-32-103" href="#__codelineno-32-103"></a><span class="w">            </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom</span>
+</span><span id="__span-32-104"><a id="__codelineno-32-104" name="__codelineno-32-104" href="#__codelineno-32-104"></a><span class="w">            </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dqx</span>
+</span><span id="__span-32-105"><a id="__codelineno-32-105" name="__codelineno-32-105" href="#__codelineno-32-105"></a><span class="w">            </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span><span id="__span-32-106"><a id="__codelineno-32-106" name="__codelineno-32-106" href="#__codelineno-32-106"></a><span class="w">            </span><span class="nt">mustBeLessOrEqualTo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+</span><span id="__span-32-107"><a id="__codelineno-32-107" name="__codelineno-32-107" href="#__codelineno-32-107"></a><span class="w">            </span><span class="nt">implementation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+</span><span id="__span-32-108"><a id="__codelineno-32-108" name="__codelineno-32-108" href="#__codelineno-32-108"></a><span class="w">              </span><span class="no">check: cardinality</span>
+</span><span id="__span-32-109"><a id="__codelineno-32-109" name="__codelineno-32-109" href="#__codelineno-32-109"></a><span class="w">              </span><span class="no">column: status</span>
+</span><span id="__span-32-110"><a id="__codelineno-32-110" name="__codelineno-32-110" href="#__codelineno-32-110"></a>
+</span><span id="__span-32-111"><a id="__codelineno-32-111" name="__codelineno-32-111" href="#__codelineno-32-111"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">total_amount</span>
+</span><span id="__span-32-112"><a id="__codelineno-32-112" name="__codelineno-32-112" href="#__codelineno-32-112"></a><span class="w">        </span><span class="nt">logicalType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">number</span>
+</span><span id="__span-32-113"><a id="__codelineno-32-113" name="__codelineno-32-113" href="#__codelineno-32-113"></a><span class="w">        </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span><span id="__span-32-114"><a id="__codelineno-32-114" name="__codelineno-32-114" href="#__codelineno-32-114"></a>
+</span><span id="__span-32-115"><a id="__codelineno-32-115" name="__codelineno-32-115" href="#__codelineno-32-115"></a><span class="w">        </span><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-32-116"><a id="__codelineno-32-116" name="__codelineno-32-116" href="#__codelineno-32-116"></a><span class="w">          </span><span class="c1"># custom dqx rule — executed: mp.mean(total_amount) mustBeBetween [10.0, 500.0]</span>
+</span><span id="__span-32-117"><a id="__codelineno-32-117" name="__codelineno-32-117" href="#__codelineno-32-117"></a><span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">average_order_value_reasonable</span>
+</span><span id="__span-32-118"><a id="__codelineno-32-118" name="__codelineno-32-118" href="#__codelineno-32-118"></a><span class="w">            </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom</span>
+</span><span id="__span-32-119"><a id="__codelineno-32-119" name="__codelineno-32-119" href="#__codelineno-32-119"></a><span class="w">            </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dqx</span>
+</span><span id="__span-32-120"><a id="__codelineno-32-120" name="__codelineno-32-120" href="#__codelineno-32-120"></a><span class="w">            </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span><span id="__span-32-121"><a id="__codelineno-32-121" name="__codelineno-32-121" href="#__codelineno-32-121"></a><span class="w">            </span><span class="nt">mustBeBetween</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">10.0</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">500.0</span><span class="p p-Indicator">]</span>
+</span><span id="__span-32-122"><a id="__codelineno-32-122" name="__codelineno-32-122" href="#__codelineno-32-122"></a><span class="w">            </span><span class="nt">implementation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+</span><span id="__span-32-123"><a id="__codelineno-32-123" name="__codelineno-32-123" href="#__codelineno-32-123"></a><span class="w">              </span><span class="no">check: mean</span>
+</span><span id="__span-32-124"><a id="__codelineno-32-124" name="__codelineno-32-124" href="#__codelineno-32-124"></a><span class="w">              </span><span class="no">column: total_amount</span>
+</span><span id="__span-32-125"><a id="__codelineno-32-125" name="__codelineno-32-125" href="#__codelineno-32-125"></a>
+</span><span id="__span-32-126"><a id="__codelineno-32-126" name="__codelineno-32-126" href="#__codelineno-32-126"></a><span class="w">          </span><span class="c1"># custom dqx rule — executed: mp.null_count(total_amount) / mp.num_rows() mustBe 0</span>
+</span><span id="__span-32-127"><a id="__codelineno-32-127" name="__codelineno-32-127" href="#__codelineno-32-127"></a><span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">total_amount_complete</span>
+</span><span id="__span-32-128"><a id="__codelineno-32-128" name="__codelineno-32-128" href="#__codelineno-32-128"></a><span class="w">            </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom</span>
+</span><span id="__span-32-129"><a id="__codelineno-32-129" name="__codelineno-32-129" href="#__codelineno-32-129"></a><span class="w">            </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dqx</span>
+</span><span id="__span-32-130"><a id="__codelineno-32-130" name="__codelineno-32-130" href="#__codelineno-32-130"></a><span class="w">            </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">error</span>
+</span><span id="__span-32-131"><a id="__codelineno-32-131" name="__codelineno-32-131" href="#__codelineno-32-131"></a><span class="w">            </span><span class="nt">mustBe</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">0</span>
+</span><span id="__span-32-132"><a id="__codelineno-32-132" name="__codelineno-32-132" href="#__codelineno-32-132"></a><span class="w">            </span><span class="nt">implementation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+</span><span id="__span-32-133"><a id="__codelineno-32-133" name="__codelineno-32-133" href="#__codelineno-32-133"></a><span class="w">              </span><span class="no">check: missing</span>
+</span><span id="__span-32-134"><a id="__codelineno-32-134" name="__codelineno-32-134" href="#__codelineno-32-134"></a><span class="w">              </span><span class="no">column: total_amount</span>
+</span><span id="__span-32-135"><a id="__codelineno-32-135" name="__codelineno-32-135" href="#__codelineno-32-135"></a><span class="w">              </span><span class="no">return: pct</span>
+</span><span id="__span-32-136"><a id="__codelineno-32-136" name="__codelineno-32-136" href="#__codelineno-32-136"></a>
+</span><span id="__span-32-137"><a id="__codelineno-32-137" name="__codelineno-32-137" href="#__codelineno-32-137"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">product_name</span>
+</span><span id="__span-32-138"><a id="__codelineno-32-138" name="__codelineno-32-138" href="#__codelineno-32-138"></a><span class="w">        </span><span class="nt">logicalType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span>
+</span><span id="__span-32-139"><a id="__codelineno-32-139" name="__codelineno-32-139" href="#__codelineno-32-139"></a><span class="w">        </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</span><span id="__span-32-140"><a id="__codelineno-32-140" name="__codelineno-32-140" href="#__codelineno-32-140"></a>
+</span><span id="__span-32-141"><a id="__codelineno-32-141" name="__codelineno-32-141" href="#__codelineno-32-141"></a><span class="w">        </span><span class="nt">quality</span><span class="p">:</span>
+</span><span id="__span-32-142"><a id="__codelineno-32-142" name="__codelineno-32-142" href="#__codelineno-32-142"></a><span class="w">          </span><span class="c1"># custom dqx rule — executed: mp.avg_length(product_name) mustBeBetween [3, 120]</span>
+</span><span id="__span-32-143"><a id="__codelineno-32-143" name="__codelineno-32-143" href="#__codelineno-32-143"></a><span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">product_name_length_sanity</span>
+</span><span id="__span-32-144"><a id="__codelineno-32-144" name="__codelineno-32-144" href="#__codelineno-32-144"></a><span class="w">            </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">custom</span>
+</span><span id="__span-32-145"><a id="__codelineno-32-145" name="__codelineno-32-145" href="#__codelineno-32-145"></a><span class="w">            </span><span class="nt">engine</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dqx</span>
+</span><span id="__span-32-146"><a id="__codelineno-32-146" name="__codelineno-32-146" href="#__codelineno-32-146"></a><span class="w">            </span><span class="nt">severity</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">warning</span>
+</span><span id="__span-32-147"><a id="__codelineno-32-147" name="__codelineno-32-147" href="#__codelineno-32-147"></a><span class="w">            </span><span class="nt">mustBeBetween</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">3</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">120</span><span class="p p-Indicator">]</span>
+</span><span id="__span-32-148"><a id="__codelineno-32-148" name="__codelineno-32-148" href="#__codelineno-32-148"></a><span class="w">            </span><span class="nt">implementation</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+</span><span id="__span-32-149"><a id="__codelineno-32-149" name="__codelineno-32-149" href="#__codelineno-32-149"></a><span class="w">              </span><span class="no">check: avg_length</span>
+</span><span id="__span-32-150"><a id="__codelineno-32-150" name="__codelineno-32-150" href="#__codelineno-32-150"></a><span class="w">              </span><span class="no">column: product_name</span>
+</span><span id="__span-32-151"><a id="__codelineno-32-151" name="__codelineno-32-151" href="#__codelineno-32-151"></a><span class="w">              </span><span class="no">column_type: string</span>
+</span><span id="__span-32-152"><a id="__codelineno-32-152" name="__codelineno-32-152" href="#__codelineno-32-152"></a>
+</span><span id="__span-32-153"><a id="__codelineno-32-153" name="__codelineno-32-153" href="#__codelineno-32-153"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">order_date</span>
+</span><span id="__span-32-154"><a id="__codelineno-32-154" name="__codelineno-32-154" href="#__codelineno-32-154"></a><span class="w">        </span><span class="nt">logicalType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">date</span>
+</span><span id="__span-32-155"><a id="__codelineno-32-155" name="__codelineno-32-155" href="#__codelineno-32-155"></a><span class="w">        </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span><span id="__span-32-156"><a id="__codelineno-32-156" name="__codelineno-32-156" href="#__codelineno-32-156"></a><span class="w">        </span><span class="nt">partitioned</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">         </span><span class="c1"># used by SLA latency resolution</span>
+</span><span id="__span-32-157"><a id="__codelineno-32-157" name="__codelineno-32-157" href="#__codelineno-32-157"></a><span class="w">        </span><span class="nt">partitionKeyPosition</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span><span class="w">   </span><span class="c1"># used by SLA latency resolution → timestamp_column = order_date</span>
+</span></code></pre></div>
+<hr />
+<h2 id="type-system">Type System<a class="headerlink" href="#type-system" title="Anchor link to this section for reference">&para;</a></h2>
+<h3 id="71-logicaltype-pyarrow-compatibility-matrix">7.1 <code>logicalType</code> → PyArrow Compatibility Matrix<a class="headerlink" href="#71-logicaltype-pyarrow-compatibility-matrix" title="Anchor link to this section for reference">&para;</a></h3>
+<p>ODCS properties declare their semantic type via the <code>logicalType</code> field. DQX validates at runtime that the column's actual PyArrow type is compatible with the declared <code>logicalType</code>.</p>
+<table>
+<thead>
+<tr>
+<th>ODCS <code>logicalType</code></th>
+<th>PyArrow types accepted</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>string</code></td>
+<td><code>pa.string()</code>, <code>pa.utf8()</code>, <code>pa.large_string()</code>, <code>pa.large_utf8()</code></td>
+<td>All four are equivalent UTF-8 string representations</td>
+</tr>
+<tr>
+<td><code>integer</code></td>
+<td><code>pa.int8()</code>, <code>pa.int16()</code>, <code>pa.int32()</code>, <code>pa.int64()</code>, <code>pa.uint8()</code>, <code>pa.uint16()</code>, <code>pa.uint32()</code>, <code>pa.uint64()</code></td>
+<td>Any width, signed or unsigned</td>
+</tr>
+<tr>
+<td><code>number</code></td>
+<td><code>pa.float32()</code>, <code>pa.float64()</code>, <code>pa.decimal128(p, s)</code>, <code>pa.decimal256(p, s)</code></td>
+<td>Float and decimal both accepted; float16 is not accepted</td>
+</tr>
+<tr>
+<td><code>boolean</code></td>
+<td><code>pa.bool_()</code></td>
+<td>Exact match only</td>
+</tr>
+<tr>
+<td><code>date</code></td>
+<td><code>pa.date32()</code>, <code>pa.date64()</code></td>
+<td>Both day-based encodings accepted</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td><code>pa.timestamp(unit, tz)</code> for any unit (<code>s</code>, <code>ms</code>, <code>us</code>, <code>ns</code>) and any timezone</td>
+<td>Narrowed by <code>logicalTypeOptions</code> — see section 7.2</td>
+</tr>
+<tr>
+<td><code>time</code></td>
+<td><code>pa.time32("s")</code>, <code>pa.time32("ms")</code>, <code>pa.time64("us")</code>, <code>pa.time64("ns")</code></td>
+<td>All four time sub-second units accepted</td>
+</tr>
+<tr>
+<td><code>array</code></td>
+<td><code>pa.list_(T)</code>, <code>pa.large_list(T)</code></td>
+<td>Element type validated recursively via <code>items.logicalType</code></td>
+</tr>
+<tr>
+<td><code>object</code></td>
+<td><code>pa.struct([...])</code></td>
+<td>Field types validated recursively via nested <code>properties</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="72-timestamp-and-logicaltypeoptions">7.2 Timestamp and <code>logicalTypeOptions</code><a class="headerlink" href="#72-timestamp-and-logicaltypeoptions" title="Anchor link to this section for reference">&para;</a></h3>
+<p>ODCS allows <code>logicalType: timestamp</code> to be further narrowed by a <code>logicalTypeOptions</code> block. DQX interprets three forms:</p>
+<p><strong>Form 1: No <code>logicalTypeOptions</code></strong> — any <code>pa.timestamp()</code> accepted regardless of unit or timezone.</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-33-1"><a id="__codelineno-33-1" name="__codelineno-33-1" href="#__codelineno-33-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">created_at</span>
+</span><span id="__span-33-2"><a id="__codelineno-33-2" name="__codelineno-33-2" href="#__codelineno-33-2"></a><span class="w">  </span><span class="nt">logicalType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">timestamp</span>
+</span><span id="__span-33-3"><a id="__codelineno-33-3" name="__codelineno-33-3" href="#__codelineno-33-3"></a><span class="w">  </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span><span id="__span-33-4"><a id="__codelineno-33-4" name="__codelineno-33-4" href="#__codelineno-33-4"></a><span class="w">  </span><span class="c1"># No logicalTypeOptions → accepts pa.timestamp(&#39;us&#39;, tz=None),</span>
+</span><span id="__span-33-5"><a id="__codelineno-33-5" name="__codelineno-33-5" href="#__codelineno-33-5"></a><span class="w">  </span><span class="c1">#   pa.timestamp(&#39;ms&#39;, tz=&#39;UTC&#39;), pa.timestamp(&#39;s&#39;, tz=&#39;America/New_York&#39;), etc.</span>
+</span></code></pre></div>
+<p><strong>Form 2: <code>logicalTypeOptions</code> with timezone enforcement</strong> — DQX enforces that the column's timezone matches <code>defaultTimezone</code>.</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-34-1"><a id="__codelineno-34-1" name="__codelineno-34-1" href="#__codelineno-34-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">created_at_utc</span>
+</span><span id="__span-34-2"><a id="__codelineno-34-2" name="__codelineno-34-2" href="#__codelineno-34-2"></a><span class="w">  </span><span class="nt">logicalType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">timestamp</span>
+</span><span id="__span-34-3"><a id="__codelineno-34-3" name="__codelineno-34-3" href="#__codelineno-34-3"></a><span class="w">  </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span><span id="__span-34-4"><a id="__codelineno-34-4" name="__codelineno-34-4" href="#__codelineno-34-4"></a><span class="w">  </span><span class="nt">logicalTypeOptions</span><span class="p">:</span>
+</span><span id="__span-34-5"><a id="__codelineno-34-5" name="__codelineno-34-5" href="#__codelineno-34-5"></a><span class="w">    </span><span class="nt">timezone</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span><span id="__span-34-6"><a id="__codelineno-34-6" name="__codelineno-34-6" href="#__codelineno-34-6"></a><span class="w">    </span><span class="nt">defaultTimezone</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;UTC&quot;</span>
+</span><span id="__span-34-7"><a id="__codelineno-34-7" name="__codelineno-34-7" href="#__codelineno-34-7"></a><span class="w">  </span><span class="c1"># DQX enforces tz == &quot;UTC&quot;; pa.timestamp(&#39;us&#39;, tz=&#39;America/New_York&#39;) raises SchemaValidationError</span>
+</span></code></pre></div>
+<p><strong>Form 3: <code>physicalType: TIMESTAMP WITH TIME ZONE</code></strong> — stored as metadata only; no additional validation beyond <code>logicalType: timestamp</code>.</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-35-1"><a id="__codelineno-35-1" name="__codelineno-35-1" href="#__codelineno-35-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">created_at</span>
+</span><span id="__span-35-2"><a id="__codelineno-35-2" name="__codelineno-35-2" href="#__codelineno-35-2"></a><span class="w">  </span><span class="nt">logicalType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">timestamp</span>
+</span><span id="__span-35-3"><a id="__codelineno-35-3" name="__codelineno-35-3" href="#__codelineno-35-3"></a><span class="w">  </span><span class="nt">physicalType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">TIMESTAMP WITH TIME ZONE</span>
+</span><span id="__span-35-4"><a id="__codelineno-35-4" name="__codelineno-35-4" href="#__codelineno-35-4"></a><span class="w">  </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span><span id="__span-35-5"><a id="__codelineno-35-5" name="__codelineno-35-5" href="#__codelineno-35-5"></a><span class="w">  </span><span class="c1"># physicalType stored as metadata; DQX validates logicalType only</span>
+</span></code></pre></div>
+<h3 id="73-the-required-field">7.3 The <code>required</code> Field<a class="headerlink" href="#73-the-required-field" title="Anchor link to this section for reference">&para;</a></h3>
+<p>The <code>required</code> field on an ODCS property controls null validation at runtime.</p>
+<ul>
+<li><code>required: true</code> — the column must not contain null values. DQX validates this at runtime when <code>to_checks()</code> executes. If nulls are found, <code>SchemaValidationError</code> is raised.</li>
+<li><code>required: false</code> (default when omitted) — the column is nullable. Null values are allowed and do not trigger any error.</li>
+</ul>
+<p><strong>Note:</strong> The ODCS <code>required</code> field is the <strong>inverse</strong> of the legacy DQX contract <code>nullable</code> field. In the old DQX contract format, <code>nullable: false</code> means no nulls allowed. In ODCS, <code>required: true</code> means no nulls allowed. When migrating contracts from the old format to ODCS, flip the boolean: <code>nullable: false</code> → <code>required: true</code>, <code>nullable: true</code> → <code>required: false</code>.</p>
+<h3 id="74-physicaltype">7.4 <code>physicalType</code><a class="headerlink" href="#74-physicaltype" title="Anchor link to this section for reference">&para;</a></h3>
+<p>The <code>physicalType</code> field is stored as metadata on the <code>Contract</code> and its properties. DQX does not use <code>physicalType</code> for any validation — <code>logicalType</code> is the sole validation basis. <code>physicalType</code> communicates the underlying storage format to readers and downstream tooling without affecting DQX behavior.</p>
+<p>Representative examples of <code>physicalType</code> values:</p>
+<ul>
+<li><code>VARCHAR(18)</code> — bounded string column in a SQL warehouse</li>
+<li><code>DOUBLE</code> — 64-bit IEEE 754 float in Spark</li>
+<li><code>DECIMAL(18,2)</code> — fixed-point decimal in BigQuery</li>
+<li><code>TIMESTAMP WITH TIME ZONE</code> — timezone-aware timestamp in PostgreSQL</li>
+</ul>
+<h3 id="75-nested-types">7.5 Nested Types<a class="headerlink" href="#75-nested-types" title="Anchor link to this section for reference">&para;</a></h3>
+<p><strong><code>array</code>:</strong> When a property has <code>logicalType: array</code>, DQX validates the element type recursively using the <code>items.logicalType</code> field. For example, an array with <code>items.logicalType: integer</code> must be backed by <code>pa.list_(pa.int64())</code> or <code>pa.large_list(pa.int64())</code> (or any integer sub-type). Nullability (<code>required</code>) is enforced only at the top-level property — nested element nullability is not validated.</p>
+<p><strong><code>object</code>:</strong> When a property has <code>logicalType: object</code>, DQX validates each field declared in <code>properties[]</code> against the column's <code>pa.struct([...])</code> fields using each field's <code>logicalType</code>. Struct fields that are present in the schema but absent from <code>properties[]</code> are ignored. Fields declared in <code>properties[]</code> but absent from the struct raise <code>SchemaValidationError</code>. Nested field nullability is not validated.</p>
+<h4 id="yaml-example-nested-object-type">YAML Example: Nested Object Type<a class="headerlink" href="#yaml-example-nested-object-type" title="Anchor link to this section for reference">&para;</a></h4>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-36-1"><a id="__codelineno-36-1" name="__codelineno-36-1" href="#__codelineno-36-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">address</span>
+</span><span id="__span-36-2"><a id="__codelineno-36-2" name="__codelineno-36-2" href="#__codelineno-36-2"></a><span class="w">  </span><span class="nt">logicalType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">object</span>
+</span><span id="__span-36-3"><a id="__codelineno-36-3" name="__codelineno-36-3" href="#__codelineno-36-3"></a><span class="w">  </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span><span id="__span-36-4"><a id="__codelineno-36-4" name="__codelineno-36-4" href="#__codelineno-36-4"></a><span class="w">  </span><span class="nt">properties</span><span class="p">:</span>
+</span><span id="__span-36-5"><a id="__codelineno-36-5" name="__codelineno-36-5" href="#__codelineno-36-5"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">street</span>
+</span><span id="__span-36-6"><a id="__codelineno-36-6" name="__codelineno-36-6" href="#__codelineno-36-6"></a><span class="w">      </span><span class="nt">logicalType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span>
+</span><span id="__span-36-7"><a id="__codelineno-36-7" name="__codelineno-36-7" href="#__codelineno-36-7"></a><span class="w">      </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">     </span><span class="c1"># required on nested field stored for documentation; not enforced at runtime</span>
+</span><span id="__span-36-8"><a id="__codelineno-36-8" name="__codelineno-36-8" href="#__codelineno-36-8"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">city</span>
+</span><span id="__span-36-9"><a id="__codelineno-36-9" name="__codelineno-36-9" href="#__codelineno-36-9"></a><span class="w">      </span><span class="nt">logicalType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span>
+</span><span id="__span-36-10"><a id="__codelineno-36-10" name="__codelineno-36-10" href="#__codelineno-36-10"></a><span class="w">      </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span><span id="__span-36-11"><a id="__codelineno-36-11" name="__codelineno-36-11" href="#__codelineno-36-11"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">zip_code</span>
+</span><span id="__span-36-12"><a id="__codelineno-36-12" name="__codelineno-36-12" href="#__codelineno-36-12"></a><span class="w">      </span><span class="nt">logicalType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span>
+</span><span id="__span-36-13"><a id="__codelineno-36-13" name="__codelineno-36-13" href="#__codelineno-36-13"></a><span class="w">      </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">false</span>
+</span><span id="__span-36-14"><a id="__codelineno-36-14" name="__codelineno-36-14" href="#__codelineno-36-14"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">country_code</span>
+</span><span id="__span-36-15"><a id="__codelineno-36-15" name="__codelineno-36-15" href="#__codelineno-36-15"></a><span class="w">      </span><span class="nt">logicalType</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span>
+</span><span id="__span-36-16"><a id="__codelineno-36-16" name="__codelineno-36-16" href="#__codelineno-36-16"></a><span class="w">      </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span></code></pre></div>
+<h3 id="76-schemavalidationerror-format">7.6 <code>SchemaValidationError</code> Format<a class="headerlink" href="#76-schemavalidationerror-format" title="Anchor link to this section for reference">&para;</a></h3>
+<p>DQX raises <code>SchemaValidationError</code> for two conditions, with messages in the following format:</p>
+<p><strong>Type mismatch:</strong></p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-37-1"><a id="__codelineno-37-1" name="__codelineno-37-1" href="#__codelineno-37-1"></a>SchemaValidationError: Property &#39;order_id&#39; type mismatch:
+</span><span id="__span-37-2"><a id="__codelineno-37-2" name="__codelineno-37-2" href="#__codelineno-37-2"></a>  expected logicalType &#39;integer&#39; (int8–int64, uint8–uint64), got pa.string()
+</span></code></pre></div>
+<p><strong>Required column contains nulls:</strong></p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-38-1"><a id="__codelineno-38-1" name="__codelineno-38-1" href="#__codelineno-38-1"></a>SchemaValidationError: Property &#39;email&#39; is required (required: true)
+</span><span id="__span-38-2"><a id="__codelineno-38-2" name="__codelineno-38-2" href="#__codelineno-38-2"></a>  but contains null values
+</span></code></pre></div>
+<p>Both messages include the property name, the declared <code>logicalType</code> with its accepted PyArrow types, and the actual PyArrow type observed. This allows engineers to locate the source of the mismatch without manual schema inspection.</p>
+<hr />
+<h2 id="sla">SLA<a class="headerlink" href="#sla" title="Anchor link to this section for reference">&para;</a></h2>
+<h3 id="81-overview">8.1 Overview<a class="headerlink" href="#81-overview" title="Anchor link to this section for reference">&para;</a></h3>
+<p><code>slaProperties</code> is a list of key/value SLA definitions in ODCS format. DQX processes only entries with <code>property: latency</code> (synonym: <code>ly</code>). All other properties — <code>retention</code>, <code>availability</code>, <code>generalAvailability</code>, <code>endOfSupport</code>, <code>endOfLife</code>, <code>frequency</code>, <code>timeOfAvailability</code>, <code>errorRate</code> — are parsed and stored in <code>Contract.sla_metadata</code> as a dictionary, but generate no assertions. They are available to downstream tooling through <code>Contract.sla_metadata</code> without affecting check execution.</p>
+<h3 id="82-latency-resolution">8.2 Latency Resolution<a class="headerlink" href="#82-latency-resolution" title="Anchor link to this section for reference">&para;</a></h3>
+<p>When DQX encounters a <code>property: latency</code> entry in <code>slaProperties</code>, it resolves two values: <code>max_age_hours</code> (computed from <code>value</code> and <code>unit</code>) and <code>timestamp_column</code> (resolved from the schema). The resolution algorithm proceeds as follows:</p>
+<ol>
+<li>
+<p><strong>Compute <code>max_age_hours</code>:</strong> Multiply <code>value</code> by the unit conversion factor from the table in section 8.3. For example, <code>value: 24, unit: h</code> → <code>max_age_hours = 24.0</code>.</p>
+</li>
+<li>
+<p><strong>Resolve <code>timestamp_column</code> from <code>element:</code>:</strong> If the latency entry carries an <code>element:</code> field in <code>"table.column"</code> notation (e.g., <code>element: "orders_tbl.order_date"</code>), the timestamp column is the part after the last <code>.</code> — <code>order_date</code> in this example.</p>
+</li>
+<li>
+<p><strong>Resolve <code>timestamp_column</code> from schema partitioning:</strong> If <code>element</code> is absent, DQX searches the schema <code>properties[]</code> for the first property that has both <code>partitioned: true</code> and <code>partitionKeyPosition: 1</code>. The name of that property becomes the timestamp column.</p>
+</li>
+<li>
+<p><strong>Emit <code>ContractWarning</code> and skip:</strong> If neither <code>element</code> nor a matching partitioned property is found, DQX emits a <code>ContractWarning</code> and does not generate a freshness check for this latency entry. Processing of other rules continues normally.</p>
+</li>
+</ol>
+<h3 id="83-unit-conversion-table">8.3 Unit Conversion Table<a class="headerlink" href="#83-unit-conversion-table" title="Anchor link to this section for reference">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th><code>unit</code> values</th>
+<th>Conversion to hours</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>h</code>, <code>hr</code>, <code>hour</code>, <code>hours</code></td>
+<td>× 1</td>
+<td><code>value: 24, unit: h</code> → 24.0 hours</td>
+</tr>
+<tr>
+<td><code>d</code>, <code>day</code>, <code>days</code></td>
+<td>× 24</td>
+<td><code>value: 2, unit: d</code> → 48.0 hours</td>
+</tr>
+<tr>
+<td><code>y</code>, <code>yr</code>, <code>year</code>, <code>years</code></td>
+<td>× 8760</td>
+<td><code>value: 1, unit: y</code> → 8760.0 hours</td>
+</tr>
+</tbody>
+</table>
+<h3 id="84-auto-generated-freshness-check">8.4 Auto-Generated Freshness Check<a class="headerlink" href="#84-auto-generated-freshness-check" title="Anchor link to this section for reference">&para;</a></h3>
+<p>DQX resolves <code>SlaLatency.max_age_hours</code> and <code>SlaLatency.timestamp_column</code> at parse time and stores them on the <code>Contract</code> instance. When <code>to_checks()</code> is called, it constructs the freshness check from these resolved values.</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-39-1"><a id="__codelineno-39-1" name="__codelineno-39-1" href="#__codelineno-39-1"></a><span class="c1"># For: property: latency, value: 24, unit: h, element: orders_tbl.order_date</span>
+</span><span id="__span-39-2"><a id="__codelineno-39-2" name="__codelineno-39-2" href="#__codelineno-39-2"></a><span class="c1"># DQX internally generates:</span>
+</span><span id="__span-39-3"><a id="__codelineno-39-3" name="__codelineno-39-3" href="#__codelineno-39-3"></a><span class="c1">#   check name: &quot;SLA: Freshness check&quot;</span>
+</span><span id="__span-39-4"><a id="__codelineno-39-4" name="__codelineno-39-4" href="#__codelineno-39-4"></a><span class="c1">#   max_age_hours: 24.0</span>
+</span><span id="__span-39-5"><a id="__codelineno-39-5" name="__codelineno-39-5" href="#__codelineno-39-5"></a><span class="c1">#   timestamp_column: order_date</span>
+</span><span id="__span-39-6"><a id="__codelineno-39-6" name="__codelineno-39-6" href="#__codelineno-39-6"></a><span class="c1">#   severity: P0</span>
+</span></code></pre></div>
+<p>The generated check name is always <code>"SLA: Freshness check"</code>. The severity is always <code>"P0"</code> — latency SLA violations are treated as critical failures.</p>
+<h3 id="85-current-status">8.5 Current Status<a class="headerlink" href="#85-current-status" title="Anchor link to this section for reference">&para;</a></h3>
+<p><code>to_checks()</code> raises <code>NotImplementedError</code> for the SLA-generated freshness check. The contract fully parses and validates <code>slaProperties</code> — <code>SlaLatency.max_age_hours</code> and <code>SlaLatency.timestamp_column</code> are resolved correctly and are accessible on the <code>Contract</code> instance. Execution is deferred pending <code>MetricProvider.freshness()</code> implementation.</p>
+<p>Teams that need freshness validation today should add a manual <code>freshness</code> check in the <code>quality:</code> section using <code>type: custom, engine: dqx</code> or by composing a hand-coded <code>DecoratedCheck</code> alongside <code>contract.to_checks()</code>.</p>
+<h3 id="86-other-sla-properties">8.6 Other SLA Properties<a class="headerlink" href="#86-other-sla-properties" title="Anchor link to this section for reference">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>ODCS <code>property</code></th>
+<th>DQX treatment</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>latency</code> (synonym: <code>ly</code>)</td>
+<td>Parsed → freshness check (raises <code>NotImplementedError</code> in <code>to_checks()</code>)</td>
+</tr>
+<tr>
+<td><code>retention</code></td>
+<td>Stored in <code>Contract.sla_metadata</code></td>
+</tr>
+<tr>
+<td><code>availability</code></td>
+<td>Stored in <code>Contract.sla_metadata</code></td>
+</tr>
+<tr>
+<td><code>generalAvailability</code></td>
+<td>Stored in <code>Contract.sla_metadata</code></td>
+</tr>
+<tr>
+<td><code>endOfSupport</code></td>
+<td>Stored in <code>Contract.sla_metadata</code></td>
+</tr>
+<tr>
+<td><code>endOfLife</code></td>
+<td>Stored in <code>Contract.sla_metadata</code></td>
+</tr>
+<tr>
+<td><code>frequency</code></td>
+<td>Stored in <code>Contract.sla_metadata</code></td>
+</tr>
+<tr>
+<td><code>timeOfAvailability</code></td>
+<td>Stored in <code>Contract.sla_metadata</code></td>
+</tr>
+<tr>
+<td><code>errorRate</code></td>
+<td>Stored in <code>Contract.sla_metadata</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="87-complete-sla-example">8.7 Complete SLA Example<a class="headerlink" href="#87-complete-sla-example" title="Anchor link to this section for reference">&para;</a></h3>
+<p>The block below shows a <code>slaProperties</code> section with a <code>latency</code> entry and three additional properties, with inline comments showing DQX treatment of each entry.</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-40-1"><a id="__codelineno-40-1" name="__codelineno-40-1" href="#__codelineno-40-1"></a><span class="nt">slaProperties</span><span class="p">:</span>
+</span><span id="__span-40-2"><a id="__codelineno-40-2" name="__codelineno-40-2" href="#__codelineno-40-2"></a><span class="w">  </span><span class="c1"># Parsed and executed (raises NotImplementedError until MetricProvider.freshness() lands):</span>
+</span><span id="__span-40-3"><a id="__codelineno-40-3" name="__codelineno-40-3" href="#__codelineno-40-3"></a><span class="w">  </span><span class="c1"># → max_age_hours = 24.0 (24 × 1 hour)</span>
+</span><span id="__span-40-4"><a id="__codelineno-40-4" name="__codelineno-40-4" href="#__codelineno-40-4"></a><span class="w">  </span><span class="c1"># → timestamp_column = order_date (resolved from element: &quot;orders_tbl.order_date&quot;)</span>
+</span><span id="__span-40-5"><a id="__codelineno-40-5" name="__codelineno-40-5" href="#__codelineno-40-5"></a><span class="w">  </span><span class="c1"># → generates: &quot;SLA: Freshness check&quot;, severity P0</span>
+</span><span id="__span-40-6"><a id="__codelineno-40-6" name="__codelineno-40-6" href="#__codelineno-40-6"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">property</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">latency</span>
+</span><span id="__span-40-7"><a id="__codelineno-40-7" name="__codelineno-40-7" href="#__codelineno-40-7"></a><span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">24</span>
+</span><span id="__span-40-8"><a id="__codelineno-40-8" name="__codelineno-40-8" href="#__codelineno-40-8"></a><span class="w">    </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">h</span>
+</span><span id="__span-40-9"><a id="__codelineno-40-9" name="__codelineno-40-9" href="#__codelineno-40-9"></a><span class="w">    </span><span class="nt">element</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">orders_tbl.order_date</span>
+</span><span id="__span-40-10"><a id="__codelineno-40-10" name="__codelineno-40-10" href="#__codelineno-40-10"></a>
+</span><span id="__span-40-11"><a id="__codelineno-40-11" name="__codelineno-40-11" href="#__codelineno-40-11"></a><span class="w">  </span><span class="c1"># Stored in Contract.sla_metadata[&quot;retention&quot;] = {&quot;value&quot;: 3, &quot;unit&quot;: &quot;y&quot;}; not executed</span>
+</span><span id="__span-40-12"><a id="__codelineno-40-12" name="__codelineno-40-12" href="#__codelineno-40-12"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">property</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">retention</span>
+</span><span id="__span-40-13"><a id="__codelineno-40-13" name="__codelineno-40-13" href="#__codelineno-40-13"></a><span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+</span><span id="__span-40-14"><a id="__codelineno-40-14" name="__codelineno-40-14" href="#__codelineno-40-14"></a><span class="w">    </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">y</span>
+</span><span id="__span-40-15"><a id="__codelineno-40-15" name="__codelineno-40-15" href="#__codelineno-40-15"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Order</span><span class="nv"> </span><span class="s">data</span><span class="nv"> </span><span class="s">retained</span><span class="nv"> </span><span class="s">for</span><span class="nv"> </span><span class="s">3</span><span class="nv"> </span><span class="s">years</span><span class="nv"> </span><span class="s">per</span><span class="nv"> </span><span class="s">regulatory</span><span class="nv"> </span><span class="s">requirement&quot;</span>
+</span><span id="__span-40-16"><a id="__codelineno-40-16" name="__codelineno-40-16" href="#__codelineno-40-16"></a>
+</span><span id="__span-40-17"><a id="__codelineno-40-17" name="__codelineno-40-17" href="#__codelineno-40-17"></a><span class="w">  </span><span class="c1"># Stored in Contract.sla_metadata[&quot;availability&quot;] = {&quot;value&quot;: 99.9, &quot;unit&quot;: &quot;percent&quot;}; not executed</span>
+</span><span id="__span-40-18"><a id="__codelineno-40-18" name="__codelineno-40-18" href="#__codelineno-40-18"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">property</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">availability</span>
+</span><span id="__span-40-19"><a id="__codelineno-40-19" name="__codelineno-40-19" href="#__codelineno-40-19"></a><span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">99.9</span>
+</span><span id="__span-40-20"><a id="__codelineno-40-20" name="__codelineno-40-20" href="#__codelineno-40-20"></a><span class="w">    </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">percent</span>
+</span><span id="__span-40-21"><a id="__codelineno-40-21" name="__codelineno-40-21" href="#__codelineno-40-21"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Pipeline</span><span class="nv"> </span><span class="s">must</span><span class="nv"> </span><span class="s">be</span><span class="nv"> </span><span class="s">available</span><span class="nv"> </span><span class="s">99.9%</span><span class="nv"> </span><span class="s">of</span><span class="nv"> </span><span class="s">the</span><span class="nv"> </span><span class="s">time&quot;</span>
+</span><span id="__span-40-22"><a id="__codelineno-40-22" name="__codelineno-40-22" href="#__codelineno-40-22"></a>
+</span><span id="__span-40-23"><a id="__codelineno-40-23" name="__codelineno-40-23" href="#__codelineno-40-23"></a><span class="w">  </span><span class="c1"># Stored in Contract.sla_metadata[&quot;frequency&quot;] = {&quot;value&quot;: 1, &quot;unit&quot;: &quot;d&quot;}; not executed</span>
+</span><span id="__span-40-24"><a id="__codelineno-40-24" name="__codelineno-40-24" href="#__codelineno-40-24"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">property</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">frequency</span>
+</span><span id="__span-40-25"><a id="__codelineno-40-25" name="__codelineno-40-25" href="#__codelineno-40-25"></a><span class="w">    </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+</span><span id="__span-40-26"><a id="__codelineno-40-26" name="__codelineno-40-26" href="#__codelineno-40-26"></a><span class="w">    </span><span class="nt">unit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">d</span>
+</span><span id="__span-40-27"><a id="__codelineno-40-27" name="__codelineno-40-27" href="#__codelineno-40-27"></a><span class="w">    </span><span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">&quot;Data</span><span class="nv"> </span><span class="s">refreshed</span><span class="nv"> </span><span class="s">once</span><span class="nv"> </span><span class="s">per</span><span class="nv"> </span><span class="s">day&quot;</span>
+</span></code></pre></div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../.." class="md-footer__link md-footer__link--prev" aria-label="Previous: Home">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Previous
+              </span>
+              <div class="md-ellipsis">
+                Home
+              </div>
+            </div>
+          </a>
+        
+        
+          
+          <a href="../misc/profiles/" class="md-footer__link md-footer__link--next" aria-label="Next: Overview">
+            <div class="md-footer__title">
+              <span class="md-footer__direction">
+                Next
+              </span>
+              <div class="md-ellipsis">
+                Overview
+              </div>
+            </div>
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            </div>
+          </a>
+        
+      </nav>
+    
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Copyright &copy; 2024 Nam Pham
+    </div>
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/nampham2/dqx" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://pypi.org/project/dqx/" target="_blank" rel="noopener" title="pypi.org" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M439.8 200.5c-7.7-30.9-22.3-54.2-53.4-54.2h-40.1v47.4c0 36.8-31.2 67.8-66.8 67.8H172.7c-29.2 0-53.4 25-53.4 54.3v101.8c0 29 25.2 46 53.4 54.3 33.8 9.9 66.3 11.7 106.8 0 26.9-7.8 53.4-23.5 53.4-54.3v-40.7H226.2v-13.6h160.2c31.1 0 42.6-21.7 53.4-54.2 11.2-33.5 10.7-65.7 0-108.6M286.2 444.7a20.4 20.4 0 1 1 0-40.7 20.4 20.4 0 1 1 0 40.7M167.8 248.1h106.8c29.7 0 53.4-24.5 53.4-54.3V91.9c0-29-24.4-50.7-53.4-55.6-35.8-5.9-74.7-5.6-106.8.1-45.2 8-53.4 24.7-53.4 55.6v40.7h106.9v13.6h-147c-31.1 0-58.3 18.7-66.8 54.2-9.8 40.7-10.2 66.1 0 108.6 7.6 31.6 25.7 54.2 56.8 54.2H101v-48.8c0-35.3 30.5-66.4 66.8-66.4m-6.6-183.4a20.4 20.4 0 1 1 0 40.8 20.4 20.4 0 1 1 0-40.8"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://dqx.readthedocs.io" target="_blank" rel="noopener" title="dqx.readthedocs.io" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M384 512H96c-53 0-96-43-96-96V96C0 43 43 0 96 0h304c26.5 0 48 21.5 48 48v288c0 20.9-13.4 38.7-32 45.3V448c17.7 0 32 14.3 32 32s-14.3 32-32 32zM96 384c-17.7 0-32 14.3-32 32s14.3 32 32 32h256v-64zm32-232c0 13.3 10.7 24 24 24h176c13.3 0 24-10.7 24-24s-10.7-24-24-24H152c-13.3 0-24 10.7-24 24m24 72c-13.3 0-24 10.7-24 24s10.7 24 24 24h176c13.3 0 24-10.7 24-24s-10.7-24-24-24z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+      <div class="md-consent" data-md-component="consent" id="__consent" hidden>
+        <div class="md-consent__overlay"></div>
+        <aside class="md-consent__inner">
+          <form class="md-consent__form md-grid md-typeset" name="consent">
+            
+
+
+  
+
+
+<h4>Cookie consent</h4>
+<p>We use cookies to recognize your repeated visits and preferences, as well as to measure the effectiveness of our documentation and whether users find what they're searching for. With your consent, you're helping us to make our documentation better.</p>
+<input class="md-toggle" type="checkbox" id="__settings" >
+<div class="md-consent__settings">
+  <ul class="task-list">
+    
+    
+      
+    
+    
+      
+        
+  
+  
+    
+    
+  
+  <li class="task-list-item">
+    <label class="task-list-control">
+      <input type="checkbox" name="github" checked>
+      <span class="task-list-indicator"></span>
+      GitHub
+    </label>
+  </li>
+
+      
+    
+    
+  </ul>
+</div>
+<div class="md-consent__controls">
+  
+    
+      <button class="md-button md-button--primary">Accept</button>
+    
+    
+    
+  
+    
+    
+    
+      <label class="md-button" for="__settings">Manage settings</label>
+    
+  
+</div>
+          </form>
+        </aside>
+      </div>
+      <script>var consent=__md_get("__consent");if(consent)for(var input of document.forms.consent.elements)input.name&&(input.checked=consent[input.name]||!1);else"file:"!==location.protocol&&setTimeout((function(){document.querySelector("[data-md-component=consent]").hidden=!1}),250);var form=document.forms.consent;for(var action of["submit","reset"])form.addEventListener(action,(function(e){if(e.preventDefault(),"reset"===e.type)for(var n of document.forms.consent.elements)n.name&&(n.checked=!1);__md_set("__consent",Object.fromEntries(Array.from(new FormData(form).keys()).map((function(e){return[e,!0]})))),location.hash="",location.reload()}))</script>
+    
+    
+      
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["navigation.instant","navigation.instant.prefetch","navigation.tracking","navigation.tabs","navigation.tabs.sticky","navigation.expand","navigation.path","navigation.prune","navigation.indexes","navigation.top","navigation.footer","toc.follow","toc.integrate","search.suggest","search.highlight","search.share","content.code.copy","content.code.annotate","content.code.select","content.tabs.link","content.tooltips","content.footnote.tooltips","content.action.edit","content.action.view","announce.dismiss"],"search":"../../assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.16f8adc2.min.js"></script>
+      
+        <script src="../../javascripts/mathjax.js"></script>
+      
+        <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+      
+    
+  </body>
+</html>
