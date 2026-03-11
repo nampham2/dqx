@@ -664,11 +664,16 @@
 </table>
 <hr />
 <h2 id="overview">Overview<a class="headerlink" href="#overview" title="Anchor link to this section for reference">&para;</a></h2>
+<blockquote>
+<p><strong>⚠️ Proposed Design — Not Yet Implemented</strong></p>
+<p>This document describes the planned public API for ODCS contract support in DQX. The <code>dqx.contract</code> module and the <code>Contract</code> class do <strong>not</strong> yet exist as a public API. The current prototype lives in <code>src/dqx/contract_old.py</code> and is not exported from <code>src/dqx/__init__.py</code>. Code examples in this document use the <strong>intended future API</strong> and will raise <code>ImportError</code> if run against the current codebase. This specification serves as the design target for the upcoming implementation.</p>
+</blockquote>
 <p>A DQX contract is an <a href="https://github.com/bitol-io/open-data-contract-standard">ODCS</a> (Open Data Contract Standard) YAML document that DQX parses and translates into executable <code>DecoratedCheck</code> functions. Each contract is an ODCS-compliant file validated against the ODCS JSON Schema v3.1.0 before any DQX processing occurs. Structural errors — missing required fields, wrong types, invalid enums — are caught at parse time and reported as <code>ContractValidationError</code> before any check executes.</p>
 <p>DQX adopts ODCS as its contract format for three reasons. First, ODCS is an open standard maintained by a vendor-neutral working group, which means contracts written for DQX are interoperable with other ODCS-aware tools and platforms without conversion. Second, the ODCS JSON Schema provides machine-readable validation — DQX vendors the schema (<code>odcs-json-schema-v3.1.0.json</code>) in <code>src/dqx/_schemas/</code> and validates every incoming contract before processing. Third, ODCS avoids DQX from designing and maintaining a proprietary contract format, reducing the surface area users must learn.</p>
 <p>DQX participates in ODCS as a <code>type: custom, engine: dqx</code> quality rule engine. Standard ODCS library metrics (<code>nullValues</code>, <code>missingValues</code>, <code>invalidValues</code>, <code>duplicateValues</code>, <code>rowCount</code>) are also supported and mapped directly to <code>MetricProvider</code> calls. Quality rules targeting other engines — <code>type: sql</code>, <code>type: custom</code> with an engine other than <code>dqx</code> — emit a <code>ContractWarning</code> and are skipped.</p>
-<p><code>Contract</code> is imported from <code>dqx.contract</code>:</p>
-<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dqx.contract</span><span class="w"> </span><span class="kn">import</span> <span class="n">Contract</span>
+<p>Once the public module is implemented, <code>Contract</code> will be imported from <code>dqx.contract</code>:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Proposed API — not yet available; Contract is not currently exported from dqx</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dqx.contract</span><span class="w"> </span><span class="kn">import</span> <span class="n">Contract</span>
 </span></code></pre></div>
 <p>One <code>Contract</code> instance is created per <code>schema[]</code> object in the ODCS document. A single ODCS file with two schema objects produces <code>Contract.from_odcs(path)</code> returning a <code>list[Contract]</code> of length two. Each <code>Contract</code> exposes a <code>to_checks()</code> method returning a <code>list[DecoratedCheck]</code> that can be composed freely with hand-coded checks inside a <code>VerificationSuite</code>.</p>
 <hr />
@@ -832,11 +837,15 @@
 </span></code></pre></div>
 <hr />
 <h2 id="usage">Usage<a class="headerlink" href="#usage" title="Anchor link to this section for reference">&para;</a></h2>
+<blockquote>
+<p><strong>⚠️ Proposed API — Not Yet Implemented</strong></p>
+<p>The examples below use <code>from dqx.contract import Contract</code>, which is the <strong>intended future API</strong>. This module does not currently exist. Running these examples against the current codebase will raise <code>ImportError</code>. They are provided as the design target for the upcoming implementation.</p>
+</blockquote>
 <h3 id="single-table-contract">Single-Table Contract<a class="headerlink" href="#single-table-contract" title="Anchor link to this section for reference">&para;</a></h3>
 <p>The most common case: an ODCS file with one schema object, producing one <code>Contract</code>.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 </span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a>
-</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dqx.contract</span><span class="w"> </span><span class="kn">import</span> <span class="n">Contract</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dqx.contract</span><span class="w"> </span><span class="kn">import</span> <span class="n">Contract</span>  <span class="c1"># Proposed API — not yet available</span>
 </span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dqx.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">VerificationSuite</span>
 </span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a>
 </span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="c1"># Parse the ODCS file — validated against JSON Schema, returns list[Contract]</span>
@@ -857,7 +866,7 @@
 <p>An ODCS file with multiple schema objects — one <code>Contract</code> per schema, one suite per contract.</p>
 <div class="language-python highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
 </span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a>
-</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dqx.contract</span><span class="w"> </span><span class="kn">import</span> <span class="n">Contract</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dqx.contract</span><span class="w"> </span><span class="kn">import</span> <span class="n">Contract</span>  <span class="c1"># Proposed API — not yet available</span>
 </span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="kn">from</span><span class="w"> </span><span class="nn">dqx.api</span><span class="w"> </span><span class="kn">import</span> <span class="n">VerificationSuite</span>
 </span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a>
 </span><span id="__span-11-6"><a id="__codelineno-11-6" name="__codelineno-11-6" href="#__codelineno-11-6"></a><span class="n">contracts</span> <span class="o">=</span> <span class="n">Contract</span><span class="o">.</span><span class="n">from_odcs</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="s2">&quot;commerce.odcs.yaml&quot;</span><span class="p">))</span>
@@ -1714,7 +1723,7 @@
 <p>The generated check name is always <code>"SLA: Freshness check"</code>. The severity is always <code>"P0"</code> — latency SLA violations are treated as critical failures.</p>
 <h3 id="85-current-status">8.5 Current Status<a class="headerlink" href="#85-current-status" title="Anchor link to this section for reference">&para;</a></h3>
 <p><code>to_checks()</code> raises <code>NotImplementedError</code> for the SLA-generated freshness check. The contract fully parses and validates <code>slaProperties</code> — <code>SlaLatency.max_age_hours</code> and <code>SlaLatency.timestamp_column</code> are resolved correctly and are accessible on the <code>Contract</code> instance. Execution is deferred pending <code>MetricProvider.freshness()</code> implementation.</p>
-<p>Teams that need freshness validation today should add a manual <code>freshness</code> check in the <code>quality:</code> section using <code>type: custom, engine: dqx</code> or by composing a hand-coded <code>DecoratedCheck</code> alongside <code>contract.to_checks()</code>.</p>
+<p>Teams that need freshness validation today should compose a hand-coded <code>DecoratedCheck</code> alongside <code>contract.to_checks()</code>.</p>
 <h3 id="86-other-sla-properties">8.6 Other SLA Properties<a class="headerlink" href="#86-other-sla-properties" title="Anchor link to this section for reference">&para;</a></h3>
 <table>
 <thead>
