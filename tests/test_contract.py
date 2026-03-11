@@ -1249,9 +1249,20 @@ class TestRequireColumn:
     def test_returns_column_when_present(self) -> None:
         assert _require_column("my_col", "rule", "missing") == "my_col"
 
+    def test_strips_surrounding_whitespace(self) -> None:
+        assert _require_column("  my_col  ", "rule", "missing") == "my_col"
+
     def test_raises_when_column_is_none(self) -> None:
         with pytest.raises(ContractValidationError, match="column"):
             _require_column(None, "my_rule", "missing")
+
+    def test_raises_when_column_is_empty_string(self) -> None:
+        with pytest.raises(ContractValidationError, match="non-empty"):
+            _require_column("", "my_rule", "missing")
+
+    def test_raises_when_column_is_whitespace_only(self) -> None:
+        with pytest.raises(ContractValidationError, match="non-empty"):
+            _require_column("   ", "my_rule", "missing")
 
     def test_error_message_includes_rule_name(self) -> None:
         with pytest.raises(ContractValidationError, match="my_rule"):

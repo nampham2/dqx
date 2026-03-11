@@ -210,7 +210,7 @@ def _apply_odcs_operators(ready: AssertionReady, rule: dict[str, Any]) -> None:
 
 
 def _require_column(column: str | None, rule_name: str, check_type: str) -> str:
-    """Return *column* or raise :class:`ContractValidationError` when it is ``None``.
+    """Return *column* or raise :class:`ContractValidationError` when absent or blank.
 
     Args:
         column: Column name from the rule, or ``None`` when absent.
@@ -218,16 +218,17 @@ def _require_column(column: str | None, rule_name: str, check_type: str) -> str:
         check_type: Check type string (used in the error message).
 
     Returns:
-        The validated column name.
+        The validated, stripped column name.
 
     Raises:
-        ContractValidationError: If *column* is ``None``.
+        ContractValidationError: If *column* is ``None``, not a string, or blank/whitespace-only.
     """
-    if column is None:
+    normalized = column.strip() if isinstance(column, str) else ""
+    if not normalized:
         raise ContractValidationError(
-            f"Quality rule '{rule_name}': check '{check_type}' requires a 'column' field but none was provided"
+            f"Quality rule '{rule_name}': check '{check_type}' requires a non-empty 'column' field"
         )
-    return column
+    return normalized
 
 
 # ---------------------------------------------------------------------------
