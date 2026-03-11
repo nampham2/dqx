@@ -1339,7 +1339,7 @@
 </span></code></pre></div>
 <div class="language-text highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a>ContractWarning: Quality rule &#39;iban_format_check&#39;: metric &#39;invalidValues&#39; with pattern argument is not executable in DQX; skipping
 </span></code></pre></div>
-<p><strong>Use instead:</strong> <code>type: custom, engine: dqx</code> with <code>check: pattern</code> — note that <code>check: pattern</code> raises <code>NotImplementedError</code> and is itself deferred pending a <code>MetricProvider.pattern_match()</code> implementation.</p>
+<p>Pattern-based validation (<code>check: pattern</code>) is a planned future capability pending implementation of <code>MetricProvider.pattern_match()</code>. It is not currently available in DQX — there is no working workaround for <code>metric: invalidValues</code> with <code>arguments.pattern</code> at this time.</p>
 <h4 id="metric-missingvalues-with-argumentsmissingvalues-sentinel-list"><code>metric: missingValues</code> with <code>arguments.missingValues</code> sentinel list<a class="headerlink" href="#metric-missingvalues-with-argumentsmissingvalues-sentinel-list" title="Anchor link to this section for reference">&para;</a></h4>
 <p>Custom sentinel-based missing value detection (treating specific non-null values as missing) is not supported in <code>MetricProvider.null_count()</code>.</p>
 <div class="language-yaml highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="c1"># Triggers ContractWarning — skipped</span>
