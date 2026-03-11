@@ -958,7 +958,7 @@ class TestFullOdcsExample:
         assert tbl.sla_latency is not None
 
     def test_sla_latency_max_age_hours(self, tbl: Contract) -> None:
-        """value=4, unit=d → 4 × 24 = 96 hours."""
+        """value=4, unit=d → 4 * 24 = 96 hours."""
         assert tbl.sla_latency is not None
         assert tbl.sla_latency.max_age_hours == 96.0
 
