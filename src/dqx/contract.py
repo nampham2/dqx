@@ -14,10 +14,6 @@ Usage::
 The module validates incoming YAML documents against the vendored ODCS JSON
 Schema (v3.1.0) before any DQX-specific processing.  Structural errors surface
 as :class:`ContractValidationError` before a single quality rule is read.
-
-Note:
-    ``to_checks()`` is **not yet implemented** and will be added in a later
-    phase once quality-rule parsing and ``MetricProvider`` mapping are in place.
 """
 
 from __future__ import annotations
@@ -28,11 +24,16 @@ import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
 import yaml
 from jsonschema import Draft201909Validator
 from jsonschema import ValidationError as _JsonSchemaValidationError
+
+from dqx.common import SeverityLevel
+
+if TYPE_CHECKING:
+    from dqx.api import AssertionReady
 
 
 # ---------------------------------------------------------------------------
@@ -125,6 +126,70 @@ def _unit_to_hours(value: float, unit: str) -> float:
     if unit in _YEARS_UNITS:
         return float(value) * 8760.0
     raise ContractValidationError(f"SLA latency: unrecognised unit '{unit}'")
+
+
+# ---------------------------------------------------------------------------
+# Severity and operator translation helpers
+# ---------------------------------------------------------------------------
+
+
+def _severity_from_odcs(severity: str | None) -> SeverityLevel:
+    """Map an ODCS severity string to a DQX SeverityLevel.
+
+    Args:
+        severity: ODCS ``severity`` field value, or ``None`` when absent.
+
+    Returns:
+        ``"P0"`` for ``"error"``; ``"P1"`` for everything else (including
+        ``None`` and unrecognised strings).
+    """
+    if severity == "error":
+        return "P0"
+    return "P1"
+
+
+def _apply_odcs_operators(ready: AssertionReady, rule: dict[str, Any]) -> None:
+    """Apply exactly one ODCS operator from *rule* to an :class:`AssertionReady`.
+
+    Reads the first recognised ODCS operator field (``mustBe``,
+    ``mustNotBe``, ``mustBeGreaterThan``, ``mustBeGreaterOrEqualTo``,
+    ``mustBeLessThan``, ``mustBeLessOrEqualTo``, ``mustBeBetween``,
+    ``mustNotBeBetween``) and calls the corresponding
+    :class:`~dqx.api.AssertionReady` method.  When no operator is present
+    the assertion is recorded as a no-op (metric observed, never fails).
+
+    Args:
+        ready: A configured :class:`~dqx.api.AssertionReady` instance.
+        rule: Raw ODCS quality rule dict.
+
+    Raises:
+        ContractValidationError: If ``mustBeBetween`` or ``mustNotBeBetween``
+            is not a two-element list.
+    """
+    if "mustBe" in rule:
+        ready.is_eq(float(rule["mustBe"]))
+    elif "mustNotBe" in rule:
+        ready.is_neq(float(rule["mustNotBe"]))
+    elif "mustBeGreaterThan" in rule:
+        ready.is_gt(float(rule["mustBeGreaterThan"]))
+    elif "mustBeGreaterOrEqualTo" in rule:
+        ready.is_geq(float(rule["mustBeGreaterOrEqualTo"]))
+    elif "mustBeLessThan" in rule:
+        ready.is_lt(float(rule["mustBeLessThan"]))
+    elif "mustBeLessOrEqualTo" in rule:
+        ready.is_leq(float(rule["mustBeLessOrEqualTo"]))
+    elif "mustBeBetween" in rule:
+        bounds = rule["mustBeBetween"]
+        if not isinstance(bounds, list) or len(bounds) != 2:
+            raise ContractValidationError(f"mustBeBetween must be a list of [lower, upper], got: {bounds!r}")
+        ready.is_between(float(bounds[0]), float(bounds[1]))
+    elif "mustNotBeBetween" in rule:
+        bounds = rule["mustNotBeBetween"]
+        if not isinstance(bounds, list) or len(bounds) != 2:
+            raise ContractValidationError(f"mustNotBeBetween must be a list of [lower, upper], got: {bounds!r}")
+        ready.is_not_between(float(bounds[0]), float(bounds[1]))
+    else:
+        ready.noop()
 
 
 # ---------------------------------------------------------------------------

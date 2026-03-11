@@ -9,17 +9,22 @@ This module covers:
 - SLA metadata storage for non-latency properties
 - Error conditions (missing file, invalid YAML)
 - Immutability of all dataclasses
+- Severity and operator translation helpers
 """
 
 from __future__ import annotations
 
+import datetime
 import textwrap
 import warnings
 from pathlib import Path
 
+import pyarrow as pa
 import pytest
 import yaml
 
+from dqx.api import VerificationSuite
+from dqx.common import AssertionResult, ResultKey
 from dqx.contract import (
     Contract,
     ContractProperty,
@@ -27,7 +32,11 @@ from dqx.contract import (
     ContractValidationError,
     ContractWarning,
     SlaLatency,
+    _apply_odcs_operators,
+    _severity_from_odcs,
 )
+from dqx.datasource import DuckRelationDataSource
+from dqx.orm.repositories import InMemoryMetricDB
 
 
 # ---------------------------------------------------------------------------
@@ -1008,3 +1017,186 @@ class TestFullOdcsExample:
 
     def test_receivers_sla_metadata_same_as_tbl(self, tbl: Contract, receivers: Contract) -> None:
         assert receivers.sla_metadata == tbl.sla_metadata
+
+
+# ---------------------------------------------------------------------------
+# Helpers shared by translation-helper tests
+# ---------------------------------------------------------------------------
+
+
+def _run_check_fn(check_fn: object, data: pa.Table, dataset: str = "t") -> list[AssertionResult]:
+    """Run a bare check function (not decorated) inside a minimal suite."""
+    from dqx.api import check as dqx_check
+
+    decorated = dqx_check(name="test-check", datasets=[dataset])(check_fn)  # type: ignore[arg-type]
+    datasource = DuckRelationDataSource.from_arrow(data, dataset)
+    db = InMemoryMetricDB()
+    suite = VerificationSuite(checks=[decorated], db=db, name="test-suite")
+    key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
+    suite.run([datasource], key)
+    return suite.collect_results()
+
+
+# ---------------------------------------------------------------------------
+# _severity_from_odcs
+# ---------------------------------------------------------------------------
+
+
+class TestSeverityFromOdcs:
+    """Unit tests for _severity_from_odcs()."""
+
+    def test_error_maps_to_p0(self) -> None:
+        assert _severity_from_odcs("error") == "P0"
+
+    def test_warning_maps_to_p1(self) -> None:
+        assert _severity_from_odcs("warning") == "P1"
+
+    def test_none_maps_to_p1(self) -> None:
+        assert _severity_from_odcs(None) == "P1"
+
+    def test_unknown_string_maps_to_p1(self) -> None:
+        """Any unrecognised severity string defaults to P1."""
+        assert _severity_from_odcs("info") == "P1"
+
+
+# ---------------------------------------------------------------------------
+# _apply_odcs_operators
+# ---------------------------------------------------------------------------
+
+
+class TestApplyOdcsOperators:
+    """Integration tests for _apply_odcs_operators() via a minimal suite."""
+
+    _DATA = pa.table({"v": [10, 20, 30]})
+
+    def _run(self, rule: dict) -> list[AssertionResult]:
+        from dqx.api import Context
+        from dqx.provider import MetricProvider
+
+        def check_fn(mp: MetricProvider, ctx: Context) -> None:
+            metric = mp.num_rows()
+            ready = ctx.assert_that(metric).config(name="test-assertion", severity="P1")
+            _apply_odcs_operators(ready, rule)
+
+        return _run_check_fn(check_fn, self._DATA)
+
+    # ------------------------------------------------------------------
+    # noop when no operator
+    # ------------------------------------------------------------------
+
+    def test_no_operator_produces_noop(self) -> None:
+        results = self._run({})
+        assert len(results) == 1
+        assert results[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # mustBe
+    # ------------------------------------------------------------------
+
+    def test_must_be_passes_when_equal(self) -> None:
+        results = self._run({"mustBe": 3})
+        assert results[0].status == "PASSED"
+
+    def test_must_be_fails_when_not_equal(self) -> None:
+        results = self._run({"mustBe": 99})
+        assert results[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # mustNotBe
+    # ------------------------------------------------------------------
+
+    def test_must_not_be_passes_when_different(self) -> None:
+        results = self._run({"mustNotBe": 99})
+        assert results[0].status == "PASSED"
+
+    def test_must_not_be_fails_when_equal(self) -> None:
+        results = self._run({"mustNotBe": 3})
+        assert results[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # mustBeGreaterThan
+    # ------------------------------------------------------------------
+
+    def test_must_be_greater_than_passes(self) -> None:
+        results = self._run({"mustBeGreaterThan": 2})
+        assert results[0].status == "PASSED"
+
+    def test_must_be_greater_than_fails_when_equal(self) -> None:
+        results = self._run({"mustBeGreaterThan": 3})
+        assert results[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # mustBeGreaterOrEqualTo
+    # ------------------------------------------------------------------
+
+    def test_must_be_greater_or_equal_to_passes_when_equal(self) -> None:
+        results = self._run({"mustBeGreaterOrEqualTo": 3})
+        assert results[0].status == "PASSED"
+
+    def test_must_be_greater_or_equal_to_passes_when_greater(self) -> None:
+        results = self._run({"mustBeGreaterOrEqualTo": 1})
+        assert results[0].status == "PASSED"
+
+    def test_must_be_greater_or_equal_to_fails(self) -> None:
+        results = self._run({"mustBeGreaterOrEqualTo": 4})
+        assert results[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # mustBeLessThan
+    # ------------------------------------------------------------------
+
+    def test_must_be_less_than_passes(self) -> None:
+        results = self._run({"mustBeLessThan": 4})
+        assert results[0].status == "PASSED"
+
+    def test_must_be_less_than_fails_when_equal(self) -> None:
+        results = self._run({"mustBeLessThan": 3})
+        assert results[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # mustBeLessOrEqualTo
+    # ------------------------------------------------------------------
+
+    def test_must_be_less_or_equal_to_passes_when_equal(self) -> None:
+        results = self._run({"mustBeLessOrEqualTo": 3})
+        assert results[0].status == "PASSED"
+
+    def test_must_be_less_or_equal_to_fails(self) -> None:
+        results = self._run({"mustBeLessOrEqualTo": 2})
+        assert results[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # mustBeBetween
+    # ------------------------------------------------------------------
+
+    def test_must_be_between_passes(self) -> None:
+        results = self._run({"mustBeBetween": [1, 5]})
+        assert results[0].status == "PASSED"
+
+    def test_must_be_between_fails_outside(self) -> None:
+        results = self._run({"mustBeBetween": [10, 20]})
+        assert results[0].status == "FAILED"
+
+    def test_must_be_between_scalar_raises(self) -> None:
+        with pytest.raises(ContractValidationError, match="mustBeBetween"):
+            self._run({"mustBeBetween": 3})
+
+    def test_must_be_between_wrong_length_raises(self) -> None:
+        with pytest.raises(ContractValidationError, match="mustBeBetween"):
+            self._run({"mustBeBetween": [1, 2, 3]})
+
+    # ------------------------------------------------------------------
+    # mustNotBeBetween
+    # ------------------------------------------------------------------
+
+    def test_must_not_be_between_passes_outside(self) -> None:
+        results = self._run({"mustNotBeBetween": [10, 20]})
+        assert results[0].status == "PASSED"
+
+    def test_must_not_be_between_fails_inside(self) -> None:
+        results = self._run({"mustNotBeBetween": [1, 5]})
+        assert results[0].status == "FAILED"
+
+    def test_must_not_be_between_scalar_raises(self) -> None:
+        with pytest.raises(ContractValidationError, match="mustNotBeBetween"):
+            self._run({"mustNotBeBetween": 3})
