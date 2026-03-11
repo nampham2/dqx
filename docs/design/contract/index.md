@@ -555,7 +555,7 @@ quality:
 ContractWarning: Quality rule 'iban_format_check': metric 'invalidValues' with pattern argument is not executable in DQX; skipping
 ```
 
-**Use instead:** `type: custom, engine: dqx` with `check: pattern` — note that `check: pattern` raises `NotImplementedError` and is itself deferred pending a `MetricProvider.pattern_match()` implementation.
+Pattern-based validation (`check: pattern`) is a planned future capability pending implementation of `MetricProvider.pattern_match()`. It is not currently available in DQX — there is no working workaround for `metric: invalidValues` with `arguments.pattern` at this time.
 
 #### `metric: missingValues` with `arguments.missingValues` sentinel list
 
