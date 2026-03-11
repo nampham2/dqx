@@ -12,15 +12,20 @@
 
 ## Overview
 
+> **⚠️ Proposed Design — Not Yet Implemented**
+>
+> This document describes the planned public API for ODCS contract support in DQX. The `dqx.contract` module and the `Contract` class do **not** yet exist as a public API. The current prototype lives in `src/dqx/contract_old.py` and is not exported from `src/dqx/__init__.py`. Code examples in this document use the **intended future API** and will raise `ImportError` if run against the current codebase. This specification serves as the design target for the upcoming implementation.
+
 A DQX contract is an [ODCS](https://github.com/bitol-io/open-data-contract-standard) (Open Data Contract Standard) YAML document that DQX parses and translates into executable `DecoratedCheck` functions. Each contract is an ODCS-compliant file validated against the ODCS JSON Schema v3.1.0 before any DQX processing occurs. Structural errors — missing required fields, wrong types, invalid enums — are caught at parse time and reported as `ContractValidationError` before any check executes.
 
 DQX adopts ODCS as its contract format for three reasons. First, ODCS is an open standard maintained by a vendor-neutral working group, which means contracts written for DQX are interoperable with other ODCS-aware tools and platforms without conversion. Second, the ODCS JSON Schema provides machine-readable validation — DQX vendors the schema (`odcs-json-schema-v3.1.0.json`) in `src/dqx/_schemas/` and validates every incoming contract before processing. Third, ODCS avoids DQX from designing and maintaining a proprietary contract format, reducing the surface area users must learn.
 
 DQX participates in ODCS as a `type: custom, engine: dqx` quality rule engine. Standard ODCS library metrics (`nullValues`, `missingValues`, `invalidValues`, `duplicateValues`, `rowCount`) are also supported and mapped directly to `MetricProvider` calls. Quality rules targeting other engines — `type: sql`, `type: custom` with an engine other than `dqx` — emit a `ContractWarning` and are skipped.
 
-`Contract` is imported from `dqx.contract`:
+Once the public module is implemented, `Contract` will be imported from `dqx.contract`:
 
 ```python
+# Proposed API — not yet available; Contract is not currently exported from dqx
 from dqx.contract import Contract
 ```
 
@@ -194,6 +199,10 @@ Emitted during `Contract.from_odcs()` as a non-fatal Python warning (via `warnin
 
 ## Usage
 
+> **⚠️ Proposed API — Not Yet Implemented**
+>
+> The examples below use `from dqx.contract import Contract`, which is the **intended future API**. This module does not currently exist. Running these examples against the current codebase will raise `ImportError`. They are provided as the design target for the upcoming implementation.
+
 ### Single-Table Contract
 
 The most common case: an ODCS file with one schema object, producing one `Contract`.
@@ -201,7 +210,7 @@ The most common case: an ODCS file with one schema object, producing one `Contra
 ```python
 from pathlib import Path
 
-from dqx.contract import Contract
+from dqx.contract import Contract  # Proposed API — not yet available
 from dqx.api import VerificationSuite
 
 # Parse the ODCS file — validated against JSON Schema, returns list[Contract]
@@ -226,7 +235,7 @@ An ODCS file with multiple schema objects — one `Contract` per schema, one sui
 ```python
 from pathlib import Path
 
-from dqx.contract import Contract
+from dqx.contract import Contract  # Proposed API — not yet available
 from dqx.api import VerificationSuite
 
 contracts = Contract.from_odcs(Path("commerce.odcs.yaml"))
@@ -922,7 +931,7 @@ The generated check name is always `"SLA: Freshness check"`. The severity is alw
 
 `to_checks()` raises `NotImplementedError` for the SLA-generated freshness check. The contract fully parses and validates `slaProperties` — `SlaLatency.max_age_hours` and `SlaLatency.timestamp_column` are resolved correctly and are accessible on the `Contract` instance. Execution is deferred pending `MetricProvider.freshness()` implementation.
 
-Teams that need freshness validation today should add a manual `freshness` check in the `quality:` section using `type: custom, engine: dqx` or by composing a hand-coded `DecoratedCheck` alongside `contract.to_checks()`.
+Teams that need freshness validation today should compose a hand-coded `DecoratedCheck` alongside `contract.to_checks()`.
 
 ### 8.6 Other SLA Properties
 
