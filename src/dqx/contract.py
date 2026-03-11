@@ -27,7 +27,8 @@ import json
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from types import MappingProxyType
+from typing import Any, Mapping
 
 import yaml
 from jsonschema import Draft201909Validator
@@ -221,9 +222,10 @@ class Contract:
         schema_def: Parsed schema definition for this contract.
         sla_latency: Resolved latency constraint, or ``None`` when no latency
             ``slaProperties`` entry can be resolved.
-        sla_metadata: Dict of non-latency SLA properties keyed by property
-            name.  Values are the full SLA entry dicts (excluding the
-            ``property`` key itself).
+        sla_metadata: Immutable mapping of non-latency SLA properties keyed by
+            property name.  Values are the full SLA entry dicts (excluding the
+            ``property`` key itself).  Use ``dict(contract.sla_metadata)`` if
+            a mutable copy is needed.
     """
 
     name: str | None
@@ -234,7 +236,7 @@ class Contract:
     dataset: str
     schema_def: ContractSchema
     sla_latency: SlaLatency | None
-    sla_metadata: dict[str, Any]
+    sla_metadata: Mapping[str, Any]
 
     @classmethod
     def from_odcs(cls, path: Path) -> list[Contract]:
@@ -288,7 +290,7 @@ class Contract:
                     dataset=dataset,
                     schema_def=schema_def,
                     sla_latency=sla_latency,
-                    sla_metadata=sla_metadata,
+                    sla_metadata=MappingProxyType(sla_metadata),
                 )
             )
         return contracts
@@ -446,7 +448,15 @@ def _parse_sla_properties(
     for entry in sla_list:
         prop_name: str = str(entry.get("property", ""))
         if prop_name in _LATENCY_SYNONYMS:
-            value = float(entry.get("value", 0))
+            raw_value = entry.get("value")
+            if raw_value is None:
+                warnings.warn(
+                    "SLA latency entry is missing the 'value' field; skipping",
+                    ContractWarning,
+                    stacklevel=4,
+                )
+                continue
+            value = float(raw_value)
             unit = str(entry.get("unit", "h"))
             max_age_hours = _unit_to_hours(value, unit)
             timestamp_col = _resolve_timestamp_column(entry, schema_objects)

@@ -600,6 +600,21 @@ class TestContractSlaLatency:
         with pytest.raises(ContractValidationError, match="unrecognised unit"):
             self._contract_with_sla(tmp_path, sla_yaml)
 
+    def test_missing_value_emits_warning_and_skips(self, tmp_path: Path) -> None:
+        """A latency entry with a null 'value' field emits ContractWarning and is skipped."""
+        sla_yaml = """\
+            - property: latency
+              value: null
+              unit: h
+              element: orders_tbl.order_date
+        """
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            c = self._contract_with_sla(tmp_path, sla_yaml)
+        assert c.sla_latency is None
+        assert any(issubclass(w.category, ContractWarning) for w in caught)
+        assert any("missing" in str(w.message).lower() for w in caught)
+
 
 # ---------------------------------------------------------------------------
 # SLA metadata for non-latency properties
@@ -725,6 +740,26 @@ class TestContractImmutability:
         )
         with pytest.raises((AttributeError, TypeError)):
             schema.name = "new_name"  # type: ignore[misc]
+
+    def test_sla_metadata_is_immutable(self, tmp_path: Path) -> None:
+        """sla_metadata is a read-only MappingProxyType; callers cannot mutate it."""
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            slaProperties:
+              - property: retention
+                value: 3
+                unit: y
+            schema:
+              - name: orders
+        """
+        path = _write_yaml(tmp_path, "c.yaml", content)
+        c = Contract.from_odcs(path)[0]
+        with pytest.raises(TypeError):
+            c.sla_metadata["new_key"] = "new_value"  # type: ignore[index]
 
 
 # ---------------------------------------------------------------------------
