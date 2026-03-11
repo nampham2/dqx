@@ -725,3 +725,251 @@ class TestContractImmutability:
         )
         with pytest.raises((AttributeError, TypeError)):
             schema.name = "new_name"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# Integration test — official ODCS full example
+# https://bitol-io.github.io/open-data-contract-standard/latest/examples/all/full-example.odcs.yaml
+# ---------------------------------------------------------------------------
+
+_FULL_EXAMPLE = Path(__file__).parent / "fixtures" / "contracts" / "full-example.odcs.yaml"
+
+
+class TestFullOdcsExample:
+    """Load the official ODCS full example and assert parsed values.
+
+    The fixture file is a verbatim copy of the canonical ODCS example:
+    https://bitol-io.github.io/open-data-contract-standard/latest/examples/all/full-example.odcs.yaml
+
+    Tests are organised by concern so that a single failing assertion pinpoints
+    exactly which field or schema object is mis-parsed.
+    """
+
+    @pytest.fixture
+    def contracts(self) -> list[Contract]:
+        return Contract.from_odcs(_FULL_EXAMPLE)
+
+    @pytest.fixture
+    def tbl(self, contracts: list[Contract]) -> Contract:
+        """The first schema object: tbl / tbl_1."""
+        return contracts[0]
+
+    @pytest.fixture
+    def receivers(self, contracts: list[Contract]) -> Contract:
+        """The second schema object: receivers / receivers_master."""
+        return contracts[1]
+
+    # ------------------------------------------------------------------
+    # Top-level document fields
+    # ------------------------------------------------------------------
+
+    def test_parses_without_error(self, contracts: list[Contract]) -> None:
+        """Full example passes JSON Schema validation and parses cleanly."""
+        assert contracts is not None
+
+    def test_returns_two_contracts(self, contracts: list[Contract]) -> None:
+        """Two schema[] objects → two Contract instances."""
+        assert len(contracts) == 2
+
+    def test_top_level_name_is_absent(self, tbl: Contract) -> None:
+        """The full example has no top-level 'name' field."""
+        assert tbl.name is None
+
+    def test_version(self, tbl: Contract) -> None:
+        assert tbl.version == "1.1.0"
+
+    def test_api_version(self, tbl: Contract) -> None:
+        assert tbl.api_version == "v3.1.0"
+
+    def test_contract_id(self, tbl: Contract) -> None:
+        assert tbl.contract_id == "53581432-6c55-4ba2-a65f-72344a91553a"
+
+    def test_status(self, tbl: Contract) -> None:
+        assert tbl.status == "active"
+
+    # ------------------------------------------------------------------
+    # Schema 0: tbl / tbl_1
+    # ------------------------------------------------------------------
+
+    def test_tbl_dataset_uses_physical_name(self, tbl: Contract) -> None:
+        """physicalName 'tbl_1' is preferred over logical name 'tbl'."""
+        assert tbl.dataset == "tbl_1"
+
+    def test_tbl_schema_logical_name(self, tbl: Contract) -> None:
+        assert tbl.schema_def.name == "tbl"
+
+    def test_tbl_schema_physical_name(self, tbl: Contract) -> None:
+        assert tbl.schema_def.physical_name == "tbl_1"
+
+    def test_tbl_has_three_properties(self, tbl: Contract) -> None:
+        assert len(tbl.schema_def.properties) == 3
+
+    def test_tbl_property_names_in_order(self, tbl: Contract) -> None:
+        names = [p.name for p in tbl.schema_def.properties]
+        assert names == ["transaction_reference_date", "rcvr_id", "rcvr_cntry_code"]
+
+    def test_tbl_has_one_table_level_quality_rule(self, tbl: Contract) -> None:
+        """The rowCount library rule is stored in schema_def.quality."""
+        assert len(tbl.schema_def.quality) == 1
+
+    def test_tbl_table_quality_rule_metric(self, tbl: Contract) -> None:
+        assert tbl.schema_def.quality[0]["metric"] == "rowCount"
+
+    def test_tbl_no_text_rules(self, tbl: Contract) -> None:
+        assert tbl.schema_def.text_rules == ()
+
+    # transaction_reference_date property
+    def test_txn_ref_dt_logical_type(self, tbl: Contract) -> None:
+        prop = tbl.schema_def.properties[0]
+        assert prop.logical_type == "date"
+
+    def test_txn_ref_dt_physical_type(self, tbl: Contract) -> None:
+        prop = tbl.schema_def.properties[0]
+        assert prop.physical_type == "date"
+
+    def test_txn_ref_dt_not_required(self, tbl: Contract) -> None:
+        prop = tbl.schema_def.properties[0]
+        assert prop.required is False
+
+    def test_txn_ref_dt_is_partitioned(self, tbl: Contract) -> None:
+        prop = tbl.schema_def.properties[0]
+        assert prop.partitioned is True
+
+    def test_txn_ref_dt_partition_key_position(self, tbl: Contract) -> None:
+        prop = tbl.schema_def.properties[0]
+        assert prop.partition_key_position == 1
+
+    def test_txn_ref_dt_no_property_quality_rules(self, tbl: Contract) -> None:
+        prop = tbl.schema_def.properties[0]
+        assert prop.quality == ()
+
+    # rcvr_id property
+    def test_rcvr_id_logical_type(self, tbl: Contract) -> None:
+        prop = tbl.schema_def.properties[1]
+        assert prop.logical_type == "string"
+
+    def test_rcvr_id_physical_type(self, tbl: Contract) -> None:
+        prop = tbl.schema_def.properties[1]
+        assert prop.physical_type == "varchar(18)"
+
+    def test_rcvr_id_not_required(self, tbl: Contract) -> None:
+        prop = tbl.schema_def.properties[1]
+        assert prop.required is False
+
+    def test_rcvr_id_not_partitioned(self, tbl: Contract) -> None:
+        prop = tbl.schema_def.properties[1]
+        assert prop.partitioned is False
+
+    # rcvr_cntry_code property
+    def test_rcvr_cntry_code_logical_type(self, tbl: Contract) -> None:
+        prop = tbl.schema_def.properties[2]
+        assert prop.logical_type == "string"
+
+    def test_rcvr_cntry_code_has_one_quality_rule(self, tbl: Contract) -> None:
+        """nullValues library rule is stored on the property."""
+        prop = tbl.schema_def.properties[2]
+        assert len(prop.quality) == 1
+
+    def test_rcvr_cntry_code_quality_rule_metric(self, tbl: Contract) -> None:
+        prop = tbl.schema_def.properties[2]
+        assert prop.quality[0]["metric"] == "nullValues"
+
+    def test_rcvr_cntry_code_quality_rule_severity(self, tbl: Contract) -> None:
+        prop = tbl.schema_def.properties[2]
+        assert prop.quality[0]["severity"] == "error"
+
+    # ------------------------------------------------------------------
+    # Schema 1: receivers / receivers_master
+    # ------------------------------------------------------------------
+
+    def test_receivers_dataset_uses_physical_name(self, receivers: Contract) -> None:
+        assert receivers.dataset == "receivers_master"
+
+    def test_receivers_schema_logical_name(self, receivers: Contract) -> None:
+        assert receivers.schema_def.name == "receivers"
+
+    def test_receivers_has_four_properties(self, receivers: Contract) -> None:
+        assert len(receivers.schema_def.properties) == 4
+
+    def test_receivers_property_names_in_order(self, receivers: Contract) -> None:
+        names = [p.name for p in receivers.schema_def.properties]
+        assert names == ["id", "country_code", "receiver_name", "receiver_type"]
+
+    def test_receivers_no_table_level_quality_rules(self, receivers: Contract) -> None:
+        assert receivers.schema_def.quality == ()
+
+    def test_receivers_id_required(self, receivers: Contract) -> None:
+        assert receivers.schema_def.properties[0].required is True
+
+    def test_receivers_country_code_required(self, receivers: Contract) -> None:
+        assert receivers.schema_def.properties[1].required is True
+
+    def test_receivers_receiver_name_required(self, receivers: Contract) -> None:
+        assert receivers.schema_def.properties[2].required is True
+
+    def test_receivers_receiver_type_not_required(self, receivers: Contract) -> None:
+        assert receivers.schema_def.properties[3].required is False
+
+    def test_receivers_all_string_logical_types(self, receivers: Contract) -> None:
+        types = [p.logical_type for p in receivers.schema_def.properties]
+        assert all(t == "string" for t in types)
+
+    # ------------------------------------------------------------------
+    # SLA
+    # ------------------------------------------------------------------
+
+    def test_sla_latency_resolved(self, tbl: Contract) -> None:
+        """latency entry resolves to a SlaLatency instance (not None)."""
+        assert tbl.sla_latency is not None
+
+    def test_sla_latency_max_age_hours(self, tbl: Contract) -> None:
+        """value=4, unit=d → 4 × 24 = 96 hours."""
+        assert tbl.sla_latency is not None
+        assert tbl.sla_latency.max_age_hours == 96.0
+
+    def test_sla_latency_timestamp_column(self, tbl: Contract) -> None:
+        """element='tab1.txn_ref_dt' → timestamp_column='txn_ref_dt'."""
+        assert tbl.sla_latency is not None
+        assert tbl.sla_latency.timestamp_column == "txn_ref_dt"
+
+    def test_sla_metadata_does_not_contain_latency(self, tbl: Contract) -> None:
+        assert "latency" not in tbl.sla_metadata
+
+    def test_sla_metadata_contains_general_availability(self, tbl: Contract) -> None:
+        assert "generalAvailability" in tbl.sla_metadata
+
+    def test_sla_metadata_contains_end_of_support(self, tbl: Contract) -> None:
+        assert "endOfSupport" in tbl.sla_metadata
+
+    def test_sla_metadata_contains_end_of_life(self, tbl: Contract) -> None:
+        assert "endOfLife" in tbl.sla_metadata
+
+    def test_sla_metadata_retention_value(self, tbl: Contract) -> None:
+        assert tbl.sla_metadata["retention"]["value"] == 3
+
+    def test_sla_metadata_retention_unit(self, tbl: Contract) -> None:
+        assert tbl.sla_metadata["retention"]["unit"] == "y"
+
+    def test_sla_metadata_frequency_value(self, tbl: Contract) -> None:
+        assert tbl.sla_metadata["frequency"]["value"] == 1
+
+    def test_sla_metadata_time_of_availability_present(self, tbl: Contract) -> None:
+        """The ODCS example has two timeOfAvailability entries with the same
+        property name. The current dict-based sla_metadata stores one key per
+        property name, so the second entry (driver: analytics) overwrites the
+        first (driver: regulatory). We assert the key is present and that the
+        surviving entry has the analytics driver value.
+        """
+        assert "timeOfAvailability" in tbl.sla_metadata
+        assert tbl.sla_metadata["timeOfAvailability"]["driver"] == "analytics"
+
+    # ------------------------------------------------------------------
+    # Both contracts share the same top-level SLA (parsed once per file)
+    # ------------------------------------------------------------------
+
+    def test_receivers_sla_latency_same_as_tbl(self, tbl: Contract, receivers: Contract) -> None:
+        """SLA is parsed at the file level; both contracts carry the same value."""
+        assert receivers.sla_latency == tbl.sla_latency
+
+    def test_receivers_sla_metadata_same_as_tbl(self, tbl: Contract, receivers: Contract) -> None:
+        assert receivers.sla_metadata == tbl.sla_metadata
