@@ -183,6 +183,9 @@ class TestBigQueryDialect:
         assert f"'{ops[1].sql_col}' AS key" in query
         assert f"`{ops[0].sql_col}` AS value" in query
         assert f"`{ops[1].sql_col}` AS value" in query
+        # values alias must use backtick quoting for BigQuery (double-quotes are string literals in BQ)
+        assert "as `values`" in query
+        assert 'as "values"' not in query
 
     def test_build_batch_cte_query_multiple_dates(self) -> None:
         """Test batch CTE query with multiple dates."""

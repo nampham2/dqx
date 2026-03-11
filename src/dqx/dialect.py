@@ -117,6 +117,7 @@ def _build_query_with_values(
     cte_data: list["BatchCTEData"],
     value_formatter: Callable[[list[ops.SqlOp]], str],
     data_source: "SqlDataSource | None" = None,
+    values_alias: str = '"values"',
 ) -> str:
     """
     Build a complete SQL query combining CTE declarations with per-date SELECTs whose metric values are formatted by the provided value_formatter.
@@ -126,6 +127,7 @@ def _build_query_with_values(
         cte_data (list[BatchCTEData]): Per-date CTE data and associated operations.
         value_formatter (Callable[[list[ops.SqlOp]], str]): Function that takes a list of SqlOp for a metrics CTE and returns a SQL expression representing those values (e.g., MAP, STRUCT, ARRAY of STRUCTs).
         data_source (SqlDataSource | None): Optional data source used to generate parameterized source CTE SQL.
+        values_alias (str): The quoted alias to use for the values column. Must be dialect-appropriate quoting to survive SQL formatters. Defaults to ``"values"`` (double-quoted, for DuckDB). Use backtick-quoted `` `values` `` for BigQuery.
 
     Returns:
         str: A full SQL string containing a WITH clause of source/metrics CTEs followed by a UNION ALL of per-date SELECT statements (each selecting the date and the formatted values).
@@ -159,7 +161,7 @@ def _build_query_with_values(
             date_str = date_map.get(idx, datetime.date.today()).isoformat()
 
         values_expr = value_formatter(data_ops)
-        select_stmt = f"SELECT '{date_str}' as date, {values_expr} as \"values\" FROM {metrics_cte}"
+        select_stmt = f"SELECT '{date_str}' as date, {values_expr} as {values_alias} FROM {metrics_cte}"
 
         if date_str not in date_to_selects:
             date_to_selects[date_str] = []
@@ -577,4 +579,4 @@ class BigQueryDialect:
                 array_entries.append(f"STRUCT('{op.sql_col}' AS key, `{op.sql_col}` AS value)")
             return "[" + ", ".join(array_entries) + "]"
 
-        return _build_query_with_values(self, cte_data, format_array_values, data_source)
+        return _build_query_with_values(self, cte_data, format_array_values, data_source, values_alias="`values`")
