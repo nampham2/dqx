@@ -36,7 +36,7 @@ from dqx.common import SeverityLevel
 from dqx.provider import MetricProvider
 
 if TYPE_CHECKING:
-    from dqx.api import AssertionReady
+    from dqx.api import AssertionReady, DecoratedCheck
 
 
 # ---------------------------------------------------------------------------
@@ -362,6 +362,56 @@ class Contract:
                 )
             )
         return contracts
+
+    def to_checks(self) -> list[DecoratedCheck]:
+        """Translate this contract into a list containing one :class:`DecoratedCheck`.
+
+        All quality rules declared in this contract's schema object — both
+        table-level and property-level — are consolidated into a single
+        ``DecoratedCheck`` node named ``"Contract: {name or dataset}"``.
+
+        The returned list can be composed freely with hand-coded checks::
+
+            suite = VerificationSuite(
+                checks=contract.to_checks() + [custom_check],
+                db=db,
+                name="my-suite",
+            )
+
+        Returns:
+            A list with exactly one :class:`~dqx.api.DecoratedCheck`.
+
+        Raises:
+            NotImplementedError: Immediately when ``sla_latency`` is set —
+                the SLA freshness check requires ``MetricProvider.freshness()``
+                which is not yet implemented.
+            NotImplementedError: When any quality rule requires a
+                ``MetricProvider`` method that is not yet implemented
+                (e.g., ``check: avg_length``, ``check: percentile``).
+            ContractValidationError: When ``mustBeBetween`` / ``mustNotBeBetween``
+                is not a two-element list, or an unknown DQX check type is used.
+        """
+        if self.sla_latency is not None:
+            raise NotImplementedError(
+                "SLA freshness check requires MetricProvider.freshness() which is not yet implemented"
+            )
+
+        from dqx.api import check as _dqx_check
+
+        check_name = f"Contract: {self.name or self.dataset}"
+        schema = self.schema_def
+        dataset = self.dataset
+
+        def _run_checks(mp: MetricProvider, ctx: Context) -> None:
+            for rule in schema.quality:
+                _dispatch_rule(rule, None, mp, ctx)
+            for prop in schema.properties:
+                for rule in prop.quality:
+                    _dispatch_rule(rule, prop.name, mp, ctx)
+
+        _run_checks.__name__ = check_name
+        decorated: DecoratedCheck = _dqx_check(name=check_name, datasets=[dataset])(_run_checks)
+        return [decorated]
 
 
 # ---------------------------------------------------------------------------
@@ -739,4 +789,68 @@ def _execute_custom_dqx_rule(
         raise ContractValidationError(f"Unknown DQX check type '{check_type}' in custom rule '{rule_name}'")
 
     ready = ctx.assert_that(metric_expr).config(name=rule_name, severity=severity)
-    _apply_odcs_operators(ready, rule)
+    # Operators may appear at the rule level (non-ODCS-standard but accepted)
+    # or inside the implementation: block (ODCS-valid placement for custom rules).
+    # Rule-level operators take precedence; fall back to implementation-level.
+    _operator_fields = (
+        "mustBe",
+        "mustNotBe",
+        "mustBeGreaterThan",
+        "mustBeGreaterOrEqualTo",
+        "mustBeLessThan",
+        "mustBeLessOrEqualTo",
+        "mustBeBetween",
+        "mustNotBeBetween",
+    )
+    operator_source = rule if any(k in rule for k in _operator_fields) else impl
+    _apply_odcs_operators(ready, operator_source)
+
+
+# ---------------------------------------------------------------------------
+# Rule dispatcher and Contract.to_checks()
+# ---------------------------------------------------------------------------
+
+
+def _dispatch_rule(
+    rule: dict[str, Any],
+    property_name: str | None,
+    mp: MetricProvider,
+    ctx: Context,
+) -> None:
+    """Route one ODCS quality rule to the appropriate executor.
+
+    Args:
+        rule: Raw ODCS quality rule dict.
+        property_name: Column name when property-level; ``None`` for
+            table-level rules.
+        mp: Active :class:`~dqx.provider.MetricProvider`.
+        ctx: Active :class:`~dqx.api.Context`.
+    """
+    rule_type: str = str(rule.get("type", "library"))
+    rule_name: str = str(rule.get("name", ""))
+
+    if rule_type == "text":
+        return  # pragma: no cover — text rules are filtered by _parse_schema_object/_parse_property
+
+    if rule_type == "sql":
+        warnings.warn(
+            f"Quality rule '{rule_name}': type 'sql' is not executable in DQX; skipping",
+            ContractWarning,
+            stacklevel=5,
+        )
+        return
+
+    if rule_type == "custom":
+        engine: str = str(rule.get("engine", ""))
+        if engine != "dqx":
+            warnings.warn(
+                f"Quality rule '{rule_name}': type 'custom' with engine '{engine}' is not executable in DQX; skipping",
+                ContractWarning,
+                stacklevel=5,
+            )
+            return
+        _execute_custom_dqx_rule(rule, mp, ctx)
+        return
+
+    # Default: library rule (metric: field present, or type: library)
+    _execute_library_rule(rule, property_name, mp, ctx)

@@ -37,6 +37,7 @@ from dqx.contract import (
     _execute_library_rule,
     _severity_from_odcs,
 )
+import dqx
 from dqx.datasource import DuckRelationDataSource
 from dqx.orm.repositories import InMemoryMetricDB
 
@@ -1693,3 +1694,299 @@ class TestCustomDqxRuleExecution:
         rule = _make_custom_rule("check: num_rows\n", "mustBeGreaterOrEqualTo", 1, name="my_volume_check")
         results = _run_custom_rule(rule, data)
         assert results[0].assertion == "my_volume_check"
+
+
+# ---------------------------------------------------------------------------
+# Contract.to_checks() — public method
+# ---------------------------------------------------------------------------
+
+_FIXTURES_DIR = Path(__file__).parent / "fixtures" / "contracts"
+
+
+def _odcs_contract(tmp_path: Path, content: str) -> list[Contract]:
+    """Write a minimal valid ODCS YAML and parse it."""
+    path = _write_yaml(tmp_path, "contract.odcs.yaml", content)
+    return Contract.from_odcs(path)
+
+
+def _run_contract(contract: Contract, data: pa.Table) -> list[AssertionResult]:
+    """Run contract.to_checks() against data and collect results."""
+    checks = contract.to_checks()
+    datasource = DuckRelationDataSource.from_arrow(data, contract.dataset)
+    db = InMemoryMetricDB()
+    suite = VerificationSuite(checks=checks, db=db, name="test-suite")
+    key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
+    suite.run([datasource], key)
+    return suite.collect_results()
+
+
+class TestToChecksPublicMethod:
+    """Tests for Contract.to_checks()."""
+
+    _MINIMAL_ODCS = """\
+        apiVersion: v3.1.0
+        kind: DataContract
+        id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+        version: "1.0.0"
+        status: active
+        schema:
+          - name: orders
+    """
+
+    # ------------------------------------------------------------------
+    # Structure
+    # ------------------------------------------------------------------
+
+    def test_returns_list_of_one_decorated_check(self, tmp_path: Path) -> None:
+        contracts = _odcs_contract(tmp_path, self._MINIMAL_ODCS)
+        checks = contracts[0].to_checks()
+        assert isinstance(checks, list)
+        assert len(checks) == 1
+
+    def test_check_name_uses_contract_name_when_present(self, tmp_path: Path) -> None:
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            name: my_contract
+            schema:
+              - name: orders
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        checks = contracts[0].to_checks()
+        assert checks[0].__name__ == "Contract: my_contract"
+
+    def test_check_name_uses_dataset_when_name_absent(self, tmp_path: Path) -> None:
+        contracts = _odcs_contract(tmp_path, self._MINIMAL_ODCS)
+        checks = contracts[0].to_checks()
+        assert checks[0].__name__ == "Contract: orders"
+
+    def test_check_name_uses_physical_name_when_present(self, tmp_path: Path) -> None:
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                physicalName: orders_tbl
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        checks = contracts[0].to_checks()
+        assert checks[0].__name__ == "Contract: orders_tbl"
+
+    def test_all_assertions_share_one_check_node(self, tmp_path: Path) -> None:
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                quality:
+                  - name: rc
+                    metric: rowCount
+                    mustBeGreaterOrEqualTo: 1
+                properties:
+                  - name: order_id
+                    logicalType: integer
+                    quality:
+                      - name: no_nulls
+                        metric: nullValues
+                        mustBe: 0
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        data = pa.table({"order_id": pa.array([1, 2, 3])})
+        results = _run_contract(contracts[0], data)
+        assert len(results) == 2
+        check_names = {r.check for r in results}
+        assert len(check_names) == 1, "All assertions must share one check node"
+
+    # ------------------------------------------------------------------
+    # Rule dispatch
+    # ------------------------------------------------------------------
+
+    def test_text_rules_produce_no_assertions(self, tmp_path: Path) -> None:
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                properties:
+                  - name: order_id
+                    quality:
+                      - name: doc_rule
+                        type: text
+                        description: "Documentation only"
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        data = pa.table({"order_id": pa.array([1, 2])})
+        results = _run_contract(contracts[0], data)
+        assert len(results) == 0
+
+    def test_sql_rule_warns_and_skips(self, tmp_path: Path) -> None:
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                quality:
+                  - name: fraud_check
+                    type: sql
+                    query: "SELECT 1"
+                    mustBe: 0
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        data = pa.table({"v": [1]})
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            results = _run_contract(contracts[0], data)
+        assert len(results) == 0
+        assert any("sql" in str(w.message).lower() for w in caught)
+
+    def test_custom_non_dqx_engine_warns_and_skips(self, tmp_path: Path) -> None:
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                quality:
+                  - name: soda_rule
+                    type: custom
+                    engine: soda
+                    implementation: "missing_count(x) = 0"
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        data = pa.table({"v": [1]})
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            results = _run_contract(contracts[0], data)
+        assert len(results) == 0
+        assert any("soda" in str(w.message) for w in caught)
+
+    def test_empty_schema_produces_no_assertions(self, tmp_path: Path) -> None:
+        contracts = _odcs_contract(tmp_path, self._MINIMAL_ODCS)
+        data = pa.table({"v": [1]})
+        results = _run_contract(contracts[0], data)
+        assert len(results) == 0
+
+    def test_custom_dqx_rule_executes_via_to_checks(self, tmp_path: Path) -> None:
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                quality:
+                  - name: volume_floor
+                    type: custom
+                    engine: dqx
+                    severity: warning
+                    implementation: |
+                      check: num_rows
+                      mustBeGreaterOrEqualTo: 1
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        data = pa.table({"v": [1, 2, 3]})
+        results = _run_contract(contracts[0], data)
+        assert len(results) == 1
+        assert results[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # SLA raises NotImplementedError at call time
+    # ------------------------------------------------------------------
+
+    def test_sla_latency_raises_not_implemented_at_call_time(self, tmp_path: Path) -> None:
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            slaProperties:
+              - property: latency
+                value: 24
+                unit: h
+                element: orders.created_at
+            schema:
+              - name: orders
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        with pytest.raises(NotImplementedError, match="freshness"):
+            contracts[0].to_checks()
+
+    def test_no_sla_latency_does_not_raise(self, tmp_path: Path) -> None:
+        contracts = _odcs_contract(tmp_path, self._MINIMAL_ODCS)
+        checks = contracts[0].to_checks()
+        assert len(checks) == 1
+
+    # ------------------------------------------------------------------
+    # Integration: full-example.odcs.yaml fixture
+    # ------------------------------------------------------------------
+
+    def test_full_odcs_example_executes_tbl_rules(self, tmp_path: Path) -> None:
+        """End-to-end: rowCount and nullValues rules execute correctly."""
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                quality:
+                  - name: row_count_check
+                    type: library
+                    metric: rowCount
+                    mustBeGreaterThan: 1000000
+                    severity: error
+                properties:
+                  - name: rcvr_cntry_code
+                    logicalType: string
+                    quality:
+                      - name: no_nulls
+                        type: library
+                        metric: nullValues
+                        mustBe: 0
+                        severity: error
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        data = pa.table({"rcvr_cntry_code": pa.array(["US", "GB"])})
+        results = _run_contract(contracts[0], data)
+        # rowCount mustBeGreaterThan 1000000 → FAILED (only 2 rows)
+        # nullValues mustBe 0 → PASSED (no nulls)
+        assert len(results) == 2
+        by_name = {r.assertion: r.status for r in results}
+        assert by_name["no_nulls"] == "PASSED"
+        assert by_name["row_count_check"] == "FAILED"
+
+    # ------------------------------------------------------------------
+    # Public API export from dqx package
+    # ------------------------------------------------------------------
+
+    def test_contract_exported_from_dqx(self) -> None:
+        assert hasattr(dqx, "Contract")
+
+    def test_contract_validation_error_exported_from_dqx(self) -> None:
+        assert hasattr(dqx, "ContractValidationError")
+
+    def test_schema_validation_error_exported_from_dqx(self) -> None:
+        assert hasattr(dqx, "SchemaValidationError")
+
+    def test_contract_warning_exported_from_dqx(self) -> None:
+        assert hasattr(dqx, "ContractWarning")
