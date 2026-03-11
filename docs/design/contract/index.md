@@ -577,7 +577,7 @@ quality:
 ContractWarning: Quality rule 'sentinel_missing_check': metric 'missingValues' with missingValues argument is not executable in DQX; skipping
 ```
 
-**Use instead:** `type: custom, engine: dqx` with `check: blacklist` and the sentinel values listed under `values:`.
+**Partial workaround:** If you only need to reject sentinel literals, use `type: custom, engine: dqx` with `check: blacklist` and the sentinel values listed under `values:`. Note that `check: blacklist` does **not** count actual `NULL` values — it only matches the explicit string literals in `values:`. To preserve the full semantics of `metric: missingValues` (sentinel literals **and** real nulls), pair the `blacklist` rule with a separate `nullValues` library metric or a `check: missing` custom rule.
 
 ```yaml
 # Recommended replacement
@@ -914,7 +914,7 @@ When DQX encounters a `property: latency` entry in `slaProperties`, it resolves 
 
 ### 8.4 Auto-Generated Freshness Check
 
-DQX resolves `SlaLatency.max_age_hours` and `SlaLatency.timestamp_column` at parse time and stores them on the `Contract` instance. When `to_checks()` is called, it constructs the freshness check from these resolved values.
+DQX resolves `SlaLatency.max_age_hours` and `SlaLatency.timestamp_column` at parse time and stores them on the `Contract` instance. These resolved values define the freshness check DQX **intends** to construct once `FreshnessCheck.to_dqx()` / `MetricProvider.freshness()` are implemented. This construction is a planned feature — see Section 8.5 for the current `NotImplementedError` status, which means latency-bearing contracts are not yet runnable via `to_checks()`.
 
 ```yaml
 # For: property: latency, value: 24, unit: h, element: orders_tbl.order_date
