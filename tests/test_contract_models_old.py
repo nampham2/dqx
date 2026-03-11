@@ -9,7 +9,7 @@ from typing import cast
 
 import pytest
 
-from dqx.contract import (
+from dqx.contract_old import (
     AvgLengthCheck,
     BetweenValidator,
     BlacklistCheck,
@@ -4472,7 +4472,7 @@ class TestContractFromYaml:
         )
         contract = Contract.from_yaml(path)
         assert len(contract.checks) == 1
-        from dqx.contract import CompletenessCheck
+        from dqx.contract_old import CompletenessCheck
 
         check = contract.checks[0]
         assert isinstance(check, CompletenessCheck)
@@ -4500,7 +4500,7 @@ class TestContractFromYaml:
             """,
         )
         contract = Contract.from_yaml(path)
-        from dqx.contract import WhitelistCheck
+        from dqx.contract_old import WhitelistCheck
 
         check = contract.columns[0].checks[0]
         assert isinstance(check, WhitelistCheck)

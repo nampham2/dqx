@@ -32,11 +32,8 @@ extra_javascript = [
 nav = [
   { Home = "index.md" },
   { Design = [
-    { Contracts = [
-      { Overview = "design/contracts/index.md" },
-      { "Type System" = "design/contracts/types.md" },
-      { "Checks & Validators" = "design/contracts/checks.md" },
-      { "SLA Specification" = "design/contracts/sla.md" },
+    { Contract = [
+      { Overview = "design/contract/index.md" },
     ]},
     { Miscellaneous = [
       { Profiles = [

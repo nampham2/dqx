@@ -7,7 +7,7 @@ import pytest
 
 from dqx.api import VerificationSuite
 from dqx.common import AssertionResult, ResultKey
-from dqx.contract import (
+from dqx.contract_old import (
     AvgLengthCheck,
     BetweenValidator,
     BlacklistCheck,
@@ -894,7 +894,7 @@ class TestApplyValidators:
         import sympy as sp
         from unittest.mock import MagicMock
 
-        from dqx.contract import _apply_validators  # noqa: PLC2701
+        from dqx.contract_old import _apply_validators  # noqa: PLC2701
 
         metric = sp.Symbol("x")
         ctx = MagicMock()
