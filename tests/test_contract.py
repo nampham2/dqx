@@ -33,6 +33,7 @@ from dqx.contract import (
     ContractWarning,
     SlaLatency,
     _apply_odcs_operators,
+    _execute_custom_dqx_rule,
     _execute_library_rule,
     _severity_from_odcs,
 )
@@ -1434,3 +1435,261 @@ class TestLibraryRuleExecution:
         rule = {"name": "unknown_metric_rule", "metric": "someUnknownMetric", "mustBe": 0}
         results = _run_library_rule(rule, data)
         assert len(results) == 0
+
+
+# ---------------------------------------------------------------------------
+# _execute_custom_dqx_rule
+# ---------------------------------------------------------------------------
+
+
+def _run_custom_rule(
+    rule: dict,
+    data: pa.Table,
+    dataset: str = "t",
+) -> list[AssertionResult]:
+    """Execute a single custom DQX rule via _execute_custom_dqx_rule."""
+    from dqx.api import Context, check as dqx_check
+    from dqx.provider import MetricProvider
+
+    def check_fn(mp: MetricProvider, ctx: Context) -> None:
+        _execute_custom_dqx_rule(rule, mp, ctx)
+
+    decorated = dqx_check(name="test-check", datasets=[dataset])(check_fn)
+    datasource = DuckRelationDataSource.from_arrow(data, dataset)
+    db = InMemoryMetricDB()
+    suite = VerificationSuite(checks=[decorated], db=db, name="test-suite")
+    key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
+    suite.run([datasource], key)
+    return suite.collect_results()
+
+
+def _make_custom_rule(check_impl: str, operator_key: str, operator_val: object, name: str = "r") -> dict:
+    """Build a minimal type:custom engine:dqx rule dict."""
+    return {
+        "name": name,
+        "type": "custom",
+        "engine": "dqx",
+        "severity": "warning",
+        operator_key: operator_val,
+        "implementation": check_impl,
+    }
+
+
+class TestCustomDqxRuleExecution:
+    """Integration tests for _execute_custom_dqx_rule()."""
+
+    # ------------------------------------------------------------------
+    # num_rows (table-level, no column:)
+    # ------------------------------------------------------------------
+
+    def test_num_rows_passes(self) -> None:
+        data = pa.table({"v": [1, 2, 3]})
+        rule = _make_custom_rule("check: num_rows\n", "mustBeGreaterOrEqualTo", 3)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_num_rows_fails(self) -> None:
+        data = pa.table({"v": [1, 2, 3]})
+        rule = _make_custom_rule("check: num_rows\n", "mustBeGreaterOrEqualTo", 10)
+        assert _run_custom_rule(rule, data)[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # missing
+    # ------------------------------------------------------------------
+
+    def test_missing_passes_when_no_nulls(self) -> None:
+        data = pa.table({"col": pa.array([1, 2, 3])})
+        rule = _make_custom_rule("check: missing\ncolumn: col\n", "mustBe", 0)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_missing_pct_mode(self) -> None:
+        # 1 null / 4 rows = 0.25; mustBeLessOrEqualTo 0.5 → passes
+        data = pa.table({"col": pa.array([1, None, 3, 4])})
+        rule = _make_custom_rule("check: missing\ncolumn: col\nreturn: pct\n", "mustBeLessOrEqualTo", 0.5)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # duplicates
+    # ------------------------------------------------------------------
+
+    def test_duplicates_passes_when_unique(self) -> None:
+        data = pa.table({"id": pa.array([1, 2, 3])})
+        rule = _make_custom_rule("check: duplicates\ncolumn: id\n", "mustBe", 0)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_duplicates_pct_mode(self) -> None:
+        data = pa.table({"id": pa.array([1, 2, 3])})
+        rule = _make_custom_rule("check: duplicates\ncolumn: id\nreturn: pct\n", "mustBe", 0)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # whitelist
+    # ------------------------------------------------------------------
+
+    def test_whitelist_passes_when_all_match(self) -> None:
+        data = pa.table({"status": pa.array(["active", "inactive"])})
+        rule = _make_custom_rule(
+            "check: whitelist\ncolumn: status\nvalues:\n  - active\n  - inactive\n",
+            "mustBeGreaterOrEqualTo",
+            2,
+        )
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_whitelist_pct_mode(self) -> None:
+        data = pa.table({"status": pa.array(["active", "inactive", "active"])})
+        rule = _make_custom_rule(
+            "check: whitelist\ncolumn: status\nvalues:\n  - active\n  - inactive\nreturn: pct\n",
+            "mustBeGreaterOrEqualTo",
+            0.9,
+        )
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # blacklist
+    # ------------------------------------------------------------------
+
+    def test_blacklist_passes_when_none_forbidden(self) -> None:
+        data = pa.table({"username": pa.array(["alice", "bob"])})
+        rule = _make_custom_rule(
+            "check: blacklist\ncolumn: username\nvalues:\n  - admin\n  - root\n",
+            "mustBeGreaterOrEqualTo",
+            2,
+        )
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_blacklist_pct_mode(self) -> None:
+        data = pa.table({"username": pa.array(["alice", "bob", "alice"])})
+        rule = _make_custom_rule(
+            "check: blacklist\ncolumn: username\nvalues:\n  - admin\nreturn: pct\n",
+            "mustBeGreaterOrEqualTo",
+            0.9,
+        )
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # cardinality
+    # ------------------------------------------------------------------
+
+    def test_cardinality_passes(self) -> None:
+        data = pa.table({"status": pa.array(["a", "b", "c", "a"])})
+        rule = _make_custom_rule("check: cardinality\ncolumn: status\n", "mustBeLessOrEqualTo", 5)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # min / max / mean / sum / count / variance
+    # ------------------------------------------------------------------
+
+    def test_min_passes(self) -> None:
+        data = pa.table({"price": pa.array([5.0, 10.0, 15.0])})
+        rule = _make_custom_rule("check: min\ncolumn: price\n", "mustBeGreaterOrEqualTo", 5.0)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_max_passes(self) -> None:
+        data = pa.table({"price": pa.array([5.0, 10.0, 15.0])})
+        rule = _make_custom_rule("check: max\ncolumn: price\n", "mustBeLessOrEqualTo", 15.0)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_mean_passes(self) -> None:
+        data = pa.table({"price": pa.array([5.0, 10.0, 15.0])})
+        rule = _make_custom_rule("check: mean\ncolumn: price\n", "mustBeBetween", [9.0, 11.0])
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_sum_passes(self) -> None:
+        data = pa.table({"qty": pa.array([1, 2, 3])})
+        rule = _make_custom_rule("check: sum\ncolumn: qty\n", "mustBe", 6)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_count_passes(self) -> None:
+        # count = non-null values = 3 - 1 null = 2
+        data = pa.table({"col": pa.array([1, None, 3])})
+        rule = _make_custom_rule("check: count\ncolumn: col\n", "mustBe", 2)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_variance_passes(self) -> None:
+        data = pa.table({"v": pa.array([2.0, 2.0, 2.0])})
+        rule = _make_custom_rule("check: variance\ncolumn: v\n", "mustBe", 0)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # stddev (sqrt of variance)
+    # ------------------------------------------------------------------
+
+    def test_stddev_passes(self) -> None:
+        data = pa.table({"v": pa.array([2.0, 2.0, 2.0])})
+        rule = _make_custom_rule("check: stddev\ncolumn: v\n", "mustBe", 0)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # min_length / max_length
+    # ------------------------------------------------------------------
+
+    def test_min_length_string_passes(self) -> None:
+        data = pa.table({"name": pa.array(["abc", "defg"])})
+        rule = _make_custom_rule(
+            "check: min_length\ncolumn: name\ncolumn_type: string\n",
+            "mustBeGreaterOrEqualTo",
+            3,
+        )
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_max_length_string_passes(self) -> None:
+        data = pa.table({"name": pa.array(["abc", "defg"])})
+        rule = _make_custom_rule(
+            "check: max_length\ncolumn: name\ncolumn_type: string\n",
+            "mustBeLessOrEqualTo",
+            4,
+        )
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # NotImplementedError cases
+    # ------------------------------------------------------------------
+
+    def test_avg_length_raises_not_implemented(self) -> None:
+        data = pa.table({"name": pa.array(["abc"])})
+        rule = _make_custom_rule(
+            "check: avg_length\ncolumn: name\ncolumn_type: string\n",
+            "mustBeLessOrEqualTo",
+            10,
+        )
+        with pytest.raises(NotImplementedError, match="avg_length"):
+            _run_custom_rule(rule, data)
+
+    def test_percentile_raises_not_implemented(self) -> None:
+        data = pa.table({"v": pa.array([1.0, 2.0, 3.0])})
+        rule = _make_custom_rule(
+            "check: percentile\ncolumn: v\npercentile: 0.95\n",
+            "mustBeLessOrEqualTo",
+            3.0,
+        )
+        with pytest.raises(NotImplementedError, match="percentile"):
+            _run_custom_rule(rule, data)
+
+    def test_pattern_raises_not_implemented(self) -> None:
+        data = pa.table({"email": pa.array(["a@b.com"])})
+        rule = _make_custom_rule(
+            "check: pattern\ncolumn: email\npattern: '^.+@.+$'\n",
+            "mustBeGreaterOrEqualTo",
+            1,
+        )
+        with pytest.raises(NotImplementedError, match="pattern"):
+            _run_custom_rule(rule, data)
+
+    # ------------------------------------------------------------------
+    # Unknown check type → ContractValidationError
+    # ------------------------------------------------------------------
+
+    def test_unknown_check_type_raises_validation_error(self) -> None:
+        data = pa.table({"v": [1]})
+        rule = _make_custom_rule("check: some_unknown_check\ncolumn: v\n", "mustBe", 0)
+        with pytest.raises(ContractValidationError, match="some_unknown_check"):
+            _run_custom_rule(rule, data)
+
+    # ------------------------------------------------------------------
+    # Assertion name uses rule name field
+    # ------------------------------------------------------------------
+
+    def test_assertion_name_uses_rule_name(self) -> None:
+        data = pa.table({"v": [1, 2, 3]})
+        rule = _make_custom_rule("check: num_rows\n", "mustBeGreaterOrEqualTo", 1, name="my_volume_check")
+        results = _run_custom_rule(rule, data)
+        assert results[0].assertion == "my_volume_check"

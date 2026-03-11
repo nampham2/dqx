@@ -26,16 +26,17 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Mapping
 
+import sympy as sp
 import yaml
 from jsonschema import Draft201909Validator
 from jsonschema import ValidationError as _JsonSchemaValidationError
 
+from dqx.api import Context
 from dqx.common import SeverityLevel
+from dqx.provider import MetricProvider
 
 if TYPE_CHECKING:
     from dqx.api import AssertionReady
-    from dqx.provider import MetricProvider
-    from dqx.api import Context
 
 
 # ---------------------------------------------------------------------------
@@ -625,6 +626,117 @@ def _execute_library_rule(
     else:
         # Unknown metric — skip silently (no assertion produced)
         return
+
+    ready = ctx.assert_that(metric_expr).config(name=rule_name, severity=severity)
+    _apply_odcs_operators(ready, rule)
+
+
+# ---------------------------------------------------------------------------
+# Custom DQX rule execution (type: custom, engine: dqx)
+# ---------------------------------------------------------------------------
+
+
+def _execute_custom_dqx_rule(
+    rule: dict[str, Any],
+    mp: MetricProvider,
+    ctx: Context,
+) -> None:
+    """Execute one ODCS ``type: custom, engine: dqx`` rule.
+
+    Parses the ``implementation:`` field as YAML and dispatches on the
+    ``check:`` key to the appropriate :class:`MetricProvider` call.
+
+    Args:
+        rule: Raw ODCS quality rule dict with ``type: custom`` and
+            ``engine: dqx``.
+        mp: Active :class:`~dqx.provider.MetricProvider`.
+        ctx: Active :class:`~dqx.api.Context`.
+
+    Raises:
+        NotImplementedError: For ``check: avg_length``, ``check: percentile``,
+            and ``check: pattern`` which lack a backing MetricProvider method.
+        ContractValidationError: For unknown ``check:`` values.
+    """
+    impl: dict[str, Any] = yaml.safe_load(str(rule.get("implementation", ""))) or {}
+    check_type: str = str(impl.get("check", ""))
+    column: str | None = impl.get("column")
+    return_pct: bool = impl.get("return") == "pct"
+    rule_name: str = str(rule.get("name", check_type))
+    severity = _severity_from_odcs(rule.get("severity"))
+
+    if check_type == "num_rows":
+        metric_expr = mp.num_rows()
+
+    elif check_type == "missing":
+        col = str(column)
+        metric_expr = mp.null_count(col)
+        if return_pct:
+            metric_expr = metric_expr / mp.num_rows()
+
+    elif check_type == "duplicates":
+        col = str(column)
+        metric_expr = mp.duplicate_count([col])
+        if return_pct:
+            metric_expr = metric_expr / mp.num_rows()
+
+    elif check_type == "whitelist":
+        col = str(column)
+        values: list[Any] = impl.get("values") or []
+        metric_expr = mp.count_values(col, values)
+        if return_pct:
+            metric_expr = metric_expr / mp.num_rows()
+
+    elif check_type == "blacklist":
+        col = str(column)
+        values = impl.get("values") or []
+        metric_expr = mp.num_rows() - mp.count_values(col, values)
+        if return_pct:
+            metric_expr = metric_expr / mp.num_rows()
+
+    elif check_type == "cardinality":
+        metric_expr = mp.unique_count(str(column))
+
+    elif check_type == "min":
+        metric_expr = mp.minimum(str(column))
+
+    elif check_type == "max":
+        metric_expr = mp.maximum(str(column))
+
+    elif check_type == "mean":
+        metric_expr = mp.average(str(column))
+
+    elif check_type == "sum":
+        metric_expr = mp.sum(str(column))
+
+    elif check_type == "count":
+        col = str(column)
+        metric_expr = mp.num_rows() - mp.null_count(col)
+
+    elif check_type == "variance":
+        metric_expr = mp.variance(str(column))
+
+    elif check_type == "stddev":
+        metric_expr = sp.sqrt(mp.variance(str(column)))
+
+    elif check_type == "min_length":
+        col_type: str = str(impl.get("column_type", "string"))
+        metric_expr = mp.min_length(str(column), col_type)  # type: ignore[arg-type]
+
+    elif check_type == "max_length":
+        col_type = str(impl.get("column_type", "string"))
+        metric_expr = mp.max_length(str(column), col_type)  # type: ignore[arg-type]
+
+    elif check_type == "avg_length":
+        raise NotImplementedError("check: avg_length requires MetricProvider.avg_length() which is not yet implemented")
+
+    elif check_type == "percentile":
+        raise NotImplementedError("check: percentile requires MetricProvider.percentile() which is not yet implemented")
+
+    elif check_type == "pattern":
+        raise NotImplementedError("check: pattern requires MetricProvider.pattern_match() which is not yet implemented")
+
+    else:
+        raise ContractValidationError(f"Unknown DQX check type '{check_type}' in custom rule '{rule_name}'")
 
     ready = ctx.assert_that(metric_expr).config(name=rule_name, severity=severity)
     _apply_odcs_operators(ready, rule)
