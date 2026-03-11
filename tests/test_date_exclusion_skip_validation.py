@@ -123,6 +123,7 @@ class TestDateExclusionSkipValidation:
         mock_metric.dataset = "test_data"
         mock_metric.name = "sum(value)"
         mock_metric.data_av_ratio = 0.9  # Above threshold
+        mock_metric.lag = 0  # No lag — required since _gather now calls key.lag(sm.lag)
         provider.get_symbol.return_value = mock_metric
 
         # Create node hierarchy

@@ -4,7 +4,7 @@ import datetime as dt
 
 import pytest
 import sympy as sp
-from returns.result import Failure, Success
+from returns.result import Failure, Result, Success
 
 from dqx.common import DQXError, ExecutionId, ResultKey, SymbolicValidator
 from dqx.evaluator import Evaluator
@@ -880,3 +880,151 @@ class TestEvaluatorCollectSymbols:
 
         # Should be empty
         assert len(symbol_infos) == 0
+
+
+class TestEvaluatorLagKey:
+    """Tests for lag-adjusted key handling in collect_metrics and _gather."""
+
+    def test_collect_metrics_applies_lag_to_fn_call(self) -> None:
+        """collect_metrics must call sm.fn with effective_key = nominal_key.lag(sm.lag)."""
+        db = InMemoryMetricDB()
+        execution_id = ExecutionId("test-exec-123")
+        provider = MetricProvider(db, execution_id, data_av_threshold=0.9)
+
+        nominal_date = dt.date(2024, 1, 10)
+        nominal_key = ResultKey(yyyy_mm_dd=nominal_date, tags={})
+        expected_effective_date = nominal_date - dt.timedelta(days=1)
+
+        # Track what key the fn was called with
+        called_with: list[ResultKey] = []
+
+        def recording_fn(key: ResultKey) -> Success[float]:
+            called_with.append(key)
+            return Success(42.0)
+
+        symbol = sp.Symbol("x_1")
+        metric = SymbolicMetric(
+            name="lagged_metric",
+            symbol=symbol,
+            fn=recording_fn,
+            metric_spec=None,  # type: ignore
+            dataset="orders",
+            lag=1,
+        )
+        provider.registry._metrics.append(metric)
+        provider.registry.index[symbol] = metric
+
+        evaluator = Evaluator(provider, nominal_key, "Test Suite", data_av_threshold=0.8)
+        evaluator.collect_metrics(nominal_key)
+
+        assert len(called_with) == 1
+        assert called_with[0].yyyy_mm_dd == expected_effective_date, (
+            f"Expected fn called with effective date {expected_effective_date}, "
+            f"but was called with {called_with[0].yyyy_mm_dd}"
+        )
+
+    def test_collect_metrics_lag_zero_uses_nominal_key(self) -> None:
+        """collect_metrics with lag=0 must call sm.fn with the nominal key unchanged."""
+        db = InMemoryMetricDB()
+        execution_id = ExecutionId("test-exec-123")
+        provider = MetricProvider(db, execution_id, data_av_threshold=0.9)
+
+        nominal_date = dt.date(2024, 1, 10)
+        nominal_key = ResultKey(yyyy_mm_dd=nominal_date, tags={})
+
+        called_with: list[ResultKey] = []
+
+        def recording_fn(key: ResultKey) -> Success[float]:
+            called_with.append(key)
+            return Success(99.0)
+
+        symbol = sp.Symbol("x_1")
+        metric = SymbolicMetric(
+            name="zero_lag_metric",
+            symbol=symbol,
+            fn=recording_fn,
+            metric_spec=None,  # type: ignore
+            dataset="orders",
+            lag=0,
+        )
+        provider.registry._metrics.append(metric)
+        provider.registry.index[symbol] = metric
+
+        evaluator = Evaluator(provider, nominal_key, "Test Suite", data_av_threshold=0.8)
+        evaluator.collect_metrics(nominal_key)
+
+        assert len(called_with) == 1
+        assert called_with[0].yyyy_mm_dd == nominal_date, (
+            f"Expected fn called with nominal date {nominal_date}, but was called with {called_with[0].yyyy_mm_dd}"
+        )
+
+    def test_gather_reports_effective_date_for_lagged_metric(self) -> None:
+        """_gather must report effective yyyy_mm_dd (nominal - lag) in SymbolInfo for lagged metrics."""
+        db = InMemoryMetricDB()
+        execution_id = ExecutionId("test-exec-123")
+        provider = MetricProvider(db, execution_id, data_av_threshold=0.9)
+
+        nominal_date = dt.date(2024, 1, 10)
+        nominal_key = ResultKey(yyyy_mm_dd=nominal_date, tags={})
+        expected_effective_date = nominal_date - dt.timedelta(days=3)
+
+        symbol = sp.Symbol("x_1")
+        metric = SymbolicMetric(
+            name="lagged_metric",
+            symbol=symbol,
+            fn=lambda k: Success(7.0),
+            metric_spec=None,  # type: ignore
+            dataset="orders",
+            lag=3,
+        )
+        provider.registry._metrics.append(metric)
+        provider.registry.index[symbol] = metric
+
+        evaluator = Evaluator(provider, nominal_key, "Test Suite", data_av_threshold=0.8)
+        evaluator._metrics = {symbol: Success(7.0)}
+
+        _, _, symbol_infos = evaluator._gather(symbol)
+
+        assert len(symbol_infos) == 1
+        info = symbol_infos[0]
+        assert info.yyyy_mm_dd == expected_effective_date, (
+            f"Expected SymbolInfo.yyyy_mm_dd={expected_effective_date} (nominal - lag), but got {info.yyyy_mm_dd}"
+        )
+
+    def test_evaluator_evaluates_lagged_metric_successfully(self) -> None:
+        """End-to-end: evaluator using nominal key resolves a metric stored under effective (lag-adjusted) key."""
+        db = InMemoryMetricDB()
+        execution_id = ExecutionId("test-exec-123")
+        provider = MetricProvider(db, execution_id, data_av_threshold=0.9)
+
+        nominal_date = dt.date(2024, 1, 10)
+        nominal_key = ResultKey(yyyy_mm_dd=nominal_date, tags={})
+        effective_date = nominal_date - dt.timedelta(days=1)
+        effective_key = ResultKey(yyyy_mm_dd=effective_date, tags={})
+
+        # Metric fn only returns a value when called with effective_key (simulating cache keyed on effective date)
+        def cache_aware_fn(key: ResultKey) -> Result[float, str]:
+            if key == effective_key:
+                return Success(55.0)
+            return Failure(f"Metric not found for {key.yyyy_mm_dd}!")
+
+        symbol = sp.Symbol("x_1")
+        metric = SymbolicMetric(
+            name="lagged_metric",
+            symbol=symbol,
+            fn=cache_aware_fn,
+            metric_spec=None,  # type: ignore
+            dataset="orders",
+            data_av_ratio=0.95,
+            lag=1,
+        )
+        provider.registry._metrics.append(metric)
+        provider.registry.index[symbol] = metric
+
+        evaluator = Evaluator(provider, nominal_key, "Test Suite", data_av_threshold=0.8)
+
+        # evaluate() triggers collect_metrics internally (via .metrics property)
+        result = evaluator.evaluate(symbol)
+
+        assert isinstance(result, Success), f"Expected Success but got Failure: {result}"
+        assert result.unwrap() == 55.0
