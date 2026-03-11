@@ -90,11 +90,10 @@ class Evaluator:
         """
         result: dict[sp.Basic, Result[float, str]] = {}
         for sm in self.provider.metrics:
-            result[sm.symbol] = sm.fn(key)
+            effective_key = key.lag(sm.lag)
+            result[sm.symbol] = sm.fn(effective_key)
 
         return result
-
-        # return {metric.symbol: metric.fn(key) for metric in self.provider.metrics}
 
     def metric_for_symbol(self, symbol: sp.Symbol) -> SymbolicMetric:
         """Retrieve the SymbolicMetric associated with a given symbol.
@@ -155,6 +154,7 @@ class Evaluator:
             # Get the symbolic metric for this symbol
             sm = self.metric_for_symbol(sym)
             metric_result = self.metrics[sym]
+            effective_key = self._key.lag(sm.lag)
 
             # Create SymbolInfo for this symbol
             # Use the name from SymbolicMetric which includes the proper function name
@@ -166,8 +166,8 @@ class Evaluator:
                 metric=sm.name,
                 dataset=sm.dataset,
                 value=metric_result,
-                yyyy_mm_dd=self._key.yyyy_mm_dd,
-                tags=self._key.tags,
+                yyyy_mm_dd=effective_key.yyyy_mm_dd,
+                tags=effective_key.tags,
             )
             symbol_infos.append(symbol_info)
 
