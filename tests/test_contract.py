@@ -23,6 +23,7 @@ import pyarrow as pa
 import pytest
 import yaml
 
+import dqx
 from dqx.api import VerificationSuite
 from dqx.common import AssertionResult, ResultKey
 from dqx.contract import (
@@ -39,10 +40,9 @@ from dqx.contract import (
     _require_column,
     _severity_from_odcs,
 )
-import dqx
 from dqx.datasource import DuckRelationDataSource
+from dqx.display import print_assertion_results
 from dqx.orm.repositories import InMemoryMetricDB
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1846,7 +1846,9 @@ def _run_contract(contract: Contract, data: pa.Table) -> list[AssertionResult]:
     suite = VerificationSuite(checks=checks, db=db, name="test-suite")
     key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
     suite.run([datasource], key)
-    return suite.collect_results()
+    results = suite.collect_results()
+    print_assertion_results(results)
+    return results
 
 
 class TestToChecksPublicMethod:
@@ -2103,6 +2105,55 @@ class TestToChecksPublicMethod:
         by_name = {r.assertion: r.status for r in results}
         assert by_name["no_nulls"] == "PASSED"
         assert by_name["row_count_check"] == "FAILED"
+
+    def test_mixed_library_and_custom_dqx_rules(self, tmp_path: Path) -> None:
+        """Library and custom dqx rules in the same contract all execute."""
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                quality:
+                  - name: volume_floor
+                    type: library
+                    metric: rowCount
+                    mustBeGreaterOrEqualTo: 2
+                    severity: error
+                properties:
+                  - name: amount
+                    logicalType: number
+                    quality:
+                      - name: no_nulls
+                        type: library
+                        metric: nullValues
+                        mustBe: 0
+                        severity: error
+                      - name: amount_positive
+                        type: custom
+                        engine: dqx
+                        severity: error
+                        implementation: |
+                          check: min
+                          column: amount
+                          mustBeGreaterThan: 0
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        data = pa.table({"amount": pa.array([10.0, 20.0, 30.0])})
+        results = _run_contract(contracts[0], data)
+        # volume_floor: rowCount(3) >= 2 → PASSED
+        # no_nulls: nullCount(0) == 0 → PASSED
+        # amount_positive: min(10.0) > 0 → PASSED
+        assert len(results) == 3
+        by_name = {r.assertion: r.status for r in results}
+        assert by_name["volume_floor"] == "PASSED"
+        assert by_name["no_nulls"] == "PASSED"
+        assert by_name["amount_positive"] == "PASSED"
+        # All three assertions belong to the single contract check node
+        check_names = {r.check for r in results}
+        assert len(check_names) == 1
 
     # ------------------------------------------------------------------
     # Public API export from dqx package
