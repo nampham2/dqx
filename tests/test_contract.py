@@ -1274,6 +1274,7 @@ class TestRequireColumn:
 
 
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
 # _dispatch_rule
 # ---------------------------------------------------------------------------
 
@@ -1535,7 +1536,8 @@ class TestLibraryRuleExecution:
     def test_unknown_metric_produces_no_assertion(self) -> None:
         data = pa.table({"v": [1, 2]})
         rule = {"name": "unknown_metric_rule", "metric": "someUnknownMetric", "mustBe": 0}
-        results = _run_library_rule(rule, data)
+        with pytest.warns(ContractWarning, match="someUnknownMetric"):
+            results = _run_library_rule(rule, data)
         assert len(results) == 0
 
     # ------------------------------------------------------------------
@@ -1665,6 +1667,38 @@ class TestCustomDqxRuleExecution:
             "check: blacklist\ncolumn: username\nvalues:\n  - admin\nreturn: pct\n",
             "mustBeGreaterOrEqualTo",
             0.9,
+        )
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_missing_pct_mode_empty_table_returns_zero(self) -> None:
+        """Empty table: pct-mode missing check evaluates to 0.0 (not NaN/error)."""
+        data = pa.table({"col": pa.array([], type=pa.int64())})
+        rule = _make_custom_rule("check: missing\ncolumn: col\nreturn: pct\n", "mustBeLessOrEqualTo", 0.5)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_duplicates_pct_mode_empty_table_returns_zero(self) -> None:
+        """Empty table: pct-mode duplicates check evaluates to 0.0 (not NaN/error)."""
+        data = pa.table({"id": pa.array([], type=pa.int64())})
+        rule = _make_custom_rule("check: duplicates\ncolumn: id\nreturn: pct\n", "mustBe", 0)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_whitelist_pct_mode_empty_table_returns_zero(self) -> None:
+        """Empty table: pct-mode whitelist check evaluates to 0.0 (not NaN/error)."""
+        data = pa.table({"status": pa.array([], type=pa.string())})
+        rule = _make_custom_rule(
+            "check: whitelist\ncolumn: status\nvalues:\n  - active\nreturn: pct\n",
+            "mustBeLessOrEqualTo",
+            0.5,
+        )
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_blacklist_pct_mode_empty_table_returns_zero(self) -> None:
+        """Empty table: pct-mode blacklist check evaluates to 0.0 (not NaN/error)."""
+        data = pa.table({"username": pa.array([], type=pa.string())})
+        rule = _make_custom_rule(
+            "check: blacklist\ncolumn: username\nvalues:\n  - admin\nreturn: pct\n",
+            "mustBeLessOrEqualTo",
+            0.5,
         )
         assert _run_custom_rule(rule, data)[0].status == "PASSED"
 
@@ -1835,6 +1869,37 @@ class TestCustomDqxRuleExecution:
             10,
         )
         with pytest.raises(ContractValidationError, match="column_type"):
+            _run_custom_rule(rule, data)
+
+    # ------------------------------------------------------------------
+    # Invalid YAML in implementation: field
+    # ------------------------------------------------------------------
+
+    def test_invalid_yaml_in_implementation_raises(self) -> None:
+        """yaml.YAMLError from malformed implementation: YAML is wrapped in ContractValidationError."""
+        data = pa.table({"v": [1]})
+        rule = {
+            "name": "bad_yaml_rule",
+            "type": "custom",
+            "engine": "dqx",
+            "implementation": "check: missing\n  bad indent: [unclosed",
+            "mustBe": 0,
+        }
+        with pytest.raises(ContractValidationError, match="invalid YAML"):
+            _run_custom_rule(rule, data)
+
+    def test_non_dict_yaml_in_implementation_raises(self) -> None:
+        """A scalar or list implementation: value raises ContractValidationError."""
+        data = pa.table({"v": [1]})
+        # A bare string is valid YAML but not a mapping
+        rule = {
+            "name": "scalar_impl_rule",
+            "type": "custom",
+            "engine": "dqx",
+            "implementation": "just a plain string",
+            "mustBe": 0,
+        }
+        with pytest.raises(ContractValidationError, match="must be a YAML mapping"):
             _run_custom_rule(rule, data)
 
 
@@ -2049,6 +2114,32 @@ class TestToChecksPublicMethod:
         assert len(results) == 1
         assert results[0].status == "PASSED"
 
+    def test_custom_dqx_rule_fails_when_threshold_not_met(self, tmp_path: Path) -> None:
+        """Threshold inside implementation: is enforced — a noop would leave status PASSED."""
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                quality:
+                  - name: volume_floor
+                    type: custom
+                    engine: dqx
+                    severity: warning
+                    implementation: |
+                      check: num_rows
+                      mustBeGreaterOrEqualTo: 100
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        # Only 3 rows — mustBeGreaterOrEqualTo 100 must FAIL
+        data = pa.table({"v": [1, 2, 3]})
+        results = _run_contract(contracts[0], data)
+        assert len(results) == 1
+        assert results[0].status == "FAILED"
+
     # ------------------------------------------------------------------
     # SLA raises NotImplementedError at call time
     # ------------------------------------------------------------------
@@ -2165,6 +2256,41 @@ class TestToChecksPublicMethod:
         # All three assertions belong to the single contract check node
         check_names = {r.check for r in results}
         assert len(check_names) == 1
+
+    def test_mixed_rules_custom_fails_when_threshold_not_met(self, tmp_path: Path) -> None:
+        """Custom dqx threshold inside implementation: is enforced in mixed contract."""
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                quality:
+                  - name: volume_floor
+                    type: library
+                    metric: rowCount
+                    mustBeGreaterOrEqualTo: 1
+                properties:
+                  - name: amount
+                    logicalType: number
+                    quality:
+                      - name: amount_min
+                        type: custom
+                        engine: dqx
+                        implementation: |
+                          check: min
+                          column: amount
+                          mustBeGreaterThan: 100
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        # amount values are all below 100 — min(5, 10) = 5 < 100 → FAILED
+        data = pa.table({"amount": pa.array([5.0, 10.0])})
+        results = _run_contract(contracts[0], data)
+        by_name = {r.assertion: r.status for r in results}
+        assert by_name["volume_floor"] == "PASSED"
+        assert by_name["amount_min"] == "FAILED"
 
     # ------------------------------------------------------------------
     # Public API export from dqx package
