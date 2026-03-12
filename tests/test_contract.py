@@ -9,17 +9,23 @@ This module covers:
 - SLA metadata storage for non-latency properties
 - Error conditions (missing file, invalid YAML)
 - Immutability of all dataclasses
+- Severity and operator translation helpers
 """
 
 from __future__ import annotations
 
+import datetime
 import textwrap
 import warnings
 from pathlib import Path
 
+import pyarrow as pa
 import pytest
 import yaml
 
+import dqx
+from dqx.api import VerificationSuite
+from dqx.common import AssertionResult, ResultKey
 from dqx.contract import (
     Contract,
     ContractProperty,
@@ -27,8 +33,16 @@ from dqx.contract import (
     ContractValidationError,
     ContractWarning,
     SlaLatency,
+    _apply_odcs_operators,
+    _dispatch_rule,
+    _execute_custom_dqx_rule,
+    _execute_library_rule,
+    _require_column,
+    _severity_from_odcs,
 )
-
+from dqx.datasource import DuckRelationDataSource
+from dqx.display import print_assertion_results
+from dqx.orm.repositories import InMemoryMetricDB
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1008,3 +1022,1288 @@ class TestFullOdcsExample:
 
     def test_receivers_sla_metadata_same_as_tbl(self, tbl: Contract, receivers: Contract) -> None:
         assert receivers.sla_metadata == tbl.sla_metadata
+
+
+# ---------------------------------------------------------------------------
+# Helpers shared by translation-helper tests
+# ---------------------------------------------------------------------------
+
+
+def _run_check_fn(check_fn: object, data: pa.Table, dataset: str = "t") -> list[AssertionResult]:
+    """Run a bare check function (not decorated) inside a minimal suite."""
+    from dqx.api import check as dqx_check
+
+    decorated = dqx_check(name="test-check", datasets=[dataset])(check_fn)  # type: ignore[arg-type]
+    datasource = DuckRelationDataSource.from_arrow(data, dataset)
+    db = InMemoryMetricDB()
+    suite = VerificationSuite(checks=[decorated], db=db, name="test-suite")
+    key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
+    suite.run([datasource], key)
+    return suite.collect_results()
+
+
+def _run_library_rule(
+    rule: dict,
+    data: pa.Table,
+    dataset: str = "t",
+    property_name: str | None = None,
+) -> list[AssertionResult]:
+    """Execute a single library rule via _execute_library_rule inside a suite."""
+    from dqx.api import Context
+    from dqx.provider import MetricProvider
+
+    def check_fn(mp: MetricProvider, ctx: Context) -> None:
+        _execute_library_rule(rule, property_name, mp, ctx)
+
+    return _run_check_fn(check_fn, data, dataset)
+
+
+def _run_custom_rule(
+    rule: dict,
+    data: pa.Table,
+    dataset: str = "t",
+) -> list[AssertionResult]:
+    """Execute a single custom DQX rule via _execute_custom_dqx_rule."""
+    from dqx.api import Context
+    from dqx.provider import MetricProvider
+
+    def check_fn(mp: MetricProvider, ctx: Context) -> None:
+        _execute_custom_dqx_rule(rule, mp, ctx)
+
+    return _run_check_fn(check_fn, data, dataset)
+
+
+# ---------------------------------------------------------------------------
+# _severity_from_odcs
+# ---------------------------------------------------------------------------
+
+
+class TestSeverityFromOdcs:
+    """Unit tests for _severity_from_odcs()."""
+
+    def test_error_maps_to_p0(self) -> None:
+        assert _severity_from_odcs("error") == "P0"
+
+    def test_warning_maps_to_p1(self) -> None:
+        assert _severity_from_odcs("warning") == "P1"
+
+    def test_none_maps_to_p1(self) -> None:
+        assert _severity_from_odcs(None) == "P1"
+
+    def test_unknown_string_maps_to_p1(self) -> None:
+        """Any unrecognised severity string defaults to P1."""
+        assert _severity_from_odcs("info") == "P1"
+
+
+# ---------------------------------------------------------------------------
+# _apply_odcs_operators
+# ---------------------------------------------------------------------------
+
+
+class TestApplyOdcsOperators:
+    """Integration tests for _apply_odcs_operators() via a minimal suite."""
+
+    _DATA = pa.table({"v": [10, 20, 30]})
+
+    def _run(self, rule: dict) -> list[AssertionResult]:
+        from dqx.api import Context
+        from dqx.provider import MetricProvider
+
+        def check_fn(mp: MetricProvider, ctx: Context) -> None:
+            metric = mp.num_rows()
+            ready = ctx.assert_that(metric).config(name="test-assertion", severity="P1")
+            _apply_odcs_operators(ready, rule)
+
+        return _run_check_fn(check_fn, self._DATA)
+
+    # ------------------------------------------------------------------
+    # noop when no operator
+    # ------------------------------------------------------------------
+
+    def test_no_operator_produces_noop(self) -> None:
+        results = self._run({})
+        assert len(results) == 1
+        assert results[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # mustBe
+    # ------------------------------------------------------------------
+
+    def test_must_be_passes_when_equal(self) -> None:
+        results = self._run({"mustBe": 3})
+        assert results[0].status == "PASSED"
+
+    def test_must_be_fails_when_not_equal(self) -> None:
+        results = self._run({"mustBe": 99})
+        assert results[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # mustNotBe
+    # ------------------------------------------------------------------
+
+    def test_must_not_be_passes_when_different(self) -> None:
+        results = self._run({"mustNotBe": 99})
+        assert results[0].status == "PASSED"
+
+    def test_must_not_be_fails_when_equal(self) -> None:
+        results = self._run({"mustNotBe": 3})
+        assert results[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # mustBeGreaterThan
+    # ------------------------------------------------------------------
+
+    def test_must_be_greater_than_passes(self) -> None:
+        results = self._run({"mustBeGreaterThan": 2})
+        assert results[0].status == "PASSED"
+
+    def test_must_be_greater_than_fails_when_equal(self) -> None:
+        results = self._run({"mustBeGreaterThan": 3})
+        assert results[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # mustBeGreaterOrEqualTo
+    # ------------------------------------------------------------------
+
+    def test_must_be_greater_or_equal_to_passes_when_equal(self) -> None:
+        results = self._run({"mustBeGreaterOrEqualTo": 3})
+        assert results[0].status == "PASSED"
+
+    def test_must_be_greater_or_equal_to_passes_when_greater(self) -> None:
+        results = self._run({"mustBeGreaterOrEqualTo": 1})
+        assert results[0].status == "PASSED"
+
+    def test_must_be_greater_or_equal_to_fails(self) -> None:
+        results = self._run({"mustBeGreaterOrEqualTo": 4})
+        assert results[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # mustBeLessThan
+    # ------------------------------------------------------------------
+
+    def test_must_be_less_than_passes(self) -> None:
+        results = self._run({"mustBeLessThan": 4})
+        assert results[0].status == "PASSED"
+
+    def test_must_be_less_than_fails_when_equal(self) -> None:
+        results = self._run({"mustBeLessThan": 3})
+        assert results[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # mustBeLessOrEqualTo
+    # ------------------------------------------------------------------
+
+    def test_must_be_less_or_equal_to_passes_when_equal(self) -> None:
+        results = self._run({"mustBeLessOrEqualTo": 3})
+        assert results[0].status == "PASSED"
+
+    def test_must_be_less_or_equal_to_fails(self) -> None:
+        results = self._run({"mustBeLessOrEqualTo": 2})
+        assert results[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # mustBeBetween
+    # ------------------------------------------------------------------
+
+    def test_must_be_between_passes(self) -> None:
+        results = self._run({"mustBeBetween": [1, 5]})
+        assert results[0].status == "PASSED"
+
+    def test_must_be_between_fails_outside(self) -> None:
+        results = self._run({"mustBeBetween": [10, 20]})
+        assert results[0].status == "FAILED"
+
+    def test_must_be_between_scalar_raises(self) -> None:
+        with pytest.raises(ContractValidationError, match="mustBeBetween"):
+            self._run({"mustBeBetween": 3})
+
+    def test_must_be_between_wrong_length_raises(self) -> None:
+        with pytest.raises(ContractValidationError, match="mustBeBetween"):
+            self._run({"mustBeBetween": [1, 2, 3]})
+
+    # ------------------------------------------------------------------
+    # mustNotBeBetween
+    # ------------------------------------------------------------------
+
+    def test_must_not_be_between_passes_outside(self) -> None:
+        results = self._run({"mustNotBeBetween": [10, 20]})
+        assert results[0].status == "PASSED"
+
+    def test_must_not_be_between_fails_inside(self) -> None:
+        results = self._run({"mustNotBeBetween": [1, 5]})
+        assert results[0].status == "FAILED"
+
+    def test_must_not_be_between_scalar_raises(self) -> None:
+        with pytest.raises(ContractValidationError, match="mustNotBeBetween"):
+            self._run({"mustNotBeBetween": 3})
+
+
+# ---------------------------------------------------------------------------
+# _require_column
+# ---------------------------------------------------------------------------
+
+
+class TestRequireColumn:
+    """Unit tests for _require_column()."""
+
+    def test_returns_column_when_present(self) -> None:
+        assert _require_column("my_col", "rule", "missing") == "my_col"
+
+    def test_strips_surrounding_whitespace(self) -> None:
+        assert _require_column("  my_col  ", "rule", "missing") == "my_col"
+
+    def test_raises_when_column_is_none(self) -> None:
+        with pytest.raises(ContractValidationError, match="column"):
+            _require_column(None, "my_rule", "missing")
+
+    def test_raises_when_column_is_empty_string(self) -> None:
+        with pytest.raises(ContractValidationError, match="non-empty"):
+            _require_column("", "my_rule", "missing")
+
+    def test_raises_when_column_is_whitespace_only(self) -> None:
+        with pytest.raises(ContractValidationError, match="non-empty"):
+            _require_column("   ", "my_rule", "missing")
+
+    def test_error_message_includes_rule_name(self) -> None:
+        with pytest.raises(ContractValidationError, match="my_rule"):
+            _require_column(None, "my_rule", "missing")
+
+    def test_error_message_includes_check_type(self) -> None:
+        with pytest.raises(ContractValidationError, match="missing"):
+            _require_column(None, "r", "missing")
+
+
+# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# _dispatch_rule
+# ---------------------------------------------------------------------------
+
+
+class TestDispatchRule:
+    """Unit tests for _dispatch_rule() routing logic."""
+
+    _DATA = pa.table({"v": [1, 2, 3]})
+
+    def _run_dispatch(self, rule: dict, property_name: str | None = None) -> list[AssertionResult]:
+        from dqx.api import Context
+        from dqx.provider import MetricProvider
+
+        def check_fn(mp: MetricProvider, ctx: Context) -> None:
+            _dispatch_rule(rule, property_name, mp, ctx)
+
+        return _run_check_fn(check_fn, self._DATA)
+
+    def test_text_rule_produces_no_assertion(self) -> None:
+        """type:text rules must be silently skipped (no pragma bypass)."""
+        rule = {"type": "text", "name": "doc_note", "description": "Just docs"}
+        results = self._run_dispatch(rule)
+        assert len(results) == 0
+
+    def test_sql_rule_warns_and_skips(self) -> None:
+        rule = {"type": "sql", "name": "fraud_check", "query": "SELECT 1"}
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            results = self._run_dispatch(rule)
+        assert len(results) == 0
+        assert any("sql" in str(w.message).lower() for w in caught)
+
+    def test_custom_non_dqx_engine_warns_and_skips(self) -> None:
+        rule = {"type": "custom", "name": "soda_rule", "engine": "soda", "implementation": "x"}
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            results = self._run_dispatch(rule)
+        assert len(results) == 0
+        assert any("soda" in str(w.message) for w in caught)
+
+    def test_library_rule_dispatched_to_library_executor(self) -> None:
+        rule = {"name": "rc", "metric": "rowCount", "mustBeGreaterOrEqualTo": 1}
+        results = self._run_dispatch(rule)
+        assert len(results) == 1
+        assert results[0].status == "PASSED"
+
+    def test_custom_dqx_rule_dispatched_to_custom_executor(self) -> None:
+        rule = {
+            "type": "custom",
+            "engine": "dqx",
+            "name": "vol",
+            "implementation": "check: num_rows\n",
+            "mustBeGreaterOrEqualTo": 1,
+        }
+        results = self._run_dispatch(rule)
+        assert len(results) == 1
+        assert results[0].status == "PASSED"
+
+
+# ---------------------------------------------------------------------------
+# _execute_library_rule
+# ---------------------------------------------------------------------------
+
+
+class TestLibraryRuleExecution:
+    """Integration tests for _execute_library_rule()."""
+
+    # ------------------------------------------------------------------
+    # rowCount
+    # ------------------------------------------------------------------
+
+    def test_row_count_passes_when_geq(self) -> None:
+        data = pa.table({"v": [1, 2, 3]})
+        rule = {"name": "rc", "metric": "rowCount", "mustBeGreaterOrEqualTo": 3}
+        results = _run_library_rule(rule, data)
+        assert len(results) == 1
+        assert results[0].status == "PASSED"
+
+    def test_row_count_fails_when_below(self) -> None:
+        data = pa.table({"v": [1, 2, 3]})
+        rule = {"name": "rc", "metric": "rowCount", "mustBeGreaterOrEqualTo": 10}
+        results = _run_library_rule(rule, data)
+        assert results[0].status == "FAILED"
+
+    def test_row_count_assertion_name_uses_rule_name(self) -> None:
+        data = pa.table({"v": [1]})
+        rule = {"name": "my_row_count_check", "metric": "rowCount", "mustBeGreaterOrEqualTo": 1}
+        results = _run_library_rule(rule, data)
+        assert results[0].assertion == "my_row_count_check"
+
+    def test_row_count_severity_error_maps_to_p0(self) -> None:
+        data = pa.table({"v": [1]})
+        rule = {"name": "rc", "metric": "rowCount", "mustBeGreaterOrEqualTo": 1, "severity": "error"}
+        results = _run_library_rule(rule, data)
+        assert results[0].severity == "P0"
+
+    def test_row_count_noop_when_no_operator(self) -> None:
+        data = pa.table({"v": [1, 2]})
+        rule = {"name": "rc", "metric": "rowCount"}
+        results = _run_library_rule(rule, data)
+        assert results[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # nullValues
+    # ------------------------------------------------------------------
+
+    def test_null_values_passes_when_zero_nulls(self) -> None:
+        data = pa.table({"amount": pa.array([1.0, 2.0, 3.0])})
+        rule = {"name": "no_nulls", "metric": "nullValues", "mustBe": 0}
+        results = _run_library_rule(rule, data, property_name="amount")
+        assert results[0].status == "PASSED"
+
+    def test_null_values_fails_when_nulls_present(self) -> None:
+        data = pa.table({"amount": pa.array([1.0, None, 3.0])})
+        rule = {"name": "no_nulls", "metric": "nullValues", "mustBe": 0}
+        results = _run_library_rule(rule, data, property_name="amount")
+        assert results[0].status == "FAILED"
+
+    def test_null_values_percent_mode(self) -> None:
+        # 1 out of 4 nulls = 0.25; mustBeLessOrEqualTo 0.5 → passes
+        data = pa.table({"amount": pa.array([1.0, None, 3.0, 4.0])})
+        rule = {"name": "low_nulls", "metric": "nullValues", "unit": "percent", "mustBeLessOrEqualTo": 0.5}
+        results = _run_library_rule(rule, data, property_name="amount")
+        assert results[0].status == "PASSED"
+
+    def test_null_values_percent_mode_fails(self) -> None:
+        # 2 out of 4 nulls = 0.5; mustBeLessOrEqualTo 0.1 → fails
+        data = pa.table({"amount": pa.array([1.0, None, None, 4.0])})
+        rule = {"name": "low_nulls", "metric": "nullValues", "unit": "percent", "mustBeLessOrEqualTo": 0.1}
+        results = _run_library_rule(rule, data, property_name="amount")
+        assert results[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # missingValues
+    # ------------------------------------------------------------------
+
+    def test_missing_values_behaves_like_null_values(self) -> None:
+        data = pa.table({"col": pa.array([1, None, 3])})
+        rule = {"name": "no_missing", "metric": "missingValues", "mustBe": 0}
+        results = _run_library_rule(rule, data, property_name="col")
+        assert results[0].status == "FAILED"
+
+    def test_missing_values_with_sentinel_list_warns_and_skips(self) -> None:
+        data = pa.table({"col": pa.array(["a", "b"])})
+        rule = {
+            "name": "sentinel",
+            "metric": "missingValues",
+            "mustBe": 0,
+            "arguments": {"missingValues": ["N/A", ""]},
+        }
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            results = _run_library_rule(rule, data, property_name="col")
+        assert len(results) == 0
+        assert any("missingValues" in str(w.message) for w in caught)
+
+    # ------------------------------------------------------------------
+    # invalidValues
+    # ------------------------------------------------------------------
+
+    def test_invalid_values_passes_when_all_valid(self) -> None:
+        data = pa.table({"status": pa.array(["active", "inactive"])})
+        rule = {
+            "name": "valid_status",
+            "metric": "invalidValues",
+            "mustBe": 0,
+            "validValues": ["active", "inactive", "pending"],
+        }
+        results = _run_library_rule(rule, data, property_name="status")
+        assert results[0].status == "PASSED"
+
+    def test_invalid_values_fails_when_invalid_present(self) -> None:
+        data = pa.table({"status": pa.array(["active", "UNKNOWN"])})
+        rule = {
+            "name": "valid_status",
+            "metric": "invalidValues",
+            "mustBe": 0,
+            "validValues": ["active", "inactive"],
+        }
+        results = _run_library_rule(rule, data, property_name="status")
+        assert results[0].status == "FAILED"
+
+    def test_invalid_values_with_pattern_warns_and_skips(self) -> None:
+        data = pa.table({"iban": pa.array(["GB29NWBK60161331926819"])})
+        rule = {
+            "name": "iban_pattern",
+            "metric": "invalidValues",
+            "mustBe": 0,
+            "arguments": {"pattern": "^[A-Z]{2}[0-9]{2}"},
+        }
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            results = _run_library_rule(rule, data, property_name="iban")
+        assert len(results) == 0
+        assert any("invalidValues" in str(w.message) for w in caught)
+
+    # ------------------------------------------------------------------
+    # duplicateValues — property level
+    # ------------------------------------------------------------------
+
+    def test_duplicate_values_property_passes_when_unique(self) -> None:
+        data = pa.table({"id": pa.array([1, 2, 3])})
+        rule = {"name": "unique_id", "metric": "duplicateValues", "mustBe": 0}
+        results = _run_library_rule(rule, data, property_name="id")
+        assert results[0].status == "PASSED"
+
+    def test_duplicate_values_property_fails_when_dupes(self) -> None:
+        data = pa.table({"id": pa.array([1, 1, 2])})
+        rule = {"name": "unique_id", "metric": "duplicateValues", "mustBe": 0}
+        results = _run_library_rule(rule, data, property_name="id")
+        assert results[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # duplicateValues — table level (arguments.properties)
+    # ------------------------------------------------------------------
+
+    def test_duplicate_values_table_level_passes(self) -> None:
+        data = pa.table({"a": pa.array([1, 2, 3]), "b": pa.array([4, 5, 6])})
+        rule = {
+            "name": "composite_unique",
+            "metric": "duplicateValues",
+            "mustBe": 0,
+            "arguments": {"properties": ["a", "b"]},
+        }
+        results = _run_library_rule(rule, data, property_name=None)
+        assert results[0].status == "PASSED"
+
+    def test_duplicate_values_table_level_fails(self) -> None:
+        data = pa.table({"a": pa.array([1, 1, 3]), "b": pa.array([4, 4, 6])})
+        rule = {
+            "name": "composite_unique",
+            "metric": "duplicateValues",
+            "mustBe": 0,
+            "arguments": {"properties": ["a", "b"]},
+        }
+        results = _run_library_rule(rule, data, property_name=None)
+        assert results[0].status == "FAILED"
+
+    def test_invalid_values_percent_mode_passes(self) -> None:
+        # 0 invalid out of 3 = 0.0 percent; mustBe 0 → passes
+        data = pa.table({"status": pa.array(["active", "inactive", "active"])})
+        rule = {
+            "name": "valid_status_pct",
+            "metric": "invalidValues",
+            "mustBe": 0,
+            "unit": "percent",
+            "validValues": ["active", "inactive"],
+        }
+        results = _run_library_rule(rule, data, property_name="status")
+        assert results[0].status == "PASSED"
+
+    def test_duplicate_values_percent_mode_passes(self) -> None:
+        # 0 duplicates out of 3 = 0.0; mustBe 0 → passes
+        data = pa.table({"id": pa.array([1, 2, 3])})
+        rule = {"name": "unique_id_pct", "metric": "duplicateValues", "mustBe": 0, "unit": "percent"}
+        results = _run_library_rule(rule, data, property_name="id")
+        assert results[0].status == "PASSED"
+
+    def test_unknown_metric_produces_no_assertion(self) -> None:
+        data = pa.table({"v": [1, 2]})
+        rule = {"name": "unknown_metric_rule", "metric": "someUnknownMetric", "mustBe": 0}
+        with pytest.warns(ContractWarning, match="someUnknownMetric"):
+            results = _run_library_rule(rule, data)
+        assert len(results) == 0
+
+    # ------------------------------------------------------------------
+    # Error: column-required metrics applied at table level
+    # ------------------------------------------------------------------
+
+    def test_null_values_at_table_level_raises(self) -> None:
+        data = pa.table({"v": [1, 2]})
+        rule = {"name": "bad_rule", "metric": "nullValues", "mustBe": 0}
+        with pytest.raises(ContractValidationError, match="column"):
+            _run_library_rule(rule, data, property_name=None)
+
+    def test_missing_values_at_table_level_raises(self) -> None:
+        data = pa.table({"v": [1, 2]})
+        rule = {"name": "bad_rule", "metric": "missingValues", "mustBe": 0}
+        with pytest.raises(ContractValidationError, match="column"):
+            _run_library_rule(rule, data, property_name=None)
+
+    def test_invalid_values_at_table_level_raises(self) -> None:
+        data = pa.table({"v": [1, 2]})
+        rule = {"name": "bad_rule", "metric": "invalidValues", "mustBe": 0, "validValues": [1]}
+        with pytest.raises(ContractValidationError, match="column"):
+            _run_library_rule(rule, data, property_name=None)
+
+
+# ---------------------------------------------------------------------------
+# _execute_custom_dqx_rule
+# ---------------------------------------------------------------------------
+
+
+def _make_custom_rule(check_impl: str, operator_key: str, operator_val: object, name: str = "r") -> dict:
+    """Build a minimal type:custom engine:dqx rule dict."""
+    return {
+        "name": name,
+        "type": "custom",
+        "engine": "dqx",
+        "severity": "warning",
+        operator_key: operator_val,
+        "implementation": check_impl,
+    }
+
+
+class TestCustomDqxRuleExecution:
+    """Integration tests for _execute_custom_dqx_rule()."""
+
+    # ------------------------------------------------------------------
+    # num_rows (table-level, no column:)
+    # ------------------------------------------------------------------
+
+    def test_num_rows_passes(self) -> None:
+        data = pa.table({"v": [1, 2, 3]})
+        rule = _make_custom_rule("check: num_rows\n", "mustBeGreaterOrEqualTo", 3)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_num_rows_fails(self) -> None:
+        data = pa.table({"v": [1, 2, 3]})
+        rule = _make_custom_rule("check: num_rows\n", "mustBeGreaterOrEqualTo", 10)
+        assert _run_custom_rule(rule, data)[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # missing
+    # ------------------------------------------------------------------
+
+    def test_missing_passes_when_no_nulls(self) -> None:
+        data = pa.table({"col": pa.array([1, 2, 3])})
+        rule = _make_custom_rule("check: missing\ncolumn: col\n", "mustBe", 0)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_missing_pct_mode(self) -> None:
+        # 1 null / 4 rows = 0.25; mustBeLessOrEqualTo 0.5 → passes
+        data = pa.table({"col": pa.array([1, None, 3, 4])})
+        rule = _make_custom_rule("check: missing\ncolumn: col\nreturn: pct\n", "mustBeLessOrEqualTo", 0.5)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # duplicates
+    # ------------------------------------------------------------------
+
+    def test_duplicates_passes_when_unique(self) -> None:
+        data = pa.table({"id": pa.array([1, 2, 3])})
+        rule = _make_custom_rule("check: duplicates\ncolumn: id\n", "mustBe", 0)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_duplicates_pct_mode(self) -> None:
+        data = pa.table({"id": pa.array([1, 2, 3])})
+        rule = _make_custom_rule("check: duplicates\ncolumn: id\nreturn: pct\n", "mustBe", 0)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # whitelist
+    # ------------------------------------------------------------------
+
+    def test_whitelist_passes_when_all_match(self) -> None:
+        data = pa.table({"status": pa.array(["active", "inactive"])})
+        rule = _make_custom_rule(
+            "check: whitelist\ncolumn: status\nvalues:\n  - active\n  - inactive\n",
+            "mustBeGreaterOrEqualTo",
+            2,
+        )
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_whitelist_pct_mode(self) -> None:
+        data = pa.table({"status": pa.array(["active", "inactive", "active"])})
+        rule = _make_custom_rule(
+            "check: whitelist\ncolumn: status\nvalues:\n  - active\n  - inactive\nreturn: pct\n",
+            "mustBeGreaterOrEqualTo",
+            0.9,
+        )
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # blacklist
+    # ------------------------------------------------------------------
+
+    def test_blacklist_passes_when_none_forbidden(self) -> None:
+        data = pa.table({"username": pa.array(["alice", "bob"])})
+        rule = _make_custom_rule(
+            "check: blacklist\ncolumn: username\nvalues:\n  - admin\n  - root\n",
+            "mustBeGreaterOrEqualTo",
+            2,
+        )
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_blacklist_pct_mode(self) -> None:
+        data = pa.table({"username": pa.array(["alice", "bob", "alice"])})
+        rule = _make_custom_rule(
+            "check: blacklist\ncolumn: username\nvalues:\n  - admin\nreturn: pct\n",
+            "mustBeGreaterOrEqualTo",
+            0.9,
+        )
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_missing_pct_mode_empty_table_returns_zero(self) -> None:
+        """Empty table: pct-mode missing check evaluates to 0.0 (not NaN/error)."""
+        data = pa.table({"col": pa.array([], type=pa.int64())})
+        rule = _make_custom_rule("check: missing\ncolumn: col\nreturn: pct\n", "mustBeLessOrEqualTo", 0.5)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_duplicates_pct_mode_empty_table_returns_zero(self) -> None:
+        """Empty table: pct-mode duplicates check evaluates to 0.0 (not NaN/error)."""
+        data = pa.table({"id": pa.array([], type=pa.int64())})
+        rule = _make_custom_rule("check: duplicates\ncolumn: id\nreturn: pct\n", "mustBe", 0)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_whitelist_pct_mode_empty_table_returns_zero(self) -> None:
+        """Empty table: pct-mode whitelist check evaluates to 0.0 (not NaN/error)."""
+        data = pa.table({"status": pa.array([], type=pa.string())})
+        rule = _make_custom_rule(
+            "check: whitelist\ncolumn: status\nvalues:\n  - active\nreturn: pct\n",
+            "mustBeLessOrEqualTo",
+            0.5,
+        )
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_blacklist_pct_mode_empty_table_returns_zero(self) -> None:
+        """Empty table: pct-mode blacklist check evaluates to 0.0 (not NaN/error)."""
+        data = pa.table({"username": pa.array([], type=pa.string())})
+        rule = _make_custom_rule(
+            "check: blacklist\ncolumn: username\nvalues:\n  - admin\nreturn: pct\n",
+            "mustBeLessOrEqualTo",
+            0.5,
+        )
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # cardinality
+    # ------------------------------------------------------------------
+
+    def test_cardinality_passes(self) -> None:
+        data = pa.table({"status": pa.array(["a", "b", "c", "a"])})
+        rule = _make_custom_rule("check: cardinality\ncolumn: status\n", "mustBeLessOrEqualTo", 5)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # min / max / mean / sum / count / variance
+    # ------------------------------------------------------------------
+
+    def test_min_passes(self) -> None:
+        data = pa.table({"price": pa.array([5.0, 10.0, 15.0])})
+        rule = _make_custom_rule("check: min\ncolumn: price\n", "mustBeGreaterOrEqualTo", 5.0)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_max_passes(self) -> None:
+        data = pa.table({"price": pa.array([5.0, 10.0, 15.0])})
+        rule = _make_custom_rule("check: max\ncolumn: price\n", "mustBeLessOrEqualTo", 15.0)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_mean_passes(self) -> None:
+        data = pa.table({"price": pa.array([5.0, 10.0, 15.0])})
+        rule = _make_custom_rule("check: mean\ncolumn: price\n", "mustBeBetween", [9.0, 11.0])
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_sum_passes(self) -> None:
+        data = pa.table({"qty": pa.array([1, 2, 3])})
+        rule = _make_custom_rule("check: sum\ncolumn: qty\n", "mustBe", 6)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_count_passes(self) -> None:
+        # count = non-null values = 3 - 1 null = 2
+        data = pa.table({"col": pa.array([1, None, 3])})
+        rule = _make_custom_rule("check: count\ncolumn: col\n", "mustBe", 2)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_variance_passes(self) -> None:
+        data = pa.table({"v": pa.array([2.0, 2.0, 2.0])})
+        rule = _make_custom_rule("check: variance\ncolumn: v\n", "mustBe", 0)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # stddev (sqrt of variance)
+    # ------------------------------------------------------------------
+
+    def test_stddev_passes(self) -> None:
+        data = pa.table({"v": pa.array([2.0, 2.0, 2.0])})
+        rule = _make_custom_rule("check: stddev\ncolumn: v\n", "mustBe", 0)
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # min_length / max_length
+    # ------------------------------------------------------------------
+
+    def test_min_length_string_passes(self) -> None:
+        data = pa.table({"name": pa.array(["abc", "defg"])})
+        rule = _make_custom_rule(
+            "check: min_length\ncolumn: name\ncolumn_type: string\n",
+            "mustBeGreaterOrEqualTo",
+            3,
+        )
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    def test_max_length_string_passes(self) -> None:
+        data = pa.table({"name": pa.array(["abc", "defg"])})
+        rule = _make_custom_rule(
+            "check: max_length\ncolumn: name\ncolumn_type: string\n",
+            "mustBeLessOrEqualTo",
+            4,
+        )
+        assert _run_custom_rule(rule, data)[0].status == "PASSED"
+
+    # ------------------------------------------------------------------
+    # NotImplementedError cases
+    # ------------------------------------------------------------------
+
+    def test_avg_length_raises_not_implemented(self) -> None:
+        data = pa.table({"name": pa.array(["abc"])})
+        rule = _make_custom_rule(
+            "check: avg_length\ncolumn: name\ncolumn_type: string\n",
+            "mustBeLessOrEqualTo",
+            10,
+        )
+        with pytest.raises(NotImplementedError, match="avg_length"):
+            _run_custom_rule(rule, data)
+
+    def test_percentile_raises_not_implemented(self) -> None:
+        data = pa.table({"v": pa.array([1.0, 2.0, 3.0])})
+        rule = _make_custom_rule(
+            "check: percentile\ncolumn: v\npercentile: 0.95\n",
+            "mustBeLessOrEqualTo",
+            3.0,
+        )
+        with pytest.raises(NotImplementedError, match="percentile"):
+            _run_custom_rule(rule, data)
+
+    def test_pattern_raises_not_implemented(self) -> None:
+        data = pa.table({"email": pa.array(["a@b.com"])})
+        rule = _make_custom_rule(
+            "check: pattern\ncolumn: email\npattern: '^.+@.+$'\n",
+            "mustBeGreaterOrEqualTo",
+            1,
+        )
+        with pytest.raises(NotImplementedError, match="pattern"):
+            _run_custom_rule(rule, data)
+
+    # ------------------------------------------------------------------
+    # Unknown check type → ContractValidationError
+    # ------------------------------------------------------------------
+
+    def test_unknown_check_type_raises_validation_error(self) -> None:
+        data = pa.table({"v": [1]})
+        rule = _make_custom_rule("check: some_unknown_check\ncolumn: v\n", "mustBe", 0)
+        with pytest.raises(ContractValidationError, match="some_unknown_check"):
+            _run_custom_rule(rule, data)
+
+    # ------------------------------------------------------------------
+    # Assertion name uses rule name field
+    # ------------------------------------------------------------------
+
+    def test_assertion_name_uses_rule_name(self) -> None:
+        data = pa.table({"v": [1, 2, 3]})
+        rule = _make_custom_rule("check: num_rows\n", "mustBeGreaterOrEqualTo", 1, name="my_volume_check")
+        results = _run_custom_rule(rule, data)
+        assert results[0].assertion == "my_volume_check"
+
+    # ------------------------------------------------------------------
+    # Missing column field raises ContractValidationError
+    # ------------------------------------------------------------------
+
+    def test_missing_check_without_column_raises(self) -> None:
+        data = pa.table({"v": [1]})
+        rule = _make_custom_rule("check: missing\n", "mustBe", 0)
+        with pytest.raises(ContractValidationError, match="column"):
+            _run_custom_rule(rule, data)
+
+    def test_cardinality_without_column_raises(self) -> None:
+        data = pa.table({"v": [1]})
+        rule = _make_custom_rule("check: cardinality\n", "mustBeLessOrEqualTo", 5)
+        with pytest.raises(ContractValidationError, match="column"):
+            _run_custom_rule(rule, data)
+
+    # ------------------------------------------------------------------
+    # Invalid column_type for min_length / max_length
+    # ------------------------------------------------------------------
+
+    def test_min_length_invalid_column_type_raises(self) -> None:
+        data = pa.table({"name": pa.array(["abc"])})
+        rule = _make_custom_rule(
+            "check: min_length\ncolumn: name\ncolumn_type: bytes\n",
+            "mustBeGreaterOrEqualTo",
+            1,
+        )
+        with pytest.raises(ContractValidationError, match="column_type"):
+            _run_custom_rule(rule, data)
+
+    def test_max_length_invalid_column_type_raises(self) -> None:
+        data = pa.table({"name": pa.array(["abc"])})
+        rule = _make_custom_rule(
+            "check: max_length\ncolumn: name\ncolumn_type: integer\n",
+            "mustBeLessOrEqualTo",
+            10,
+        )
+        with pytest.raises(ContractValidationError, match="column_type"):
+            _run_custom_rule(rule, data)
+
+    # ------------------------------------------------------------------
+    # Invalid YAML in implementation: field
+    # ------------------------------------------------------------------
+
+    def test_invalid_yaml_in_implementation_raises(self) -> None:
+        """yaml.YAMLError from malformed implementation: YAML is wrapped in ContractValidationError."""
+        data = pa.table({"v": [1]})
+        rule = {
+            "name": "bad_yaml_rule",
+            "type": "custom",
+            "engine": "dqx",
+            "implementation": "check: missing\n  bad indent: [unclosed",
+            "mustBe": 0,
+        }
+        with pytest.raises(ContractValidationError, match="invalid YAML"):
+            _run_custom_rule(rule, data)
+
+    def test_non_dict_yaml_in_implementation_raises(self) -> None:
+        """A scalar or list implementation: value raises ContractValidationError."""
+        data = pa.table({"v": [1]})
+        # A bare string is valid YAML but not a mapping
+        rule = {
+            "name": "scalar_impl_rule",
+            "type": "custom",
+            "engine": "dqx",
+            "implementation": "just a plain string",
+            "mustBe": 0,
+        }
+        with pytest.raises(ContractValidationError, match="must be a YAML mapping"):
+            _run_custom_rule(rule, data)
+
+
+# ---------------------------------------------------------------------------
+# Contract.to_checks() — public method
+# ---------------------------------------------------------------------------
+
+
+def _odcs_contract(tmp_path: Path, content: str) -> list[Contract]:
+    """Write a minimal valid ODCS YAML and parse it."""
+    path = _write_yaml(tmp_path, "contract.odcs.yaml", content)
+    return Contract.from_odcs(path)
+
+
+def _run_contract(contract: Contract, data: pa.Table) -> list[AssertionResult]:
+    """Run contract.to_checks() against data and collect results."""
+    checks = contract.to_checks()
+    datasource = DuckRelationDataSource.from_arrow(data, contract.dataset)
+    db = InMemoryMetricDB()
+    suite = VerificationSuite(checks=checks, db=db, name="test-suite")
+    key = ResultKey(yyyy_mm_dd=datetime.date(2024, 1, 1), tags={})
+    suite.run([datasource], key)
+    results = suite.collect_results()
+    print_assertion_results(results)
+    return results
+
+
+class TestToChecksPublicMethod:
+    """Tests for Contract.to_checks()."""
+
+    _MINIMAL_ODCS = """\
+        apiVersion: v3.1.0
+        kind: DataContract
+        id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+        version: "1.0.0"
+        status: active
+        schema:
+          - name: orders
+    """
+
+    # ------------------------------------------------------------------
+    # Structure
+    # ------------------------------------------------------------------
+
+    def test_returns_list_of_one_decorated_check(self, tmp_path: Path) -> None:
+        contracts = _odcs_contract(tmp_path, self._MINIMAL_ODCS)
+        checks = contracts[0].to_checks()
+        assert isinstance(checks, list)
+        assert len(checks) == 1
+
+    def test_check_name_uses_contract_name_when_present(self, tmp_path: Path) -> None:
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            name: my_contract
+            schema:
+              - name: orders
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        checks = contracts[0].to_checks()
+        assert checks[0].__name__ == "Contract: my_contract"
+
+    def test_check_name_uses_dataset_when_name_absent(self, tmp_path: Path) -> None:
+        contracts = _odcs_contract(tmp_path, self._MINIMAL_ODCS)
+        checks = contracts[0].to_checks()
+        assert checks[0].__name__ == "Contract: orders"
+
+    def test_check_name_uses_physical_name_when_present(self, tmp_path: Path) -> None:
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                physicalName: orders_tbl
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        checks = contracts[0].to_checks()
+        assert checks[0].__name__ == "Contract: orders_tbl"
+
+    def test_all_assertions_share_one_check_node(self, tmp_path: Path) -> None:
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                quality:
+                  - name: rc
+                    metric: rowCount
+                    mustBeGreaterOrEqualTo: 1
+                properties:
+                  - name: order_id
+                    logicalType: integer
+                    quality:
+                      - name: no_nulls
+                        metric: nullValues
+                        mustBe: 0
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        data = pa.table({"order_id": pa.array([1, 2, 3])})
+        results = _run_contract(contracts[0], data)
+        assert len(results) == 2
+        check_names = {r.check for r in results}
+        assert len(check_names) == 1, "All assertions must share one check node"
+
+    # ------------------------------------------------------------------
+    # Rule dispatch
+    # ------------------------------------------------------------------
+
+    def test_text_rules_produce_no_assertions(self, tmp_path: Path) -> None:
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                properties:
+                  - name: order_id
+                    quality:
+                      - name: doc_rule
+                        type: text
+                        description: "Documentation only"
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        data = pa.table({"order_id": pa.array([1, 2])})
+        results = _run_contract(contracts[0], data)
+        assert len(results) == 0
+
+    def test_sql_rule_warns_and_skips(self, tmp_path: Path) -> None:
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                quality:
+                  - name: fraud_check
+                    type: sql
+                    query: "SELECT 1"
+                    mustBe: 0
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        data = pa.table({"v": [1]})
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            results = _run_contract(contracts[0], data)
+        assert len(results) == 0
+        assert any("sql" in str(w.message).lower() for w in caught)
+
+    def test_custom_non_dqx_engine_warns_and_skips(self, tmp_path: Path) -> None:
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                quality:
+                  - name: soda_rule
+                    type: custom
+                    engine: soda
+                    implementation: "missing_count(x) = 0"
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        data = pa.table({"v": [1]})
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            results = _run_contract(contracts[0], data)
+        assert len(results) == 0
+        assert any("soda" in str(w.message) for w in caught)
+
+    def test_empty_schema_produces_no_assertions(self, tmp_path: Path) -> None:
+        contracts = _odcs_contract(tmp_path, self._MINIMAL_ODCS)
+        data = pa.table({"v": [1]})
+        results = _run_contract(contracts[0], data)
+        assert len(results) == 0
+
+    def test_custom_dqx_rule_executes_via_to_checks(self, tmp_path: Path) -> None:
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                quality:
+                  - name: volume_floor
+                    type: custom
+                    engine: dqx
+                    severity: warning
+                    implementation: |
+                      check: num_rows
+                      mustBeGreaterOrEqualTo: 1
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        data = pa.table({"v": [1, 2, 3]})
+        results = _run_contract(contracts[0], data)
+        assert len(results) == 1
+        assert results[0].status == "PASSED"
+
+    def test_custom_dqx_rule_fails_when_threshold_not_met(self, tmp_path: Path) -> None:
+        """Threshold inside implementation: is enforced — a noop would leave status PASSED."""
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                quality:
+                  - name: volume_floor
+                    type: custom
+                    engine: dqx
+                    severity: warning
+                    implementation: |
+                      check: num_rows
+                      mustBeGreaterOrEqualTo: 100
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        # Only 3 rows — mustBeGreaterOrEqualTo 100 must FAIL
+        data = pa.table({"v": [1, 2, 3]})
+        results = _run_contract(contracts[0], data)
+        assert len(results) == 1
+        assert results[0].status == "FAILED"
+
+    # ------------------------------------------------------------------
+    # SLA raises NotImplementedError at call time
+    # ------------------------------------------------------------------
+
+    def test_sla_latency_raises_not_implemented_at_call_time(self, tmp_path: Path) -> None:
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            slaProperties:
+              - property: latency
+                value: 24
+                unit: h
+                element: orders.created_at
+            schema:
+              - name: orders
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        with pytest.raises(NotImplementedError, match="freshness"):
+            contracts[0].to_checks()
+
+    def test_no_sla_latency_does_not_raise(self, tmp_path: Path) -> None:
+        contracts = _odcs_contract(tmp_path, self._MINIMAL_ODCS)
+        checks = contracts[0].to_checks()
+        assert len(checks) == 1
+
+    # ------------------------------------------------------------------
+    # Integration: full-example.odcs.yaml fixture
+    # ------------------------------------------------------------------
+
+    def test_full_odcs_example_executes_tbl_rules(self, tmp_path: Path) -> None:
+        """End-to-end: rowCount and nullValues rules execute correctly."""
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                quality:
+                  - name: row_count_check
+                    type: library
+                    metric: rowCount
+                    mustBeGreaterThan: 1000000
+                    severity: error
+                properties:
+                  - name: rcvr_cntry_code
+                    logicalType: string
+                    quality:
+                      - name: no_nulls
+                        type: library
+                        metric: nullValues
+                        mustBe: 0
+                        severity: error
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        data = pa.table({"rcvr_cntry_code": pa.array(["US", "GB"])})
+        results = _run_contract(contracts[0], data)
+        # rowCount mustBeGreaterThan 1000000 → FAILED (only 2 rows)
+        # nullValues mustBe 0 → PASSED (no nulls)
+        assert len(results) == 2
+        by_name = {r.assertion: r.status for r in results}
+        assert by_name["no_nulls"] == "PASSED"
+        assert by_name["row_count_check"] == "FAILED"
+
+    def test_mixed_library_and_custom_dqx_rules(self, tmp_path: Path) -> None:
+        """Library and custom dqx rules in the same contract all execute."""
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                quality:
+                  - name: volume_floor
+                    type: library
+                    metric: rowCount
+                    mustBeGreaterOrEqualTo: 2
+                    severity: error
+                properties:
+                  - name: amount
+                    logicalType: number
+                    quality:
+                      - name: no_nulls
+                        type: library
+                        metric: nullValues
+                        mustBe: 0
+                        severity: error
+                      - name: amount_positive
+                        type: custom
+                        engine: dqx
+                        severity: error
+                        implementation: |
+                          check: min
+                          column: amount
+                          mustBeGreaterThan: 0
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        data = pa.table({"amount": pa.array([10.0, 20.0, 30.0])})
+        results = _run_contract(contracts[0], data)
+        # volume_floor: rowCount(3) >= 2 → PASSED
+        # no_nulls: nullCount(0) == 0 → PASSED
+        # amount_positive: min(10.0) > 0 → PASSED
+        assert len(results) == 3
+        by_name = {r.assertion: r.status for r in results}
+        assert by_name["volume_floor"] == "PASSED"
+        assert by_name["no_nulls"] == "PASSED"
+        assert by_name["amount_positive"] == "PASSED"
+        # All three assertions belong to the single contract check node
+        check_names = {r.check for r in results}
+        assert len(check_names) == 1
+
+    def test_mixed_rules_custom_fails_when_threshold_not_met(self, tmp_path: Path) -> None:
+        """Custom dqx threshold inside implementation: is enforced in mixed contract."""
+        content = """\
+            apiVersion: v3.1.0
+            kind: DataContract
+            id: aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee
+            version: "1.0.0"
+            status: active
+            schema:
+              - name: orders
+                quality:
+                  - name: volume_floor
+                    type: library
+                    metric: rowCount
+                    mustBeGreaterOrEqualTo: 1
+                properties:
+                  - name: amount
+                    logicalType: number
+                    quality:
+                      - name: amount_min
+                        type: custom
+                        engine: dqx
+                        implementation: |
+                          check: min
+                          column: amount
+                          mustBeGreaterThan: 100
+        """
+        contracts = _odcs_contract(tmp_path, content)
+        # amount values are all below 100 — min(5, 10) = 5 < 100 → FAILED
+        data = pa.table({"amount": pa.array([5.0, 10.0])})
+        results = _run_contract(contracts[0], data)
+        by_name = {r.assertion: r.status for r in results}
+        assert by_name["volume_floor"] == "PASSED"
+        assert by_name["amount_min"] == "FAILED"
+
+    # ------------------------------------------------------------------
+    # Public API export from dqx package
+    # ------------------------------------------------------------------
+
+    def test_contract_exported_from_dqx(self) -> None:
+        assert hasattr(dqx, "Contract")
+
+    def test_contract_validation_error_exported_from_dqx(self) -> None:
+        assert hasattr(dqx, "ContractValidationError")
+
+    def test_schema_validation_error_exported_from_dqx(self) -> None:
+        assert hasattr(dqx, "SchemaValidationError")
+
+    def test_contract_warning_exported_from_dqx(self) -> None:
+        assert hasattr(dqx, "ContractWarning")

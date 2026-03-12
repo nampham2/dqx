@@ -1,6 +1,7 @@
 """DQX - Data Quality eXplorer."""
 
 import logging
+from typing import TYPE_CHECKING, Any
 
 from rich.logging import RichHandler
 
@@ -20,9 +21,16 @@ from dqx.tunables import (
     TunableInt,
 )
 
+if TYPE_CHECKING:
+    from dqx.contract import Contract, ContractValidationError, ContractWarning, SchemaValidationError
+
 __all__ = [
+    "Contract",
+    "ContractValidationError",
+    "ContractWarning",
     "Profile",
     "Rule",
+    "SchemaValidationError",
     "SeasonalProfile",
     "Tunable",
     "TunableChange",
@@ -34,6 +42,16 @@ __all__ = [
     "tag",
     "setup_logger",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    if name in ("Contract", "ContractValidationError", "ContractWarning", "SchemaValidationError"):
+        import importlib
+
+        module = importlib.import_module("dqx.contract")
+        return getattr(module, name)
+    raise AttributeError(f"module 'dqx' has no attribute {name!r}")
+
 
 # Version information
 try:

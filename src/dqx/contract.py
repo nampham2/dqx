@@ -14,10 +14,6 @@ Usage::
 The module validates incoming YAML documents against the vendored ODCS JSON
 Schema (v3.1.0) before any DQX-specific processing.  Structural errors surface
 as :class:`ContractValidationError` before a single quality rule is read.
-
-Note:
-    ``to_checks()`` is **not yet implemented** and will be added in a later
-    phase once quality-rule parsing and ``MetricProvider`` mapping are in place.
 """
 
 from __future__ import annotations
@@ -28,11 +24,19 @@ import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Literal, Mapping
 
+import sympy as sp
 import yaml
 from jsonschema import Draft201909Validator
 from jsonschema import ValidationError as _JsonSchemaValidationError
+
+from dqx.api import Context
+from dqx.common import SeverityLevel
+from dqx.provider import MetricProvider
+
+if TYPE_CHECKING:
+    from dqx.api import AssertionReady, DecoratedCheck
 
 
 # ---------------------------------------------------------------------------
@@ -56,9 +60,6 @@ class SchemaValidationError(Exception):
     datasource — for example, when a column declared as ``logicalType:
     integer`` contains ``pa.string()`` values, or when a column with
     ``required: true`` contains null values.
-
-    Note:
-        This class is a placeholder for Phase 2 (``to_checks()`` implementation).
     """
 
 
@@ -104,6 +105,23 @@ _DAYS_UNITS: frozenset[str] = frozenset({"d", "day", "days"})
 _YEARS_UNITS: frozenset[str] = frozenset({"y", "yr", "year", "years"})
 _LATENCY_SYNONYMS: frozenset[str] = frozenset({"latency", "ly"})
 
+# ODCS operator field names — used by both library and custom rule execution.
+_ODCS_OPERATOR_FIELDS: frozenset[str] = frozenset(
+    {
+        "mustBe",
+        "mustNotBe",
+        "mustBeGreaterThan",
+        "mustBeGreaterOrEqualTo",
+        "mustBeLessThan",
+        "mustBeLessOrEqualTo",
+        "mustBeBetween",
+        "mustNotBeBetween",
+    }
+)
+
+# Accepted column_type values for min_length / max_length.
+_LENGTH_COLUMN_TYPES: frozenset[str] = frozenset({"string", "list", "map"})
+
 
 def _unit_to_hours(value: float, unit: str) -> float:
     """Convert a (value, unit) pair to hours.
@@ -125,6 +143,92 @@ def _unit_to_hours(value: float, unit: str) -> float:
     if unit in _YEARS_UNITS:
         return float(value) * 8760.0
     raise ContractValidationError(f"SLA latency: unrecognised unit '{unit}'")
+
+
+# ---------------------------------------------------------------------------
+# Severity and operator translation helpers
+# ---------------------------------------------------------------------------
+
+
+def _severity_from_odcs(severity: str | None) -> SeverityLevel:
+    """Map an ODCS severity string to a DQX SeverityLevel.
+
+    Args:
+        severity: ODCS ``severity`` field value, or ``None`` when absent.
+
+    Returns:
+        ``"P0"`` for ``"error"``; ``"P1"`` for everything else (including
+        ``None`` and unrecognised strings).
+    """
+    if severity == "error":
+        return "P0"
+    return "P1"
+
+
+def _apply_odcs_operators(ready: AssertionReady, rule: dict[str, Any]) -> None:
+    """Apply exactly one ODCS operator from *rule* to an :class:`AssertionReady`.
+
+    Reads the first recognised ODCS operator field (``mustBe``,
+    ``mustNotBe``, ``mustBeGreaterThan``, ``mustBeGreaterOrEqualTo``,
+    ``mustBeLessThan``, ``mustBeLessOrEqualTo``, ``mustBeBetween``,
+    ``mustNotBeBetween``) and calls the corresponding
+    :class:`~dqx.api.AssertionReady` method.  When no operator is present
+    the assertion is recorded as a no-op (metric observed, never fails).
+
+    Args:
+        ready: A configured :class:`~dqx.api.AssertionReady` instance.
+        rule: Raw ODCS quality rule dict.
+
+    Raises:
+        ContractValidationError: If ``mustBeBetween`` or ``mustNotBeBetween``
+            is not a two-element list.
+    """
+    if "mustBe" in rule:
+        ready.is_eq(float(rule["mustBe"]))
+    elif "mustNotBe" in rule:
+        ready.is_neq(float(rule["mustNotBe"]))
+    elif "mustBeGreaterThan" in rule:
+        ready.is_gt(float(rule["mustBeGreaterThan"]))
+    elif "mustBeGreaterOrEqualTo" in rule:
+        ready.is_geq(float(rule["mustBeGreaterOrEqualTo"]))
+    elif "mustBeLessThan" in rule:
+        ready.is_lt(float(rule["mustBeLessThan"]))
+    elif "mustBeLessOrEqualTo" in rule:
+        ready.is_leq(float(rule["mustBeLessOrEqualTo"]))
+    elif "mustBeBetween" in rule:
+        bounds = rule["mustBeBetween"]
+        if not isinstance(bounds, list) or len(bounds) != 2:
+            raise ContractValidationError(f"mustBeBetween must be a list of [lower, upper], got: {bounds!r}")
+        ready.is_between(float(bounds[0]), float(bounds[1]))
+    elif "mustNotBeBetween" in rule:
+        bounds = rule["mustNotBeBetween"]
+        if not isinstance(bounds, list) or len(bounds) != 2:
+            raise ContractValidationError(f"mustNotBeBetween must be a list of [lower, upper], got: {bounds!r}")
+        ready.is_not_between(float(bounds[0]), float(bounds[1]))
+    else:
+        ready.noop()
+
+
+def _require_column(column: str | None, rule_name: str, check_type: str) -> str:
+    """Return *column* or raise :class:`ContractValidationError` when absent or blank.
+
+    Args:
+        column: Column name from the rule, or ``None`` when absent.
+        rule_name: Human-readable rule name (used in the error message).
+        check_type: Check type string (used in the error message).
+
+    Returns:
+        The validated, stripped column name.
+
+    Raises:
+        ContractValidationError: If *column* is ``None``, not a string, or blank/whitespace-only.
+    """
+    normalized = column.strip() if isinstance(column, str) else ""
+    if not normalized:
+        raise ContractValidationError(
+            f"Quality rule '{rule_name}': check '{check_type}' requires a non-empty 'column' field"
+        )
+    return normalized
 
 
 # ---------------------------------------------------------------------------
@@ -294,6 +398,59 @@ class Contract:
                 )
             )
         return contracts
+
+    def to_checks(self) -> list[DecoratedCheck]:
+        """Translate this contract into a list containing one :class:`DecoratedCheck`.
+
+        All quality rules declared in this contract's schema object — both
+        table-level and property-level — are consolidated into a single
+        ``DecoratedCheck`` node named ``"Contract: {name or dataset}"``.
+
+        The returned list can be composed freely with hand-coded checks::
+
+            suite = VerificationSuite(
+                checks=contract.to_checks() + [custom_check],
+                db=db,
+                name="my-suite",
+            )
+
+        Returns:
+            A list with exactly one :class:`~dqx.api.DecoratedCheck`.
+
+        Raises:
+            NotImplementedError: Immediately when ``sla_latency`` is set —
+                the SLA freshness check requires ``MetricProvider.freshness()``
+                which is not yet implemented.
+            NotImplementedError: When any quality rule requires a
+                ``MetricProvider`` method that is not yet implemented
+                (e.g., ``check: avg_length``, ``check: percentile``).
+            ContractValidationError: When ``mustBeBetween`` / ``mustNotBeBetween``
+                is not a two-element list, an unknown DQX check type is used, a
+                column-level metric is applied at the table level without a column
+                name, or an invalid ``column_type`` is provided for
+                ``min_length`` / ``max_length``.
+        """
+        if self.sla_latency is not None:
+            raise NotImplementedError(
+                "SLA freshness check requires MetricProvider.freshness() which is not yet implemented"
+            )
+
+        from dqx.api import check as _dqx_check
+
+        check_name = f"Contract: {self.name or self.dataset}"
+        schema = self.schema_def
+        dataset = self.dataset
+
+        def _run_checks(mp: MetricProvider, ctx: Context) -> None:
+            for rule in schema.quality:
+                _dispatch_rule(rule, None, mp, ctx)
+            for prop in schema.properties:
+                for rule in prop.quality:
+                    _dispatch_rule(rule, prop.name, mp, ctx)
+
+        _run_checks.__name__ = check_name
+        decorated: DecoratedCheck = _dqx_check(name=check_name, datasets=[dataset])(_run_checks)
+        return [decorated]
 
 
 # ---------------------------------------------------------------------------
@@ -476,3 +633,277 @@ def _parse_sla_properties(
             sla_metadata[prop_name] = entry_without_property
 
     return sla_latency, sla_metadata
+
+
+# ---------------------------------------------------------------------------
+# Library metric rule execution
+# ---------------------------------------------------------------------------
+
+
+def _execute_library_rule(
+    rule: dict[str, Any],
+    property_name: str | None,
+    mp: MetricProvider,
+    ctx: Context,
+) -> None:
+    """Execute one ODCS library metric rule as a DQX assertion.
+
+    Dispatches on ``rule["metric"]`` to the appropriate :class:`MetricProvider`
+    call.  The resulting metric expression is passed through
+    :func:`_apply_odcs_operators` to produce the assertion.
+
+    Args:
+        rule: Raw ODCS quality rule dict with ``metric`` field present.
+        property_name: Column name when the rule is property-level;
+            ``None`` for table-level rules.
+        mp: Active :class:`~dqx.provider.MetricProvider`.
+        ctx: Active :class:`~dqx.api.Context`.
+
+    Raises:
+        ContractValidationError: If ``mustBeBetween`` or ``mustNotBeBetween``
+            is malformed (propagated from :func:`_apply_odcs_operators`).
+    """
+    metric_name: str = str(rule.get("metric", ""))
+    rule_name: str = str(rule.get("name", metric_name))
+    severity = _severity_from_odcs(rule.get("severity"))
+    unit: str = str(rule.get("unit", ""))
+    arguments: dict[str, Any] = rule.get("arguments") or {}
+
+    if metric_name == "rowCount":
+        metric_expr = mp.num_rows()
+
+    elif metric_name in ("nullValues", "missingValues"):
+        if metric_name == "missingValues" and arguments.get("missingValues") is not None:
+            warnings.warn(
+                f"Quality rule '{rule_name}': metric 'missingValues' with missingValues "
+                "argument is not executable in DQX; skipping",
+                ContractWarning,
+                stacklevel=4,
+            )
+            return
+        if property_name is None:
+            raise ContractValidationError(
+                f"Quality rule '{rule_name}': metric '{metric_name}' requires a property-level column; "
+                "found at table level with no column name"
+            )
+        col = property_name
+        metric_expr = mp.null_count(col)
+        if unit == "percent":
+            metric_expr = metric_expr / mp.num_rows()
+
+    elif metric_name == "invalidValues":
+        if arguments.get("pattern") is not None:
+            warnings.warn(
+                f"Quality rule '{rule_name}': metric 'invalidValues' with pattern "
+                "argument is not executable in DQX; skipping",
+                ContractWarning,
+                stacklevel=4,
+            )
+            return
+        if property_name is None:
+            raise ContractValidationError(
+                f"Quality rule '{rule_name}': metric 'invalidValues' requires a property-level column; "
+                "found at table level with no column name"
+            )
+        col = property_name
+        valid_values: list[Any] = rule.get("validValues") or []
+        metric_expr = mp.num_rows() - mp.count_values(col, valid_values)
+        if unit == "percent":
+            metric_expr = metric_expr / mp.num_rows()
+
+    elif metric_name == "duplicateValues":
+        if property_name is not None:
+            # Property-level: single column
+            metric_expr = mp.duplicate_count([str(property_name)])
+        else:
+            # Table-level: composite key from arguments.properties
+            props: list[str] = [str(p) for p in (arguments.get("properties") or [])]
+            metric_expr = mp.duplicate_count(props)
+        if unit == "percent":
+            metric_expr = metric_expr / mp.num_rows()
+
+    else:
+        # Unknown metric — skip silently (no assertion produced)
+        return
+
+    ready = ctx.assert_that(metric_expr).config(name=rule_name, severity=severity)
+    _apply_odcs_operators(ready, rule)
+
+
+# ---------------------------------------------------------------------------
+# Custom DQX rule execution (type: custom, engine: dqx)
+# ---------------------------------------------------------------------------
+
+
+def _execute_custom_dqx_rule(
+    rule: dict[str, Any],
+    mp: MetricProvider,
+    ctx: Context,
+) -> None:
+    """Execute one ODCS ``type: custom, engine: dqx`` rule.
+
+    Parses the ``implementation:`` field as YAML and dispatches on the
+    ``check:`` key to the appropriate :class:`MetricProvider` call.
+
+    Args:
+        rule: Raw ODCS quality rule dict with ``type: custom`` and
+            ``engine: dqx``.
+        mp: Active :class:`~dqx.provider.MetricProvider`.
+        ctx: Active :class:`~dqx.api.Context`.
+
+    Raises:
+        NotImplementedError: For ``check: avg_length``, ``check: percentile``,
+            and ``check: pattern`` which lack a backing MetricProvider method.
+        ContractValidationError: For unknown ``check:`` values, missing
+            ``column:`` field for column-level checks, or invalid
+            ``column_type:`` value for ``min_length`` / ``max_length``.
+    """
+    impl: dict[str, Any] = yaml.safe_load(str(rule.get("implementation", ""))) or {}
+    check_type: str = str(impl.get("check", ""))
+    column: str | None = impl.get("column")
+    return_pct: bool = impl.get("return") == "pct"
+    rule_name: str = str(rule.get("name", check_type))
+    severity = _severity_from_odcs(rule.get("severity"))
+
+    if check_type == "num_rows":
+        metric_expr = mp.num_rows()
+
+    elif check_type == "missing":
+        col = _require_column(column, rule_name, check_type)
+        metric_expr = mp.null_count(col)
+        if return_pct:
+            metric_expr = metric_expr / mp.num_rows()
+
+    elif check_type == "duplicates":
+        col = _require_column(column, rule_name, check_type)
+        metric_expr = mp.duplicate_count([col])
+        if return_pct:
+            metric_expr = metric_expr / mp.num_rows()
+
+    elif check_type == "whitelist":
+        col = _require_column(column, rule_name, check_type)
+        values: list[Any] = impl.get("values") or []
+        metric_expr = mp.count_values(col, values)
+        if return_pct:
+            metric_expr = metric_expr / mp.num_rows()
+
+    elif check_type == "blacklist":
+        col = _require_column(column, rule_name, check_type)
+        values = impl.get("values") or []
+        metric_expr = mp.num_rows() - mp.count_values(col, values)
+        if return_pct:
+            metric_expr = metric_expr / mp.num_rows()
+
+    elif check_type == "cardinality":
+        metric_expr = mp.unique_count(_require_column(column, rule_name, check_type))
+
+    elif check_type == "min":
+        metric_expr = mp.minimum(_require_column(column, rule_name, check_type))
+
+    elif check_type == "max":
+        metric_expr = mp.maximum(_require_column(column, rule_name, check_type))
+
+    elif check_type == "mean":
+        metric_expr = mp.average(_require_column(column, rule_name, check_type))
+
+    elif check_type == "sum":
+        metric_expr = mp.sum(_require_column(column, rule_name, check_type))
+
+    elif check_type == "count":
+        col = _require_column(column, rule_name, check_type)
+        metric_expr = mp.num_rows() - mp.null_count(col)
+
+    elif check_type == "variance":
+        metric_expr = mp.variance(_require_column(column, rule_name, check_type))
+
+    elif check_type == "stddev":
+        metric_expr = sp.sqrt(mp.variance(_require_column(column, rule_name, check_type)))
+
+    elif check_type == "min_length":
+        col_type_raw: str = str(impl.get("column_type", "string"))
+        if col_type_raw not in _LENGTH_COLUMN_TYPES:
+            raise ContractValidationError(
+                f"Quality rule '{rule_name}': check 'min_length' column_type must be one of "
+                f"{sorted(_LENGTH_COLUMN_TYPES)!r}, got '{col_type_raw}'"
+            )
+        col_type: Literal["string", "list", "map"] = col_type_raw  # type: ignore[assignment]
+        metric_expr = mp.min_length(_require_column(column, rule_name, check_type), col_type)
+
+    elif check_type == "max_length":
+        col_type_raw = str(impl.get("column_type", "string"))
+        if col_type_raw not in _LENGTH_COLUMN_TYPES:
+            raise ContractValidationError(
+                f"Quality rule '{rule_name}': check 'max_length' column_type must be one of "
+                f"{sorted(_LENGTH_COLUMN_TYPES)!r}, got '{col_type_raw}'"
+            )
+        col_type = col_type_raw  # type: ignore[assignment]
+        metric_expr = mp.max_length(_require_column(column, rule_name, check_type), col_type)
+
+    elif check_type == "avg_length":
+        raise NotImplementedError("check: avg_length requires MetricProvider.avg_length() which is not yet implemented")
+
+    elif check_type == "percentile":
+        raise NotImplementedError("check: percentile requires MetricProvider.percentile() which is not yet implemented")
+
+    elif check_type == "pattern":
+        raise NotImplementedError("check: pattern requires MetricProvider.pattern_match() which is not yet implemented")
+
+    else:
+        raise ContractValidationError(f"Unknown DQX check type '{check_type}' in custom rule '{rule_name}'")
+
+    ready = ctx.assert_that(metric_expr).config(name=rule_name, severity=severity)
+    # Operators may appear at the rule level (non-ODCS-standard but accepted)
+    # or inside the implementation: block (ODCS-valid placement for custom rules).
+    # Rule-level operators take precedence; fall back to implementation-level.
+    operator_source = rule if any(k in rule for k in _ODCS_OPERATOR_FIELDS) else impl
+    _apply_odcs_operators(ready, operator_source)
+
+
+# ---------------------------------------------------------------------------
+# Rule dispatcher and Contract.to_checks()
+# ---------------------------------------------------------------------------
+
+
+def _dispatch_rule(
+    rule: dict[str, Any],
+    property_name: str | None,
+    mp: MetricProvider,
+    ctx: Context,
+) -> None:
+    """Route one ODCS quality rule to the appropriate executor.
+
+    Args:
+        rule: Raw ODCS quality rule dict.
+        property_name: Column name when property-level; ``None`` for
+            table-level rules.
+        mp: Active :class:`~dqx.provider.MetricProvider`.
+        ctx: Active :class:`~dqx.api.Context`.
+    """
+    rule_type: str = str(rule.get("type", "library"))
+    rule_name: str = str(rule.get("name", ""))
+
+    if rule_type == "text":
+        return
+
+    if rule_type == "sql":
+        warnings.warn(
+            f"Quality rule '{rule_name}': type 'sql' is not executable in DQX; skipping",
+            ContractWarning,
+            stacklevel=5,
+        )
+        return
+
+    if rule_type == "custom":
+        engine: str = str(rule.get("engine", ""))
+        if engine != "dqx":
+            warnings.warn(
+                f"Quality rule '{rule_name}': type 'custom' with engine '{engine}' is not executable in DQX; skipping",
+                ContractWarning,
+                stacklevel=5,
+            )
+            return
+        _execute_custom_dqx_rule(rule, mp, ctx)
+        return
+
+    # Default: library rule (metric: field present, or type: library)
+    _execute_library_rule(rule, property_name, mp, ctx)
